@@ -34,7 +34,13 @@ def nonpriority_s6_net():
     return out
 
 
+BG = False            # True면 baseline 배경 교통 속에서 실행(WARM초 예열 뒤 시나리오 시작)
+WARM = 300.0
+
+
 def cfg_with(routes_xml, add_xml=None, net=None):
+    if BG:
+        return bg_cfg(add_xml or "", BUS + routes_xml)
     _write(os.path.join(D, "r.rou.xml"), f"<routes>{BUS}{routes_xml}</routes>")
     add = ""
     if add_xml:
@@ -49,6 +55,9 @@ def cfg_with(routes_xml, add_xml=None, net=None):
 def start(cfg, seed=0):
     cmd = sumo_cmd(cfg, seed=seed)
     traci.load(cmd[1:]) if traci.isLoaded() else traci.start(cmd)
+    if BG:
+        for _ in range(int(WARM / 0.1)):
+            traci.simulationStep()
 
 
 def s5(p, n=30):
@@ -89,9 +98,9 @@ def s4():
     """R69 안쪽 차로에 onRoad 주차 구역을 두고, 차로 변경을 끈 버스가 택시 뒤에서 서는지 본다."""
     cfg = cfg_with('<vType id="taxi" vClass="taxi" length="4.5" accel="2.6" decel="4.5" tau="1.0" sigma="0"/>'
                    '<route id="r" edges="R69"/>'
-                   '<vehicle id="taxi0" type="taxi" route="r" depart="0" departLane="1" departSpeed="max">'
+                   f'<vehicle id="taxi0" type="taxi" route="r" depart="{WARM if BG else 0}" departLane="1" departSpeed="max">'
                    '<stop parkingArea="pa0" duration="30"/></vehicle>'
-                   '<vehicle id="bus0" type="bus_test" route="r" depart="3" departLane="1" departSpeed="max"/>',
+                   f'<vehicle id="bus0" type="bus_test" route="r" depart="{(WARM if BG else 0) + 3}" departLane="1" departSpeed="max"/>',
                    parking_area_xml("pa0", "R69_1", 30, 40, 1))
     start(cfg)
     stopped_behind, passed, lcset = 0, False, False
@@ -112,7 +121,7 @@ def s4():
 def s6(ptype, v, T, net=None, ):
     pv = ped_vtypes_xml(1.5, 0.75)
     cfg = cfg_with(pv + '<route id="r" edges="R112 R112.221"/>'
-                   f'<person id="p0" type="{ptype}" depart="0" departPos="210">'
+                   f'<person id="p0" type="{ptype}" depart="{WARM if BG else 0}" departPos="210">'
                    '<walk from="R112" to="-R112" arrivalPos="40"/></person>', net=net)
     start(cfg)
     L = 216.725
@@ -184,9 +193,16 @@ def a1_bg(n=40):
 
 
 def main():
-    res = {"A1_R43": a1(), "A1_R43_with_background": a1_bg(), "S5": [s5(p) for p in (0.0, 0.3, 1.0)], "S4": s4(),
+    res = {"A1_R43": a1(), "A1_R43_with_background": a1_bg(int(os.environ.get("A1_BG_N", 200))), "S5": [s5(p) for p in (0.0, 0.3, 1.0)], "S4": s4(),
            "S6": {pt: {f"v{v}_T{T}": s6(pt, v, T) for v, T in ((1.0, 8), (2.0, 10), (5.0, 10), (5.0, 3))}
                                       for pt in ("ped_p1", "ped_p2")}}
+    global BG
+    BG = True
+    res["with_background"] = {
+        "S5": [s5(p) for p in (0.0, 0.3, 1.0)], "S4": s4(),
+        "S6": {pt: {f"v{v}_T{T}": s6(pt, v, T) for v, T in ((1.0, 8), (2.0, 10), (5.0, 10), (5.0, 3))}
+               for pt in ("ped_p1", "ped_p2")}}
+    BG = False
     out = os.path.join(ROOT, "results", "traffic_verification", "hapjeong.json")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     json.dump(res, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)

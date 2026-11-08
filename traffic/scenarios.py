@@ -46,15 +46,16 @@ class ScriptedBus:
     """판단 없는 재생용 버스. 단계별 시각은 모두 고정값이다."""
 
     def __init__(self, vid, x0=100.0, t_signal=3.0, t_go=3.5, accel=1.5, v_max=9.0,
-                 t_request=9.5, req_duration=15.0, target_lane=1):
+                 t_request=9.5, req_duration=15.0, target_lane=1, bus_lane=0):
         self.vid, self.x0 = vid, x0
         self.t_signal, self.t_go, self.accel, self.v_max = t_signal, t_go, accel, v_max
         self.t_request, self.req_duration, self.target_lane = t_request, req_duration, target_lane
+        self.bus_lane = bus_lane
         self.requested = False
 
     def add(self, tc):
         tc.vehicle.add(self.vid, "r0", typeID="bus_test", departPos=str(self.x0),
-                       departLane="0", departSpeed="0")
+                       departLane=str(self.bus_lane), departSpeed="0")
         tc.vehicle.setSpeedMode(self.vid, 31)
         tc.vehicle.setSpeed(self.vid, 0.0)
 
@@ -71,7 +72,7 @@ class ScriptedBus:
 
 
 def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
-                   follower_x0=21.5, p_override=None, record=False, bus_kwargs=None):
+                   follower_x0=21.5, p_override=None, record=False, bus_kwargs=None, lanes=(0, 1), edge="E0"):
     """한 번의 상호작용을 돌려 결과 dict를 돌려준다.
 
     p_override: 양보 확률을 고정(예: 0)해 누출 검사에 쓴다.
@@ -84,17 +85,17 @@ def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
     else:
         tc.start(cmd)
     rng = random.Random(seed)
-    bus = ScriptedBus("bus0", **(bus_kwargs or {}))
+    bus = ScriptedBus("bus0", **{"bus_lane": lanes[0], "target_lane": lanes[1], **(bus_kwargs or {})})
     bus.add(tc)
     types = DEFAULT_TYPES
     if p_override is not None:
         import copy
         types = copy.deepcopy(DEFAULT_TYPES)
         types[driver_type].p_yield = (p_override, p_override)
-    mgr = YieldManager(tc, "bus0", rng=rng, types=types, stop_exit_pos=("E0", 100.0),
+    mgr = YieldManager(tc, "bus0", rng=rng, types=types, stop_exit_pos=(edge, 100.0),
                        exit_max_dist=60.0)
     tc.vehicle.add("f0", "r0", typeID=driver_type, departPos=str(follower_x0),
-                   departLane="1", departSpeed="9")
+                   departLane=str(lanes[1]), departSpeed="9")
     if bus_lc_mode is not None:
         tc.vehicle.setLaneChangeMode("bus0", bus_lc_mode)
     series = []
@@ -110,7 +111,7 @@ def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
         t = round(step * 0.1, 6)
         if "f0" not in tc.vehicle.getIDList():
             break
-        if changed_at is None and tc.vehicle.getLaneIndex("bus0") == 1:
+        if changed_at is None and tc.vehicle.getLaneIndex("bus0") == lanes[1]:
             changed_at = t
         if record:
             series.append({"t": t, "f_speed": tc.vehicle.getSpeed("f0"),

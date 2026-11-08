@@ -27,7 +27,7 @@ def passenger_weighted_delay(delays, occupancies):
 
 class MetricsRecorder:
     def __init__(self, traci, bus_id, radius=50.0, brake_thresh=3.0, dt=0.1,
-                 crossing_edge=None, bus_zone_roads=None):
+                 crossing_edge=None, bus_zone_roads=None, occupancy=None):
         self.tc, self.bus, self.radius, self.thresh, self.dt = traci, bus_id, radius, brake_thresh, dt
         self.prev = {}
         self.hard_brakes = {}        # 차량 id -> 최대 감속(임계 초과분만)
@@ -35,6 +35,10 @@ class MetricsRecorder:
         self.emergency_stops = set()
         self.crossing_edge = crossing_edge
         self.bus_zone_roads = bus_zone_roads    # 버스가 횡단 구역에 있는 도로 id 집합
+        # 차량 종류별 기본 탑승 인원. getPersonNumber가 0보다 크면 그 값을 쓴다(버스 승객 등).
+        self.occupancy = {"passenger": 1.3, "taxi": 1.5, "truck": 1.0, "bus": 20.0, **(occupancy or {})}
+        self.delay = {}              # 차량 id -> 속도 손실 지연 [s]
+        self.occ = {}                # 차량 id -> 탑승 인원
         self.ped_iv = {}             # 보행자 id -> [in, out]
         self.bus_iv = None
 
@@ -54,6 +58,14 @@ class MetricsRecorder:
                     if dec >= self.thresh:
                         self.hard_brakes[vid] = max(self.hard_brakes.get(vid, 0.0), dec)
             self.prev[vid] = sp
+            if vid != self.bus:
+                vmax = min(tc.vehicle.getAllowedSpeed(vid), tc.vehicle.getMaxSpeed(vid))
+                if vmax > 0:
+                    self.delay[vid] = self.delay.get(vid, 0.0) + self.dt * max(0.0, 1.0 - sp / vmax)
+                if vid not in self.occ:
+                    n = tc.vehicle.getPersonNumber(vid)
+                    self.occ[vid] = float(n) if n > 0 else self.occupancy.get(
+                        tc.vehicle.getVehicleClass(vid), 1.3)
         if self.crossing_edge:
             for pid in tc.person.getIDList():
                 on = tc.person.getRoadID(pid) == self.crossing_edge
@@ -77,4 +89,6 @@ class MetricsRecorder:
         return {"hard_brake_vehicles": len(self.hard_brakes),
                 "max_induced_decel": max(self.hard_brakes.values(), default=0.0),
                 "collisions": self.collisions,
-                "emergency_stops": len(self.emergency_stops), "pet": pets}
+                "emergency_stops": len(self.emergency_stops), "pet": pets,
+                "weighted_delay_person_s": passenger_weighted_delay(
+                    [self.delay[v] for v in self.delay], [self.occ[v] for v in self.delay])}

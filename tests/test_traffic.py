@@ -136,3 +136,33 @@ def test_metrics_in_crossing_episodes():
     bad = run_crossing_episode(cfg, "ped_force", 10.0, bus_dist=60.0, bus_speedmode=0,
                                recorder_cls=MetricsRecorder)
     assert bad["metrics"]["collisions"] >= 1
+
+
+def test_runner_realizes_decision_and_calls_hook_before_update(a1):
+    """공통 루프에 버스 훅(시험용 버스)을 끼워도 A1 결과가 같고, 훅이 갱신보다 먼저 불린다."""
+    import random
+    from traffic.runner import run
+    from traffic.scenarios import ScriptedBus
+    from traffic.yield_logic import YieldManager, DEFAULT_TYPES
+    from traffic.metrics import MetricsRecorder
+    from traffic.sumo_conn import sumo_cmd as _cmd
+    cmd = _cmd(a1, seed=4)
+    traci.load(cmd[1:]) if traci.isLoaded() else traci.start(cmd)
+    bus = ScriptedBus("bus0")
+    bus.add(traci)
+    traci.vehicle.add("f0", "r0", typeID="yielder", departPos="21.5", departLane="1", departSpeed="9")
+    mgr = YieldManager(traci, "bus0", rng=random.Random(4), types=DEFAULT_TYPES,
+                       stop_exit_pos=("E0", 100.0), exit_max_dist=60.0)
+    seen, lanes = [], set()
+    mgr_update = mgr.update
+    mgr.update = lambda t: (seen.append(("update", t)), mgr_update(t))[1]
+    rec = MetricsRecorder(traci, "bus0")
+    run(traci, 30.0, "bus0", bus_hook=lambda tc, t: (seen.append(("hook", t)), bus.act(tc, t))[1],
+        yield_mgr=mgr, metrics=rec,
+        on_step=lambda t: lanes.add(traci.vehicle.getLaneIndex("bus0")))
+    assert seen[0][0] == "hook" and seen[1][0] == "update"
+    inter = list(mgr.inter.values()) + [type("L", (), {"yields": x["yield"]}) for x in mgr.log]
+    assert len(inter) == 1
+    assert (1 in lanes) == bool(inter[0].yields)   # 결정대로 실현
+    s = rec.summary()
+    assert s["weighted_delay_person_s"] > 0 and s["collisions"] == 0

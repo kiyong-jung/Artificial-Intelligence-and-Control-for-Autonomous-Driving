@@ -72,7 +72,7 @@ class ScriptedBus:
 
 
 def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
-                   follower_x0=21.5, p_override=None, record=False, bus_kwargs=None, lanes=(0, 1), edge="E0"):
+                   follower_x0=21.5, p_override=None, record=False, bus_kwargs=None, lanes=(0, 1), edge="E0", warmup=0.0):
     """한 번의 상호작용을 돌려 결과 dict를 돌려준다.
 
     p_override: 양보 확률을 고정(예: 0)해 누출 검사에 쓴다.
@@ -84,6 +84,8 @@ def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
         tc.load(cmd[1:])
     else:
         tc.start(cmd)
+    for _ in range(int(round(warmup / 0.1))):      # 배경 교통 예열
+        tc.simulationStep()
     rng = random.Random(seed)
     bus = ScriptedBus("bus0", **{"bus_lane": lanes[0], "target_lane": lanes[1], **(bus_kwargs or {})})
     bus.add(tc)

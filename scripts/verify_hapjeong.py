@@ -151,8 +151,40 @@ def a1(n=100):
     return out
 
 
+def bg_cfg(extra_add, extra_routes):
+    """합정역 baseline 배경 교통(900대/시간 + 보행자)이 있는 설정에 시험용 차종과 경로를 더한다."""
+    sys.path.insert(0, ROOT)
+    from env import road_builder
+    from env.road_config import ROAD, EGO, TRAFFIC, configure_map
+    configure_map("baseline", 0, None, "hapjeong")
+    base = os.path.abspath(os.path.join(NET_DIR, "hap_bg"))
+    os.makedirs(base, exist_ok=True)
+    road_builder.build(ROAD, EGO, TRAFFIC, base)
+    _write(os.path.join(base, "extra.add.xml"), f"<additional>{extra_add}</additional>")
+    _write(os.path.join(base, "extra.rou.xml"), f"<routes>{extra_routes}</routes>")
+    txt = open(os.path.join(base, "scenario.sumocfg"), encoding="utf-8").read()
+    txt = txt.replace("pedestrians.rou.xml\"", "pedestrians.rou.xml,extra.rou.xml\"").replace(
+        "stops.add.xml\"", "stops.add.xml,extra.add.xml\"")
+    _write(os.path.join(base, "bg.sumocfg"), txt)
+    return os.path.join(base, "bg.sumocfg")
+
+
+def a1_bg(n=40):
+    from traffic.scenarios import run_a1_episode
+    add = BUS + """<vType id="yielder" length="4.5" accel="2.6" decel="4.5" tau="1.0" sigma="0" maxSpeed="9" speedFactor="1" speedDev="0" actionStepLength="0.5"/>
+<vType id="nonyielder" length="4.5" accel="2.6" decel="4.5" tau="1.0" sigma="0" maxSpeed="9" speedFactor="1" speedDev="0" actionStepLength="0.5"/>"""
+    cfg = bg_cfg(add, '<route id="r0" edges="R43"/>')
+    out = {}
+    for t in ("yielder", "nonyielder"):
+        rows = [run_a1_episode(cfg, t, s, lanes=(1, 2), edge="R43", warmup=300.0) for s in range(n)]
+        out[t] = {"n": n, "mean_set_p": float(np.mean([r["p_yield"] for r in rows])),
+                  "realized": float(np.mean([r["changed"] for r in rows])),
+                  "agree": float(np.mean([bool(r["decision"]) == r["changed"] for r in rows]))}
+    return out
+
+
 def main():
-    res = {"A1_R43": a1(), "S5": [s5(p) for p in (0.0, 0.3, 1.0)], "S4": s4(),
+    res = {"A1_R43": a1(), "A1_R43_with_background": a1_bg(), "S5": [s5(p) for p in (0.0, 0.3, 1.0)], "S4": s4(),
            "S6": {pt: {f"v{v}_T{T}": s6(pt, v, T) for v, T in ((1.0, 8), (2.0, 10), (5.0, 10), (5.0, 3))}
                                       for pt in ("ped_p1", "ped_p2")}}
     out = os.path.join(ROOT, "results", "traffic_verification", "hapjeong.json")

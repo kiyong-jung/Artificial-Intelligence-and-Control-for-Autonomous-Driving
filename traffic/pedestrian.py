@@ -57,7 +57,7 @@ def _write_routes(ptype, v_low, impatience, ped_depart, ped_pos=289):
 
 
 def run_crossing_episode(cfg, ptype, bus_speed, bus_dist=30.0, v_low=1.5, impatience=0.75,
-                         bus_speedmode=31, ped_depart=0.0, max_t=90.0, seed=0, ped_pos=289):
+                         bus_speedmode=31, ped_depart=0.0, max_t=90.0, seed=0, ped_pos=289, recorder_cls=None):
     """버스가 횡단보도 bus_dist m 앞에서 bus_speed로 직진할 때, 보행자가 버스 통과 전에 건너기 시작하는가."""
     _write_routes(ptype, v_low, impatience, ped_depart, ped_pos)
     tc = traci
@@ -71,6 +71,8 @@ def run_crossing_episode(cfg, ptype, bus_speed, bus_dist=30.0, v_low=1.5, impati
     tc.vehicle.add("bus0", "r_main", typeID="bus_test", departPos=str(x_stop - bus_dist),
                    departLane="1", departSpeed=str(bus_speed))
     tc.vehicle.setSpeedMode("bus0", bus_speedmode)
+    rec = recorder_cls(tc, "bus0", crossing_edge=CROSSING,
+                       bus_zone_roads={"main_in_dummy"}) if recorder_cls else None
     enter_t, bus_pos_at_enter, bus_speed_at_enter, collided = None, None, None, False
     bus_pass_t = None
     t, step = 0.0, 0
@@ -82,6 +84,14 @@ def run_crossing_episode(cfg, ptype, bus_speed, bus_dist=30.0, v_low=1.5, impati
         t = round(step * 0.1, 6)
         if tc.simulation.getCollisions():
             collided = True
+        if rec is not None:
+            rec.step(t)
+            if tc.vehicle.getIDList() and "bus0" in tc.vehicle.getIDList():
+                inz = tc.vehicle.getRoadID("bus0").startswith(":")
+                if inz and rec.bus_iv is None:
+                    rec.bus_iv = [t, None]
+                elif not inz and rec.bus_iv is not None and rec.bus_iv[1] is None:
+                    rec.bus_iv[1] = t
         if bus_pass_t is None and "bus0" in tc.vehicle.getIDList() and \
                 tc.vehicle.getRoadID("bus0") != "main_in":
             bus_pass_t = t
@@ -101,4 +111,5 @@ def run_crossing_episode(cfg, ptype, bus_speed, bus_dist=30.0, v_low=1.5, impati
     return {"ptype": ptype, "bus_speed": bus_speed, "bus_dist": bus_dist, "enter_t": enter_t,
             "crossed_before_bus": enter_t is not None and not bus_passed_first,
             "bus_speed_at_enter": bus_speed_at_enter, "collision": collided,
-            "bus_pass_t": bus_pass_t}
+            "bus_pass_t": bus_pass_t,
+            "metrics": rec.summary() if rec is not None else None}

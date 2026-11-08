@@ -116,3 +116,23 @@ def test_a3_vehicle_pedestrian_collision_recorded():
     rows = [run_crossing_episode(cfg, "ped_force", 10.0, bus_dist=10.0 * T, bus_speedmode=0)
             for T in (5, 6, 7)]
     assert any(r["collision"] for r in rows)
+
+
+def test_pet_function():
+    from traffic.metrics import pet, passenger_weighted_delay
+    assert pet((0, 5), (7, 9)) == 2          # 보행자가 먼저 나가고 2 s 뒤 버스 진입
+    assert pet((6, 10), (1, 4)) == 2         # 버스가 먼저 지나간 뒤 2 s 후 보행자 진입
+    assert pet((3, 8), (6, 9)) == 0          # 겹침
+    assert pet(None, (1, 2)) is None
+    assert passenger_weighted_delay([2.0, 1.0], [10, 30]) == 50.0
+
+
+def test_metrics_in_crossing_episodes():
+    from traffic.metrics import MetricsRecorder
+    cfg = build_a3_net()
+    ok = run_crossing_episode(cfg, "ped_p2", 5.0, bus_dist=5.0 * 10, recorder_cls=MetricsRecorder)
+    assert ok["metrics"]["collisions"] == 0
+    assert ok["metrics"]["pet"].get("p0") is not None and ok["metrics"]["pet"]["p0"] >= 0.0
+    bad = run_crossing_episode(cfg, "ped_force", 10.0, bus_dist=60.0, bus_speedmode=0,
+                               recorder_cls=MetricsRecorder)
+    assert bad["metrics"]["collisions"] >= 1

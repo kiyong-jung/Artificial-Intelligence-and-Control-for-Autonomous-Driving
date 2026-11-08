@@ -24,7 +24,10 @@ _tools = os.path.join(os.environ["SUMO_HOME"], "tools")
 if _tools not in sys.path:
     sys.path.append(_tools)
 
-import traci  # noqa: E402
+if os.environ.get("TRAFFIC_BACKEND") == "libsumo":
+    import libsumo as traci  # noqa: E402  (Python 3.10 이상 환경에서만 import됨)
+else:
+    import traci  # noqa: E402
 from sumolib import checkBinary  # noqa: E402
 
 # 계획 "고정 설정": 0.1 s 스텝 + ballistic 적분, 충돌 옵션 일괄 반영.

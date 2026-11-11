@@ -6,7 +6,7 @@
   "source_status": "osm_generated",
   "network_source": {
     "path": "source/network.net.xml",
-    "sha256": "3f2e84016c0c7d0533d110be178b6e31413ddcdb7f6ede436cea16c61cad8b73",
+    "sha256": "a8cfc2b2a0ec805f0dd911da1924d7751bdb4b20ec90c7cef3e13e0b16368e66",
     "base_path": "source/network.base.net.xml",
     "base_sha256": "fac68040e09ad0341f5c40e6930f936e0fcd539a30788ea8150623793e2ce0b9",
     "generator": "generator/ (서예인, 합정역 브랜치 ec6fbf6에서 옮김)",

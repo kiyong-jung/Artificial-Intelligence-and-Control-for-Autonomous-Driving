@@ -51,6 +51,7 @@ DROP_PROGRAMS = {"J56"}
 BASELINE_VEHS_PER_HOUR = 900
 PEDESTRIANS = {"persons_per_hour": 600, "min_distance": 150, "end": 3600, "seed": 42}
 # 신호 없는 횡단보도(S6). OSM 13236303911(crossing=uncontrolled)은 와우산로 차도 위의 점이다.
+MIDBLOCK_PRIORITY = False      # S6 횡단보도를 비우선으로 둔다(주변 교통 A3)
 MIDBLOCK_CROSSINGS = {"S6_wausanro": ("R112", "-R112", 37.5498511, 126.9231277)}
 # 연구 경로의 가로변 정류장(OSM 노드, 이름, ARS 번호, 위도, 경도, 놓을 도로). 위치는 Overpass에서 2026-11-03에 받았다.
 CURB_STOPS = [
@@ -154,8 +155,11 @@ def build_network(temporary: Path) -> Path:
         node = split_net.getNode(node_id)
         incoming = next(edge for edge in node.getIncoming() if edge.getID() == forward)
         outgoing = next(edge for edge in node.getOutgoing() if edge.getToNode() == incoming.getFromNode())
-        # 신호 없는 횡단보도에서는 차가 보행자에게 양보한다.
-        ET.SubElement(crossings, "crossing", node=node_id, edges=f"{incoming.getID()} {outgoing.getID()}", priority="true")
+        # 주변 교통 A3는 비우선 횡단보도(priority="false")를 전제한다. 우선이면 보행자 P1·P2의
+        # jmIgnoreFoe*·impatience가 아무 영향이 없고 보행자가 차 속도와 무관하게 건넌다. 한국 법규상
+        # 운전자 일시정지 의무와는 다르며 한계에 적는다.
+        ET.SubElement(crossings, "crossing", node=node_id, edges=f"{incoming.getID()} {outgoing.getID()}",
+                      priority="true" if MIDBLOCK_PRIORITY else "false")
     alley_nodes, alley_edges = add_alleys(split_net, crossings)
     ET.ElementTree(crossings).write(temporary / "crossings.con.xml", encoding="utf-8")
     ET.ElementTree(alley_nodes).write(temporary / "alleys.nod.xml", encoding="utf-8")

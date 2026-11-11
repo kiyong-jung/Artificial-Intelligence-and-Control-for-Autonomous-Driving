@@ -46,15 +46,16 @@ class ScriptedBus:
     """판단 없는 재생용 버스. 단계별 시각은 모두 고정값이다."""
 
     def __init__(self, vid, x0=100.0, t_signal=3.0, t_go=3.5, accel=1.5, v_max=9.0,
-                 t_request=9.5, req_duration=15.0, target_lane=1, bus_lane=0):
+                 t_request=9.5, req_duration=15.0, target_lane=1, bus_lane=0, route="r0"):
         self.vid, self.x0 = vid, x0
         self.t_signal, self.t_go, self.accel, self.v_max = t_signal, t_go, accel, v_max
         self.t_request, self.req_duration, self.target_lane = t_request, req_duration, target_lane
         self.bus_lane = bus_lane
+        self.route = route
         self.requested = False
 
     def add(self, tc):
-        tc.vehicle.add(self.vid, "r0", typeID="bus_test", departPos=str(self.x0),
+        tc.vehicle.add(self.vid, self.route, typeID="bus_test", departPos=str(self.x0),
                        departLane=str(self.bus_lane), departSpeed="0")
         tc.vehicle.setSpeedMode(self.vid, 31)
         tc.vehicle.setSpeed(self.vid, 0.0)
@@ -71,11 +72,20 @@ class ScriptedBus:
             self.requested = True
 
 
+def _param_float(tc, vid, key):
+    """차량이 없거나 파라미터가 비어 있으면(양보 성격을 못 받은 차량) None."""
+    if vid not in tc.vehicle.getIDList():
+        return None
+    v = tc.vehicle.getParameter(vid, key)
+    return float(v) if v != "" else None
+
+
 def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
-                   follower_x0=21.5, p_override=None, record=False, bus_kwargs=None, lanes=(0, 1), edge="E0", warmup=0.0):
+                   follower_x0=21.5, p_override=None, record=False, bus_kwargs=None, lanes=(0, 1), edge="E0", warmup=0.0, mgr_kwargs=None):
     """한 번의 상호작용을 돌려 결과 dict를 돌려준다.
 
     p_override: 양보 확률을 고정(예: 0)해 누출 검사에 쓴다.
+    mgr_kwargs: YieldManager에 더 넘길 인자(예: type_mix, mix_vtype_prefixes).
     """
     import random
     tc = traci
@@ -95,7 +105,7 @@ def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
         types = copy.deepcopy(DEFAULT_TYPES)
         types[driver_type].p_yield = (p_override, p_override)
     mgr = YieldManager(tc, "bus0", rng=rng, types=types, stop_exit_pos=(edge, 100.0),
-                       exit_max_dist=60.0)
+                       exit_max_dist=60.0, **(mgr_kwargs or {}))
     tc.vehicle.add("f0", "r0", typeID=driver_type, departPos=str(follower_x0),
                    departLane=str(lanes[1]), departSpeed="9")
     if bus_lc_mode is not None:
@@ -127,8 +137,11 @@ def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
                  "max_decel": next(iter(mgr.inter.values())).max_decel,
                  "t_open": next(iter(mgr.inter.values())).t_open}
     out = {"type": driver_type, "seed": seed,
-           "p_yield": float(tc.vehicle.getParameter("f0", "driver.pYield")) if "f0" in tc.vehicle.getIDList() else None,
-           "new_tau": float(tc.vehicle.getParameter("f0", "driver.newTau")) if "f0" in tc.vehicle.getIDList() else None,
+           "assigned_type": tc.vehicle.getParameter("f0", "driver.type") if "f0" in tc.vehicle.getIDList() else None,
+           "vtype": tc.vehicle.getTypeID("f0") if "f0" in tc.vehicle.getIDList() else None,
+           "n_interactions": len(mgr.log) + len(mgr.inter),
+           "p_yield": _param_float(tc, "f0", "driver.pYield"),
+           "new_tau": _param_float(tc, "f0", "driver.newTau"),
            "decision": None if inter is None else inter["yield"],
            "t_open": None if inter is None else inter["t_open"],
            "max_decel": None if inter is None else inter["max_decel"],

@@ -30,7 +30,7 @@ else:
     import traci  # noqa: E402
 from sumolib import checkBinary  # noqa: E402
 
-# 계획 "고정 설정": 0.1 s 스텝 + ballistic 적분, 충돌 옵션 일괄 반영.
+# 고정 설정: 0.1 s 스텝 + ballistic 적분, 충돌 옵션 일괄 반영.
 COMMON_ARGS = [
     "--step-length", "0.1",
     "--step-method.ballistic",

@@ -24,7 +24,7 @@ class DriverTypeCfg:
 
 
 DEFAULT_TYPES = {
-    # 계획은 양보형 차선변경 파라미터를 기본값으로 뒀지만, 기본 lcCooperative=1이면 SUMO가
+    # 양보형 차선변경 파라미터를 SUMO 기본값으로 두면(lcCooperative=1) SUMO가
     # 양보 결정과 무관하게 간격을 내줘 실측 양보율이 100%가 된다(검증으로 확인).
     # 양보 여부를 A1만 정하도록 양보형도 내장 협조를 끈다.
     "yielder": DriverTypeCfg(p_yield=(0.70, 0.95), delay=(0.5, 1.5),
@@ -32,7 +32,7 @@ DEFAULT_TYPES = {
                              lc_params={"lcCooperative": -1, "lcCooperativeSpeed": 0}),
     "nonyielder": DriverTypeCfg(
         p_yield=(0.05, 0.30), delay=(0.5, 1.5), new_tau=(2.0, 3.0),
-        # lcCooperativeHelpTime은 SUMO 1.27.1 LC2013에서 지원되지 않아 뺐다(계획 보정).
+        # lcCooperativeHelpTime은 SUMO 1.27.1 LC2013에서 지원되지 않아 뺐다.
         lc_params={"lcCooperative": -1, "lcCooperativeSpeed": 0}),
 }
 
@@ -54,7 +54,7 @@ class YieldManager:
 
     def __init__(self, traci, bus_id, rng=None, types=None, stop_exit_pos=None,
                  exit_max_dist=30.0, advance_window=2.0, advance_min=0.5,
-                 follower_range=50.0, dt=0.1):
+                 follower_range=50.0, dt=0.1, type_mix=None, mix_vtype_prefixes=None):
         self.traci = traci
         self.bus = bus_id
         self.rng = rng or random.Random(0)
@@ -65,6 +65,16 @@ class YieldManager:
         self.advance_min = advance_min
         self.follower_range = follower_range
         self.dt = dt
+        # 주행 모델과 양보 성격을 독립으로 붙인다. type_mix = {유형: 가중치}를 주면,
+        # vType 이름이 유형 이름으로 시작하지 않는 차량 중 mix_vtype_prefixes로 시작하는
+        # 차량(예: 배경 차량 "car_")에 투입 시 유형을 뽑아 준다. 주행 모델(vType)은 그대로다.
+        # 주지 않으면 기존처럼 이름이 유형으로 시작하는 차량만 대상이다.
+        self.type_mix = dict(type_mix) if type_mix else None
+        self.mix_vtype_prefixes = tuple(mix_vtype_prefixes or ())
+        if self.type_mix:
+            unknown = set(self.type_mix) - set(self.types)
+            if unknown or not self.mix_vtype_prefixes:
+                raise ValueError("type_mix의 유형은 types에 있어야 하고 mix_vtype_prefixes가 필요하다")
         self.inter = {}          # follower id -> _Interaction
         self.pos_hist = []       # (t, lanePos, edge)
         self.log = []            # 종료된 상호작용 기록
@@ -75,6 +85,8 @@ class YieldManager:
         for vid in ids:
             vt = tc.vehicle.getTypeID(vid)
             key = next((k for k in self.types if vt.startswith(k)), None)
+            if key is None and self.type_mix and vid != self.bus                     and vt.startswith(self.mix_vtype_prefixes):
+                key = self.rng.choices(list(self.type_mix), weights=list(self.type_mix.values()))[0]
             if key is None:
                 continue
             cfg = self.types[key]
@@ -117,8 +129,12 @@ class YieldManager:
     # ---- 매 스텝 ------------------------------------------------------------
     def update(self, t):
         tc = self.traci
-        side = self._intent(t)
         ids = set(tc.vehicle.getIDList())
+        if self.bus not in ids:        # 버스가 아직 없거나 나갔다: 진행 중 상호작용을 끝내고 쉰다
+            for vid in list(self.inter):
+                self._finish(vid, t, vid in ids)
+            return
+        side = self._intent(t)
         if side:
             for vid, _ in self._followers(side):
                 if vid in self.inter or vid not in ids:

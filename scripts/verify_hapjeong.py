@@ -22,7 +22,7 @@ BUS = '<vType id="bus_test" vClass="bus" length="12" width="2.5" accel="1.2" dec
 
 
 def nonpriority_s6_net():
-    """실제 도로망의 S6 횡단보도는 priority=true라 P1/P2가 의미 없다. 계획대로 비우선으로 다시 만든 복사본."""
+    """실제 도로망의 S6 횡단보도는 priority=true라 P1/P2가 의미 없다. 비우선으로 다시 만든 복사본."""
     import subprocess
     from traffic.sumo_conn import checkBinary
     os.makedirs(D, exist_ok=True)

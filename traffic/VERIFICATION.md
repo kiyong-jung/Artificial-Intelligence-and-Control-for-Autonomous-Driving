@@ -1,6 +1,6 @@
 # 주변 교통 알고리즘 구현·검증 결과
 
-계획: `Other_vehicle_algorithm_implementation_plan.md`. SUMO 1.27.1, Python 3.9 (conda `sumo`), TraCI. 모든 수치는 `scripts/verify_a1.py`, `verify_a2.py`, `verify_a3.py`를 실제로 돌려 얻었고 원본은 `results/traffic_verification/*.json`(git 제외)에 있다. 빠른 회귀 검증은 `pytest tests/test_traffic.py`(11개 통과).
+SUMO 1.27.1, Python 3.9 (conda `sumo`), TraCI. 모든 수치는 `scripts/verify_a1.py`, `verify_a2.py`, `verify_a3.py`를 실제로 돌려 얻었고 원본은 `results/traffic_verification/*.json`(git 제외)에 있다. 빠른 회귀 검증은 `pytest tests/test_traffic.py`.
 
 검증 도로는 합성 도로다(2차로 직선, 우선 교차로 합류, 횡단보도 있는 T자로). 합정역 지도에서의 검증은 하지 않았다.
 
@@ -14,9 +14,9 @@
 | `traffic/scenarios*.py` | 판단 없는 시험용 버스와 합성 도로 |
 | `traffic/sumo_conn.py` | 0.1 s 스텝, ballistic, `collision.action warn`, `check-junctions`, `intermodal-collision.action warn` |
 
-## 계획과 다르게 한 것 (실측으로 확인)
+## 처음 설계와 다르게 한 것 (실측으로 확인)
 
-1. **양보형도 `lcCooperative`를 끈다.** 계획은 양보형 차선변경 파라미터를 기본값으로 뒀다. 그대로 돌리니 양보 결정이 "아니오"인 차량도 SUMO가 간격을 내줘 실측 양보율이 설정 0.82가 아니라 **1.00**이었다. 양보형도 `lcCooperative=-1`, `lcCooperativeSpeed=0`으로 두자 일치했다.
+1. **양보형도 `lcCooperative`를 끈다.** 처음에는 양보형 차선변경 파라미터를 SUMO 기본값으로 뒀다. 그대로 돌리니 양보 결정이 "아니오"인 차량도 SUMO가 간격을 내줘 실측 양보율이 설정 0.82가 아니라 **1.00**이었다. 양보형도 `lcCooperative=-1`, `lcCooperativeSpeed=0`으로 두자 일치했다.
 2. **`lcCooperativeHelpTime`은 설정하지 않는다.** SUMO 1.27.1의 LC2013에서 `laneChangeModel.lcCooperativeHelpTime` 설정이 오류로 거부된다.
 3. **`openGap`의 `newSpaceHeadway`는 0 이상이어야 한다.** -1은 오류. 0을 쓰고 시간 차간(`newTau`)만 지정한다.
 4. **openGap duration 12 s.** 8 s로는 목표 차간에 도달하지 못해(아래) 12 s로 했다.
@@ -106,7 +106,7 @@
 - **S5** 독막로3길(`G3`) → 독막로(`R71`) 합류점 `X_dongmak3`(priority). 버스 28 m 이내 진입률: p=0 → 0%, p=0.3 → 70%, p=1.0 → 60%(30회). 충돌 0. 합성 도로와 같은 방향이다.
 - **S4** 위 표와 같이 막힘.
 - **A1** 독막로 방향 4차로 `R43`(382 m, 차로 0은 보행자)에서 버스 차로 1 → 목표 차로 2, 유형별 100회: 양보형 실측 0.77(설정 평균 0.816), 비양보형 0.14(설정 평균 0.166), 결정과 결과 일치 1.00, 양보 확률 0 누출 0%. 합성 도로와 같다.
-- **S6** 처음에는 실제 도로망의 와우산로 횡단보도가 `priority="true"`로 만들어져 있어 P1·P2 파라미터가 아무 영향이 없었다(버스 5 m/s, 20 m 이상 여유에서도 건넘). 계획대로 `scripts/build_hapjeong.py`에 `MIDBLOCK_PRIORITY = False`를 두어 S6를 비우선으로 바꾸고 도로망을 다시 만들었다(`network.net.xml`, `map.json`의 sha256 갱신, 연결 상태 M → m). 줄바꿈만 다른 `pedestrians.rou.xml`, `signals.add.xml`은 되돌렸다. 다시 만든 도로망에서 P1은 버스 v=1 m/s·T=8 s에서 건너고 v≥2 m/s에서는 T=10 s에서도 기다렸다. P2는 v=2·5 m/s, T=10 s에서 건너고 T=3 s에서는 기다렸다. 한국 법규상 운전자 일시정지 의무와 다르므로 한계로 둔다.
+- **S6** 처음에는 실제 도로망의 와우산로 횡단보도가 `priority="true"`로 만들어져 있어 P1·P2 파라미터가 아무 영향이 없었다(버스 5 m/s, 20 m 이상 여유에서도 건넘). `scripts/build_hapjeong.py`에 `MIDBLOCK_PRIORITY = False`를 두어 S6를 비우선으로 바꾸고 도로망을 다시 만들었다(`network.net.xml`, `map.json`의 sha256 갱신, 연결 상태 M → m). 줄바꿈만 다른 `pedestrians.rou.xml`, `signals.add.xml`은 되돌렸다. 다시 만든 도로망에서 P1은 버스 v=1 m/s·T=8 s에서 건너고 v≥2 m/s에서는 T=10 s에서도 기다렸다. P2는 v=2·5 m/s, T=10 s에서 건너고 T=3 s에서는 기다렸다. 한국 법규상 운전자 일시정지 의무와 다르므로 한계로 둔다.
   - 재생성에 쓴 pyproj가 3.6.1이라(저장소는 3.7.1 기준이나 Python 3.9에는 없음) `network.net.xml`의 횡단보도 윤곽(outlineShape) 몇 곳과 `origBoundary` 소수 자릿수도 달라졌다. 주행에는 영향이 없다.
   - 이 변경 뒤 도로망 baseline 검증(`validate_road.py`, seed 0·7·42 × quiet·baseline·busy, 1,800초)을 다시 돌렸다. 순간이동은 9회 모두 0이다. 충돌은 이전 기록(quiet seed 0에서 3, seed 42에서 1)과 같고, **baseline seed 42에서 1건이 새로 생겼다**(t=886.6 s, 신호 교차로 J64 안의 차량끼리 충돌, S6에서 멀다). 같은 종류의 J64 충돌은 README의 알려진 현상에 이미 있다. 난수 흐름이 달라져 나온 것으로 보이며 S6와의 관계는 확인하지 않았다. 새 결과는 저장소 기록(`references/stability_validation.json`)에 덮어쓰지 않았다.
 - **배경 교통이 있는 합정역** (baseline 900대/시간 + 보행자, 300초 예열 뒤 시나리오 시작):
@@ -117,15 +117,15 @@
 
 ## 공통 실행 루프와 버스 훅
 
-`traffic/runner.py`가 계획의 순서(관측 → 버스 훅 → A1 갱신 → simulationStep → 지표)를 구현한다. 버스 제어 측은 `bus_hook(traci, t)` 하나로 끼어들고 환경은 버스에 명령을 내리지 않는다. 시험용 버스를 훅으로 끼워 훅이 갱신보다 먼저 불리고, 양보 결정이 차선변경 결과로 실현되며, 지표 기록기가 충돌 0과 승객 가중 지연을 내는 것을 테스트로 확인했다. 실제 버스 정책 코드는 이 저장소에 없어 연동은 이 훅 계약까지만 검증했다.
+`traffic/runner.py`가 다음 순서(관측 → 버스 훅 → A1 갱신 → simulationStep → 지표)를 구현한다. 버스 제어 측은 `bus_hook(traci, t)` 하나로 끼어들고 환경은 버스에 명령을 내리지 않는다. 시험용 버스를 훅으로 끼워 훅이 갱신보다 먼저 불리고, 양보 결정이 차선변경 결과로 실현되며, 지표 기록기가 충돌 0과 승객 가중 지연을 내는 것을 테스트로 확인했다. 실제 버스 정책 코드는 이 저장소에 없어 연동은 이 훅 계약까지만 검증했다.
 
 주의: 버스 laneChangeMode 기본값은 keep-right라 차선변경 뒤 원래 차로로 돌아간다. 차선변경 성공 판정은 "한 번이라도 목표 차로에 들어갔는가"로 해야 한다.
 
 ## 하지 않은 것
 
-- 실제 버스 정책 코드와의 연동(훅 계약까지만 검증. 계획이 버스 정책을 범위 밖으로 둔 항목이다).
+- 실제 버스 정책 코드와의 연동(훅 계약까지만 검증. 버스 정책은 이 작업의 범위 밖이다).
 - 승객 가중 지연의 기본 탑승 인원(승용 1.3, 택시 1.5, 버스 20)은 근거 자료 없는 가정값이다.
 - 배이형/차로 정차형 정류장 구분(열린 질문).
 - A1 비양보형의 `setAcceleration` 간격 좁히기는 코드(`p_close_gap`)만 있고 검증하지 않았다(기본 0).
-- S5 `speedMode 55` 강제 진입 경로는 넣지 않았다(진입률이 목표에 못 미칠 때만 필요하다고 계획에 적혀 있는데 목표값이 정해지지 않았다).
-- 양보 확률·반응 지연 분포는 계획의 초깃값이며 실제 자료로 보정하지 않았다.
+- S5 `speedMode 55` 강제 진입 경로는 넣지 않았다(진입률이 목표에 못 미칠 때만 필요한데 목표값이 정해지지 않았다).
+- 양보 확률·반응 지연 분포는 임의의 초깃값이며 실제 자료로 보정하지 않았다.

@@ -166,3 +166,44 @@ def test_runner_realizes_decision_and_calls_hook_before_update(a1):
     assert (1 in lanes) == bool(inter[0].yields)   # 결정대로 실현
     s = rec.summary()
     assert s["weighted_delay_person_s"] > 0 and s["collisions"] == 0
+
+
+@pytest.fixture(scope="module")
+def a1_mixed_models(a1):
+    """배경 차량처럼 이름이 car_로 시작하고 추종 모델이 제각각인 후행차를 추가한 A1 도로."""
+    import shutil
+    src = os.path.dirname(a1)
+    dst = os.path.join(NET_DIR, "a1_mixed")
+    shutil.rmtree(dst, ignore_errors=True)
+    shutil.copytree(src, dst)
+    rou = os.path.join(dst, "r.rou.xml")
+    text = open(rou, encoding="utf-8").read()
+    base = ('length="4.5" accel="2.6" decel="4.5" tau="1.0" sigma="0" maxSpeed="9" '
+            'speedFactor="1" speedDev="0" actionStepLength="0.5"')
+    types = "".join(f'<vType id="car_{k}" {base} carFollowModel="{m}"/>\n'
+                    for k, m in (("krauss", "Krauss"), ("idm", "IDM"), ("eidm", "EIDM"), ("acc", "ACC")))
+    _write(rou, text.replace("<route id", types + "<route id", 1))
+    return os.path.join(dst, "a1.sumocfg")
+
+
+MIX = dict(type_mix={"yielder": 0.5, "nonyielder": 0.5}, mix_vtype_prefixes=("car_",))
+
+
+@pytest.mark.parametrize("model", ["krauss", "idm", "eidm", "acc"])
+def test_a1_personality_attaches_to_any_driving_model(a1_mixed_models, model):
+    rows = [run_a1_episode(a1_mixed_models, f"car_{model}", s, mgr_kwargs=MIX) for s in range(12)]
+    assert {r["assigned_type"] for r in rows} == {"yielder", "nonyielder"}
+    assert all(bool(r["decision"]) == r["changed"] for r in rows)
+
+
+def test_a1_mix_off_leaves_unnamed_vehicles_alone(a1_mixed_models):
+    r = run_a1_episode(a1_mixed_models, "car_idm", 0)
+    assert r["assigned_type"] == "" and r["decision"] is None and r["p_yield"] is None
+
+
+def test_a1_mix_rejects_bad_config():
+    from traffic.yield_logic import YieldManager, DEFAULT_TYPES
+    with pytest.raises(ValueError):
+        YieldManager(None, "bus0", types=DEFAULT_TYPES, type_mix={"nobody": 1.0}, mix_vtype_prefixes=("car_",))
+    with pytest.raises(ValueError):
+        YieldManager(None, "bus0", types=DEFAULT_TYPES, type_mix={"yielder": 1.0})

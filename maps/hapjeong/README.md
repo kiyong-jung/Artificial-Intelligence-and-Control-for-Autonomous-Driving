@@ -52,6 +52,17 @@
 | 독막로를 나눌 때 사라지던 `J23` 서쪽 횡단보도를 다시 놓음 | 도로를 나누면 조각의 id가 바뀌어(`R71` → `R71.256`) netconvert가 그 도로를 건너던 횡단보도를 버린다 | 원본 신호 프로그램 20칸과 연결 수가 다시 맞는다 |
 | 신호 프로그램을 쓰는 교차로는 연결 번호가 원본과 같은 연결을 가리키는지 빌드에서 검사 | 신호 프로그램은 연결 번호 순서로 적혀 있다. 원본이 바뀌자 `J1`의 양보 녹색 11번이 좌회전 연결을 가리켰다 | 칸마다 원본에서 같은 연결이 받던 신호를 옮겨 적고, 양보 녹색은 도로 이름(`B1`→`R41`, `B2`→`R40`)으로 찾는다 |
 
+3.0.0에서 고친 여섯 곳은 기존과 수정 후를 나란히 그린 그림이 있다. 그림 안에 문제, 원인, 수정, 근거를 적었다. `python scripts/render_fix_figures.py`로 다시 만든다.
+
+| 구간 | 그림 |
+|---|---|
+| 서교동사거리(`J42`) 교차로 합치기 | [01_seogyo_junction.png](references/fixes/01_seogyo_junction.png) |
+| 상수역 좌회전(`J82`) | [02_sangsu_left_turn.png](references/fixes/02_sangsu_left_turn.png) |
+| 서교동사거리 보행자 전용 단계 | [03_seogyo_pedestrian_phase.png](references/fixes/03_seogyo_pedestrian_phase.png) |
+| 합정역 사거리(`J1`) 차로 연결 | [04_hapjeong_junction_merge.png](references/fixes/04_hapjeong_junction_merge.png) |
+| 경계 진입로 `-R97` | [05_entry_stub.png](references/fixes/05_entry_stub.png) |
+| 독막로 `J23` 횡단보도 | [06_dongmak_crossing.png](references/fixes/06_dongmak_crossing.png) |
+
 시도했다가 되돌린 것도 있다. 도착지를 도로 크기에 비례해 고르면 충돌 46번, 순간이동 24번이 났다. J8 좌회전 대기 위치(contPos)를 바꿔도 충돌 수가 같았다. 결정 과정은 로컬 기록 `.audit/hapjeong-road.tsv`에 있다.
 
 ## 검증

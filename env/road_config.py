@@ -12,12 +12,9 @@ from maps import DEFAULT_MAP, load_map
 # baseline 자체가 혼잡한 수요다. busy는 내부 차량이 더 늘어나는 범위에서 1.25배를 쓴다.
 SCENARIOS = {"quiet": 0.5, "baseline": 1.0, "busy": 1.25}
 
-# RL 에이전트가 조종하는 승용차. 가감속 한계는 수업 원본 값이고,
-# 실제 한 스텝의 가감속은 mdp_config의 행동 정의가 결정한다.
-_EGO = {
-    "accel": 5.4,          # 최대 가속도 (m/s²) → 행동 a=+1
-    "decel": 5.4,          # 최대 감속도 (m/s²) → 행동 a=-1
-    "max_speed": 33.33,    # 차량 자체의 최고속도. 경로 제한속도로 다시 제한한다.
+# ego 차량 제원. 지도마다 map.json의 ego_vehicle이 고른다(없으면 car).
+# 가감속 한계는 행동 a=±1의 크기다. 실제 한 스텝의 가감속은 mdp_config의 행동 정의가 결정한다.
+_EGO_COMMON = {
     # 제한속도 배율을 seed로 뽑지 않는다. ego의 최고속도는 seed와 무관하다. SUMO는 speedFactor 하나만
     # 주면 그 값을 평균으로 쓰고 기본 편차 0.1로 여전히 뽑으므로 speedDev=0이 있어야 고정된다.
     "speed_factor": 1, "speed_dev": 0,
@@ -27,6 +24,34 @@ _EGO = {
     # 512는 자율 차선변경을 끄고 TraCI 명령의 안전 간격만 검사한다.
     "speed_mode": 31, "lane_change_mode": 512,
 }
+_EGO_VEHICLES = {
+    # 수업 원본의 승용차.
+    "car": {"vclass": "passenger", "gui_shape": "passenger/sedan", "accel": 5.4, "decel": 5.4,
+            "emergency_decel": 9.0,   # SUMO의 승용차 기본값. 안전 보조의 제동 한계다.
+            "max_speed": 33.33},
+    # 시내버스. 10/29 회의에서 정한 버스 특징(긴 차체, 제한된 가속, 승객 편안함)을 수치로 둔다.
+    # 길이·폭은 대형 시내버스, 가감속은 서 있는 승객이 견디는 범위다. comfort의 한계를 넘으면
+    # 기록에 위반으로 남는다(행동을 막지는 않는다). 현장 실측값은 아니다.
+    "bus": {"vclass": "bus", "gui_shape": "bus", "length": 12.0, "width": 2.5,
+            "accel": 1.0, "decel": 2.0, "emergency_decel": 9.0, "min_gap": 3.0, "tau": 1.5,
+            "person_capacity": 40, "boarding_duration": 2.0, "max_speed": 33.33,
+            "comfort": {"acceleration_limit": 1.5, "jerk_limit": 2.0, "hard_braking": 3.0}},
+}
+_VTYPE_ATTRIBUTES = (("vclass", "vClass"), ("gui_shape", "guiShape"), ("length", "length"), ("width", "width"),
+                     ("accel", "accel"), ("decel", "decel"), ("emergency_decel", "emergencyDecel"),
+                     ("min_gap", "minGap"), ("tau", "tau"), ("person_capacity", "personCapacity"),
+                     ("boarding_duration", "boardingDuration"), ("max_speed", "maxSpeed"))
+
+
+def vtype_attributes(vehicle: dict) -> dict:
+    """제원 dict를 SUMO vType 속성으로 바꾼다. 없는 값은 SUMO 기본값을 쓴다."""
+    return {attribute: str(vehicle[key]) for key, attribute in _VTYPE_ATTRIBUTES if key in vehicle}
+
+
+def bus_vtype_attributes() -> dict:
+    """ego가 아닌 버스(점검용, 배경 버스)도 같은 제원을 쓴다."""
+    return vtype_attributes(_EGO_VEHICLES["bus"])
+
 
 # 배경차는 추종모델 네 종류를 섞어 특정 모델의 버릇에 과적합되지 않게 한다.
 # IDM/EIDM은 선호 최소간격을 수 mm 침범할 수 있는 근사 모델이라 0.1초 간격과
@@ -74,7 +99,9 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
                 network=network, length=facts["length_m"], num_lanes=facts["first_edge_lanes"],
                 speed_limit=facts["max_speed_mps"], ego_route=route_id, scenario=scenario, seed=seed)
     EGO.clear()
-    EGO.update(deepcopy(_EGO), max_speed=min(facts["max_speed_mps"], _EGO["max_speed"]), route_id=route_id)
+    vehicle = network.get("ego_vehicle", "car")
+    EGO.update({**deepcopy(_EGO_COMMON), **deepcopy(_EGO_VEHICLES[vehicle])}, vehicle=vehicle, route_id=route_id)
+    EGO["max_speed"] = min(facts["max_speed_mps"], EGO["max_speed"])
     TRAFFIC.clear()
     TRAFFIC.update(
         # 배경차의 물리적 최고속도. 차로 제한속도는 SUMO가 따로 지킨다.

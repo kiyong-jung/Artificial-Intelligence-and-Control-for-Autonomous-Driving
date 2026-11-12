@@ -37,7 +37,7 @@ from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "2.0.0"
+VERSION = "3.0.0"
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]
@@ -45,8 +45,21 @@ JOIN = [("J52", "J56", "J58")]
 NODE_TYPES = {"J3": "priority"}
 JOINED = "cluster_J52_J56_J58"
 JOINED_CROSSINGS = [("R73", "-R73"), ("R77", "-R77"), ("R120",), ("R122",), ("R121",)]
-YIELD_LINKS = {"J1": [0, 11]}          # B2_0 → R40_3, B1_0 → R41_2
+# 중앙버스차로가 일반 차로로 합류하는 연결(신호 교차로 → [(나가는 도로, 들어가는 도로)])
+YIELD_CONNECTIONS = {"J1": [("B2", "R40"), ("B1", "R41")]}
 DROP_PROGRAMS = {"J56"}
+# 양화로를 건너는 긴 횡단보도(36m, 39m)는 잔다리로 차량 신호와 같이 켜져 있었다. 잔다리로에서 좌회전·우회전한 차가
+# 교차로를 빠져나가는 자리가 바로 이 횡단보도라, 건너는 보행자와 부딪혔다(버스 9회 실행 중 5번).
+# 이 횡단보도는 차량이 모두 멈춘 보행자 전용 단계로 옮긴다(신호 교차로 → [건너는 도로들]).
+EXCLUSIVE_CROSSINGS = {"J42": [("R53", "R55"), ("R54a", "R50")]}
+EXCLUSIVE_CLEARANCE_S = 5
+# 경계에서 신호 교차로까지 10m뿐인 진입로는 차가 투입되자마자 빨간불 앞에서 비상 정지한다.
+# 경계 노드를 교차로에서 멀리 옮겨 설 거리를 준다(경계 노드 → (교차로, 진입로 길이 m)).
+ENTRY_LENGTHS = {"J66": ("J64", 60.0)}
+# 합정역 사거리(J1)에서 양화로 R42의 1번·2번 차로가 둘 다 R40의 1번 차로로 직진해, 교차로 안에서 옆으로 부딪혔다.
+# R40은 맨 왼쪽이 버스 전용이라 승용차 차로가 둘뿐이다. 1번 차로는 우회전만 하게 한다.
+# (나가는 도로, 차로, 들어가는 도로, 차로)
+REMOVED_CONNECTIONS = [("R42", "1", "R40", "1")]
 # 배경 차량 baseline 합계. 생성기 설정(generator/road_config.py OSM_ROAD traffic)의 값이다.
 BASELINE_VEHS_PER_HOUR = 900
 PEDESTRIANS = {"persons_per_hour": 600, "min_distance": 150, "end": 3600, "seed": 42}
@@ -99,7 +112,7 @@ ALLEY_ORIGINS = ["G3", "G12"]
 EGO_ROUTE = "bus_loop"
 # (설명, 경유 도로). 서예인이 제안한 순환 경로다. 상수역 정차 뒤 약 140m 안에 와우산로로 좌회전한다(S2).
 ROUTES = {EGO_ROUTE: ("[연구] 합정역 → 성산중학교 → 상수역 → 와우산로 좌회전 → 극동방송 → 잔다리로 → 서교동교회 → "
-                      "홍대입구역 교차로 → 양화로 → 합정역",
+                      "서교동사거리 좌회전 → 양화로 → 합정역",
                       ["R69", "R71", "R111", "R112", "R113", "-R96", "R94", "R54a", "R54", "R42"])}
 EXTRA_FILES = {
     "additional": ["source/signals.add.xml", "source/islands.add.xml", "source/seams.add.xml", "source/stops.add.xml"],
@@ -142,6 +155,10 @@ def build_network(temporary: Path) -> Path:
         ET.SubElement(nodes, "join", nodes=" ".join(group))
     for node_id, node_type in NODE_TYPES.items():
         ET.SubElement(nodes, "node", id=node_id, type=node_type)
+    for node_id, (junction_id, length) in ENTRY_LENGTHS.items():
+        (x0, y0), (x1, y1) = (base.getNode(junction_id).getCoord()[:2], base.getNode(node_id).getCoord()[:2])
+        scale = length / ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
+        ET.SubElement(nodes, "node", id=node_id, x=f"{x0 + (x1 - x0) * scale:.2f}", y=f"{y0 + (y1 - y0) * scale:.2f}")
     ET.ElementTree(edges).write(temporary / "speed.edg.xml", encoding="utf-8")
     ET.ElementTree(nodes).write(temporary / "join.nod.xml", encoding="utf-8")
     joined = temporary / "joined.net.xml"
@@ -151,6 +168,16 @@ def build_network(temporary: Path) -> Path:
     for group in JOINED_CROSSINGS:
         ET.SubElement(crossings, "crossing", node=JOINED, edges=" ".join(group))
     split_net = sumolib.net.readNet(str(joined))
+    # 도로를 나누면 조각의 id가 바뀌어(R71 → R71.256) 그 도로를 건너던 횡단보도를 netconvert가 버린다.
+    # 원본 횡단보도가 건너던 도로의 조각 중 그 교차로에 닿는 것으로 다시 놓는다.
+    kept = {(node, frozenset(edges)) for node, edges in crossing_edges(joined)}
+    for node_id, edges in crossing_edges(SOURCE / "network.base.net.xml"):
+        if not split_net.hasNode(node_id) or (node_id, frozenset(edges)) in kept:
+            continue
+        node = split_net.getNode(node_id)
+        pieces = [edge.getID() for edge in node.getIncoming() + node.getOutgoing() if original_id(edge.getID()) in edges]
+        if {original_id(piece) for piece in pieces} == set(edges):
+            ET.SubElement(crossings, "crossing", node=node_id, edges=" ".join(pieces))
     for node_id, (forward, _, _, _) in MIDBLOCK_CROSSINGS.items():
         node = split_net.getNode(node_id)
         incoming = next(edge for edge in node.getIncoming() if edge.getID() == forward)
@@ -160,6 +187,8 @@ def build_network(temporary: Path) -> Path:
         # 운전자 일시정지 의무와는 다르며 한계에 적는다.
         ET.SubElement(crossings, "crossing", node=node_id, edges=f"{incoming.getID()} {outgoing.getID()}",
                       priority="true" if MIDBLOCK_PRIORITY else "false")
+    for source, source_lane, target, target_lane in REMOVED_CONNECTIONS:
+        ET.SubElement(crossings, "delete", {"from": source, "to": target, "fromLane": source_lane, "toLane": target_lane})
     alley_nodes, alley_edges = add_alleys(split_net, crossings)
     ET.ElementTree(crossings).write(temporary / "crossings.con.xml", encoding="utf-8")
     ET.ElementTree(alley_nodes).write(temporary / "alleys.nod.xml", encoding="utf-8")
@@ -169,6 +198,33 @@ def build_network(temporary: Path) -> Path:
                 "--edge-files", str(temporary / "alleys.edg.xml"), "--connection-files", str(temporary / "crossings.con.xml")],
                output)
     return output
+
+
+def original_id(edge_id: str) -> str:
+    """나뉜 도로 조각(R71.256)의 원래 id(R71)."""
+    return edge_id.split(".")[0]
+
+
+def crossing_edges(net_path: Path) -> list[tuple[str, list[str]]]:
+    """도로망의 횡단보도마다 (교차로, 건너는 도로들)."""
+    return [(edge.get("id")[1:].rsplit("_c", 1)[0], edge.get("crossingEdges").split())
+            for edge in ET.parse(net_path).getroot().iter("edge") if edge.get("function") == "crossing"]
+
+
+def signal_links(net_path: Path) -> dict[str, dict[int, tuple]]:
+    """신호 교차로 → {연결 번호: 그 번호가 가리키는 연결}. 도로 조각은 원래 id로 적어 원본과 견줄 수 있게 한다."""
+    root = ET.parse(net_path).getroot()
+    crossed = {edge.get("id"): frozenset(map(original_id, edge.get("crossingEdges").split()))
+               for edge in root.iter("edge") if edge.get("function") == "crossing"}
+    links: dict[str, dict[int, tuple]] = {}
+    for connection in root.iter("connection"):
+        if connection.get("tl") is None:
+            continue
+        target = connection.get("to")
+        key = (("crossing", crossed[target]) if target in crossed else
+               (original_id(connection.get("from")), connection.get("fromLane"), original_id(target), connection.get("toLane")))
+        links.setdefault(connection.get("tl"), {})[int(connection.get("linkIndex"))] = key
+    return links
 
 
 def osm_nodes() -> dict[str, tuple[float, float]]:
@@ -246,21 +302,53 @@ def add_alleys(net, connections: ET.Element) -> tuple[ET.Element, ET.Element]:
     return nodes, edges
 
 
-def build_signals(net_path: Path, output: Path) -> None:
+def build_signals(net_path: Path, output: Path) -> dict[str, list[int]]:
+    """원본 신호 프로그램을 실행 도로망에 맞춰 쓴다. 양보 녹색으로 바꾼 연결 번호를 반환한다.
+
+    신호 프로그램은 연결 번호 순서로 적혀 있다. 도로를 고치다 번호가 밀리면 다른 연결에 녹색이 가므로,
+    칸마다 원본에서 같은 연결이 받던 신호를 찾아 옮겨 적는다. 원본에 없는 연결이 생겼거나, 일부러 지운
+    연결(REMOVED_CONNECTIONS) 말고 다른 연결이 사라졌으면 멈춘다.
+    """
     root = ET.parse(SOURCE / "signals.base.add.xml").getroot()
-    tls_ids = {tl.getID() for tl in sumolib.net.readNet(str(net_path)).getTrafficLights()}
+    base, built = signal_links(SOURCE / "network.base.net.xml"), signal_links(net_path)
+    yielded = {}
     for logic in list(root.findall("tlLogic")):
-        if logic.get("id") in DROP_PROGRAMS:
+        tls = logic.get("id")
+        if tls in DROP_PROGRAMS:
             root.remove(logic)
             continue
-        if logic.get("id") not in tls_ids:
-            raise ValueError(f"신호 프로그램 {logic.get('id')}의 교차로가 도로망에 없습니다.")
+        if tls not in built:
+            raise ValueError(f"신호 프로그램 {tls}의 교차로가 도로망에 없습니다.")
+        original = {key: index for index, key in base[tls].items()}
+        changed = (set(original) ^ set(built[tls].values())) - set(REMOVED_CONNECTIONS)
+        if changed or len(original) != len(base[tls]):
+            raise ValueError(f"신호 교차로 {tls}의 연결이 원본과 다릅니다: {sorted(map(str, changed))}")
+        order = [original[built[tls][index]] for index in sorted(built[tls])]
+        yielded[tls] = sorted(index for index, key in built[tls].items() if key[0] != "crossing"
+                              and (key[0], key[2]) in YIELD_CONNECTIONS.get(tls, []))
+        exclusive = sorted(index for index, key in built[tls].items() if key[0] == "crossing"
+                           and key[1] in map(frozenset, EXCLUSIVE_CROSSINGS.get(tls, [])))
+        walk_s = 0
         for phase in logic.findall("phase"):
-            state = list(phase.get("state"))
-            for index in YIELD_LINKS.get(logic.get("id"), []):
+            state = [phase.get("state")[index] for index in order]
+            for index in yielded[tls]:
                 state[index] = "g" if state[index] == "G" else state[index]
+            if any(state[index] == "G" for index in exclusive):
+                walk_s = max(walk_s, int(float(phase.get("duration"))))
+            for index in exclusive:
+                state[index] = "r"
             phase.set("state", "".join(state))
+        if exclusive:
+            if not walk_s:
+                raise ValueError(f"신호 교차로 {tls}에서 보행자 전용 단계로 옮길 횡단보도 녹색을 찾지 못했습니다.")
+            width = len(logic.find("phase").get("state"))
+            # 교차로 안에서 기다리던 좌회전 차가 황색 뒤에 빠져나간다. 그 차가 나갈 때까지 보행 신호를 늦춘다.
+            ET.SubElement(logic, "phase", duration=str(EXCLUSIVE_CLEARANCE_S), state="r" * width)
+            ET.SubElement(logic, "phase", duration=str(walk_s),
+                          state="".join("G" if index in exclusive else "r" for index in range(width)))
+            ET.SubElement(logic, "phase", duration=str(EXCLUSIVE_CLEARANCE_S), state="r" * width)
     ET.ElementTree(root).write(output, encoding="utf-8", xml_declaration=True)
+    return {tls: indexes for tls, indexes in yielded.items() if indexes}
 
 
 def build_pedestrians(net_path: Path, output: Path, temporary: Path) -> None:
@@ -330,7 +418,7 @@ def build() -> dict:
     with tempfile.TemporaryDirectory(prefix="hapjeong_build_") as name:
         temporary = Path(name)
         net_path = build_network(temporary)
-        build_signals(net_path, temporary / "signals.add.xml")
+        yield_links = build_signals(net_path, temporary / "signals.add.xml")
         build_pedestrians(net_path, temporary / "pedestrians.rou.xml", temporary)
         net = sumolib.net.readNet(str(net_path))
         routes, route_design = {}, {}
@@ -352,14 +440,17 @@ def build() -> dict:
             "source_status": "osm_generated",
             "network_source": {"path": "source/network.net.xml", "sha256": digest(net_path),
                                "base_path": "source/network.base.net.xml", "base_sha256": digest(SOURCE / "network.base.net.xml"),
-                               "generator": "generator/ (서예인, 합정역 브랜치 ec6fbf6에서 옮김)",
+                               "generator": "generator/ (서예인, seogyo-hongdae 브랜치 7580004에서 옮김)",
                                "patches": {"speed_kmh": {"arterial": ARTERIAL_KMH, "link": LINK_KMH, "alley": ALLEY_KMH},
                                            "joined_junctions": [list(group) for group in JOIN],
-                                           "signal_yield_links": YIELD_LINKS, "dropped_programs": sorted(DROP_PROGRAMS)},
+                                           "signal_yield_links": yield_links, "dropped_programs": sorted(DROP_PROGRAMS),
+                                           "exclusive_crossings": {tls: [list(edges) for edges in crossings]
+                                                                   for tls, crossings in EXCLUSIVE_CROSSINGS.items()},
+                                           "entry_lengths_m": {node: length for node, (_, length) in ENTRY_LENGTHS.items()},
+                                           "removed_connections": [list(item) for item in REMOVED_CONNECTIONS]},
                                "pedestrians": PEDESTRIANS},
             "extra_files": EXTRA_FILES,
-            "trainable": False,
-            "trainable_reason": "일반 도로 대부분의 0번 차로가 인도라서, 차로 번호를 관측으로 쓰는 학습 환경이 틀린 값을 읽는다.",
+            "ego_vehicle": "bus",
             "focus_bbox": [round(west, 7), round(south, 7), round(east, 7), round(north, 7)],
             "gui_center": {"x": round(center[0], 3), "y": round(center[1], 3)},
             "sources_license": {"road_data": "ODbL 1.0", "attribution": "© OpenStreetMap contributors",

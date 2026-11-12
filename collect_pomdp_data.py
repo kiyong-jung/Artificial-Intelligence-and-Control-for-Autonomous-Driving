@@ -1,4 +1,4 @@
-"""팔달문 도로에서 POMDP transition 데이터를 수집한다.
+"""고른 지도(--map)에서 POMDP transition 데이터를 수집한다. 컬럼은 env/data_schema.py에 있다.
 
 저장 단위는 POMDP transition 하나다:
     (o_t, a_t, r_t, o_{t+1}, terminated, truncated, s_t, s_{t+1})
@@ -10,6 +10,7 @@
   (수업 원본과 같은 뜻), lane_change_actual은 같은 edge에서 확인된 실제 이동이다.
 - s_t / s_{t+1}: SUMO 내부의 privileged simulator state.
   정책 입력에는 쓰지 않고 데이터 검증/representation/belief 학습용으로만 저장한다.
+- comfort: 판단 한 번 동안 ego의 가속도와 jerk 최댓값. 버스 승객의 승차감을 본다.
 
 용량을 줄이기 위해:
 - JSONL은 gzip으로 압축해서 쓰고(.jsonl.gz), observation/state/detected_vehicles의
@@ -67,6 +68,7 @@ from env import road_builder
 from env.route_policy import route_following_action
 from env.sumo_env import SumoHighwayEnv
 from env.experiment import add_run_arguments, configure_execution, read_run_config, write_run_config
+from env import data_schema
 from train import HPARAMS, REWARD  # 학습과 같은 보상 조건 + PPO 네트워크 구조
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -219,6 +221,8 @@ def collect(args, sumocfg, episodes, worker_id, jsonl_path, npz_path, tag=""):
         gui=args.gui,
         gui_autostart=True,
     )
+    if env.obs_dim != len(data_schema.OBSERVATION_FEATURES):
+        raise ValueError("관측 차원이 env/data_schema.py의 OBSERVATION_FEATURES와 다릅니다.")
     act = make_policy(args, env, worker_seed)
     # 정책의 샘플링과 환경 seed는 분리한다. 환경은 reset(seed=...)에서 고정된다.
     np.random.seed(worker_seed)
@@ -245,6 +249,7 @@ def collect(args, sumocfg, episodes, worker_id, jsonl_path, npz_path, tag=""):
                     # 이번 관측 시점에 시야(W) 안에 들어온 차량들의 좌표.
                     # 관측 벡터와 별도로 저장하는 부가 데이터 (분석/시각화용).
                     detected = env.get_detected_vehicles()
+                    detected_pedestrians = env.get_detected_pedestrians()
                     action = act(obs)
                     next_obs, reward, terminated, truncated, info = env.step(action)
                     state_tp1 = env.get_privileged_state()
@@ -253,6 +258,7 @@ def collect(args, sumocfg, episodes, worker_id, jsonl_path, npz_path, tag=""):
                     record = {
                         "episode": int(ep),
                         "t": t,
+                        "sim_time": state_t["sim_time"],
                         "sumo_seed": int(reset_info["sumo_seed"]),
                         "observation": compact(obs, args.ndigits),
                         # 스칼라 몇 개는 용량에 영향이 없으니 반올림하지 않는다.
@@ -274,6 +280,8 @@ def collect(args, sumocfg, episodes, worker_id, jsonl_path, npz_path, tag=""):
                         "state": compact(state_t, args.ndigits),
                         # 감지 차량 좌표 (관측과 같은 시점 t 기준)
                         "detected_vehicles": compact(detected, args.ndigits),
+                        "detected_pedestrians": compact(detected_pedestrians, args.ndigits),
+                        "comfort": compact(info["comfort"], args.ndigits),
                         "event": {
                             "collided": bool(info["collided"]),
                             "arrived": bool(info["arrived"]),
@@ -424,6 +432,7 @@ def main():
         policy=args.policy, episodes=args.episodes, workers=workers,
         episode_seeds=list(range(args.seed, args.seed + args.episodes)),
         source_model=os.path.abspath(args.model) if args.model else None,
+        data=data_schema.metadata(),
     )
     # 부모가 한 번 빌드한 읽기 전용 자산을 모든 워커가 공유한다.
     sumocfg = road_builder.build(ROAD, EGO, TRAFFIC, os.path.join(assets_dir, "sumo"))

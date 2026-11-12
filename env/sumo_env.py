@@ -58,6 +58,34 @@ sys.path.append(os.path.join(os.environ["SUMO_HOME"], "tools"))
 import traci
 from sumolib import checkBinary
 
+from env.route_map import RouteMap
+
+SIGNAL_RIGHT, SIGNAL_LEFT = 1, 2   # traci.vehicle.getSignals의 방향지시등 비트
+LANE_RELATIONS = {2: "left2", 1: "left", 0: "same", -1: "right", -2: "right2", None: "other"}
+
+
+def _unit(angle_deg):
+    """SUMO 각도(북쪽 0도, 시계 방향)를 진행 방향 단위 벡터로 바꾼다."""
+    radians = np.deg2rad(angle_deg)
+    return float(np.sin(radians)), float(np.cos(radians))
+
+
+def _relative(ego, other):
+    """ego 기준 상대 위치·속도. 종방향은 ego 진행 방향이 +, 횡방향은 ego의 왼쪽이 +다.
+    relative_heading도 상대가 ego의 왼쪽으로 돌아 있으면 +다.
+
+    ego와 other는 (x, y, 속도, 각도)다.
+    """
+    hx, hy = _unit(ego[3])
+    ox, oy = _unit(other[3])
+    dx, dy = other[0] - ego[0], other[1] - ego[1]
+    dvx, dvy = other[2] * ox - ego[2] * hx, other[2] * oy - ego[2] * hy
+    return {"relative_longitudinal_position": dx * hx + dy * hy,
+            "relative_lateral_position": -dx * hy + dy * hx,
+            "relative_longitudinal_speed": dvx * hx + dvy * hy,
+            "relative_lateral_speed": -dvx * hy + dvy * hx,
+            "relative_heading": (ego[3] - other[3] + 180.0) % 360.0 - 180.0}
+
 
 class SumoHighwayEnv(gym.Env):
     # 클래스 이름은 수업 원본과 같다. 생성자는 원본과 달리 traffic=을 받지 않는다.
@@ -84,9 +112,6 @@ class SumoHighwayEnv(gym.Env):
                         에피소드 전체가 "▶를 눌러야 시작"되는 효과가 난다.
         """
         super().__init__()
-        if road["network"].get("trainable", True) is False:
-            raise NotImplementedError(f"지도 {road['map_id']}는 아직 학습 환경에서 쓸 수 없습니다: "
-                                      f"{road['network'].get('trainable_reason', '')} view_road.py로 도로만 볼 수 있습니다.")
         self.cfg_path = cfg_path
         self.gui = gui
         self.gui_autostart = gui_autostart
@@ -115,6 +140,13 @@ class SumoHighwayEnv(gym.Env):
         #   a = +1 → +max_accel (풀 액셀),  a = -1 → -max_decel (풀 브레이크)
         self.max_accel = float(ego["accel"])   # m/s^2
         self.max_decel = float(ego["decel"])   # m/s^2 (양수로 저장, 부호는 계산 시)
+        self.ego_vclass = str(ego["vclass"])
+        # 승차감 한계(버스). 없는 제원이면 위반 여부를 기록하지 않는다.
+        self.comfort_limits = ego.get("comfort")
+        self._lane_usable = {}
+        network = road["network"]
+        self.route_map = RouteMap(os.path.join(os.path.dirname(cfg_path), "network.net.xml"), self.ego_route,
+                                  network["routes"][self.ego_route], network.get("bus_stops", []), self.ego_vclass)
 
         # ----- MDP 설정 -----
         self.step_length = float(mdp_sim["step_length"])
@@ -128,6 +160,7 @@ class SumoHighwayEnv(gym.Env):
                 f"step_length({self.step_length:g}초)의 정수배여야 합니다.")
         self.max_steps = int(mdp_sim["max_steps"])
         self.warmup_steps = int(mdp_sim["warmup_steps"])
+        self.state_radius = float(mdp_sim["state_radius"])
         self.ego_insert_timeout = float(mdp_sim["ego_insert_timeout"])
         self.visibility = float(mdp_obs["visibility"])   # 관측 거리 W
         # 밀도 정규화용 "차량 1대가 점유하는 길이" (차체 + 최소 간격)
@@ -260,6 +293,7 @@ class SumoHighwayEnv(gym.Env):
                 pass
 
         self.step_count = 0
+        self._acceleration, self._jerk = 0.0, 0.0
         return self._get_obs(), {"sumo_seed": self.sumo_seed,
                                  "ego_insert_wait_seconds": (1 + _wait) * self.step_length,
                                  "background_vehicles_at_reset": len(traci.vehicle.getIDList()) - 1}
@@ -294,9 +328,16 @@ class SumoHighwayEnv(gym.Env):
         if edge.startswith(":"):
             return traci.vehicle.getLaneID(self.ego_id) if offset == 0 else None
         index = traci.vehicle.getLaneIndex(self.ego_id) + offset
-        if 0 <= index < traci.edge.getLaneNumber(edge):
+        if 0 <= index < traci.edge.getLaneNumber(edge) and self._usable(f"{edge}_{index}"):
             return f"{edge}_{index}"
         return None
+
+    def _usable(self, lane):
+        """ego가 다닐 수 있는 차로인가. 인도와 다른 차종 전용 차로는 없는 차로로 본다."""
+        if lane not in self._lane_usable:
+            allowed = traci.lane.getAllowed(lane)
+            self._lane_usable[lane] = not allowed or self.ego_vclass in allowed
+        return self._lane_usable[lane]
 
     def _geometry(self, lane):
         """변하지 않는 길이·연결만 캐시한다."""
@@ -421,26 +462,32 @@ class SumoHighwayEnv(gym.Env):
         except traci.TraCIException:
             return 1.0
 
-    def get_detected_vehicles(self):
-        """관측 대상 차선의 차량 좌표(분석/데이터셋용)를 반환한다.
+    def _pose(self, vid):
+        x, y = traci.vehicle.getPosition(vid)
+        return float(x), float(y), float(traci.vehicle.getSpeed(vid)), float(traci.vehicle.getAngle(vid))
 
-        전방은 관측과 같은 경로 구간을 따라 내부 차로까지 기록한다.
-        후방은 현재 edge의 차선과 SUMO가 찾은 현재 경로의 후행차를 기록한다.
-        교차 접근로 전체를 감지하는 센서 모델은 아직 포함하지 않는다.
-        rel_pos는 ego 앞끝 기준 경로상 앞끝 거리(m, 전방 +)이다.
+    def get_detected_vehicles(self):
+        """ego가 감지한 차량 목록(분석/데이터셋용)을 반환한다.
+
+        두 가지를 합친다. 관측 대상 차선의 차량은 관측과 같은 경로 구간을 따라 찾고 lane_relation과
+        route_distance(ego 앞끝 기준 경로상 앞끝 거리 m, 전방 +)를 적는다. 그 밖에 ego에서 직선 거리로
+        관측 거리(W) 안에 있는 차량(교차 도로, 반대 방향)은 lane_relation "other", route_distance None이다.
+        관측 벡터는 앞의 것만 쓴다. relative_*는 ego 차체 좌표다.
         """
         detected = {}
         if self.ego_id not in traci.vehicle.getIDList():
             return []
+        ego = self._pose(self.ego_id)
 
-        def record(vid, rel, offset):
-            if vid == self.ego_id or abs(rel) > self.visibility:
+        def record(vid, distance, offset):
+            if vid == self.ego_id or vid in detected or (distance is not None and abs(distance) > self.visibility):
                 return
-            x, y = traci.vehicle.getPosition(vid)
-            detected.setdefault(vid, {"id": vid, "x": float(x), "y": float(y),
-                                      "rel_pos": float(rel),
-                                      "speed": float(traci.vehicle.getSpeed(vid)),
-                                      "lane_offset": int(offset)})
+            pose = self._pose(vid)
+            signals = traci.vehicle.getSignals(vid)
+            detected[vid] = {"id": vid, "x": pose[0], "y": pose[1], **_relative(ego, pose),
+                             "route_distance": None if distance is None else float(distance),
+                             "lane_relation": LANE_RELATIONS[offset],
+                             "left_signal": bool(signals & SIGNAL_LEFT), "right_signal": bool(signals & SIGNAL_RIGHT)}
 
         try:
             ego_pos = traci.vehicle.getLanePosition(self.ego_id)
@@ -463,9 +510,29 @@ class SumoHighwayEnv(gym.Env):
                 rel = -(gap + traci.vehicle.getMinGap(vid)
                         + traci.vehicle.getLength(self.ego_id))
                 record(vid, rel, 0)
+            for vid in traci.vehicle.getIDList():
+                x, y = traci.vehicle.getPosition(vid)
+                if (x - ego[0]) ** 2 + (y - ego[1]) ** 2 <= self.visibility ** 2:
+                    record(vid, None, None)
         except traci.TraCIException:
             pass
         return list(detected.values())
+
+    def get_detected_pedestrians(self):
+        """ego에서 관측 거리(W) 안에 있는 보행자. 차로와 무관하게 직선 거리로 고른다."""
+        if self.ego_id not in traci.vehicle.getIDList():
+            return []
+        ego = self._pose(self.ego_id)
+        detected = []
+        for pid in traci.person.getIDList():
+            x, y = traci.person.getPosition(pid)
+            if (x - ego[0]) ** 2 + (y - ego[1]) ** 2 > self.visibility ** 2:
+                continue
+            relative = _relative(ego, (float(x), float(y), float(traci.person.getSpeed(pid)),
+                                       float(traci.person.getAngle(pid))))
+            relative.pop("relative_heading")
+            detected.append({"id": pid, **relative})
+        return detected
 
     def _get_obs(self):
         self._segment_cache.clear()
@@ -624,7 +691,7 @@ class SumoHighwayEnv(gym.Env):
             current = traci.vehicle.getLaneIndex(self.ego_id)
             n_lanes = traci.edge.getLaneNumber(edge)
             target = current + lane_change
-            if target < 0 or target >= n_lanes:
+            if target < 0 or target >= n_lanes or not self._usable(f"{edge}_{target}"):
                 return False
             # ★ 측면충돌 방지: 실제 이동 명령(0이 아닌 변경)에만 안전 검사
             if (lane_change != 0 and self.lc_safety_enabled
@@ -641,47 +708,67 @@ class SumoHighwayEnv(gym.Env):
 
         agent가 실제로 받는 입력은 _get_obs()의 부분관측이고, 이 메서드는
         분석/지도신호용 privileged state만 수집한다. 정책 입력으로 쓰지 않는다.
+        주변 차량과 보행자는 ego에서 state_radius 안에 있는 것만 적는다.
         """
+        state = {"sim_time": float(traci.simulation.getTime()),
+                 "ego": {"id": self.ego_id, "alive": False}, "vehicles": [], "pedestrians": [],
+                 "navigation": None, "traffic_light": None}
         if self.ego_id not in traci.vehicle.getIDList():
-            return {"ego_alive": False}
-        try:
-            x, y = traci.vehicle.getPosition(self.ego_id)
-            vehicles = []
-            for vid in traci.vehicle.getIDList():
-                try:
-                    vx, vy = traci.vehicle.getPosition(vid)
-                    vehicles.append({
-                        "id": vid,
-                        "x": float(vx),
-                        "y": float(vy),
-                        "speed": float(traci.vehicle.getSpeed(vid)),
-                        "angle": float(traci.vehicle.getAngle(vid)),
-                        "lateral_pos": float(traci.vehicle.getLateralLanePosition(vid)),
-                        "lateral_speed": float(traci.vehicle.getLateralSpeed(vid)),
-                        "lane": int(traci.vehicle.getLaneIndex(vid)),
-                        "lane_id": traci.vehicle.getLaneID(vid),
-                        "road_id": traci.vehicle.getRoadID(vid),
-                        "lane_pos": float(traci.vehicle.getLanePosition(vid)),
-                    })
-                except traci.TraCIException:
-                    continue
-            return {
-                "ego_alive": True,
-                "ego_x": float(x),
-                "ego_y": float(y),
-                "ego_speed": float(traci.vehicle.getSpeed(self.ego_id)),
-                # 차로 index만으로는 진행 중인 횡이동을 복원할 수 없다.
-                "ego_angle": float(traci.vehicle.getAngle(self.ego_id)),
-                "ego_lateral_pos": float(traci.vehicle.getLateralLanePosition(self.ego_id)),
-                "ego_lateral_speed": float(traci.vehicle.getLateralSpeed(self.ego_id)),
-                "ego_lane": int(traci.vehicle.getLaneIndex(self.ego_id)),
-                "ego_lane_id": traci.vehicle.getLaneID(self.ego_id),
-                "ego_road_id": traci.vehicle.getRoadID(self.ego_id),
-                "ego_lane_pos": float(traci.vehicle.getLanePosition(self.ego_id)),
-                "vehicles": vehicles,
-            }
-        except traci.TraCIException:
-            return {"ego_alive": False}
+            return state
+        x, y, speed, heading = self._pose(self.ego_id)
+        road_id = traci.vehicle.getRoadID(self.ego_id)
+        lane_id = traci.vehicle.getLaneID(self.ego_id)
+        lane_position = float(traci.vehicle.getLanePosition(self.ego_id))
+        state["ego"] = {
+            "id": self.ego_id, "alive": True, "x": x, "y": y, "speed": speed,
+            "acceleration": self._acceleration, "jerk": self._jerk, "heading": heading,
+            "road_id": road_id, "lane_id": lane_id, "lane_index": int(traci.vehicle.getLaneIndex(self.ego_id)),
+            "lane_position": lane_position,
+            "lateral_position": float(traci.vehicle.getLateralLanePosition(self.ego_id)),
+            "lateral_speed": float(traci.vehicle.getLateralSpeed(self.ego_id)),
+            "signals": int(traci.vehicle.getSignals(self.ego_id)),
+        }
+        radius2 = self.state_radius ** 2
+        for vid in traci.vehicle.getIDList():
+            if vid == self.ego_id:
+                continue
+            vx, vy = traci.vehicle.getPosition(vid)
+            if (vx - x) ** 2 + (vy - y) ** 2 > radius2:
+                continue
+            vx, vy, vspeed, vheading = self._pose(vid)
+            state["vehicles"].append({
+                "id": vid, "x": vx, "y": vy, "speed": vspeed, "heading": vheading,
+                "road_id": traci.vehicle.getRoadID(vid), "lane_id": traci.vehicle.getLaneID(vid),
+                "lane_index": int(traci.vehicle.getLaneIndex(vid)),
+                "lane_position": float(traci.vehicle.getLanePosition(vid)),
+                "lateral_position": float(traci.vehicle.getLateralLanePosition(vid)),
+                "lateral_speed": float(traci.vehicle.getLateralSpeed(vid)),
+                "signals": int(traci.vehicle.getSignals(vid)),
+            })
+        for pid in traci.person.getIDList():
+            px, py = traci.person.getPosition(pid)
+            if (px - x) ** 2 + (py - y) ** 2 > radius2:
+                continue
+            state["pedestrians"].append({
+                "id": pid, "x": float(px), "y": float(py), "speed": float(traci.person.getSpeed(pid)),
+                "heading": float(traci.person.getAngle(pid)), "road_id": traci.person.getRoadID(pid)})
+
+        inside = road_id.startswith(":")
+        edge_index = int(traci.vehicle.getRouteIndex(self.ego_id))
+        route = self.route_map
+        ahead = route.ahead(route.position(edge_index, lane_id, lane_position))
+        state["navigation"] = {
+            "route_id": route.route_id, "route_edge_index": edge_index,
+            "drivable_lane_ids": [lane_id] if inside else route.drivable_lane_ids[edge_index],
+            "target_lane_ids": [lane_id] if inside else route.target_lane_ids[edge_index],
+            **ahead,
+        }
+        signals = traci.vehicle.getNextTLS(self.ego_id)
+        if signals:
+            tls_id, link_index, distance, light = signals[0]
+            state["traffic_light"] = {"id": tls_id, "link_index": int(link_index), "state": light,
+                                      "distance_to_stop_line": float(distance)}
+        return state
 
     def step(self, action):
         # action = [가감속 raw, 차선변경 raw]
@@ -712,14 +799,25 @@ class SumoHighwayEnv(gym.Env):
             lane_limit = traci.lane.getMaxSpeed(traci.vehicle.getLaneID(self.ego_id))
             allowed = min(self.vmax, lane_limit, traci.vehicle.getAllowedSpeed(self.ego_id))
             requested_speed = float(np.clip(v + dv, 0.0, allowed))
-            traci.vehicle.setSpeed(self.ego_id, requested_speed)
             lane_change_applied = self._apply_lane_change(lane_change)
 
         # ----- (2) 행동을 decision_interval 동안 유지: SUMO를 substeps번 계산 -----
         # 사건은 계산마다 모은다. ego 사건이 나면 남은 계산을 하지 않는다.
         collision_ids, teleporting_ids = (), ()
-        for _ in range(self.substeps):
+        peak_acceleration = peak_jerk = 0.0
+        for substep in range(self.substeps):
+            if requested_speed is not None:
+                # 가감속 행동은 결정 구간 내내 같은 가속도다. 목표 속도를 한 번에 주면 SUMO가 첫 계산에서
+                # 최대 가속으로 따라붙고 나머지는 등속이라, 가속도가 톱니처럼 튀어 jerk가 행동과 무관해진다.
+                traci.vehicle.setSpeed(self.ego_id, float(np.clip(
+                    v + accel_cmd * self.step_length * (substep + 1), 0.0, allowed)))
             traci.simulationStep()
+            if self.ego_id in traci.vehicle.getIDList():
+                acceleration = float(traci.vehicle.getAcceleration(self.ego_id))
+                self._jerk = (acceleration - self._acceleration) / self.step_length
+                self._acceleration = acceleration
+                peak_acceleration = max(peak_acceleration, abs(acceleration))
+                peak_jerk = max(peak_jerk, abs(self._jerk))
             collision_ids += tuple(traci.simulation.getCollidingVehiclesIDList())
             teleporting_ids += tuple(traci.simulation.getStartingTeleportIDList())
             arrived = self.ego_id in traci.simulation.getArrivedIDList()
@@ -802,7 +900,15 @@ class SumoHighwayEnv(gym.Env):
             truncated = True
             termination_reason = "time_limit"
 
+        limits = self.comfort_limits
+        comfort = {
+            # 이 결정 구간(decision_interval)의 SUMO 계산마다 잰 가속도와 jerk의 최댓값(절댓값)
+            "peak_acceleration": peak_acceleration, "peak_jerk": peak_jerk,
+            "acceleration_violation": peak_acceleration > limits["acceleration_limit"] if limits else None,
+            "jerk_violation": peak_jerk > limits["jerk_limit"] if limits else None,
+        }
         info = {
+            "comfort": comfort,
             "collided": collided,
             "simulation_collided": bool(collision_ids),
             "collision_ids": collision_ids,

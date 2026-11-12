@@ -7,3 +7,5 @@ tensorboard==2.21.0
 sumolib==1.27.1
 traci==1.27.1
 pyproj==3.7.1
+# 테스트(pytest tests)에만 쓴다.
+pytest==9.2.0

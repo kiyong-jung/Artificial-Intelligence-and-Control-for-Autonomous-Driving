@@ -6,7 +6,7 @@
   "source_status": "osm_generated",
   "network_source": {
     "path": "source/network.net.xml",
-    "sha256": "e046bc261782efe98ea5fb533d7507e59fdef9c4a3dfaf4f57f09dc89e527a90",
+    "sha256": "ccb2b63cbd1ba2b4d2ad3ba2414206604dc6f26b98314951b72b98ac387d86f1",
     "base_path": "source/network.base.net.xml",
     "base_sha256": "98ea2fd2c3c08ecf3f5ab083389657508bb197c89491fd83ee264dfbe038f170",
     "generator": "generator/ (서예인, seogyo-hongdae 브랜치 7580004에서 옮김)",
@@ -46,7 +46,15 @@
       },
       "entry_lengths_m": {
         "J66": 60.0
-      }
+      },
+      "removed_connections": [
+        [
+          "R42",
+          "1",
+          "R40",
+          "1"
+        ]
+      ]
     },
     "pedestrians": {
       "persons_per_hour": 600,
@@ -66,8 +74,7 @@
       "source/pedestrians.rou.xml"
     ]
   },
-  "trainable": false,
-  "trainable_reason": "일반 도로 대부분의 0번 차로가 인도라서, 차로 번호를 관측으로 쓰는 학습 환경이 틀린 값을 읽는다.",
+  "ego_vehicle": "bus",
   "focus_bbox": [
     126.9071381,
     37.5469758,

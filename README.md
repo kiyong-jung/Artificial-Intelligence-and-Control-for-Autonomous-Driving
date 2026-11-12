@@ -4,7 +4,7 @@
 
 ![합정역 일대 지도(왼쪽)와 같은 범위에 겹친 SUMO 도로망(오른쪽, 붉은색)](maps/hapjeong/references/hapjeong_road.png)
 
-연구 경로는 합정역에서 독막로, 상수역, 와우산로, 잔다리로, 홍대입구역 교차로를 돌아 합정역으로 오는 순환 경로다(`bus_loop`, 2,052m). 경로 위에 실제 위치의 가로변 정류장 6곳과 신호 없는 횡단보도 1곳이 있다. 독막로 양쪽 골목은 끊긴 곳 없이 이어져 있고, 그중 두 곳은 독막로에 신호 없이 합류한다.
+연구 경로는 합정역에서 독막로, 상수역, 와우산로, 잔다리로, 서교동사거리를 돌아 합정역으로 오는 순환 경로다(`bus_loop`, 1,988m). 경로 위에 실제 위치의 가로변 정류장 6곳과 신호 없는 횡단보도 1곳이 있다. 독막로 양쪽 골목은 끊긴 곳 없이 이어져 있고, 그중 두 곳은 독막로에 신호 없이 합류한다.
 
 ![연구 경로(파랑), 가로변 정류장(노랑), 신호 없는 횡단보도(초록)](maps/hapjeong/references/hapjeong_scenario.png)
 
@@ -43,11 +43,31 @@ python scripts/build_hapjeong.py
 python scripts/validate_road.py --map hapjeong --out maps/hapjeong/references/stability_validation.json
 ```
 
-같은 입력이면 같은 파일이 나온다. 가장 최근 검증(seed 0·7·42 × quiet·baseline·busy, 1,800초)에서 순간이동은 0이고, 충돌은 quiet 2회에서 4번 났다. 모두 J42에서 우회전하는 차와 횡단보도 보행자의 충돌이고, 자세한 내용은 [maps/hapjeong/README.md](maps/hapjeong/README.md#알려진-현상)에 있다.
+같은 입력이면 같은 파일이 나온다. 가장 최근 검증(seed 0·7·42 × quiet·baseline·busy, 1,800초)에서 충돌과 순간이동은 0이고, 버스 ego는 9회 모두 `bus_loop`를 완주했다.
+
+충돌이나 정체가 어디서 났는지 보려면 `scripts/audit_road.py`를 쓴다. 배경 교통에 버스를 120초마다 넣고 충돌, 순간이동, 비상 제동, 비상 정지를 차로별로 모은다. 연결이 없는 차로와 버스 경로의 차로 연결도 적는다.
+
+```bash
+python scripts/audit_road.py --map hapjeong --out maps/hapjeong/references/road_audit.json
+```
 
 ## 학습, 평가, 데이터 수집
 
-학습 환경은 아직 팔달문 도로에서만 돈다. 합정역은 대부분 도로의 0번 차로가 인도라서, 차로 번호를 관측으로 쓰는 지금의 학습 환경이 틀린 값을 읽는다. 합정역으로 학습을 시작하면 이유를 보여 주고 멈춘다. 학습 쪽 사용법은 [부록 B](#부록-b-학습-평가-데이터-수집)에 있다.
+합정역의 ego는 버스다(길이 12m, 폭 2.5m, 가속 1.0m/s², 감속 2.0m/s², 정원 40명). 제원은 `env/road_config.py`의 `_EGO_VEHICLES`에 있고 `map.json`의 `ego_vehicle`이 고른다. 환경은 버스가 다닐 수 없는 차로(인도)를 없는 차로로 본다.
+
+```bash
+python collect_pomdp_data.py --map hapjeong --policy route-follow --episodes 10 --max-steps 1200 --out-dir data/hapjeong --name run1
+python scripts/export_csv.py data/hapjeong/run1.jsonl.gz --rows 15 --out data/submission/00조_데이터예시.csv
+python scripts/fill_column_slide.py 00조_칼럼설명.pptx data/submission/00조_칼럼설명.pptx
+```
+
+- 컬럼은 `env/data_schema.py`의 표 하나에 있다. 수집기의 metadata, CSV, 수업 양식이 이 표에서 나온다. 수업의 필수 항목 19개에 `sim_time`, `detected_pedestrians`, `event.termination_reason`, `comfort.*` 4개를 더했다.
+- `state`는 `ego`, `vehicles`, `pedestrians`, `navigation`, `traffic_light`로 나뉜다. 주변 차량과 보행자는 ego에서 150m 안만 적는다(`mdp_config.py`의 `state_radius`).
+- `detected_vehicles`는 관측 차선의 차량과 ego에서 50m 안의 차량이다. 관측 차선 밖의 차량(교차 도로, 반대 방향)은 `lane_relation`이 `other`다. `detected_pedestrians`는 50m 안의 보행자다.
+- 버스 승차감은 `state.ego.acceleration`, `state.ego.jerk`와 `comfort.peak_acceleration`, `comfort.peak_jerk`로 남는다. 한계(가속 1.5m/s², jerk 2.0m/s³)를 넘은 스텝은 `comfort.*_violation`이 참이다.
+- `export_csv.py`는 모든 행에 표의 컬럼이 있는지, 가속도가 제원의 한계 안인지 검사한 뒤에만 CSV를 쓴다.
+
+아직 없는 것은 다음과 같다. 버스는 정류장에 서지 않는다(`state.navigation.distance_to_stop`으로 거리만 적는다). 관측은 수업 원본의 31차원 그대로라 보행자, 신호, 방향지시등은 정책 입력에 없고 `state`와 감지 목록에만 있다. 경로 추종 규칙으로 달린 버스는 배경 차량과 거의 마주치지 않는다. busy 8에피소드(4,889스텝)에서 관측 차선에 차가 있던 스텝은 0.8%, 반경 50m 안에 차가 있던 스텝은 18%였다. 학습 쪽 사용법은 [부록 B](#부록-b-학습-평가-데이터-수집)에 있다.
 
 ## 주변 교통(Traffic)
 
@@ -56,14 +76,15 @@ python scripts/validate_road.py --map hapjeong --out maps/hapjeong/references/st
 - 구현: 뒤차의 양보/비양보(A1), 골목 끼어들기(S5), 정류장 앞 택시(S4), 횡단보도 보행자(S6), 평가 지표. 배경 차량의 주행 모델(Krauss, IDM, EIDM, ACC)과 양보 성격을 독립으로 붙인다.
 - 확인된 것: 합정역 배경 교통 속에서 양보율이 설정 확률과 맞는다(양보형 0.785, 비양보형 0.155). 합정역 배경 교통에 켜고 돌린 짧은 실행에서 충돌과 순간이동은 없었다.
 - 눈으로 보기: `python scripts/run_hapjeong_scenario.py`. 빨간 버스가 `bus_loop`를 돌고, 버스를 마주친 뒤차에 양보(초록)/비양보(빨강) 고리가 생긴다. 빠른 확인은 `pytest tests`다.
-- 한계: `traffic/`은 학습 환경에 연결되어 있지 않고 버스 정책도 없다(`bus_hook`과 규칙 버스로만 확인). S4~S6가 시나리오에서 실제로 발생하는지는 확인하지 못했고 S1은 구현하지 않았다.
+- 한계: `traffic/`은 학습 환경에 연결되어 있지 않고 버스 정책도 없다(`bus_hook`과 규칙 버스로만 확인). S4~S6가 시나리오에서 실제로 발생하는지는 확인하지 못했고 S1은 구현하지 않았다. 검증 수치는 2.0.0 도로망에서 잰 값이다. 3.0.0 도로망에서는 `pytest tests` 25개 통과만 확인했다.
 
 ### Todo
 
 - [ ] 시나리오 발생 계측, S5·S6·S4 주입기
 - [ ] 정류장 형태 확정 후 S1·S2 구현
 - [ ] 도로 수정 후 합정역 검증 재실행
-- [ ] `SumoHighwayEnv`에 주변 교통 연결, 합정역 학습용 차로 번호 관측 수정
+- [ ] `SumoHighwayEnv`에 주변 교통 연결
+- [ ] 버스 ego의 정류장 정차, 관측에 보행자·신호 추가
 - [ ] 실제 버스 정책과 `bus_hook` 연결
 
 ## 함께 작업하기
@@ -119,6 +140,7 @@ python train_bc.py --data data/paldalmun/run1.npz --epochs 50
 - ego 안전 보조가 켜져 있다(`speed_mode=31`, `lane_change_mode=512`). 끌지는 팀이 정한다. 값은 `env/road_config.py`의 `_EGO`에 있다.
 - ego를 넣기 전에 배경 교통을 180초 흘린다.
 - `blocked_penalty`가 0이다. 교차로에서 양보하며 기다리는 것까지 벌점을 받지 않게 했다.
+- 가감속 행동은 결정 구간(0.5초) 내내 같은 가속도로 적용한다. 목표 속도를 한 번에 주면 첫 계산에서 최대 가속으로 따라붙어 jerk가 행동과 무관하게 튄다.
 - 차로 유지 행동은 SUMO에 명령을 보내지 않는다. 차선 변경 벌점과 `lane_changes`는 실제 차선 이동을 센다.
 - 관측의 차로 연결성은 ego 경로 방향으로 이어지는 거리만 센다.
 - PPO의 GAE는 시간 초과에서도 끊는다. ego가 300초 서 있다 순간이동하면 에피소드는 `teleport`로 끝난다.

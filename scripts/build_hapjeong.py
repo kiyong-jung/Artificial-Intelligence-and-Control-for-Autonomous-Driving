@@ -56,6 +56,10 @@ EXCLUSIVE_CLEARANCE_S = 5
 # 경계에서 신호 교차로까지 10m뿐인 진입로는 차가 투입되자마자 빨간불 앞에서 비상 정지한다.
 # 경계 노드를 교차로에서 멀리 옮겨 설 거리를 준다(경계 노드 → (교차로, 진입로 길이 m)).
 ENTRY_LENGTHS = {"J66": ("J64", 60.0)}
+# 합정역 사거리(J1)에서 양화로 R42의 1번·2번 차로가 둘 다 R40의 1번 차로로 직진해, 교차로 안에서 옆으로 부딪혔다.
+# R40은 맨 왼쪽이 버스 전용이라 승용차 차로가 둘뿐이다. 1번 차로는 우회전만 하게 한다.
+# (나가는 도로, 차로, 들어가는 도로, 차로)
+REMOVED_CONNECTIONS = [("R42", "1", "R40", "1")]
 # 배경 차량 baseline 합계. 생성기 설정(generator/road_config.py OSM_ROAD traffic)의 값이다.
 BASELINE_VEHS_PER_HOUR = 900
 PEDESTRIANS = {"persons_per_hour": 600, "min_distance": 150, "end": 3600, "seed": 42}
@@ -183,6 +187,8 @@ def build_network(temporary: Path) -> Path:
         # 운전자 일시정지 의무와는 다르며 한계에 적는다.
         ET.SubElement(crossings, "crossing", node=node_id, edges=f"{incoming.getID()} {outgoing.getID()}",
                       priority="true" if MIDBLOCK_PRIORITY else "false")
+    for source, source_lane, target, target_lane in REMOVED_CONNECTIONS:
+        ET.SubElement(crossings, "delete", {"from": source, "to": target, "fromLane": source_lane, "toLane": target_lane})
     alley_nodes, alley_edges = add_alleys(split_net, crossings)
     ET.ElementTree(crossings).write(temporary / "crossings.con.xml", encoding="utf-8")
     ET.ElementTree(alley_nodes).write(temporary / "alleys.nod.xml", encoding="utf-8")
@@ -300,7 +306,8 @@ def build_signals(net_path: Path, output: Path) -> dict[str, list[int]]:
     """원본 신호 프로그램을 실행 도로망에 맞춰 쓴다. 양보 녹색으로 바꾼 연결 번호를 반환한다.
 
     신호 프로그램은 연결 번호 순서로 적혀 있다. 도로를 고치다 번호가 밀리면 다른 연결에 녹색이 가므로,
-    프로그램을 쓰는 교차로는 번호마다 가리키는 연결이 원본과 같은지 먼저 확인한다.
+    칸마다 원본에서 같은 연결이 받던 신호를 찾아 옮겨 적는다. 원본에 없는 연결이 생겼거나, 일부러 지운
+    연결(REMOVED_CONNECTIONS) 말고 다른 연결이 사라졌으면 멈춘다.
     """
     root = ET.parse(SOURCE / "signals.base.add.xml").getroot()
     base, built = signal_links(SOURCE / "network.base.net.xml"), signal_links(net_path)
@@ -312,17 +319,18 @@ def build_signals(net_path: Path, output: Path) -> dict[str, list[int]]:
             continue
         if tls not in built:
             raise ValueError(f"신호 프로그램 {tls}의 교차로가 도로망에 없습니다.")
-        moved = sorted(index for index in base[tls].keys() | built[tls].keys() if base[tls].get(index) != built[tls].get(index))
-        if moved:
-            raise ValueError(f"신호 교차로 {tls}의 연결 번호 {moved}가 원본과 다른 연결을 가리킵니다. "
-                             f"예: {moved[0]}번 원본 {base[tls].get(moved[0])}, 지금 {built[tls].get(moved[0])}")
+        original = {key: index for index, key in base[tls].items()}
+        changed = (set(original) ^ set(built[tls].values())) - set(REMOVED_CONNECTIONS)
+        if changed or len(original) != len(base[tls]):
+            raise ValueError(f"신호 교차로 {tls}의 연결이 원본과 다릅니다: {sorted(map(str, changed))}")
+        order = [original[built[tls][index]] for index in sorted(built[tls])]
         yielded[tls] = sorted(index for index, key in built[tls].items() if key[0] != "crossing"
                               and (key[0], key[2]) in YIELD_CONNECTIONS.get(tls, []))
         exclusive = sorted(index for index, key in built[tls].items() if key[0] == "crossing"
                            and key[1] in map(frozenset, EXCLUSIVE_CROSSINGS.get(tls, [])))
         walk_s = 0
         for phase in logic.findall("phase"):
-            state = list(phase.get("state"))
+            state = [phase.get("state")[index] for index in order]
             for index in yielded[tls]:
                 state[index] = "g" if state[index] == "G" else state[index]
             if any(state[index] == "G" for index in exclusive):
@@ -334,6 +342,8 @@ def build_signals(net_path: Path, output: Path) -> dict[str, list[int]]:
             if not walk_s:
                 raise ValueError(f"신호 교차로 {tls}에서 보행자 전용 단계로 옮길 횡단보도 녹색을 찾지 못했습니다.")
             width = len(logic.find("phase").get("state"))
+            # 교차로 안에서 기다리던 좌회전 차가 황색 뒤에 빠져나간다. 그 차가 나갈 때까지 보행 신호를 늦춘다.
+            ET.SubElement(logic, "phase", duration=str(EXCLUSIVE_CLEARANCE_S), state="r" * width)
             ET.SubElement(logic, "phase", duration=str(walk_s),
                           state="".join("G" if index in exclusive else "r" for index in range(width)))
             ET.SubElement(logic, "phase", duration=str(EXCLUSIVE_CLEARANCE_S), state="r" * width)
@@ -436,11 +446,11 @@ def build() -> dict:
                                            "signal_yield_links": yield_links, "dropped_programs": sorted(DROP_PROGRAMS),
                                            "exclusive_crossings": {tls: [list(edges) for edges in crossings]
                                                                    for tls, crossings in EXCLUSIVE_CROSSINGS.items()},
-                                           "entry_lengths_m": {node: length for node, (_, length) in ENTRY_LENGTHS.items()}},
+                                           "entry_lengths_m": {node: length for node, (_, length) in ENTRY_LENGTHS.items()},
+                                           "removed_connections": [list(item) for item in REMOVED_CONNECTIONS]},
                                "pedestrians": PEDESTRIANS},
             "extra_files": EXTRA_FILES,
-            "trainable": False,
-            "trainable_reason": "일반 도로 대부분의 0번 차로가 인도라서, 차로 번호를 관측으로 쓰는 학습 환경이 틀린 값을 읽는다.",
+            "ego_vehicle": "bus",
             "focus_bbox": [round(west, 7), round(south, 7), round(east, 7), round(north, 7)],
             "gui_center": {"x": round(center[0], 3), "y": round(center[1], 3)},
             "sources_license": {"road_data": "ODbL 1.0", "attribution": "© OpenStreetMap contributors",

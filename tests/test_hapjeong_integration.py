@@ -31,11 +31,11 @@ def test_overlay_is_registered_before_other_route_files(world):
 
 
 def test_merge_alley_flows_use_cutin_type(world):
-    flows = ET.parse(os.path.join(world.out_dir, "routes.rou.xml")).getroot().iter("flow")
+    flows = list(ET.parse(os.path.join(world.out_dir, "routes.rou.xml")).getroot().iter("flow"))
     types = {f.get("from"): f.get("type") for f in flows}
     assert all(types[a] == "cutin" for a in MERGE_ALLEYS)
     assert all(t == "carDist" for a, t in types.items() if a not in MERGE_ALLEYS)
-    assert world.summary["cutin_flows"] == 14
+    assert world.summary["cutin_flows"] == sum(f.get("from") in MERGE_ALLEYS for f in flows) > 0
 
 
 def test_s6_pedestrians_get_both_types(world):

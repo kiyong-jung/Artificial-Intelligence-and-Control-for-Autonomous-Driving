@@ -8,7 +8,7 @@
 그다음 seed×시나리오마다 두 종류를 프로세스 풀에서 돌린다.
 - 배경: 배경 차량만 --seconds 동안. 충돌·순간이동·급제동·평균 주행 대수·최대 대기와,
   t=300초부터 map.json design.measure_lanes 차로의 평균 속도·점유율·대기 시간.
-- ego: 학습 가능한 지도(trainable)에서만, 기본 ego 경로와 모든 s_* 경로를 경로 추종 규칙으로 한 에피소드씩. 투입 대기·종료 사유·에피소드 길이·
+- ego: 기본 ego 경로와 모든 s_* 경로를 경로 추종 규칙으로 한 에피소드씩. 투입 대기·종료 사유·에피소드 길이·
   최장 정지·보상 합.
 통과 기준(PASS_CONDITION): 배경은 충돌 0, 순간이동 0(300초 기준), 모든 경계 진입로에서 출발한 차량의 도착.
 ego는 충돌·투입 실패 없음. r0는 모든 실행에서 도착. s_*는 도착, 시간 초과,
@@ -243,8 +243,7 @@ def main() -> int:
     configure_map("baseline", 0, None, args.map)
     definition = ROAD["network"]
     structure = validate_structure(definition, Path(definition["net_path"]))
-    ego_routes = ([definition["ego_route"]] + sorted(route for route in definition["routes"] if route.startswith("s_"))
-                  if definition.get("trainable", True) else [])
+    ego_routes = [definition["ego_route"]] + sorted(route for route in definition["routes"] if route.startswith("s_"))
     report = {
         "command": shlex.join(["python", *sys.argv]),
         "map_id": definition["id"], "map_version": definition["version"], "network_sha256": definition["network_source"]["sha256"],

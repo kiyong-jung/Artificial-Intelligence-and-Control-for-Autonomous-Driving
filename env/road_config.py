@@ -27,6 +27,7 @@ _EGO_COMMON = {
 _EGO_VEHICLES = {
     # 수업 원본의 승용차.
     "car": {"vclass": "passenger", "gui_shape": "passenger/sedan", "accel": 5.4, "decel": 5.4,
+            "emergency_decel": 9.0,   # SUMO의 승용차 기본값. 안전 보조의 제동 한계다.
             "max_speed": 33.33},
     # 시내버스. 10/29 회의에서 정한 버스 특징(긴 차체, 제한된 가속, 승객 편안함)을 수치로 둔다.
     # 길이·폭은 대형 시내버스, 가감속은 서 있는 승객이 견디는 범위다. comfort의 한계를 넘으면

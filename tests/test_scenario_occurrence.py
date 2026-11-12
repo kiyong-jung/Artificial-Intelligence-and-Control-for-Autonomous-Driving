@@ -49,3 +49,18 @@ def test_car_that_never_used_an_alley_is_not_a_cut_in():
 
 def test_alley_car_entering_behind_the_bus_is_not_a_cut_in():
     assert count([row(0.0, "G3", 50.0), row(1.0, "R71.135", 60.0)])["S5"] == 0
+
+
+def test_car_driving_through_the_merge_junction_is_not_a_cut_in():
+    counts = count([row(0.0, "R71", 250.0), row(0.5, ":X_dongmak3_2", 2.0), row(1.0, "R71.135", 130.0)])
+    assert counts["S5"] == 0
+    assert counts["S5~"] == 0
+
+
+def test_lane_change_to_the_left_before_a_left_turn_is_s2_wherever_it_happens():
+    before_left, before_right = row(0.0, "R71", 250.0), row(0.0, "R71", 250.0)
+    for item, turn in ((before_left, "left"), (before_right, "right")):
+        item["action"]["lane_change_actual"] = 1
+        item["state"]["navigation"]["next_turn"] = turn
+    assert count([before_left])["S2"] == 1
+    assert count([before_right])["S2"] == 0

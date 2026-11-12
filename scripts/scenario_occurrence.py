@@ -56,7 +56,6 @@ class Counter:
 
     def __init__(self, alley_end: dict[str, str], merges: set[str]):
         self.alley_end, self.merges = alley_end, merges
-        self.inside = {f":{node}_": node for node in merges}
         self.by_merge = {node: {"cut_ins": 0, "waiting_steps": 0} for node in sorted(merges)}
         self.episodes, self.steps = set(), 0
         self.hit = {key: set() for key, *_ in SCENARIOS}
@@ -89,7 +88,7 @@ class Counter:
             events["S1"] += ego["speed"] < 0.1
         distance = navigation["distance_to_stop"]
         changed = row["action"]["lane_change_actual"]
-        if ego["road_id"].split(".")[0] in ("-R96", "R94") and changed > 0:
+        if navigation.get("next_turn") == "left" and changed > 0:
             events["S2"] += 1
             events["S2+"] += any(d["lane_relation"] == "left" for d in in_lane)
         events["S3"] += distance is not None and 0 < distance <= 100 and changed < 0
@@ -98,18 +97,20 @@ class Counter:
         waiting = False
         for vehicle in state["vehicles"]:
             road = vehicle["road_id"]
-            merge = self.alley_end.get(road) or next((node for prefix, node in self.inside.items() if road.startswith(prefix)), None)
+            seen, origin = self._merged.get(vehicle["id"], (-1e9, None))
+            recent = origin is not None and now - seen <= CUT_IN_WINDOW_S
+            # 합류점 교차로 안의 차는 방금 그 골목에서 나온 차만 잇는다. 버스 경로를 따라 교차로를 지나가는 차는 끼어든 차가 아니다.
+            merge = self.alley_end.get(road) or (origin if recent and road.startswith(f":{origin}_") else None)
             if merge:
                 self._merged[vehicle["id"]] = (now, merge)
                 if near(ego, vehicle) and ahead(ego, vehicle):
                     waiting = True
                     self.by_merge[merge]["waiting_steps"] += 1
                 continue
-            seen, merge = self._merged.get(vehicle["id"], (-1e9, None))
-            if (vehicle["id"] not in self._cut_in and now - seen <= CUT_IN_WINDOW_S
+            if (recent and vehicle["id"] not in self._cut_in
                     and road == ego["road_id"] and 0 < vehicle["lane_position"] - ego["lane_position"] <= NEAR_M):
                 self._cut_in.add(vehicle["id"])
-                self.by_merge[merge]["cut_ins"] += 1
+                self.by_merge[origin]["cut_ins"] += 1
                 events["S5"] += 1
         events["S5~"] += waiting
         if str(navigation["crossing_id"]).startswith(S6_CROSSING) and navigation["distance_to_crossing"] <= NEAR_M:
@@ -137,7 +138,7 @@ class Counter:
 # (id, 이름, 판정 기준). count는 S5가 끼어든 차량 수이고 나머지는 스텝 수다.
 SCENARIOS = [
     ("S1", "정류장 출발 후 재합류", "버스가 정류장 안에서 멈춤"),
-    ("S2", "정류장 직후 좌회전 차로 변경", "서교동교회를 지나 왼쪽 차로로 옮김"),
+    ("S2", "정류장 직후 좌회전 차로 변경", "다음 회전이 좌회전인 구간에서 왼쪽 차로로 옮김"),
     ("S2+", "그때 옮겨 갈 차로에 차가 있음", "왼쪽 차로에 감지 차량"),
     ("S3", "정류장 접근 차로 변경", "정류장 100m 앞에서 오른쪽으로 옮김"),
     ("S4", "정류장 앞 정차 차량", "50m 안에 정차 택시"),

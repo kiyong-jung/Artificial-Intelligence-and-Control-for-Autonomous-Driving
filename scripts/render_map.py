@@ -1,4 +1,4 @@
-"""합정역 실행 도로망 전체를 그린다. 버스 경로, 정류장, 신호 없는 횡단보도, 골목 합류점, 지름길, 자른 점을 표시한다.
+"""합정역 실행 도로망 전체를 그린다. 버스 경로, 정류장, 신호 교차로, 신호 없는 횡단보도, 골목 합류점, 지름길, 자른 점을 표시한다.
 
     python3 scripts/render_map.py
 """
@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import sys
+import xml.etree.ElementTree as ET
 
 import matplotlib
 matplotlib.use("Agg")
@@ -17,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from render_fix_figures import BASE, FONT, Net, load
 
 FOLDER = BASE / "maps" / "hapjeong"
-ROUTE, STOP, CUT, SHORTCUT = "#1565c0", "#f5b400", "#c62828", "#e65100"
+ROUTE, STOP, OTHER_STOP, SIGNAL, CUT, SHORTCUT = "#1565c0", "#f5b400", "#9bb8e0", "#ffd400", "#c62828", "#e65100"
 
 
 def main():
@@ -36,7 +37,7 @@ def main():
         side.set_visible(False)
     fig.text(0.02, 0.955, f"합정역 도로망 {definition['version']}", fontsize=24, fontweight="bold")
     fig.text(0.02, 0.928, f"버스 경로 {definition['ego_route']} {definition['route_design'][definition['ego_route']]['length_m']:,.0f}m, "
-             f"가로변 정류장 {len(definition['bus_stops'])}곳, 신호 없는 횡단보도 1곳. 주황은 측정으로 고른 지름길, 빨간 X는 자른 점",
+             f"경로 가로변 정류장 {len(definition['bus_stops'])}곳, 신호 없는 횡단보도 1곳. 주황은 측정으로 고른 지름길, 빨간 X는 자른 점",
              fontsize=14, color="#555555")
 
     for junction in net.junctions.values():
@@ -64,6 +65,13 @@ def main():
     ax.annotate("", xy=start[1], xytext=start[0], zorder=4,
                 arrowprops=dict(arrowstyle="-|>", color=ROUTE, lw=3, mutation_scale=30))
 
+    for junction in net.junctions.values():
+        if junction["type"].startswith("traffic_light"):
+            ax.plot(junction["x"], junction["y"], "o", ms=7, color=SIGNAL, mec="black", mew=0.8, zorder=5)
+    # 경로 밖 정류장(양화로 중앙버스차로와 가로변)은 원본의 stops.add.xml에 있다.
+    for stop in ET.parse(FOLDER / "source" / "stops.add.xml").getroot().iter("busStop"):
+        points = net.lanes[stop.get("lane")]["points"]
+        ax.plot(*points[len(points) // 2], "s", ms=9, color=OTHER_STOP, mec="black", mew=1.0, zorder=6)
     for stop in definition["bus_stops"]:
         points = net.lanes[stop["lane"]]["points"]
         x, y = points[len(points) // 2]
@@ -94,22 +102,24 @@ def main():
     for node in definition["network_source"]["patches"]["cuts"]:
         junction = net.junctions[node]
         ax.plot(junction["x"], junction["y"], "X", ms=20, color=CUT, mec="white", mew=1.5, zorder=9)
-    for name, node in (("합정역 사거리", "J1"), ("서교동사거리", "J42"), ("홍대입구역사거리", "J96")):
-        if node not in net.junctions:
-            continue
+    for name, node, offset in (("합정역 사거리", "J1", (14, 24)), ("서교동사거리", "J42", (14, -28)),
+                               ("홍대입구역사거리", "J96", (-44, -36)), ("상수역 사거리", "J82", (-118, 22)),
+                               ("삼거리포차 앞", "J83", (-104, 20))):
         junction = net.junctions[node]
-        ax.annotate(name, (junction["x"], junction["y"]), xytext=(12, -26), textcoords="offset points", fontsize=13.5,
+        ax.annotate(name, (junction["x"], junction["y"]), xytext=offset, textcoords="offset points", fontsize=13.5,
                     color="#222222", zorder=8, bbox=dict(boxstyle="round,pad=0.2", fc="#fff8e1", ec="#999999", alpha=0.9))
 
     handles = [plt.Line2D([], [], color=ROUTE, lw=5, label="버스 경로"),
                plt.Line2D([], [], color="#4a4a4a", lw=2, label="차도"),
                plt.Line2D([], [], color="#7aa0d6", lw=2, label="버스 전용 차로"),
-               plt.Line2D([], [], marker="s", ls="", ms=11, color=STOP, mec="black", label="가로변 정류장"),
+               plt.Line2D([], [], marker="o", ls="", ms=8, color=SIGNAL, mec="black", label="신호 교차로"),
+               plt.Line2D([], [], marker="s", ls="", ms=11, color=STOP, mec="black", label="경로 가로변 정류장"),
+               plt.Line2D([], [], marker="s", ls="", ms=9, color=OTHER_STOP, mec="black", label="경로 밖 정류장(중앙 4, 가로변 2)"),
                plt.Line2D([], [], marker="D", ls="", ms=10, color="#2e9d48", mec="black", label="신호 없는 횡단보도"),
                plt.Line2D([], [], marker="^", ls="", ms=11, color="#8e44ad", mec="black", label="골목 합류점(신호 없음)"),
                plt.Line2D([], [], color=SHORTCUT, lw=4.5, label="지름길(측정으로 고름)"),
                plt.Line2D([], [], marker="X", ls="", ms=13, color=CUT, mec="white", label="자른 점(새 경계)")]
-    ax.legend(handles=handles, loc="lower left", fontsize=12.5, framealpha=0.95)
+    ax.legend(handles=handles, loc="upper left", fontsize=12.5, framealpha=0.95)
     xs = [x for lane in net.lanes.values() if not lane["internal"] for x, _ in lane["points"]]
     ys = [y for lane in net.lanes.values() if not lane["internal"] for _, y in lane["points"]]
     ax.set_xlim(min(xs) - 20, max(xs) + 20)

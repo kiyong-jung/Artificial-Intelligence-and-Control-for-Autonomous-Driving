@@ -4,7 +4,7 @@
 
 ![합정역 일대 지도(왼쪽)와 같은 범위에 겹친 SUMO 도로망(오른쪽, 붉은색)](maps/hapjeong/references/hapjeong_road.png)
 
-연구 경로는 합정역에서 독막로, 상수역, 와우산로, 잔다리로, 서교동사거리를 돌아 합정역으로 오는 순환 경로다(`bus_loop`, 1,970m). 경로 위에 실제 위치의 가로변 정류장 6곳과 신호 없는 횡단보도 1곳이 있다. 독막로 양쪽 골목은 이어져 있고, 골목이 버스 경로에 신호 없이 합류하는 곳이 네 곳이다(독막로 두 곳, 잔다리로 두 곳). 잔다리로의 두 곳은 측정으로 고른 지름길(독막로7길, 잔다리로3길)이다.
+연구 경로는 합정역에서 독막로, 상수역, 와우산로, 잔다리로, 서교동사거리를 돌아 합정역으로 오는 순환 경로다(`bus_loop`, 1,970m). 경로 위에 실제 위치의 가로변 정류장 6곳과 신호 없는 횡단보도 1곳이 있다. 독막로 양쪽 골목은 이어져 있고, 골목이 버스 경로에 신호 없이 합류하는 곳이 네 곳이다(독막로 두 곳, 잔다리로 두 곳). 3.3.0에서 골목 합류점은 여덟 곳이다(독막로 두 곳, 와우산로 한 곳, 잔다리로 다섯 곳). 모두 실제 골목이고 측정으로 골랐다.
 
 ![연구 경로(파랑), 가로변 정류장(노랑), 신호 없는 횡단보도(초록)](maps/hapjeong/references/hapjeong_scenario.png)
 
@@ -67,7 +67,7 @@ python scripts/fill_column_slide.py 00조_칼럼설명.pptx data/submission/00�
 - 버스 승차감은 `state.ego.acceleration`, `state.ego.jerk`와 `comfort.peak_acceleration`, `comfort.peak_jerk`로 남는다. 한계(가속 1.5m/s², jerk 2.0m/s³)를 넘은 스텝은 `comfort.*_violation`이 참이다.
 - `export_csv.py`는 모든 행에 표의 컬럼이 있는지, 가속도가 제원의 한계 안인지 검사한 뒤에만 CSV를 쓴다.
 
-아직 없는 것은 다음과 같다. 버스는 정류장에 서지 않는다(`state.navigation.distance_to_stop`으로 거리만 적는다). 관측은 수업 원본의 31차원 그대로라 보행자, 신호, 방향지시등은 정책 입력에 없고 `state`와 감지 목록에만 있다. 3.2.0 도로망의 busy 80에피소드에서 골목 차량이 버스 앞에 끼어든 것은 6번이고, 관측 차선에 차가 있던 스텝은 49%다(3.0.0에서는 0.8%). 버스는 서교동사거리 좌회전 신호를 길게 기다려, 제한 시간 500초를 넘기는 에피소드가 열에 한둘 나온다([maps/hapjeong/README.md](maps/hapjeong/README.md)의 알려진 현상). 시나리오별 발생은 `python3 scripts/scenario_occurrence.py <jsonl.gz>`로 세고, 시나리오의 재료가 도로에 얼마나 공급되는지는 `python scripts/scenario_supply.py`로 센다. 학습 쪽 사용법은 [부록 B](#부록-b-학습-평가-데이터-수집)에 있다.
+아직 없는 것은 다음과 같다. 버스는 정류장에 서지 않는다(`state.navigation.distance_to_stop`으로 거리만 적는다). 관측은 수업 원본의 31차원 그대로라 보행자, 신호, 방향지시등은 정책 입력에 없고 `state`와 감지 목록에만 있다. 3.3.0 도로망의 busy 80에피소드에서 골목 차량이 버스 앞에 끼어든 것은 36번이고, 버스가 왼쪽 차로로 옮길 때 그 차로에 차가 있던 것은 27번이다(3.0.0에서는 버스가 다른 차와 거의 마주치지 않았다). 구간별 수치는 `python3 scripts/scenario_sections.py <jsonl.gz>`로 본다. 버스는 서교동사거리 좌회전 신호를 길게 기다려, 제한 시간 500초를 넘기는 에피소드가 열에 한둘 나온다([maps/hapjeong/README.md](maps/hapjeong/README.md)의 알려진 현상). 시나리오별 발생은 `python3 scripts/scenario_occurrence.py <jsonl.gz>`로 세고, 시나리오의 재료가 도로에 얼마나 공급되는지는 `python scripts/scenario_supply.py`로 센다. 학습 쪽 사용법은 [부록 B](#부록-b-학습-평가-데이터-수집)에 있다.
 
 ## 주변 교통(Traffic)
 

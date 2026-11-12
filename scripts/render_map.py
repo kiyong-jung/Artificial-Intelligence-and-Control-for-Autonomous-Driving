@@ -1,6 +1,7 @@
 """합정역 실행 도로망 전체를 그린다. 버스 경로, 정류장, 신호 교차로, 신호 없는 횡단보도, 골목 합류점, 지름길, 자른 점을 표시한다.
 
     python3 scripts/render_map.py
+    python3 scripts/render_map.py maps/hapjeong_trial_x "후보 포함, 측정 중"   # 다른 지도 폴더를 그릴 때(제목에 덧붙일 말)
 """
 from __future__ import annotations
 
@@ -15,17 +16,17 @@ from matplotlib import font_manager
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from render_fix_figures import BASE, FONT, Net, load
+from render_fix_figures import BASE, FONT, Net
 
 FOLDER = BASE / "maps" / "hapjeong"
 ROUTE, STOP, OTHER_STOP, SIGNAL, CUT, SHORTCUT = "#1565c0", "#f5b400", "#9bb8e0", "#ffd400", "#c62828", "#e65100"
 
 
-def main():
+def main(folder: Path = FOLDER, note: str = ""):
     font_manager.fontManager.addfont(FONT)
     plt.rcParams["font.family"] = font_manager.FontProperties(fname=FONT).get_name()
-    net = Net(load(None))
-    definition = json.loads((FOLDER / "map.json").read_text(encoding="utf-8"))
+    net = Net((folder / "source" / "network.net.xml").read_text(encoding="utf-8"))
+    definition = json.loads((folder / "map.json").read_text(encoding="utf-8"))
     route = definition["routes"][definition["ego_route"]]
 
     fig = plt.figure(figsize=(16, 10.4), dpi=150)
@@ -35,7 +36,7 @@ def main():
     ax.set_xticks([]), ax.set_yticks([])
     for side in ax.spines.values():
         side.set_visible(False)
-    fig.text(0.02, 0.955, f"합정역 도로망 {definition['version']}", fontsize=24, fontweight="bold")
+    fig.text(0.02, 0.955, f"합정역 도로망 {definition['version']}" + (f" ({note})" if note else ""), fontsize=24, fontweight="bold")
     fig.text(0.02, 0.928, f"버스 경로 {definition['ego_route']} {definition['route_design'][definition['ego_route']]['length_m']:,.0f}m, "
              f"경로 가로변 정류장 {len(definition['bus_stops'])}곳, 신호 없는 횡단보도 1곳. 주황은 측정으로 고른 지름길, 빨간 X는 자른 점",
              fontsize=14, color="#555555")
@@ -69,7 +70,7 @@ def main():
         if junction["type"].startswith("traffic_light"):
             ax.plot(junction["x"], junction["y"], "o", ms=7, color=SIGNAL, mec="black", mew=0.8, zorder=5)
     # 경로 밖 정류장(양화로 중앙버스차로와 가로변)은 원본의 stops.add.xml에 있다.
-    for stop in ET.parse(FOLDER / "source" / "stops.add.xml").getroot().iter("busStop"):
+    for stop in ET.parse(folder / "source" / "stops.add.xml").getroot().iter("busStop"):
         points = net.lanes[stop.get("lane")]["points"]
         ax.plot(*points[len(points) // 2], "s", ms=9, color=OTHER_STOP, mec="black", mew=1.0, zorder=6)
     for stop in definition["bus_stops"]:
@@ -92,9 +93,15 @@ def main():
         merges += shortcut["merges"]
         for edge_id in shortcut["edges"]:
             ax.plot(*zip(*net.lanes[f"{edge_id}_0"]["points"]), color=SHORTCUT, lw=4.5, solid_capstyle="round", zorder=5)
-        points = net.lanes[f"{shortcut['edges'][-1]}_0"]["points"]
-        ax.annotate(shortcut["names"][-1], points[len(points) // 2], xytext=(-12, 10), textcoords="offset points", fontsize=13,
-                    color=SHORTCUT, fontweight="bold", ha="right", zorder=8,
+        # 이름은 합류점에서 가장 먼 점에 적는다. 합류점 옆에는 정류장과 교차로 이름이 몰려 있다.
+        ends = [net.junctions[node] for node in shortcut["merges"]]
+        points = [point for edge_id in shortcut["edges"] for point in net.lanes[f"{edge_id}_0"]["points"]]
+        if not points:      # 길을 더하지 않는 변형
+            continue
+        x, y = max(points, key=lambda point: min((point[0] - end["x"]) ** 2 + (point[1] - end["y"]) ** 2 for end in ends)) \
+            if ends else points[len(points) // 2]
+        ax.annotate(shortcut["names"][-1], (x, y), xytext=(10, 8), textcoords="offset points", fontsize=13,
+                    color=SHORTCUT, fontweight="bold", zorder=8,
                     bbox=dict(boxstyle="round,pad=0.2", fc="white", ec=SHORTCUT, alpha=0.92))
     for node in merges:
         junction = net.junctions[node]
@@ -130,4 +137,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(*(Path(sys.argv[1]),) if len(sys.argv) > 1 else (), *sys.argv[2:3])

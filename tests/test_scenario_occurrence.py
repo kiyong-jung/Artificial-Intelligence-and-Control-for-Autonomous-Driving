@@ -64,3 +64,4 @@ def test_lane_change_to_the_left_before_a_left_turn_is_s2_wherever_it_happens():
         item["state"]["navigation"]["next_turn"] = turn
     assert count([before_left])["S2"] == 1
     assert count([before_right])["S2"] == 0
+

@@ -47,7 +47,10 @@ def run(map_id: str, scenario: str, seed: int, seconds: float) -> dict:
         root = ET.parse(Path(temporary) / "vehroutes.xml").getroot()
         for vehicle in root.iter("vehicle"):
             # 끝까지 가지 못한 차량은 실제로 지난 도로까지만 센다(exitTimes의 개수).
+            # 아직 출발하지 못한 차량은 경로가 없다. 정체가 심하면 생긴다.
             element = vehicle.find("route")
+            if element is None:
+                continue
             edges = element.get("edges").split()
             edges = edges[:len(element.get("exitTimes", "").split()) or len(edges)]
             for edge in set(edges) & set(route):

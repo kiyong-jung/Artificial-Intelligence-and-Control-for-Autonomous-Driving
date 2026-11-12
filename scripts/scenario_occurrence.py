@@ -24,9 +24,8 @@ S6_WAITING = ":S6_wausanro_w"   # 횡단보도 양끝의 대기 공간. 인도�
 
 
 def alley_merges(net_path: Path) -> tuple[dict[str, str], set[str]]:
-    """(골목 도로 → 그 도로가 끝나는 골목 합류점, 합류점들). 합류점은 신호가 없고 골목 아닌 도로도 닿는 교차로다."""
+    """(골목 도로 → 그 도로가 끝나는 골목 합류점, 합류점들). 합류점은 골목이 양쪽으로 이어진 도로에 닿는 교차로다."""
     root = ET.parse(net_path).getroot()
-    signalised = {junction.get("id") for junction in root.findall("junction") if junction.get("type", "").startswith("traffic_light")}
     ends, alleys_at, through = {}, set(), {}
     for edge in root.findall("edge"):
         if edge.get("function"):
@@ -37,8 +36,8 @@ def alley_merges(net_path: Path) -> tuple[dict[str, str], set[str]]:
         else:
             through.setdefault(edge.get("from"), set()).add(edge.get("to"))
             through.setdefault(edge.get("to"), set()).add(edge.get("from"))
-    # 골목이 지나가는 도로(양쪽으로 이어진 도로)에 닿아야 합류점이다. 신호 교차로로 가는 토막의 끝은 뺀다.
-    merges = {node for node in alleys_at if len(through.get(node, ())) >= 2 and node not in signalised}
+    # 골목이 지나가는 도로(양쪽으로 이어진 도로)에 닿아야 합류점이다. 신호 횡단보도에 붙은 골목도 신호 없이 나오므로 센다.
+    merges = {node for node in alleys_at if len(through.get(node, ())) >= 2}
     return {edge: node for edge, node in ends.items() if node in merges}, merges
 
 

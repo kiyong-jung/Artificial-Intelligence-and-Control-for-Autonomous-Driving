@@ -104,11 +104,15 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
             staggered.append((entry_seen.get(flow["from"], 0) * 3600.0 / entry_total[flow["from"]], volume, flow))
             entry_seen[flow["from"]] = entry_seen.get(flow["from"], 0) + 1
     # SUMO는 시작 시각 순서가 아닌 흐름을 무시한다.
+    # 지도가 flow_arrivals를 "poisson"으로 두면 차가 무작위 간격으로 들어온다(평균은 같다). 고정 간격이면 seed가 달라도
+    # 같은 시각에 같은 차가 나와, 버스가 겪는 일이 에피소드마다 되풀이된다.
+    poisson = network.get("flow_arrivals") == "poisson"
     for begin, volume, flow in sorted(staggered, key=lambda item: item[0]):
         # 배경 차량은 출발·도착 도로만 정하고 경로는 SUMO가 고른다.
         ET.SubElement(routes, "flow", _attrs({
-            "id": flow["id"], "type": "carDist", "from": flow["from"], "to": flow["to"], "begin": f"{begin:.3f}",
-            "end": 100000, "period": f"{3600.0 / volume:.6f}", "departLane": "best",
+            "id": flow["id"], "type": "carDist", "from": flow["from"], "to": flow["to"],
+            "begin": "0" if poisson else f"{begin:.3f}", "end": 100000,
+            "period": f"exp({volume / 3600.0:.6f})" if poisson else f"{3600.0 / volume:.6f}", "departLane": "best",
             "departSpeed": traffic["depart_speed"]}))
     _write_xml(output / "routes.rou.xml", routes)
 

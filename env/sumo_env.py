@@ -160,6 +160,7 @@ class SumoHighwayEnv(gym.Env):
                 f"step_length({self.step_length:g}초)의 정수배여야 합니다.")
         self.max_steps = int(mdp_sim["max_steps"])
         self.warmup_steps = int(mdp_sim["warmup_steps"])
+        self.warmup_jitter_steps = int(mdp_sim.get("warmup_jitter_steps", 0))
         self.state_radius = float(mdp_sim["state_radius"])
         self.ego_insert_timeout = float(mdp_sim["ego_insert_timeout"])
         self.visibility = float(mdp_obs["visibility"])   # 관측 거리 W
@@ -247,7 +248,8 @@ class SumoHighwayEnv(gym.Env):
         self._start_sumo()
 
         # 배경 flow를 먼저 흘려 교차로 대기열이 생긴 뒤에 ego를 투입한다.
-        for _ in range(self.warmup_steps):
+        warmup_steps = self.warmup_steps + int(self.np_random.integers(0, self.warmup_jitter_steps + 1))
+        for _ in range(warmup_steps):
             traci.simulationStep()
 
         # ego 차량 투입 — 반드시 "도로 시작점(0m)"에서 출발
@@ -296,6 +298,7 @@ class SumoHighwayEnv(gym.Env):
         self._acceleration, self._jerk = 0.0, 0.0
         return self._get_obs(), {"sumo_seed": self.sumo_seed,
                                  "ego_insert_wait_seconds": (1 + _wait) * self.step_length,
+                                 "warmup_seconds": warmup_steps * self.step_length,
                                  "background_vehicles_at_reset": len(traci.vehicle.getIDList()) - 1}
 
     # ==================================================================

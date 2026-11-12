@@ -44,7 +44,8 @@ JOIN = [("J52", "J56", "J58")]
 # 연결로가 양화로에 지퍼로 합류하던 J3은 busy에서 정체가 풀리지 않아, 연결로가 양보하는 합류로 바꾼다.
 NODE_TYPES = {"J3": "priority"}
 JOINED = "cluster_J52_J56_J58"
-JOINED_CROSSINGS = [("R73", "-R73"), ("R77", "-R77"), ("R120",), ("R122",), ("R121",)]
+# 독막로를 건너는 두 곳만 둔다. 어울마당로(R120·R121·R122) 골목 쪽 횡단보도는 두지 않는다
+JOINED_CROSSINGS = [("R73", "-R73"), ("R77", "-R77")]
 # 중앙버스차로가 일반 차로로 합류하는 연결(신호 교차로 → [(나가는 도로, 들어가는 도로)])
 YIELD_CONNECTIONS = {"J1": [("B2", "R40"), ("B1", "R41")]}
 DROP_PROGRAMS = {"J56"}
@@ -56,10 +57,9 @@ EXCLUSIVE_CLEARANCE_S = 5
 # 경계에서 신호 교차로까지 10m뿐인 진입로는 차가 투입되자마자 빨간불 앞에서 비상 정지한다.
 # 경계 노드를 교차로에서 멀리 옮겨 설 거리를 준다(경계 노드 → (교차로, 진입로 길이 m)).
 ENTRY_LENGTHS = {"J66": ("J64", 60.0)}
-# 합정역 사거리(J1)에서 양화로 R42의 1번·2번 차로가 둘 다 R40의 1번 차로로 직진해, 교차로 안에서 옆으로 부딪혔다.
-# R40은 맨 왼쪽이 버스 전용이라 승용차 차로가 둘뿐이다. 1번 차로는 우회전만 하게 한다.
-# (나가는 도로, 차로, 들어가는 도로, 차로)
-REMOVED_CONNECTIONS = [("R42", "1", "R40", "1")]
+# (나가는 도로, 차로, 들어가는 도로, 차로). 합정역 R42 1·2번 차로가 둘 다 R40 1번 차로로 직진해 부딪히던 것은
+# 생성기에서 R40을 일반 3차로로 넓혀 R42 직진 세 차로를 1:1로 이어 풀었다.
+REMOVED_CONNECTIONS: list[tuple[str, str, str, str]] = []
 # 배경 차량 baseline 합계. 생성기 설정(generator/road_config.py OSM_ROAD traffic)의 값이다.
 BASELINE_VEHS_PER_HOUR = 900
 PEDESTRIANS = {"persons_per_hour": 600, "min_distance": 150, "end": 3600, "seed": 42}

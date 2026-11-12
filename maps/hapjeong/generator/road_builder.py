@@ -933,8 +933,12 @@ def _build_osm(osm: dict, ego: dict, traffic: dict, out_dir: str) -> str:
                 # own: 차선 하나의 움직임에 따로 신호를 준다 (예: 버스 전용 차선 직진).
                 #   그 차선은 원래 단계들에서 빨강이 되고, before 움직임이 초록인 첫 단계 앞에
                 #   그 차선만 초록인 단계(seconds)와 노랑 3초를 넣는다
+                #   "links": [[from, lane, to], ...]로 주면 여러 움직임을 한 단계에 같이 켠다
+                #   (예: 서로 엇갈리지 않는 양방향 좌회전)
                 for own in sig.get("own", []):
-                    lis = lane_links.get((tl.get("id"), own["from"], int(own["lane"]), own["to"]))
+                    moves = own.get("links") or [(own["from"], own["lane"], own["to"])]
+                    lis = [li for fr, ln, to in moves
+                           for li in lane_links.get((tl.get("id"), fr, int(ln), to), [])]
                     ref = links.get((tl.get("id"), own["before"][0], own["before"][1]))
                     if not lis or ref is None:
                         raise ValueError(f'신호 {tl.get("id")}: own 대상 연결이 없다: {own}')
@@ -944,6 +948,29 @@ def _build_osm(osm: dict, ego: dict, traffic: dict, out_dir: str) -> str:
                     n = len(phases[0][1])
                     phases[at:at] = [[int(own["seconds"]), "".join("G" if i in lis else "r" for i in range(n))],
                                      [3, "".join("y" if i in lis else "r" for i in range(n))]]
+                    # clearance: 노랑 뒤 전부 빨강(초). 교차로 안에 남은 회전 차가 다음 단계 보행자와 만나지 않게
+                    if own.get("clearance"):
+                        phases.insert(at + 2, [int(own["clearance"]), "r" * n])
+                # permissive: during 움직임이 초록인 단계에서 그 움직임도 양보 녹색(g)으로 켠다
+                #   (예: 좌회전 전용 단계 말고 맞은편 직진 단계에도 비보호 좌회전 허용). during이 노랑이면 노랑
+                for pm in sig.get("permissive", []):
+                    lis = all_links.get((tl.get("id"), pm["from"], pm["to"]))
+                    ref = links.get((tl.get("id"), pm["during"][0], pm["during"][1]))
+                    if not lis or ref is None:
+                        raise ValueError(f'신호 {tl.get("id")}: permissive 대상 연결이 없다: {pm}')
+                    for ph in phases:
+                        mark = "g" if ph[1][ref] in "Gg" else "y" if ph[1][ref] in "yY" else None
+                        if mark:
+                            ph[1] = "".join(mark if i in lis and ch == "r" else ch for i, ch in enumerate(ph[1]))
+                # yield_always: 이 도로들에서 나오는 움직임은 신호 없이 모든 단계에서 양보 녹색(g)
+                #   (예: 신호 교차로에 붙은 골목. 틈을 봐서 비보호로 나간다)
+                if sig.get("yield_always"):
+                    free = [li for (t, fr, to), lis in all_links.items()
+                            if t == tl.get("id") and fr in sig["yield_always"] for li in lis]
+                    for ph in phases:
+                        ph[1] = "".join("g" if i in free else ch for i, ch in enumerate(ph[1]))
+                    # 그 도로 신호만 다르던 단계는 앞 단계와 같아진다 → 뒤의 것을 지움 (예: 골목 노랑)
+                    phases = [ph for k, ph in enumerate(phases) if k == 0 or ph[1] != phases[k - 1][1]]
                 if "cycle" in sig:
                     longs = [i for i, (d, s) in enumerate(phases)
                              if d > 6 and "G" in s and "y" not in s]
@@ -951,8 +978,9 @@ def _build_osm(osm: dict, ego: dict, traffic: dict, out_dir: str) -> str:
                     share = extra // len(longs)
                     for k, i in enumerate(longs):
                         phases[i][0] += share + (1 if k < extra - share * len(longs) else 0)
+                # offset: 신호 주기 시작 시점(초). 연구 경로 버스가 도착할 때 녹색이 오도록 맞출 때 쓴다
                 f.write(f'    <tlLogic id="{tl.get("id")}" type="static" '
-                        f'programID="config" offset="0">\n')
+                        f'programID="config" offset="{sig.get("offset", 0)}">\n')
                 for d, s in phases:
                     f.write(f'        <phase duration="{d}" state="{s}"/>\n')
                 f.write("    </tlLogic>\n")

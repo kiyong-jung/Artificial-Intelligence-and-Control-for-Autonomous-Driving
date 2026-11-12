@@ -3,4 +3,6 @@
     <busStop id="stop_1" name="합정역(양화로 동쪽)" lane="B2_0" startPos="166.11" endPos="191.11" friendlyPos="true"/>
     <busStop id="stop_2" name="서교동사거리(중앙)" lane="B3a_0" startPos="29.67" endPos="54.67" friendlyPos="true"/>
     <busStop id="stop_3" name="서교동사거리(중앙, 합정 방향)" lane="B4a_0" startPos="28.77" endPos="53.77" friendlyPos="true"/>
+    <busStop id="stop_4" name="양화로 가로변(합정 방향)" lane="R49a_1" startPos="0.00" endPos="20.92" friendlyPos="true"/>
+    <busStop id="stop_5" name="양화로 가로변(당산 방향)" lane="R44_1" startPos="72.53" endPos="97.53" friendlyPos="true"/>
 </additional>

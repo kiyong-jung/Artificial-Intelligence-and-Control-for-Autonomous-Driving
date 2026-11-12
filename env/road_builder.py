@@ -22,6 +22,7 @@ from sumolib import checkBinary
 from sumolib.net import readNet
 
 from env.mdp_config import SIMULATION
+from env.road_config import vtype_attributes
 from maps import MAPS_DIR
 
 
@@ -36,7 +37,7 @@ def _attrs(values: dict) -> dict:
 
 
 def _write_vehicle_types(routes: ET.Element, ego: dict, traffic: dict) -> None:
-    """ego는 승용차 한 종류, 배경차는 추종모델 네 종류의 확률 분포다."""
+    """ego는 지도가 고른 제원 한 종류, 배경차는 추종모델 네 종류의 확률 분포다."""
     lateral = {attribute: traffic["lateral_model"][key] for key, attribute in (
         ("accel", "lcAccelLat"), ("max_speed", "maxSpeedLat"),
         ("standing_speed", "lcMaxSpeedLatStanding"), ("speed_factor", "lcMaxSpeedLatFactor"),
@@ -44,9 +45,8 @@ def _write_vehicle_types(routes: ET.Element, ego: dict, traffic: dict) -> None:
     if float(traffic["lateral_resolution"]) > 0:
         lateral["laneChangeModel"] = "SL2015"
     ET.SubElement(routes, "vType", _attrs(dict(
-        id="ego_type", accel=ego["accel"], decel=ego["decel"], maxSpeed=ego["max_speed"],
-        speedFactor=ego["speed_factor"], speedDev=ego["speed_dev"], color="1,0,0", vClass="passenger",
-        guiShape="passenger/sedan", **lateral)))
+        id="ego_type", speedFactor=ego["speed_factor"], speedDev=ego["speed_dev"], color="1,0,0",
+        **vtype_attributes(ego), **lateral)))
     controllers = traffic["controllers"]
     total = sum(float(c["probability"]) for c in controllers.values())
     distribution = ET.SubElement(routes, "vTypeDistribution", id="carDist")

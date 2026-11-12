@@ -37,7 +37,7 @@ from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "3.1.0"
+VERSION = "3.2.0"
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]
@@ -64,6 +64,9 @@ REMOVED_CONNECTIONS: list[tuple[str, str, str, str]] = []
 # 배경 차량 baseline 합계. 생성기 설정(generator/road_config.py OSM_ROAD traffic)의 값이다.
 BASELINE_VEHS_PER_HOUR = 900
 PEDESTRIANS = {"persons_per_hour": 600, "min_distance": 150, "end": 3600, "seed": 42}
+# 무작위 보행자 경로는 도로망이 바뀔 때마다 달라져, 신호 없는 횡단보도(S6)를 건너는 사람이 없을 수도 있다.
+# S6를 건너는 보행자를 따로 넣는다. 와우산로 양쪽 인도를 번갈아 출발한다. 시간당 인원은 가정값이다.
+S6_WALKERS_PER_HOUR = 60
 # 신호 없는 횡단보도(S6). OSM 13236303911(crossing=uncontrolled)은 와우산로 차도 위의 점이다.
 MIDBLOCK_PRIORITY = False      # S6 횡단보도를 비우선으로 둔다(주변 교통 A3)
 MIDBLOCK_CROSSINGS = {"S6_wausanro": ("R112", "-R112", 37.5498511, 126.9231277)}
@@ -110,6 +113,52 @@ ALLEYS = [
 # 골목이 모두 이어져 골목 끝이 경계가 아니므로, 골목 안(주차, 건물)에서 나와 독막로에 신호 없이 합류하는 차(S5)를
 # 이 도로에서 출발시킨다. 유입량은 경계 골목과 같은 ALLEY다.
 ALLEY_ORIGINS = ["G3", "G12"]
+# 지름길 후보. 버스 경로가 둘러싼 구역 안의 실제 OSM 길이고, 골목과 마찬가지로 신호가 없다.
+# splits는 버스 경로 도로를 나눠 만드는 신호 없는 합류점(나가는 방향 도로, 반대 방향 도로, OSM 노드),
+# nodes는 골목끼리 만나는 점, attach는 골목을 붙이면서 신호를 없애는 기존 교차로, origins는 골목 안에서 차가 출발하는 도로다.
+# 무엇을 켤지는 scripts/shortcut_experiment.py의 측정으로 정하고 ACTIVE_SHORTCUTS에 적는다.
+SHORTCUTS = {
+    "dongmak7": {   # 독막로7길: 양화로6길에서 북동쪽으로 잔다리로까지
+        "splits": {"X_jandari7": ("-R96", "R96", "3038710046")},
+        "alleys": [("G16", "독막로7길", "172115945", "Y3", "X_jandari7", ALLEY_KMH, False)],
+        "origins": ["G16"]},
+    "jandari3": {   # 독막로3길 북쪽과 잔다리로3길: 양화로6길에서 잔다리로의 서교동교회 정류장 앞까지
+        "splits": {"X_jandari3": ("-R96", "R96", "436869371")},
+        "nodes": {"Z1": "1834932810"},
+        "alleys": [("G17", "독막로3길", "172603989", "Y2", "Z1", ALLEY_KMH, False),
+                   ("G18", "잔다리로3길", "172603995", "Z1", "X_jandari3", ALLEY_KMH, False)],
+        "origins": ["G18"]},
+    # 어울마당로: 독막로에서 잔다리로와 와우산로가 만나는 J74까지. 방향별 일방통행이다. J74는 신호 교차로였는데,
+    # 골목을 붙이면 netconvert가 횡단보도 번호가 빠진 신호 프로그램을 만들어 SUMO가 읽지 못한다. 신호 없는 교차로로 바꾼다.
+    "eoulmadang": {
+        "nodes": {"E1": "4175978557"},
+        "attach": ["J74"],
+        "alleys": [("G19", "어울마당로", "-11", "Y5", "J74", ALLEY_KMH, True),
+                   ("G20", "어울마당로", "-50", "J74", "E1", ALLEY_KMH, True),
+                   ("G21", "어울마당로", "168229931", "E1", "Y4", ALLEY_KMH, True)],
+        "origins": ["G19"]},
+}
+# 측정 결과(maps/hapjeong/references/shortcuts.json)로 고른 것. 어울마당로는 합류가 가장 적고 J74의 신호를 없애야 해서 뺐다.
+ACTIVE_SHORTCUTS: list[str] = ["dongmak7", "jandari3"]
+BASE_ALLEYS = (dict(ALLEY_SPLITS), dict(ALLEY_NODES), list(ALLEYS), list(ALLEY_ORIGINS))
+ATTACHED: list[str] = []
+
+
+def use_shortcuts(names: list[str]) -> None:
+    """골목 설정을 기본 골목에 names의 지름길을 더한 것으로 바꾼다."""
+    global ALLEY_SPLITS, ALLEY_NODES, ALLEYS, ALLEY_ORIGINS, ATTACHED, ACTIVE_SHORTCUTS
+    splits, nodes, alleys, origins = (type(part)(part) for part in BASE_ALLEYS)
+    attached = []
+    for name in names:
+        shortcut = SHORTCUTS[name]
+        splits.update(shortcut.get("splits", {}))
+        nodes.update(shortcut.get("nodes", {}))
+        alleys += shortcut["alleys"]
+        origins += shortcut["origins"]
+        attached += shortcut.get("attach", [])
+    ALLEY_SPLITS, ALLEY_NODES, ALLEYS, ALLEY_ORIGINS, ATTACHED, ACTIVE_SHORTCUTS = splits, nodes, alleys, origins, attached, list(names)
+
+
 EGO_ROUTE = "bus_loop"
 # (설명, 경유 도로). 서예인이 제안한 순환 경로다. 상수역 정차 뒤 약 140m 안에 와우산로로 좌회전한다(S2).
 ROUTES = {EGO_ROUTE: ("[연구] 합정역 → 성산중학교 → 상수역 → 와우산로 좌회전 → 극동방송 → 잔다리로 → 서교동교회 → "
@@ -267,8 +316,8 @@ def add_alleys(net, connections: ET.Element) -> tuple[ET.Element, ET.Element]:
     coords = {node_id: net.convertLonLat2XY(*osm[osm_id]) for node_id, osm_id in ALLEY_NODES.items()}
     for node_id, (x, y) in coords.items():
         ET.SubElement(nodes, "node", id=node_id, x=f"{x:.3f}", y=f"{y:.3f}", type="priority")
-    attached = STUB_ENDS + list(ALLEY_SPLITS)
-    for node_id in STUB_ENDS:
+    attached = STUB_ENDS + list(ALLEY_SPLITS) + ATTACHED
+    for node_id in STUB_ENDS + ATTACHED:
         ET.SubElement(nodes, "node", id=node_id, type="priority")
     for node_id in attached:
         coords[node_id] = net.getNode(node_id).getCoord()
@@ -383,7 +432,22 @@ def build_pedestrians(net_path: Path, output: Path, temporary: Path) -> None:
         capture_output=True, text=True, timeout=600, cwd=temporary)
     if completed.returncode:
         raise RuntimeError("randomTrips 실패: " + completed.stderr[-3000:])
-    ET.ElementTree(ET.parse(output).getroot()).write(output, encoding="utf-8", xml_declaration=True)
+    root = ET.parse(output).getroot()
+    net = sumolib.net.readNet(str(net_path))
+    (forward, backward, *_), = MIDBLOCK_CROSSINGS.values()
+    # 횡단보도 노드에서 끝나는 두 도로(양쪽 인도)를 잇는 걸음은 그 횡단보도를 건넌다.
+    sides = [edge.getID() for edge in net.getNode(next(iter(MIDBLOCK_CROSSINGS))).getIncoming() if original_id(edge.getID()) in (forward, backward)]
+    walkers = []
+    for index in range(int(PEDESTRIANS["end"] * S6_WALKERS_PER_HOUR / 3600)):
+        person = ET.Element("person", id=f"s6ped{index}", depart=f"{index * 3600 / S6_WALKERS_PER_HOUR:.2f}")
+        ET.SubElement(person, "walk", edges=" ".join(sides if index % 2 == 0 else sides[::-1]))
+        walkers.append(person)
+    # SUMO는 출발 시각 순서로 읽는다.
+    people = sorted([*root.findall("person"), *walkers], key=lambda person: float(person.get("depart")))
+    for person in root.findall("person"):
+        root.remove(person)
+    root.extend(people)
+    ET.ElementTree(root).write(output, encoding="utf-8", xml_declaration=True)
 
 
 def curb_stops(net) -> list[dict]:
@@ -468,10 +532,14 @@ def build() -> dict:
                                            "signal_yield_links": yield_links, "dropped_programs": sorted(DROP_PROGRAMS),
                                            "exclusive_crossings": {tls: [list(edges) for edges in crossings]
                                                                    for tls, crossings in EXCLUSIVE_CROSSINGS.items()},
+                                           "shortcuts": [{"id": name, "edges": [alley[0] for alley in SHORTCUTS[name]["alleys"]],
+                                                          "names": [alley[1] for alley in SHORTCUTS[name]["alleys"]],
+                                                          "merges": list(SHORTCUTS[name].get("splits", {}))}
+                                                         for name in ACTIVE_SHORTCUTS],
                                            "cuts": {node: {"edges": [outward, inward], "distance_m": distance}
                                                     for node, (outward, inward, distance, _) in CUTS.items()},
                                            "removed_connections": [list(item) for item in REMOVED_CONNECTIONS]},
-                               "pedestrians": PEDESTRIANS},
+                               "pedestrians": {**PEDESTRIANS, "s6_walkers_per_hour": S6_WALKERS_PER_HOUR}},
             "extra_files": EXTRA_FILES,
             "ego_vehicle": "bus",
             "focus_bbox": [round(west, 7), round(south, 7), round(east, 7), round(north, 7)],
@@ -494,6 +562,8 @@ def build() -> dict:
                  FOLDER / "map.json": (json.dumps(definition, ensure_ascii=False, indent=2) + "\n").encode("utf-8")})
     return definition
 
+
+use_shortcuts(ACTIVE_SHORTCUTS)
 
 if __name__ == "__main__":
     result = build()

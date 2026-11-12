@@ -1,15 +1,15 @@
 {
   "id": "hapjeong",
   "name": "합정역 · 양화로와 독막로",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "합정역 일대 실제 도로. 신호 교차로, 인도·횡단보도·보행자, 중앙버스차로, 연구 경로의 가로변 정류장 6곳과 신호 없는 횡단보도가 있다.",
   "source_status": "osm_generated",
   "network_source": {
     "path": "source/network.net.xml",
-    "sha256": "499a9ab679079ac3022dfec52d9e23d7bfbcfabd3d67aac5df2871047c384375",
+    "sha256": "1743e5b81f190280a0307eab98bc07f47d6b77564d9cea1c63e971b62238bb8c",
     "base_path": "source/network.base.net.xml",
     "base_sha256": "3be54d491627c289497b936102eedfa307c547f4edc04a1e80756ba8f25b11c7",
-    "generator": "generator/ (서예인, seogyo-hongdae 브랜치 7580004에서 옮김)",
+    "generator": "generator/ (서예인, seogyo-hongdae 066e5b1)",
     "patches": {
       "speed_kmh": {
         "arterial": 50,
@@ -44,8 +44,21 @@
           ]
         ]
       },
-      "entry_lengths_m": {
-        "J66": 60.0
+      "cuts": {
+        "CUT_worldcup": {
+          "edges": [
+            "R61",
+            "-R61"
+          ],
+          "distance_m": 200.0
+        },
+        "CUT_jandari": {
+          "edges": [
+            "R92",
+            "-R92"
+          ],
+          "distance_m": 130.0
+        }
       },
       "removed_connections": []
     },
@@ -69,14 +82,14 @@
   },
   "ego_vehicle": "bus",
   "focus_bbox": [
-    126.9071381,
+    126.9086397,
     37.546777,
     126.9243805,
     37.5561469
   ],
   "gui_center": {
-    "x": 185.848,
-    "y": 233.755
+    "x": 252.194,
+    "y": 233.761
   },
   "sources_license": {
     "road_data": "ODbL 1.0",
@@ -120,958 +133,682 @@
   },
   "flows": [
     {
-      "id": "f_-R126_to_-R89",
-      "from": "-R126",
-      "to": "-R89",
-      "vehs_per_hour": 7.969
-    },
-    {
       "id": "f_-R126_to_R115",
       "from": "-R126",
       "to": "R115",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R126_to_R124",
       "from": "-R126",
       "to": "R124",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R126_to_R127",
       "from": "-R126",
       "to": "R127",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R126_to_R128",
       "from": "-R126",
       "to": "R128",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R126_to_R129",
       "from": "-R126",
       "to": "R129",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R126_to_R130",
       "from": "-R126",
       "to": "R130",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R126_to_R48",
       "from": "-R126",
       "to": "R48",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R126_to_R62",
+      "id": "f_-R126_to_R61",
       "from": "-R126",
-      "to": "R62",
-      "vehs_per_hour": 7.969
+      "to": "R61",
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R126_to_R86",
+      "id": "f_-R126_to_R92",
       "from": "-R126",
-      "to": "R86",
-      "vehs_per_hour": 7.969
-    },
-    {
-      "id": "f_-R126_to_R97",
-      "from": "-R126",
-      "to": "R97",
-      "vehs_per_hour": 7.969
-    },
-    {
-      "id": "f_-R127_to_-R89",
-      "from": "-R127",
-      "to": "-R89",
-      "vehs_per_hour": 7.969
+      "to": "R92",
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R127_to_R115",
       "from": "-R127",
       "to": "R115",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R127_to_R124",
       "from": "-R127",
       "to": "R124",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R127_to_R126",
       "from": "-R127",
       "to": "R126",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R127_to_R128",
       "from": "-R127",
       "to": "R128",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R127_to_R129",
       "from": "-R127",
       "to": "R129",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R127_to_R130",
       "from": "-R127",
       "to": "R130",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R127_to_R48",
       "from": "-R127",
       "to": "R48",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R127_to_R62",
+      "id": "f_-R127_to_R61",
       "from": "-R127",
-      "to": "R62",
-      "vehs_per_hour": 7.969
+      "to": "R61",
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R127_to_R86",
+      "id": "f_-R127_to_R92",
       "from": "-R127",
-      "to": "R86",
-      "vehs_per_hour": 7.969
-    },
-    {
-      "id": "f_-R127_to_R97",
-      "from": "-R127",
-      "to": "R97",
-      "vehs_per_hour": 7.969
-    },
-    {
-      "id": "f_-R128_to_-R89",
-      "from": "-R128",
-      "to": "-R89",
-      "vehs_per_hour": 7.969
+      "to": "R92",
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R128_to_R115",
       "from": "-R128",
       "to": "R115",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R128_to_R124",
       "from": "-R128",
       "to": "R124",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R128_to_R126",
       "from": "-R128",
       "to": "R126",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R128_to_R127",
       "from": "-R128",
       "to": "R127",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R128_to_R129",
       "from": "-R128",
       "to": "R129",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R128_to_R130",
       "from": "-R128",
       "to": "R130",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R128_to_R48",
       "from": "-R128",
       "to": "R48",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R128_to_R62",
+      "id": "f_-R128_to_R61",
       "from": "-R128",
-      "to": "R62",
-      "vehs_per_hour": 7.969
+      "to": "R61",
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R128_to_R86",
+      "id": "f_-R128_to_R92",
       "from": "-R128",
-      "to": "R86",
-      "vehs_per_hour": 7.969
-    },
-    {
-      "id": "f_-R128_to_R97",
-      "from": "-R128",
-      "to": "R97",
-      "vehs_per_hour": 7.969
-    },
-    {
-      "id": "f_-R129_to_-R89",
-      "from": "-R129",
-      "to": "-R89",
-      "vehs_per_hour": 7.969
+      "to": "R92",
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R129_to_R115",
       "from": "-R129",
       "to": "R115",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R129_to_R124",
       "from": "-R129",
       "to": "R124",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R129_to_R126",
       "from": "-R129",
       "to": "R126",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R129_to_R127",
       "from": "-R129",
       "to": "R127",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R129_to_R128",
       "from": "-R129",
       "to": "R128",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R129_to_R130",
       "from": "-R129",
       "to": "R130",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R129_to_R48",
       "from": "-R129",
       "to": "R48",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R129_to_R62",
+      "id": "f_-R129_to_R61",
       "from": "-R129",
-      "to": "R62",
-      "vehs_per_hour": 7.969
+      "to": "R61",
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R129_to_R86",
+      "id": "f_-R129_to_R92",
       "from": "-R129",
-      "to": "R86",
-      "vehs_per_hour": 7.969
-    },
-    {
-      "id": "f_-R129_to_R97",
-      "from": "-R129",
-      "to": "R97",
-      "vehs_per_hour": 7.969
-    },
-    {
-      "id": "f_-R130_to_-R89",
-      "from": "-R130",
-      "to": "-R89",
-      "vehs_per_hour": 7.969
+      "to": "R92",
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R130_to_R115",
       "from": "-R130",
       "to": "R115",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R130_to_R124",
       "from": "-R130",
       "to": "R124",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R130_to_R126",
       "from": "-R130",
       "to": "R126",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R130_to_R127",
       "from": "-R130",
       "to": "R127",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R130_to_R128",
       "from": "-R130",
       "to": "R128",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R130_to_R129",
       "from": "-R130",
       "to": "R129",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_-R130_to_R48",
       "from": "-R130",
       "to": "R48",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R130_to_R62",
+      "id": "f_-R130_to_R61",
       "from": "-R130",
-      "to": "R62",
-      "vehs_per_hour": 7.969
+      "to": "R61",
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R130_to_R86",
+      "id": "f_-R130_to_R92",
       "from": "-R130",
-      "to": "R86",
-      "vehs_per_hour": 7.969
+      "to": "R92",
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R130_to_R97",
-      "from": "-R130",
-      "to": "R97",
-      "vehs_per_hour": 7.969
-    },
-    {
-      "id": "f_-R62_to_-R89",
-      "from": "-R62",
-      "to": "-R89",
-      "vehs_per_hour": 7.969
-    },
-    {
-      "id": "f_-R62_to_R115",
-      "from": "-R62",
+      "id": "f_-R61.320_to_R115",
+      "from": "-R61.320",
       "to": "R115",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R62_to_R124",
-      "from": "-R62",
+      "id": "f_-R61.320_to_R124",
+      "from": "-R61.320",
       "to": "R124",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R62_to_R126",
-      "from": "-R62",
+      "id": "f_-R61.320_to_R126",
+      "from": "-R61.320",
       "to": "R126",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R62_to_R127",
-      "from": "-R62",
+      "id": "f_-R61.320_to_R127",
+      "from": "-R61.320",
       "to": "R127",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R62_to_R128",
-      "from": "-R62",
+      "id": "f_-R61.320_to_R128",
+      "from": "-R61.320",
       "to": "R128",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R62_to_R129",
-      "from": "-R62",
+      "id": "f_-R61.320_to_R129",
+      "from": "-R61.320",
       "to": "R129",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R62_to_R130",
-      "from": "-R62",
+      "id": "f_-R61.320_to_R130",
+      "from": "-R61.320",
       "to": "R130",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R62_to_R48",
-      "from": "-R62",
+      "id": "f_-R61.320_to_R48",
+      "from": "-R61.320",
       "to": "R48",
-      "vehs_per_hour": 7.969
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R62_to_R86",
-      "from": "-R62",
-      "to": "R86",
-      "vehs_per_hour": 7.969
+      "id": "f_-R61.320_to_R92",
+      "from": "-R61.320",
+      "to": "R92",
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R62_to_R97",
-      "from": "-R62",
-      "to": "R97",
-      "vehs_per_hour": 7.969
-    },
-    {
-      "id": "f_-R86_to_-R89",
-      "from": "-R86",
-      "to": "-R89",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R86_to_R115",
-      "from": "-R86",
+      "id": "f_-R92.163_to_R115",
+      "from": "-R92.163",
       "to": "R115",
-      "vehs_per_hour": 3.985
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R86_to_R124",
-      "from": "-R86",
+      "id": "f_-R92.163_to_R124",
+      "from": "-R92.163",
       "to": "R124",
-      "vehs_per_hour": 3.985
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R86_to_R126",
-      "from": "-R86",
+      "id": "f_-R92.163_to_R126",
+      "from": "-R92.163",
       "to": "R126",
-      "vehs_per_hour": 3.985
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R86_to_R127",
-      "from": "-R86",
+      "id": "f_-R92.163_to_R127",
+      "from": "-R92.163",
       "to": "R127",
-      "vehs_per_hour": 3.985
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R86_to_R128",
-      "from": "-R86",
+      "id": "f_-R92.163_to_R128",
+      "from": "-R92.163",
       "to": "R128",
-      "vehs_per_hour": 3.985
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R86_to_R129",
-      "from": "-R86",
+      "id": "f_-R92.163_to_R129",
+      "from": "-R92.163",
       "to": "R129",
-      "vehs_per_hour": 3.985
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R86_to_R130",
-      "from": "-R86",
+      "id": "f_-R92.163_to_R130",
+      "from": "-R92.163",
       "to": "R130",
-      "vehs_per_hour": 3.985
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R86_to_R48",
-      "from": "-R86",
+      "id": "f_-R92.163_to_R48",
+      "from": "-R92.163",
       "to": "R48",
-      "vehs_per_hour": 3.985
+      "vehs_per_hour": 10.239
     },
     {
-      "id": "f_-R86_to_R62",
-      "from": "-R86",
-      "to": "R62",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R86_to_R97",
-      "from": "-R86",
-      "to": "R97",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R97_to_-R89",
-      "from": "-R97",
-      "to": "-R89",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R97_to_R115",
-      "from": "-R97",
-      "to": "R115",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R97_to_R124",
-      "from": "-R97",
-      "to": "R124",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R97_to_R126",
-      "from": "-R97",
-      "to": "R126",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R97_to_R127",
-      "from": "-R97",
-      "to": "R127",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R97_to_R128",
-      "from": "-R97",
-      "to": "R128",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R97_to_R129",
-      "from": "-R97",
-      "to": "R129",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R97_to_R130",
-      "from": "-R97",
-      "to": "R130",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R97_to_R48",
-      "from": "-R97",
-      "to": "R48",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R97_to_R62",
-      "from": "-R97",
-      "to": "R62",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_-R97_to_R86",
-      "from": "-R97",
-      "to": "R86",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_R114_to_-R89",
-      "from": "R114",
-      "to": "-R89",
-      "vehs_per_hour": 3.653
+      "id": "f_-R92.163_to_R61",
+      "from": "-R92.163",
+      "to": "R61",
+      "vehs_per_hour": 10.239
     },
     {
       "id": "f_R114_to_R115",
       "from": "R114",
       "to": "R115",
-      "vehs_per_hour": 3.653
+      "vehs_per_hour": 4.608
     },
     {
       "id": "f_R114_to_R124",
       "from": "R114",
       "to": "R124",
-      "vehs_per_hour": 3.653
+      "vehs_per_hour": 4.608
     },
     {
       "id": "f_R114_to_R126",
       "from": "R114",
       "to": "R126",
-      "vehs_per_hour": 3.653
+      "vehs_per_hour": 4.608
     },
     {
       "id": "f_R114_to_R127",
       "from": "R114",
       "to": "R127",
-      "vehs_per_hour": 3.653
+      "vehs_per_hour": 4.608
     },
     {
       "id": "f_R114_to_R128",
       "from": "R114",
       "to": "R128",
-      "vehs_per_hour": 3.653
+      "vehs_per_hour": 4.608
     },
     {
       "id": "f_R114_to_R129",
       "from": "R114",
       "to": "R129",
-      "vehs_per_hour": 3.653
+      "vehs_per_hour": 4.608
     },
     {
       "id": "f_R114_to_R130",
       "from": "R114",
       "to": "R130",
-      "vehs_per_hour": 3.653
+      "vehs_per_hour": 4.608
     },
     {
       "id": "f_R114_to_R48",
       "from": "R114",
       "to": "R48",
-      "vehs_per_hour": 3.653
+      "vehs_per_hour": 4.608
     },
     {
-      "id": "f_R114_to_R62",
+      "id": "f_R114_to_R61",
       "from": "R114",
-      "to": "R62",
-      "vehs_per_hour": 3.653
+      "to": "R61",
+      "vehs_per_hour": 4.608
     },
     {
-      "id": "f_R114_to_R86",
+      "id": "f_R114_to_R92",
       "from": "R114",
-      "to": "R86",
-      "vehs_per_hour": 3.653
-    },
-    {
-      "id": "f_R114_to_R97",
-      "from": "R114",
-      "to": "R97",
-      "vehs_per_hour": 3.653
-    },
-    {
-      "id": "f_R125_to_-R89",
-      "from": "R125",
-      "to": "-R89",
-      "vehs_per_hour": 7.305
+      "to": "R92",
+      "vehs_per_hour": 4.608
     },
     {
       "id": "f_R125_to_R115",
       "from": "R125",
       "to": "R115",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R125_to_R124",
       "from": "R125",
       "to": "R124",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R125_to_R126",
       "from": "R125",
       "to": "R126",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R125_to_R127",
       "from": "R125",
       "to": "R127",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R125_to_R128",
       "from": "R125",
       "to": "R128",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R125_to_R129",
       "from": "R125",
       "to": "R129",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R125_to_R130",
       "from": "R125",
       "to": "R130",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R125_to_R48",
       "from": "R125",
       "to": "R48",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
-      "id": "f_R125_to_R62",
+      "id": "f_R125_to_R61",
       "from": "R125",
-      "to": "R62",
-      "vehs_per_hour": 7.305
+      "to": "R61",
+      "vehs_per_hour": 9.215
     },
     {
-      "id": "f_R125_to_R86",
+      "id": "f_R125_to_R92",
       "from": "R125",
-      "to": "R86",
-      "vehs_per_hour": 7.305
-    },
-    {
-      "id": "f_R125_to_R97",
-      "from": "R125",
-      "to": "R97",
-      "vehs_per_hour": 7.305
-    },
-    {
-      "id": "f_R51_to_-R89",
-      "from": "R51",
-      "to": "-R89",
-      "vehs_per_hour": 7.305
+      "to": "R92",
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R51_to_R115",
       "from": "R51",
       "to": "R115",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R51_to_R124",
       "from": "R51",
       "to": "R124",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R51_to_R126",
       "from": "R51",
       "to": "R126",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R51_to_R127",
       "from": "R51",
       "to": "R127",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R51_to_R128",
       "from": "R51",
       "to": "R128",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R51_to_R129",
       "from": "R51",
       "to": "R129",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R51_to_R130",
       "from": "R51",
       "to": "R130",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_R51_to_R48",
       "from": "R51",
       "to": "R48",
-      "vehs_per_hour": 7.305
+      "vehs_per_hour": 9.215
     },
     {
-      "id": "f_R51_to_R62",
+      "id": "f_R51_to_R61",
       "from": "R51",
-      "to": "R62",
-      "vehs_per_hour": 7.305
+      "to": "R61",
+      "vehs_per_hour": 9.215
     },
     {
-      "id": "f_R51_to_R86",
+      "id": "f_R51_to_R92",
       "from": "R51",
-      "to": "R86",
-      "vehs_per_hour": 7.305
-    },
-    {
-      "id": "f_R51_to_R97",
-      "from": "R51",
-      "to": "R97",
-      "vehs_per_hour": 7.305
-    },
-    {
-      "id": "f_R89_to_R115",
-      "from": "R89",
-      "to": "R115",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_R89_to_R124",
-      "from": "R89",
-      "to": "R124",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_R89_to_R126",
-      "from": "R89",
-      "to": "R126",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_R89_to_R127",
-      "from": "R89",
-      "to": "R127",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_R89_to_R128",
-      "from": "R89",
-      "to": "R128",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_R89_to_R129",
-      "from": "R89",
-      "to": "R129",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_R89_to_R130",
-      "from": "R89",
-      "to": "R130",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_R89_to_R48",
-      "from": "R89",
-      "to": "R48",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_R89_to_R62",
-      "from": "R89",
-      "to": "R62",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_R89_to_R86",
-      "from": "R89",
-      "to": "R86",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_R89_to_R97",
-      "from": "R89",
-      "to": "R97",
-      "vehs_per_hour": 3.985
-    },
-    {
-      "id": "f_G3_to_-R89",
-      "from": "G3",
-      "to": "-R89",
-      "vehs_per_hour": 0.974
+      "to": "R92",
+      "vehs_per_hour": 9.215
     },
     {
       "id": "f_G3_to_R115",
       "from": "G3",
       "to": "R115",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G3_to_R124",
       "from": "G3",
       "to": "R124",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G3_to_R126",
       "from": "G3",
       "to": "R126",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G3_to_R127",
       "from": "G3",
       "to": "R127",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G3_to_R128",
       "from": "G3",
       "to": "R128",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G3_to_R129",
       "from": "G3",
       "to": "R129",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G3_to_R130",
       "from": "G3",
       "to": "R130",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G3_to_R48",
       "from": "G3",
       "to": "R48",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
-      "id": "f_G3_to_R62",
+      "id": "f_G3_to_R61",
       "from": "G3",
-      "to": "R62",
-      "vehs_per_hour": 0.974
+      "to": "R61",
+      "vehs_per_hour": 1.229
     },
     {
-      "id": "f_G3_to_R86",
+      "id": "f_G3_to_R92",
       "from": "G3",
-      "to": "R86",
-      "vehs_per_hour": 0.974
-    },
-    {
-      "id": "f_G3_to_R97",
-      "from": "G3",
-      "to": "R97",
-      "vehs_per_hour": 0.974
-    },
-    {
-      "id": "f_G12_to_-R89",
-      "from": "G12",
-      "to": "-R89",
-      "vehs_per_hour": 0.974
+      "to": "R92",
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G12_to_R115",
       "from": "G12",
       "to": "R115",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G12_to_R124",
       "from": "G12",
       "to": "R124",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G12_to_R126",
       "from": "G12",
       "to": "R126",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G12_to_R127",
       "from": "G12",
       "to": "R127",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G12_to_R128",
       "from": "G12",
       "to": "R128",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G12_to_R129",
       "from": "G12",
       "to": "R129",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G12_to_R130",
       "from": "G12",
       "to": "R130",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
       "id": "f_G12_to_R48",
       "from": "G12",
       "to": "R48",
-      "vehs_per_hour": 0.974
+      "vehs_per_hour": 1.229
     },
     {
-      "id": "f_G12_to_R62",
+      "id": "f_G12_to_R61",
       "from": "G12",
-      "to": "R62",
-      "vehs_per_hour": 0.974
+      "to": "R61",
+      "vehs_per_hour": 1.229
     },
     {
-      "id": "f_G12_to_R86",
+      "id": "f_G12_to_R92",
       "from": "G12",
-      "to": "R86",
-      "vehs_per_hour": 0.974
-    },
-    {
-      "id": "f_G12_to_R97",
-      "from": "G12",
-      "to": "R97",
-      "vehs_per_hour": 0.974
+      "to": "R92",
+      "vehs_per_hour": 1.229
     }
   ],
   "max_lane_speed_mps": 13.89,

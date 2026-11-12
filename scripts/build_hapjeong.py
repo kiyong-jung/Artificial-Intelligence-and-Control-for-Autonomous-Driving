@@ -37,7 +37,7 @@ from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "3.0.0"
+VERSION = "3.1.0"
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]
@@ -54,9 +54,10 @@ DROP_PROGRAMS = {"J56"}
 # 이 횡단보도는 차량이 모두 멈춘 보행자 전용 단계로 옮긴다(신호 교차로 → [건너는 도로들]).
 EXCLUSIVE_CROSSINGS = {"J42": [("R53", "R55"), ("R54a", "R50")]}
 EXCLUSIVE_CLEARANCE_S = 5
-# 경계에서 신호 교차로까지 10m뿐인 진입로는 차가 투입되자마자 빨간불 앞에서 비상 정지한다.
-# 경계 노드를 교차로에서 멀리 옮겨 설 거리를 준다(경계 노드 → (교차로, 진입로 길이 m)).
-ENTRY_LENGTHS = {"J66": ("J64", 60.0)}
+# 도로망의 북서쪽(월드컵로와 잔다리로 너머)은 버스 경로와 멀어 잘라낸다. 자른 점이 새 경계가 된다.
+# 자르는 점 → (안쪽에서 나가는 도로, 들어오는 도로, 안쪽 교차로에서 자르는 점까지 m, 버리는 쪽의 교차로)
+CUTS = {"CUT_worldcup": ("R61", "-R61", 200.0, "J49"),    # 월드컵로, 합정역 사거리 북쪽
+        "CUT_jandari": ("R92", "-R92", 130.0, "J64")}     # 잔다리로, 서교동사거리 북서쪽
 # (나가는 도로, 차로, 들어가는 도로, 차로). 합정역 R42 1·2번 차로가 둘 다 R40 1번 차로로 직진해 부딪히던 것은
 # 생성기에서 R40을 일반 3차로로 넓혀 R42 직진 세 차로를 1:1로 이어 풀었다.
 REMOVED_CONNECTIONS: list[tuple[str, str, str, str]] = []
@@ -150,15 +151,15 @@ def build_network(temporary: Path) -> Path:
             position, _ = sumolib.geomhelper.polygonOffsetAndDistanceToPoint(point, base.getEdge(edge_id).getShape())
             element = patches.setdefault(edge_id, patches.get(edge_id) or ET.SubElement(edges, "edge", id=edge_id))
             ET.SubElement(element, "split", pos=f"{position:.2f}", id=node_id)
+    for node_id, (outward, inward, distance, _) in CUTS.items():
+        for edge_id, position in ((outward, distance), (inward, base.getEdge(inward).getLength() - distance)):
+            element = patches.setdefault(edge_id, patches.get(edge_id) or ET.SubElement(edges, "edge", id=edge_id))
+            ET.SubElement(element, "split", pos=f"{position:.2f}", id=node_id)
     nodes = ET.Element("nodes")
     for group in JOIN:
         ET.SubElement(nodes, "join", nodes=" ".join(group))
     for node_id, node_type in NODE_TYPES.items():
         ET.SubElement(nodes, "node", id=node_id, type=node_type)
-    for node_id, (junction_id, length) in ENTRY_LENGTHS.items():
-        (x0, y0), (x1, y1) = (base.getNode(junction_id).getCoord()[:2], base.getNode(node_id).getCoord()[:2])
-        scale = length / ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
-        ET.SubElement(nodes, "node", id=node_id, x=f"{x0 + (x1 - x0) * scale:.2f}", y=f"{y0 + (y1 - y0) * scale:.2f}")
     ET.ElementTree(edges).write(temporary / "speed.edg.xml", encoding="utf-8")
     ET.ElementTree(nodes).write(temporary / "join.nod.xml", encoding="utf-8")
     joined = temporary / "joined.net.xml"
@@ -168,6 +169,7 @@ def build_network(temporary: Path) -> Path:
     for group in JOINED_CROSSINGS:
         ET.SubElement(crossings, "crossing", node=JOINED, edges=" ".join(group))
     split_net = sumolib.net.readNet(str(joined))
+    discarded = discarded_edges(split_net)
     # 도로를 나누면 조각의 id가 바뀌어(R71 → R71.256) 그 도로를 건너던 횡단보도를 netconvert가 버린다.
     # 원본 횡단보도가 건너던 도로의 조각 중 그 교차로에 닿는 것으로 다시 놓는다.
     kept = {(node, frozenset(edges)) for node, edges in crossing_edges(joined)}
@@ -176,7 +178,7 @@ def build_network(temporary: Path) -> Path:
             continue
         node = split_net.getNode(node_id)
         pieces = [edge.getID() for edge in node.getIncoming() + node.getOutgoing() if original_id(edge.getID()) in edges]
-        if {original_id(piece) for piece in pieces} == set(edges):
+        if {original_id(piece) for piece in pieces} == set(edges) and not set(pieces) & set(discarded):
             ET.SubElement(crossings, "crossing", node=node_id, edges=" ".join(pieces))
     for node_id, (forward, _, _, _) in MIDBLOCK_CROSSINGS.items():
         node = split_net.getNode(node_id)
@@ -195,9 +197,29 @@ def build_network(temporary: Path) -> Path:
     ET.ElementTree(alley_edges).write(temporary / "alleys.edg.xml", encoding="utf-8")
     output = temporary / "network.net.xml"
     netconvert(["--sumo-net-file", str(joined), "--node-files", str(temporary / "alleys.nod.xml"),
-                "--edge-files", str(temporary / "alleys.edg.xml"), "--connection-files", str(temporary / "crossings.con.xml")],
+                "--edge-files", str(temporary / "alleys.edg.xml"), "--connection-files", str(temporary / "crossings.con.xml"),
+                "--remove-edges.explicit", ",".join(discarded)],
                output)
     return output
+
+
+def discarded_edges(net) -> list[str]:
+    """자르는 점 너머의 도로. 버리는 쪽 교차로에서 자르는 점을 넘지 않고 닿는 도로 전부다."""
+    reached, queue = set(), [far for *_, far in CUTS.values()]
+    while queue:
+        node_id = queue.pop()
+        if node_id in reached or node_id in CUTS:
+            continue
+        reached.add(node_id)
+        node = net.getNode(node_id)
+        queue += [edge.getToNode().getID() for edge in node.getOutgoing()]
+        queue += [edge.getFromNode().getID() for edge in node.getIncoming()]
+    edges = sorted(edge.getID() for edge in net.getEdges()
+                   if edge.getFromNode().getID() in reached or edge.getToNode().getID() in reached)
+    kept_nodes = {node.getID() for node in net.getNodes()} - reached
+    if "J1" not in kept_nodes or len(edges) > len(net.getEdges()) / 2:
+        raise ValueError("자르는 점이 도로망을 둘로 나누지 못했습니다. 버리는 쪽이 남길 쪽과 다른 길로 이어져 있습니다.")
+    return edges
 
 
 def original_id(edge_id: str) -> str:
@@ -440,13 +462,14 @@ def build() -> dict:
             "source_status": "osm_generated",
             "network_source": {"path": "source/network.net.xml", "sha256": digest(net_path),
                                "base_path": "source/network.base.net.xml", "base_sha256": digest(SOURCE / "network.base.net.xml"),
-                               "generator": "generator/ (서예인, seogyo-hongdae 브랜치 7580004에서 옮김)",
+                               "generator": "generator/ (서예인, seogyo-hongdae 066e5b1)",
                                "patches": {"speed_kmh": {"arterial": ARTERIAL_KMH, "link": LINK_KMH, "alley": ALLEY_KMH},
                                            "joined_junctions": [list(group) for group in JOIN],
                                            "signal_yield_links": yield_links, "dropped_programs": sorted(DROP_PROGRAMS),
                                            "exclusive_crossings": {tls: [list(edges) for edges in crossings]
                                                                    for tls, crossings in EXCLUSIVE_CROSSINGS.items()},
-                                           "entry_lengths_m": {node: length for node, (_, length) in ENTRY_LENGTHS.items()},
+                                           "cuts": {node: {"edges": [outward, inward], "distance_m": distance}
+                                                    for node, (outward, inward, distance, _) in CUTS.items()},
                                            "removed_connections": [list(item) for item in REMOVED_CONNECTIONS]},
                                "pedestrians": PEDESTRIANS},
             "extra_files": EXTRA_FILES,

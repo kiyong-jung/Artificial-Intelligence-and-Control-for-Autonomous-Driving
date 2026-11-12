@@ -19,7 +19,7 @@
 | S6 신호 없는 횡단보도 | 와우산로 중간 횡단보도. 차가 보행자에게 양보한다 | 극동방송 정류장 44m 뒤 |
 | S4 정류장 앞 정차 차량 | 도로에는 따로 없다. 시나리오 쪽 이벤트다 | |
 
-정류장은 Overpass(OSM)에서 받은 실제 정류장 점을 가장 바깥 차도 차로에 25m 길이로 놓았다. 점과 차로의 거리는 0.6~5.2m이고, 상수역만 14.1m다(인도 위 승강장 점). `map.json`의 `bus_stops`에 OSM 노드 id와 거리가 있다. 양화로 중앙버스차로 정류장 2곳(`source/stops.add.xml`)은 원본 그대로다.
+정류장은 Overpass(OSM)에서 받은 실제 정류장 점을 가장 바깥 차도 차로에 25m 길이로 놓았다. 점과 차로의 거리는 0.6~5.2m이고, 상수역만 14.1m다(인도 위 승강장 점). `map.json`의 `bus_stops`에 OSM 노드 id와 거리가 있다. 양화로 중앙버스차로 정류장 4곳(`source/stops.add.xml`: 합정역 2곳, 서교동사거리 2곳)은 생성기 그대로다. 승강장은 일반 차로와 버스 차로 사이에 있고 잘린 면이 횡단보도에 붙는다.
 
 ## 이어진 골목
 
@@ -68,7 +68,7 @@
 | `source/network.base.net.xml`, `source/signals.base.add.xml` | 서예인의 원본 도로망과 신호 프로그램. 빌드의 입력이다 |
 | `source/network.net.xml`, `source/signals.add.xml`, `source/pedestrians.rou.xml` | 빌드가 만든 실행 도로망, 신호 프로그램, 보행자 경로 |
 | `source/islands.add.xml`, `source/seams.add.xml` | 교통섬과 차로 이음선 표시 |
-| `source/stops.add.xml` | 양화로 중앙버스차로 정류장 2곳 |
+| `source/stops.add.xml` | 양화로 중앙버스차로 정류장 4곳 |
 | `source/context.add.xml` | 건물·녹지 외곽선. 화면 표시용 |
 | `source/area.osm.xml` | OSM 원자료 (© OpenStreetMap contributors, ODbL 1.0) |
 | `generator/` | 원본 도로망을 만든 생성기(`osm_builder.py`와 그때의 `road_builder.py`, `road_config.py`). 수업 원본 코드 구조를 전제로 해서 이 저장소에서는 그대로 실행되지 않는다 |

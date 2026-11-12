@@ -45,7 +45,8 @@ JOIN = [("J52", "J56", "J58")]
 NODE_TYPES = {"J3": "priority"}
 JOINED = "cluster_J52_J56_J58"
 JOINED_CROSSINGS = [("R73", "-R73"), ("R77", "-R77"), ("R120",), ("R122",), ("R121",)]
-YIELD_LINKS = {"J1": [0, 11]}          # B2_0 → R40_3, B1_0 → R41_2
+# J1에서 중앙버스차로(B1·B2)는 이제 버스 전용 차로(R41_3·R40_3)로만 들어가 다른 우선 녹색과 겹치지 않는다
+YIELD_LINKS: dict[str, list[int]] = {}
 DROP_PROGRAMS = {"J56"}
 # 배경 차량 baseline 합계. 생성기 설정(generator/road_config.py OSM_ROAD traffic)의 값이다.
 BASELINE_VEHS_PER_HOUR = 900

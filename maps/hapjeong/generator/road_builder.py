@@ -826,15 +826,17 @@ def _build_osm(osm: dict, ego: dict, traffic: dict, out_dir: str) -> str:
     if islands:
         # 섬 지정: (x, y) 한 점이면 둘러싼 영역을 자동으로 찾고,
         #          {"polygon": [(x, y), ...]} 이면 그 꼭짓점 그대로 그린다
+        #   "layer": 그리는 층 (기본 -0.1 = 도로 아래). 교차로 영역 안까지 그려야 하는 섬은
+        #   교차로에 가려지지 않게 도로 위(예: 0.5)로 올리고, 차로를 덮지 않게 가장자리에 맞춰 그린다
         seeds = [s for s in islands if not isinstance(s, dict)]
-        polys = (_island_polygons(p("highway.net.xml"), seeds) if seeds else []) + \
-            [[tuple(q) for q in s["polygon"]] for s in islands if isinstance(s, dict)]
+        polys = [(poly, -0.1) for poly in (_island_polygons(p("highway.net.xml"), seeds) if seeds else [])] + \
+            [([tuple(q) for q in s["polygon"]], s.get("layer", -0.1)) for s in islands if isinstance(s, dict)]
         with open(p("highway.islands.xml"), "w") as f:
             f.write("<additional>\n")
-            for i, poly in enumerate(polys):
+            for i, (poly, layer) in enumerate(polys):
                 shape = " ".join(f"{x:.2f},{y:.2f}" for x, y in poly)
                 f.write(f'    <poly id="island_{i}" type="island" color="128,128,128" '
-                        f'fill="1" layer="-0.1" shape="{shape}"/>\n')
+                        f'fill="1" layer="{layer}" shape="{shape}"/>\n')
             f.write("</additional>\n")
         additional += ",highway.islands.xml"
 
@@ -884,11 +886,14 @@ def _build_osm(osm: dict, ego: dict, traffic: dict, out_dir: str) -> str:
     if signals:
         root = ET.parse(p("highway.net.xml")).getroot()
         links, all_links = {}, {}    # (신호, from, to) → 첫 링크 번호 / 모든 차선의 링크 번호
+        lane_links = {}              # (신호, from, from 차선, to) → 링크 번호들
         for c in root.findall("connection"):
             if c.get("tl"):
                 key = (c.get("tl"), c.get("from"), c.get("to"))
                 links.setdefault(key, int(c.get("linkIndex")))
                 all_links.setdefault(key, []).append(int(c.get("linkIndex")))
+                lane_links.setdefault((c.get("tl"), c.get("from"), int(c.get("fromLane")), c.get("to")),
+                                      []).append(int(c.get("linkIndex")))
         with open(p("highway.tls.xml"), "w", encoding="utf-8") as f:
             f.write("<additional>\n")
             for tl in root.findall("tlLogic"):
@@ -925,6 +930,20 @@ def _build_osm(osm: dict, ego: dict, traffic: dict, out_dir: str) -> str:
                             continue
                         kept.append(ph)
                     phases = kept
+                # own: 차선 하나의 움직임에 따로 신호를 준다 (예: 버스 전용 차선 직진).
+                #   그 차선은 원래 단계들에서 빨강이 되고, before 움직임이 초록인 첫 단계 앞에
+                #   그 차선만 초록인 단계(seconds)와 노랑 3초를 넣는다
+                for own in sig.get("own", []):
+                    lis = lane_links.get((tl.get("id"), own["from"], int(own["lane"]), own["to"]))
+                    ref = links.get((tl.get("id"), own["before"][0], own["before"][1]))
+                    if not lis or ref is None:
+                        raise ValueError(f'신호 {tl.get("id")}: own 대상 연결이 없다: {own}')
+                    for ph in phases:
+                        ph[1] = "".join("r" if i in lis else ch for i, ch in enumerate(ph[1]))
+                    at = next(i for i, (d, s) in enumerate(phases) if s[ref] in "Gg")
+                    n = len(phases[0][1])
+                    phases[at:at] = [[int(own["seconds"]), "".join("G" if i in lis else "r" for i in range(n))],
+                                     [3, "".join("y" if i in lis else "r" for i in range(n))]]
                 if "cycle" in sig:
                     longs = [i for i, (d, s) in enumerate(phases)
                              if d > 6 and "G" in s and "y" not in s]

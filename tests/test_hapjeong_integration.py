@@ -35,7 +35,8 @@ def test_merge_alley_flows_use_cutin_type(world):
     types = {f.get("from"): f.get("type") for f in flows}
     assert all(types[a] == "cutin" for a in MERGE_ALLEYS)
     assert all(t == "carDist" for a, t in types.items() if a not in MERGE_ALLEYS)
-    assert world.summary["cutin_flows"] == 14
+    # 골목 2곳 × 출구 9곳 (홍대입구역사거리 추가로 양화로 끝 R53 대신 R124·R126·R127)
+    assert world.summary["cutin_flows"] == 18
 
 
 def test_s6_pedestrians_get_both_types(world):

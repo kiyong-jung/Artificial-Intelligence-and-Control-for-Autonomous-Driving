@@ -19,7 +19,7 @@ from render_fix_figures import FONT, Net  # noqa: E402
 font_manager.fontManager.addfont(FONT)
 plt.rcParams["font.family"] = font_manager.FontProperties(fname=FONT).get_name()
 FOLDER = BASE / "maps" / "hapjeong"
-ROUTE = "#1565c0"
+ROUTE, ALLEY = "#1565c0", "#d50000"   # 골목은 지도 그림(scripts/render_map.py)과 같은 빨강
 COLORS = {"S1": "#f5b400", "S2": "#8e44ad", "S3": "#f5b400", "S4": "#f5b400", "S5": "#e65100", "S6": "#2e9d48"}
 
 
@@ -43,7 +43,7 @@ def scenario_map():
     merges = ["X_dongmak3", "X_dongmak6"] + [node for shortcut in shortcuts for node in shortcut["merges"]]
     for shortcut in shortcuts:
         for edge_id in shortcut["edges"]:
-            ax.plot(*zip(*net.lanes[f"{edge_id}_0"]["points"]), color=COLORS["S5"], lw=2.2, alpha=0.7, zorder=3)
+            ax.plot(*zip(*net.lanes[f"{edge_id}_0"]["points"]), color=ALLEY, lw=2.2, alpha=0.8, zorder=3)
 
     def tag(text, xy, offset, color):
         ax.annotate(text, xy, xytext=offset, textcoords="offset points", fontsize=15, fontweight="bold", color="white",

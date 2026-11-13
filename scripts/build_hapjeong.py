@@ -37,7 +37,7 @@ from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "3.5.0"
+VERSION = "3.6.0"
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]
@@ -49,6 +49,14 @@ JOINED_CROSSINGS = [("R73", "-R73"), ("R77", "-R77")]
 # 중앙버스차로가 일반 차로로 합류하는 연결(신호 교차로 → [(나가는 도로, 들어가는 도로)])
 YIELD_CONNECTIONS = {"J1": [("B2", "R40"), ("B1", "R41")]}
 DROP_PROGRAMS = {"J56"}
+# 독막로·어울마당로 교차로(JOINED)의 신호. netconvert에 맡기면 R122가 붙을 때 보행 전용 단계가 생겨 주기가 90초에서
+# 100초가 되고, 상수역 사거리(J82)와 맞던 녹색 시점이 어긋나 버스가 R111b에서 한 바퀴마다 30초쯤 더 섰다.
+# (초, {들어오는 도로 또는 "crossing": 신호}). 적지 않은 연결은 빨강이다.
+JOINED_PHASES: list[tuple[int, dict[str, str]]] = [
+    (42, {"R73": "G", "-R77": "G"}), (3, {"R73": "y", "-R77": "y"}), (36, {"R120": "g", "crossing": "G"}),
+    (5, {"R120": "g"}), (3, {"R120": "y"}), (1, {})]
+# 맞은편 직진에 양보하는 좌회전. 녹색이어도 양보 녹색(g)이다.
+JOINED_PERMISSIVE = {("R73", "R122")}
 # 양화로를 건너는 긴 횡단보도(36m, 39m)는 잔다리로 차량 신호와 같이 켜져 있었다. 잔다리로에서 좌회전·우회전한 차가
 # 교차로를 빠져나가는 자리가 바로 이 횡단보도라, 건너는 보행자와 부딪혔다(버스 9회 실행 중 5번).
 # 이 횡단보도는 차량이 모두 멈춘 보행자 전용 단계로 옮긴다(신호 교차로 → [건너는 도로들]).
@@ -120,9 +128,9 @@ ALLEY_SPLITS = {"X_dongmak3": ("R71", "-R71", "1834932797"),   # 독막로3길
 # 골목끼리 만나는 점과 골목의 안쪽 끝. 도로망 노드 id → OSM 노드 id
 ALLEY_NODES = {"Y2": "3066579587", "D4": "3182251264", "S2": "2323311243"}
 STUB_ENDS: list[str] = []   # 원본 골목 토막의 끝 가운데 골목이 이어지는 점
-# 원본의 골목 토막. R120(어울마당로에서 독막로로 나오는 길)만 남긴다. J8의 토막(R116)으로는 독막로 동쪽 방향 차가
+# 원본의 골목 토막. R120(어울마당로에서 독막로로 나오는 길)과 R122(독막로에서 어울마당로로 들어가는 길)만 남긴다. J8의 토막(R116)으로는 독막로 동쪽 방향 차가
 # 골목으로 좌회전해 되돌아 나왔는데, 이 좌회전 차가 횡단보도 위에서 맞은편을 기다리다 보행자와 부딪혔다.
-REMOVED_EDGES = ["R116", "-R116", "R117", "-R117", "R118", "-R118", "R119", "-R119", "R121", "R122", "R123", "-R123"]
+REMOVED_EDGES = ["R116", "-R116", "R117", "-R117", "R118", "-R118", "R119", "-R119", "R121", "R123", "-R123"]
 # 토막을 떼어 냈거나 차로를 바꾼 신호 교차로. netconvert는 읽어 온 신호의 연결 번호를 그대로 두어 번호에 빈칸이 생기고, 다시 놓는
 # 횡단보도가 남은 번호와 겹친다. 첫 단계에서 신호를 떼었다가 둘째 단계에서 다시 달아 번호를 새로 매기게 한다.
 RESIGNALED = ["J8", "J23", "J82", "J83", "J42"]
@@ -167,12 +175,13 @@ SHORTCUTS = {
     "eoulmadang": {
         "nodes": {"E1": "4175978557", "Y4": "1834932796", "Y5": "3743682656"},
         "attach": ["J74"],
-        "stubs": ["J92"],
-        "alleys": [("G19", "어울마당로", "-11", "Y5", "J74", ALLEY_KMH, True),
+        "stubs": ["J92", "J94"],
+        "alleys": [("G31", "어울마당로", "-11", "J94", "Y5", ALLEY_KMH, True),
+                   ("G19", "어울마당로", "-11", "Y5", "J74", ALLEY_KMH, True),
                    ("G20", "어울마당로", "-50", "J74", "E1", ALLEY_KMH, True),
                    ("G21", "어울마당로", "168229931", "E1", "Y4", ALLEY_KMH, True),
                    ("G8", "어울마당로", "168229931", "Y4", "J92", ALLEY_KMH, True)],
-        "origins": ["G19"]},
+        "origins": ["G31"]},
     # 잔다리로6길: 버스 경로 바깥(북동쪽)에서 잔다리로의 신호 횡단보도 J48로 들어오는 일방통행. 서교동사거리 좌회전 대기 구간 앞이다.
     "jandari6": {
         "nodes": {"N6": "1830469500"},
@@ -610,6 +619,12 @@ def build_signals(net_path: Path, output: Path) -> dict[str, list[int]]:
             ET.SubElement(logic, "phase", duration=str(walk_s),
                           state="".join("G" if index in exclusive else "r" for index in range(width)))
             ET.SubElement(logic, "phase", duration=str(EXCLUSIVE_CLEARANCE_S), state="r" * width)
+    links = [built[JOINED][index] for index in sorted(built[JOINED])]
+    joined = ET.SubElement(root, "tlLogic", id=JOINED, type="static", programID="config", offset="0")
+    for seconds, marks in JOINED_PHASES:
+        state = [marks.get(key[0], "r") for key in links]
+        state = ["g" if mark == "G" and key[::2] in JOINED_PERMISSIVE else mark for mark, key in zip(state, links)]
+        ET.SubElement(joined, "phase", duration=str(seconds), state="".join(state))
     ET.ElementTree(root).write(output, encoding="utf-8", xml_declaration=True)
     return {tls: indexes for tls, indexes in yielded.items() if indexes}
 

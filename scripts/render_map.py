@@ -49,7 +49,7 @@ YANGHWA_STOP_OFFSETS = {"합정역": (-6, 12), "합정역(양화로 동쪽)": (1
 # 순환 노선의 합정역(14-219) 가로변 정류장과 이름이 같아 지도에서는 구별해 적는다.
 YANGHWA_STOP_LABELS = {"합정역": "합정역(중앙)"}
 # 방향별 일방통행 두 줄로 된 길. 두 줄 사이(가운데 보행로)를 옅게 칠해 한 길로 읽히게 한다.
-MEDIANS = {"어울마당로": (["G19"], ["G20", "G21"])}
+MEDIANS = {"어울마당로": (["G31", "G19"], ["G20", "G21", "G8"])}
 
 
 def alleys(net_path: Path) -> tuple[dict[str, list[str]], list[str]]:

@@ -66,4 +66,4 @@
         <phase duration="5" state="rrrrrrggrrr" />
         <phase duration="5" state="rrrrrryyrrr" />
     </tlLogic>
-</additional>
+<tlLogic id="cluster_J52_J56_J58" type="static" programID="config" offset="0"><phase duration="42" state="rrrrrGGGGGGgrr" /><phase duration="3" state="rrrrryyyyyyyrr" /><phase duration="36" state="gggggrrrrrrrGG" /><phase duration="5" state="gggggrrrrrrrrr" /><phase duration="3" state="yyyyyrrrrrrrrr" /><phase duration="1" state="rrrrrrrrrrrrrr" /></tlLogic></additional>

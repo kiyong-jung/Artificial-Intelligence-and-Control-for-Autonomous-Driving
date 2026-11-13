@@ -111,6 +111,7 @@ class Counter:
                 self._cut_in.add(vehicle["id"])
                 self.by_merge[origin]["cut_ins"] += 1
                 events["S5"] += 1
+                events["S5="] += vehicle["lane_index"] == ego["lane_index"]
         events["S5~"] += waiting
         if str(navigation["crossing_id"]).startswith(S6_CROSSING) and navigation["distance_to_crossing"] <= NEAR_M:
             roads = [p["road_id"] for p in state["pedestrians"]]
@@ -142,6 +143,7 @@ SCENARIOS = [
     ("S3", "정류장 접근 차로 변경", "정류장 100m 앞에서 오른쪽으로 옮김"),
     ("S4", "정류장 앞 정차 차량", "50m 안에 정차 택시"),
     ("S5", "골목 차량 끼어들기", "신호 없는 골목 합류점에서 나온 차가 15초 안에 버스와 같은 도로의 50m 앞에 들어옴"),
+    ("S5=", "그 차가 버스와 같은 차로로 들어옴", "끼어든 차의 차로가 버스의 차로와 같음"),
     ("S5~", "골목 차량이 합류점에서 대기", "버스 앞 50m 안의 골목 합류점에 골목 차량이 있음"),
     ("S6", "신호 없는 횡단보도", "50m 앞 횡단보도 위에 보행자"),
     ("S6~", "횡단보도 끝에 보행자", "50m 앞 횡단보도의 양끝 대기 공간에 보행자(건너려고 기다리거나 인도를 지나감)"),

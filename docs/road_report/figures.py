@@ -15,6 +15,7 @@ HERE = Path(__file__).resolve().parent
 BASE = HERE.parents[1]
 sys.path.insert(0, str(BASE / "scripts"))
 from render_fix_figures import FONT, Net  # noqa: E402
+from render_map import alleys  # noqa: E402
 
 font_manager.fontManager.addfont(FONT)
 plt.rcParams["font.family"] = font_manager.FontProperties(fname=FONT).get_name()
@@ -41,8 +42,8 @@ def scenario_map():
             ax.plot(*zip(*lanes[len(lanes) // 2]["points"]), color=ROUTE, lw=6, alpha=0.55, solid_capstyle="round", zorder=2)
     shortcuts = definition["network_source"]["patches"]["shortcuts"]
     merges = ["X_dongmak3", "X_dongmak6"] + [node for shortcut in shortcuts for node in shortcut["merges"]]
-    for shortcut in shortcuts:
-        for edge_id in shortcut["edges"]:
+    for edge_ids in alleys(FOLDER / "source" / "network.net.xml")[0].values():
+        for edge_id in edge_ids:
             ax.plot(*zip(*net.lanes[f"{edge_id}_0"]["points"]), color=ALLEY, lw=2.2, alpha=0.8, zorder=3)
 
     def tag(text, xy, offset, color):
@@ -82,10 +83,10 @@ def scenario_map():
 
 
 def progress():
-    # (항목, 시작(3.2.0), 최종(3.4.0), 단위). 숫자는 maps/hapjeong/README.md의 측정값이다.
-    rows = [("S5 골목에서 버스 방향으로\n합류하는 차", 34, 218, "대/시간"), ("S5 버스 앞에 끼어든 차", 6, 33, "번/80회"),
-            ("S1·S3 정류장에서\n옆에 차", 101, 210, "회/약 480회"), ("S6 횡단보도 앞에\n보행자", 45, 72, "회/80회"),
-            ("가장 한산한 구간의\n교통량", 76, 135, "대/시간"), ("가장 한산한 구간에서\n버스 옆에 차가 있던 시간", 17, 30, "% (3.3.0 → 3.4.0)")]
+    # (항목, 시작(3.2.0), 최종(3.5.0), 단위). 숫자는 maps/hapjeong/README.md의 측정값이다(busy, 규칙 버스 80회, seed 500).
+    rows = [("S5 골목에서 버스 방향으로\n합류하는 차", 34, 245, "대/시간"), ("S5 버스 앞에 끼어든 차", 6, 42, "번/80회"),
+            ("S1·S3 정류장에서\n옆에 차", 101, 202, "회/약 480회"), ("S6 횡단보도 앞에\n보행자", 45, 68, "회/80회"),
+            ("가장 한산한 구간의\n교통량", 76, 105, "대/시간"), ("가장 한산한 구간에서\n버스 옆에 차가 있던 시간", 17, 36, "% (3.3.0 → 3.5.0)")]
     fig, axes = plt.subplots(1, len(rows), figsize=(16, 4.2), dpi=150)
     for ax, (label, before, after, unit) in zip(axes, rows):
         bars = ax.bar(["고치기 전", "고친 뒤"], [before, after], color=["#b9b9b9", "#e65100"], width=0.62)

@@ -1,4 +1,5 @@
-"""합정역 실행 도로망 전체를 지도처럼 그린다. 버스 경로, 정류장, 신호 교차로, 신호 없는 횡단보도, 골목(빨강), 골목 합류점, 자른 점을 표시한다.
+"""합정역 실행 도로망 전체를 지도처럼 그린다. 버스 노선 두 개(연구 순환 노선, 양화로 중앙버스 노선), 정류장, 신호 교차로,
+신호 없는 횡단보도, 골목(빨강), 골목 합류점, 자른 점을 표시한다.
 
     python3 scripts/render_map.py
     python3 scripts/render_map.py maps/hapjeong_trial_x "후보 포함, 측정 중"   # 다른 지도 폴더를 그릴 때(제목에 덧붙일 말)
@@ -23,6 +24,7 @@ FOLDER = BASE / "maps" / "hapjeong"
 PAPER, BUILDING, ROAD, BUS_LANE = "#f6f5f1", "#eae7df", "#c6c3ba", "#a9bfe3"
 INK, MUTED = "#222222", "#6b6b6b"
 ROUTE, STOP, SIGNAL, ALLEY, MERGE, CROSSING = "#1565c0", "#f2a900", "#ffd400", "#d32f2f", "#7b3fa0", "#2e9d48"
+LINE2, MEDIAN = "#00838f", "#f7dede"
 ALLEY_MPS = 30 / 3.6
 HALO = [patheffects.withStroke(linewidth=3, foreground="white")]
 # 이름표 위치(pt). 정류장은 버스 경로 바깥쪽, 교차로 이름은 교차로 옆 빈 곳에 둔다.
@@ -36,6 +38,18 @@ ALLEY_SHIFT = {"잔다리로6길": -22}
 LABEL_MIN_M = 40   # 이보다 짧은 골목은 이름을 적지 않는다(범례로 충분하다)
 # 좁은 곳에 붙어 있는 골목들은 이름을 한 줄로 묶어 지시선 끝(pt)에 적는다.
 LABEL_GROUPS = {("독막로4길", "성지1길", "독막로6길"): (-70, -46)}
+# 양화로 중앙버스전용차로를 달리는 노선(홍대입구 방향, 합정 방향). 도로망 경계에서 경계까지 지나는 도로 순서다.
+# 도로를 나눈 조각(R43.120 같은 "id.위치")도 그 도로로 본다.
+CENTRAL_LINE = (["R51", "R49a", "B1", "R41", "R43", "R50", "R53", "B3a", "B3b", "R53d", "R124"],
+                ["R125", "R55a", "B4a", "B4b", "R55", "R54a", "R54b", "B2", "R40", "R44"])
+# source/stops.add.xml(양화로 정류장) 이름표 위치(pt)
+YANGHWA_STOP_OFFSETS = {"합정역": (-6, 12), "합정역(양화로 동쪽)": (10, 8), "서교동사거리(중앙)": (12, -6),
+                        "서교동사거리(중앙, 합정 방향)": (-12, 8), "양화로 가로변(합정 방향)": (-10, 0),
+                        "양화로 가로변(당산 방향)": (-8, 11)}
+# 순환 노선의 합정역(14-219) 가로변 정류장과 이름이 같아 지도에서는 구별해 적는다.
+YANGHWA_STOP_LABELS = {"합정역": "합정역(중앙)"}
+# 방향별 일방통행 두 줄로 된 길. 두 줄 사이(가운데 보행로)를 옅게 칠해 한 길로 읽히게 한다.
+MEDIANS = {"어울마당로": (["G19"], ["G20", "G21"])}
 
 
 def alleys(net_path: Path) -> tuple[dict[str, list[str]], list[str]]:
@@ -116,8 +130,15 @@ def main(folder: Path = FOLDER, note: str = ""):
             ax.annotate("·".join(name for name in group if name in named), center, xytext=offset,
                         textcoords="offset points", ha="center", va="center", fontsize=8, color=ALLEY, fontweight="bold",
                         path_effects=HALO, zorder=9, arrowprops=dict(arrowstyle="-", color=ALLEY, lw=0.8, shrinkB=2))
+    for name, (left, right) in MEDIANS.items():
+        if all(f"{edge_id}_0" in net.lanes for edge_id in left + right):
+            outline = [p for edge_id in left for p in net.lanes[f"{edge_id}_0"]["points"]]
+            outline += [p for edge_id in right for p in net.lanes[f"{edge_id}_0"]["points"]]
+            ax.fill(*zip(*outline), color=MEDIAN, lw=0, zorder=0)
     for name, edge_ids in named.items():
-        lines = [net.lanes[f"{edge_id}_0"]["points"] for edge_id in edge_ids]
+        # 양방향 골목은 두 방향이 겹쳐 굵어 보이므로 한 방향만 그린다.
+        lines = [net.lanes[f"{edge_id}_0"]["points"] for edge_id in edge_ids
+                 if not (edge_id.startswith("-") and edge_id[1:] in edge_ids)]
         for points in lines:
             ax.plot(*zip(*points), color=ALLEY, lw=max(3.0 * meter, 2.2), solid_capstyle="round", zorder=3)
         if name in grouped:
@@ -143,6 +164,36 @@ def main(folder: Path = FOLDER, note: str = ""):
                        if net.path(route[index], str(lane), route[index + 1], str(target))), None)
         if points:
             route_line(points)
+    lanes_of = {}
+    for lane_id, lane in net.lanes.items():
+        if not lane["internal"] and lane["allow"] != "pedestrian":
+            lanes_of.setdefault(lane_id.rsplit("_", 1)[0], []).append(int(lane_id.rsplit("_", 1)[1]))
+
+    def bus_lane(edge_id):
+        # 버스 전용 차로가 있으면 그 차로, 없으면 가장 안쪽(중앙 쪽) 차로
+        bus = [index for index in lanes_of[edge_id] if net.lanes[f"{edge_id}_{index}"]["allow"] == "bus"]
+        return str(max(bus or lanes_of[edge_id]))
+    for listed in CENTRAL_LINE:
+        edges = [edge_id for name in listed for edge_id in sorted(
+            (e for e in lanes_of if e == name or e.startswith(name + ".")), key=lambda e: float(e.partition(".")[2] or 0))]
+        for edge_id in edges:
+            ax.plot(*zip(*net.lanes[f"{edge_id}_{bus_lane(edge_id)}"]["points"]), color=LINE2, lw=2.4,
+                    solid_capstyle="round", zorder=4)
+        for a, b in zip(edges, edges[1:]):
+            points = net.path(a, bus_lane(a), b, bus_lane(b))
+            if points:
+                ax.plot(*zip(*points), color=LINE2, lw=2.4, solid_capstyle="round", zorder=4)
+    yanghwa_stops = list(ET.parse(folder / "source" / "stops.add.xml").getroot().iter("busStop"))
+    for stop in yanghwa_stops:
+        points = net.lanes[stop.get("lane")]["points"]
+        x, y = points[len(points) // 2]
+        central = stop.get("lane").startswith("B")
+        ax.plot(x, y, "s", ms=7 if central else 6, color=LINE2 if central else "white", mec=INK if central else LINE2,
+                mew=0.9 if central else 1.6, zorder=8)
+        dx, dy = YANGHWA_STOP_OFFSETS.get(stop.get("name"), (10, 0))
+        ax.annotate(YANGHWA_STOP_LABELS.get(stop.get("name"), stop.get("name")), (x, y), xytext=(dx, dy),
+                    textcoords="offset points", fontsize=7.5, color=LINE2,
+                    fontweight="bold", ha="left" if dx >= 0 else "right", va="center", path_effects=HALO, zorder=9)
     for junction in net.junctions.values():
         if junction["type"].startswith("traffic_light"):
             ax.plot(junction["x"], junction["y"], "o", ms=5, color=SIGNAL, mec=INK, mew=0.6, zorder=6)
@@ -190,15 +241,18 @@ def main(folder: Path = FOLDER, note: str = ""):
 
     fig.text(0.015, 0.965, f"합정역 도로망 {definition['version']}" + (f" ({note})" if note else ""), fontsize=17,
              fontweight="bold", color=INK, va="center")
-    fig.text(0.015, 0.932, f"버스 경로 {definition['route_design'][definition['ego_route']]['length_m']:,.0f}m, "
-             f"가로변 정류장 {len(definition['bus_stops'])}곳, 신호 교차로 "
+    fig.text(0.015, 0.932, f"순환 노선 {definition['route_design'][definition['ego_route']]['length_m']:,.0f}m, "
+             f"순환 노선 정류장 {len(definition['bus_stops'])}곳, 양화로 정류장 {len(yanghwa_stops)}곳, 신호 교차로 "
              f"{sum(j['type'].startswith('traffic_light') for j in net.junctions.values())}곳, 골목 {len(named)}개",
              fontsize=10, color=MUTED, va="center")
-    handles = [plt.Line2D([], [], color=ROUTE, lw=3.4, label="버스 경로(시계 반대 방향 한 바퀴)"),
+    handles = [plt.Line2D([], [], color=ROUTE, lw=3.4, label="연구 순환 노선(시계 반대 방향 한 바퀴)"),
+               plt.Line2D([], [], color=LINE2, lw=2.4, label="양화로 중앙버스 노선(양방향)"),
                plt.Line2D([], [], color=ROAD, lw=8, label="간선 도로"),
                plt.Line2D([], [], color=BUS_LANE, lw=7, label="중앙버스전용차로"),
                plt.Line2D([], [], color=ALLEY, lw=2.4, label="골목(30km/h 이하)"),
-               plt.Line2D([], [], marker="s", ls="", ms=8, color=STOP, mec=INK, label="버스 정류장"),
+               plt.Line2D([], [], marker="s", ls="", ms=8, color=STOP, mec=INK, label="순환 노선 정류장(가로변)"),
+               plt.Line2D([], [], marker="s", ls="", ms=7, color=LINE2, mec=INK, label="중앙버스정류장"),
+               plt.Line2D([], [], marker="s", ls="", ms=6, color="white", mec=LINE2, mew=1.6, label="양화로 가로변 정류장"),
                plt.Line2D([], [], marker="o", ls="", ms=6, color=SIGNAL, mec=INK, label="신호 교차로"),
                plt.Line2D([], [], marker="D", ls="", ms=7, color=CROSSING, mec="white", label="신호 없는 횡단보도"),
                plt.Line2D([], [], marker="^", ls="", ms=8, color=MERGE, mec="white", label="골목 합류점(신호 없음)"),
@@ -208,7 +262,9 @@ def main(folder: Path = FOLDER, note: str = ""):
     legend = ax.legend(handles=handles, loc="upper left", fontsize=9.5, handlelength=2.2, labelspacing=0.75,
                        borderpad=0.9, framealpha=0.93, edgecolor="#d8d4ca", fancybox=False)
     legend.set_zorder(10)
-    ax.text(0.99, 0.01, f"옅은 면은 건물이다. 골목은 모두 일방통행이고, {LABEL_MIN_M}m보다 짧은 골목은 이름을 생략했다.",
+    two_way = sorted({name for name, ids in named.items() if any(i.startswith("-") and i[1:] in ids for i in ids)})
+    one_way = f"골목은 {', '.join(two_way)} 말고 모두 일방통행이고" if two_way else "골목은 모두 일방통행이고"
+    ax.text(0.99, 0.01, f"옅은 면은 건물, 분홍 면은 어울마당로 가운데 보행로다. {one_way}, {LABEL_MIN_M}m보다 짧은 골목은 이름을 생략했다.",
             ha="right", va="bottom", fontsize=8, color=MUTED, transform=ax.transAxes, path_effects=HALO, zorder=10)
     out = folder / "references" / "hapjeong_map.png"
     out.parent.mkdir(exist_ok=True)

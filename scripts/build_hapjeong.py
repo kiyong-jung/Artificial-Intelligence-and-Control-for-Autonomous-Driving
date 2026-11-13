@@ -9,8 +9,8 @@ source/signals.base.add.xml)이다. 임시 폴더에서 다음을 모두 마친 
 3. 신호 프로그램에서 합친 교차로의 J56 프로그램을 빼고(기본 신호 사용), J1에서 중앙버스차로가
    일반 차로로 합류하는 연결을 양보 녹색(g)으로 바꾼다. 같은 차로에 우선 녹색 두 개가 들어가던 곳이다.
 4. 바뀐 도로망에서 보행자 경로를 원본과 같은 설정(시간당 600명, 최소 150m)과 고정 seed로 다시 만든다.
-5. 원본의 30m 골목 토막을 OSM 골목으로 이어, 끊긴 끝이 없는 골목망 세 개(독막로 북쪽, 남서쪽, 남동쪽)를
-   만든다. 골목은 독막로에 신호 없이 두 곳에서 합류한다(S5). 이을 곳이 없는 독막로12길 토막은 뺀다.
+5. OSM의 실제 골목을 일방통행 1차로로 넣는다. 골목은 버스 경로에 신호 없이 합류한다(S5). 차가 다니지 않는
+   원본의 30m 골목 토막은 뺀다.
 6. 연구 시나리오(S1~S3, S6)용으로 OSM 위치의 가로변 정류장 6곳과 와우산로의 신호 없는 횡단보도 1곳을 둔다.
 7. 배경 흐름(팔달문과 같은 규칙을 합계 900대/시간으로 줄임)과 ego 경로를 계산하고 validate_structure로 확인한다.
 """
@@ -37,7 +37,7 @@ from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "3.3.0"
+VERSION = "3.4.0"
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]
@@ -54,6 +54,21 @@ DROP_PROGRAMS = {"J56"}
 # 이 횡단보도는 차량이 모두 멈춘 보행자 전용 단계로 옮긴다(신호 교차로 → [건너는 도로들]).
 EXCLUSIVE_CROSSINGS = {"J42": [("R53", "R55"), ("R54a", "R50")]}
 EXCLUSIVE_CLEARANCE_S = 5
+# 단계 뒤에 넣는 전적색(신호 교차로 → {원본 단계 번호: 초}).
+# 상수역 사거리 J82는 황색 3초 뒤 바로 다음 방향이 출발했다. 교차로 안에서 맞은편을 기다리던 비보호 좌회전 차가 빠져나가기
+# 전에 독막로 좌회전(버스 경로)이 들어와 부딪혔다(300회 점검의 충돌 5번이 모두 독막로 녹색 뒤 1.8~4.9초).
+# 양화로 중앙정류장 횡단보도 J106은 보행 녹색 30초 뒤 바로 차량 녹색이라, 늦게 들어선 보행자가 남아 있었다.
+ALL_RED_S: dict[str, dict[int, int]] = {"J82": {1: 3, 4: 3, 7: 5}, "J106": {2: 8}}
+# 단계 길이를 바꾸는 곳(신호 교차로 → {원본 단계 번호: 초}). J106은 보행 녹색을 22초로 줄여 주기를 그대로 둔다.
+# J48(잔다리로 횡단보도)은 보행 녹색 5초 뒤의 전적색을 5초에서 10초로 늘리고 차량 녹색을 그만큼 줄인다.
+# J82는 버스가 들어오는 독막로 동행 녹색을 25초에서 35초로 늘린다. 줄이 짧아야 가로변 차로의 버스가 좌회전 차로로 옮긴다.
+PHASE_SECONDS: dict[str, dict[int, int]] = {"J42": {8: 35, 9: 5, 11: 15}, "J82": {0: 35}, "J106": {2: 22}, "J48": {0: 70, 3: 10}}
+# 한 단계를 한 진입로가 통째로 쓰게 하는 곳(신호 교차로 → {진입 도로: [원본 단계 번호]}). 그 단계에서 이 진입로의
+# 모든 연결이 녹색(황색 단계면 황색)이고 다른 차량 연결은 적색이다.
+# 서교동사거리 J42에서 잔다리로는 직진·우회전 39초 뒤 좌회전 20초였다. 버스가 가는 R94는 1차로가 직진·우회전,
+# 2차로가 좌회전인데 우회전과 좌회전이 모두 많아, 줄이 88m 구간을 채우고 뒤의 횡단보도 J48과 골목까지 막았다.
+# R94가 40초 동안 모든 방향으로 나가고, 맞은편 -R92가 그 뒤 15초를 쓴다.
+APPROACH_PHASES: dict[str, dict[str, list[int]]] = {"J42": {"R94": [8, 9, 10], "-R92": [11, 12]}}
 # 도로망의 북서쪽(월드컵로와 잔다리로 너머)은 버스 경로와 멀어 잘라낸다. 자른 점이 새 경계가 된다.
 # 자르는 점 → (안쪽에서 나가는 도로, 들어오는 도로, 안쪽 교차로에서 자르는 점까지 m, 버리는 쪽의 교차로)
 CUTS = {"CUT_worldcup": ("R61", "-R61", 200.0, "J49"),    # 월드컵로, 합정역 사거리 북쪽
@@ -61,6 +76,22 @@ CUTS = {"CUT_worldcup": ("R61", "-R61", 200.0, "J49"),    # 월드컵로, 합정
 # (나가는 도로, 차로, 들어가는 도로, 차로). 합정역 R42 1·2번 차로가 둘 다 R40 1번 차로로 직진해 부딪히던 것은
 # 생성기에서 R40을 일반 3차로로 넓혀 R42 직진 세 차로를 1:1로 이어 풀었다.
 REMOVED_CONNECTIONS: list[tuple[str, str, str, str]] = []
+# 차도 차로 수를 바꾸는 도로(도로 → 차도 차로 수)와, 그 때문에 통째로 다시 적는 연결(나가는 도로 → [(차로, 들어가는 도로, 차로)]).
+# MOVED_LINKS는 새 연결이 원본의 어느 연결의 신호를 받는지 적는다.
+# 상수역 사거리 앞 27m 구간 R111b는 차도가 3차로에서 2차로로 줄었다. 정지선 바로 앞에서 두 차가 한 차로에 나란히 끼인 채
+# 우회전하다 교차로 안에서 서로를 막아 300초 뒤 순간이동했다. 3차로로 넓혀 차로를 1:1로 잇는다. 2차로는 직진과 좌회전,
+# 3차로는 좌회전이다. 2차로에서도 좌회전이 되어야 가로변 차로를 달리던 버스가 한 번만 옮기고 좌회전한다.
+WIDENED_EDGES: dict[str, int] = {"R111b": 3}
+REPLACED_CONNECTIONS: dict[str, list[tuple[str, str, str]]] = {
+    "R111": [("1", "R111b", "1"), ("2", "R111b", "2"), ("3", "R111b", "3")],
+    "R111b": [("1", "R129", "1"), ("1", "R128", "1"), ("2", "R128", "2"), ("2", "R112", "1"), ("3", "R112", "2")],
+    # 삼거리포차 앞과 서교동사거리의 좌회전은 2차로에서만 됐다. 가로변 차로를 달리는 버스가 좌회전 줄에 끼어들지 못하고
+    # 300초를 서 있다 순간이동했다(규칙 버스 12회 중 1회). 가로변 차로에서도 좌회전해 가로변 차로로 들어가게 한다.
+    "R112.221": [("1", "R130", "1"), ("1", "R113", "1"), ("2", "R113", "2")],
+    "R94": [("1", "R53", "1"), ("1", "R92", "1"), ("1", "R54a", "1"), ("2", "R54a", "2"), ("2", "R54a", "4")]}
+MOVED_LINKS: dict[tuple[str, str, str, str], tuple[str, str, str, str]] = {
+    ("R111b", "3", "R112", "2"): ("R111b", "2", "R112", "2"), ("R112", "1", "R113", "1"): ("R112", "2", "R113", "1"),
+    ("R94", "1", "R54a", "1"): ("R94", "2", "R54a", "2")}
 # 배경 차량 baseline 합계. 생성기 설정(generator/road_config.py OSM_ROAD traffic)의 값이다.
 BASELINE_VEHS_PER_HOUR = 900
 PEDESTRIANS = {"persons_per_hour": 600, "min_distance": 150, "end": 3600, "seed": 42}
@@ -79,40 +110,30 @@ CURB_STOPS = [
     ("3446267493", "서교동교회", "14-984", 37.5517944, 126.9193584, "-R96"),
     ("3424857165", "합정역", "14-219", 37.5510384, 126.9157425, "R54a"),
 ]
-# 골목은 끊긴 끝 없이 모두 이어 둔다. 원본의 30m 골목 토막(J88~J94 끝)을 OSM 골목으로 이어
-# 독막로 북쪽·남서쪽·남동쪽에 골목망 세 개를 만든다. 이을 곳이 없는 독막로12길 토막(R123)은 뺀다.
+# 골목은 차가 실제로 다니는 방향만 둔다. busy 교통을 한 시간 흘려 차가 한 대도 지나지 않은 차도(골목의 반대 방향,
+# 독막로 남쪽 골목망, 양화로6길 동쪽 구간, 원본의 30m 토막)는 뺐다. 남은 골목은 버스 경로로 차를 내보내거나
+# (S5) 두 간선을 잇는다. 골목의 안쪽 끝은 건물과 주차장에서 차가 나오는 출발점이다.
 # 골목이 독막로에 새로 닿는 점(OSM 노드)에서는 독막로를 나눠 신호 없는 교차로를 만든다.
 ALLEY_SPLITS = {"X_dongmak3": ("R71", "-R71", "1834932797"),   # 독막로3길
                 "X_dongmak6": ("R71", "-R71", "1834932795")}   # 독막로6길
-# 골목끼리 만나는 점. 도로망 노드 id → OSM 노드 id
-ALLEY_NODES = {"Y1": "2959182136", "Y2": "3066579587", "Y3": "1834932799", "Y4": "1834932796", "Y5": "3743682656",
-               "S1": "3182251261", "S2": "2323311243", "S3": "2329649015", "S4": "2329649014"}
-STUB_ENDS = ["J88", "J89", "J90", "J91", "J92", "J93", "J94"]   # 원본 골목 토막의 끊긴 끝. 골목이 이어지는 점이 된다
-REMOVED_EDGES = ["R123", "-R123"]
+# 골목끼리 만나는 점과 골목의 안쪽 끝. 도로망 노드 id → OSM 노드 id
+ALLEY_NODES = {"Y2": "3066579587", "S2": "2323311243"}
+STUB_ENDS: list[str] = []   # 원본 골목 토막의 끝 가운데 골목이 이어지는 점
+# 원본의 골목 토막. R120(어울마당로에서 독막로로 나오는 길)만 남긴다. J8의 토막(R116)으로는 독막로 동쪽 방향 차가
+# 골목으로 좌회전해 되돌아 나왔는데, 이 좌회전 차가 횡단보도 위에서 맞은편을 기다리다 보행자와 부딪혔다.
+REMOVED_EDGES = ["R116", "-R116", "R117", "-R117", "R118", "-R118", "R119", "-R119", "R121", "R122", "R123", "-R123"]
+# 토막을 떼어 냈거나 차로를 바꾼 신호 교차로. netconvert는 읽어 온 신호의 연결 번호를 그대로 두어 번호에 빈칸이 생기고, 다시 놓는
+# 횡단보도가 남은 번호와 겹친다. 첫 단계에서 신호를 떼었다가 둘째 단계에서 다시 달아 번호를 새로 매기게 한다.
+RESIGNALED = ["J8", "J23", "J82", "J83", "J42"]
 SERVICE_KMH = 20   # maps/paldalmun/source/speed_defaults.json의 service
 # (도로 id, 이름, OSM 길 id, 시작, 끝, km/h, 일방통행). 시작·끝은 위의 노드 id다. 굽은 점은 source/area.osm.xml의
 # 그 길에서 시작과 끝 사이의 점을 쓴다. OSM 길이 area.osm.xml에 없으면(None) 직선이다. 양방향이면 "-" + id도 만든다.
 ALLEYS = [
-    ("G1", "독막로", "228807990", "J88", "Y1", SERVICE_KMH, False),
-    ("G2", "양화로6길", "172603991", "Y1", "Y2", ALLEY_KMH, False),
-    ("G3", "독막로3길", "172603989", "Y2", "X_dongmak3", ALLEY_KMH, False),
-    ("G4", "양화로6길", "172603991", "Y2", "Y3", ALLEY_KMH, False),
-    ("G5", "양화로6길", "172603991", "Y3", "Y4", ALLEY_KMH, False),
-    # 어울마당로 북쪽이 범위 밖이라, 이 구간을 동쪽으로 가면 빠져나갈 곳이 없다. 서행 일방으로 둔다.
-    ("G6", "양화로6길", "172603991", "Y5", "Y4", ALLEY_KMH, True),
-    # 들어가는 방향만 둔다. 골목 유입을 늘리자 이 길로 J23에 나온 골목 차가 독막로 차와 부딪혔다(300회 점검 중 11번).
-    ("G7", "독막로7길", "172115945", "J90", "Y3", ALLEY_KMH, True),
-    ("G8", "어울마당로", "168229931", "Y4", "J92", ALLEY_KMH, True),
-    ("G9", "어울마당로", None, "J94", "Y5", ALLEY_KMH, True),
-    ("G10", "독막로2길", "312367423", "J89", "S1", SERVICE_KMH, False),
-    ("G11", "성지1길", "223433265", "S1", "S2", SERVICE_KMH, False),
-    ("G12", "독막로6길", "223433270", "S2", "X_dongmak6", SERVICE_KMH, False),
-    ("G13", "어울마당로", "223433262", "J93", "S3", ALLEY_KMH, True),
-    ("G14", "어울마당로3길", "224132992", "S3", "S4", ALLEY_KMH, True),
-    ("G15", "독막로8길", "335847475", "S4", "J91", ALLEY_KMH, False),
+    ("G3", "독막로3길", "172603989", "Y2", "X_dongmak3", ALLEY_KMH, True),
+    ("G12", "독막로6길", "223433270", "S2", "X_dongmak6", SERVICE_KMH, True),
 ]
-# 골목이 모두 이어져 골목 끝이 경계가 아니므로, 골목 안(주차, 건물)에서 나와 독막로에 신호 없이 합류하는 차(S5)를
-# 이 도로에서 출발시킨다. 유입량은 경계 골목과 같은 ALLEY다.
+# 골목 안(주차, 건물)에서 나와 간선에 신호 없이 합류하는 차(S5)를 이 도로에서 출발시킨다.
+# 유입량은 경계 골목과 같은 ALLEY다.
 ALLEY_ORIGINS = ["G3", "G12"]
 # 지름길 후보. 버스 경로가 둘러싼 구역 안의 실제 OSM 길이고, 골목과 마찬가지로 신호가 없다.
 # splits는 버스 경로 도로를 나눠 만드는 신호 없는 합류점(나가는 방향 도로, 반대 방향 도로, OSM 노드),
@@ -122,21 +143,26 @@ ALLEY_ORIGINS = ["G3", "G12"]
 SHORTCUTS = {
     "dongmak7": {   # 독막로7길: 양화로6길에서 북동쪽으로 잔다리로까지
         "splits": {"X_jandari7": ("-R96", "R96", "3038710046")},
-        "alleys": [("G16", "독막로7길", "172115945", "Y3", "X_jandari7", ALLEY_KMH, False)],
-        "origins": ["G16"]},
+        "nodes": {"Y3": "1834932799"},
+        # 양화로6길 서쪽 구간이 독막로3길(Y2)과 독막로7길을 잇는다. 차는 이 구간에서 출발한다.
+        "alleys": [("G4", "양화로6길", "172603991", "Y2", "Y3", ALLEY_KMH, True),
+                   ("G16", "독막로7길", "172115945", "Y3", "X_jandari7", ALLEY_KMH, True)],
+        "origins": ["G4"]},
     "jandari3": {   # 독막로3길 북쪽과 잔다리로3길: 양화로6길에서 잔다리로의 서교동교회 정류장 앞까지
         "splits": {"X_jandari3": ("-R96", "R96", "436869371")},
         "nodes": {"Z1": "1834932810"},
-        "alleys": [("G17", "독막로3길", "172603989", "Y2", "Z1", ALLEY_KMH, False),
-                   ("G18", "잔다리로3길", "172603995", "Z1", "X_jandari3", ALLEY_KMH, False)],
-        "origins": ["G18"]},
+        "alleys": [("G17", "독막로3길", "172603989", "Y2", "Z1", ALLEY_KMH, True),
+                   ("G18", "잔다리로3길", "172603995", "Z1", "X_jandari3", ALLEY_KMH, True)],
+        "origins": ["G17"]},
     # 어울마당로: 독막로에서 잔다리로의 신호 횡단보도 J74까지. 방향별 일방통행이다.
     "eoulmadang": {
-        "nodes": {"E1": "4175978557"},
+        "nodes": {"E1": "4175978557", "Y4": "1834932796", "Y5": "3743682656"},
         "attach": ["J74"],
+        "stubs": ["J92"],
         "alleys": [("G19", "어울마당로", "-11", "Y5", "J74", ALLEY_KMH, True),
                    ("G20", "어울마당로", "-50", "J74", "E1", ALLEY_KMH, True),
-                   ("G21", "어울마당로", "168229931", "E1", "Y4", ALLEY_KMH, True)],
+                   ("G21", "어울마당로", "168229931", "E1", "Y4", ALLEY_KMH, True),
+                   ("G8", "어울마당로", "168229931", "Y4", "J92", ALLEY_KMH, True)],
         "origins": ["G19"]},
     # 잔다리로6길: 버스 경로 바깥(북동쪽)에서 잔다리로의 신호 횡단보도 J48로 들어오는 일방통행. 서교동사거리 좌회전 대기 구간 앞이다.
     "jandari6": {
@@ -149,7 +175,7 @@ SHORTCUTS = {
     "jandari2": {
         "splits": {"X_jandari2": ("-R96", "R96", "3038710044")},
         "nodes": {"N2": "1830469519"},   # 잔다리로6길과 만나는 점
-        "alleys": [("G23", "잔다리로2길", "-8", "N2", "X_jandari2", SERVICE_KMH, False)],
+        "alleys": [("G23", "잔다리로2길", "-8", "N2", "X_jandari2", SERVICE_KMH, True)],
         "origins": []},
     # 와우산로11길: 버스 경로 안쪽에서 와우산로로 나오는 골목. 극동방송 정류장 63m 앞, 신호 없는 횡단보도 107m 앞이다.
     # 나오는 방향만 만든다. 양방향으로 두거나 어울마당로까지 이으면 와우산로 차가 정류장 앞을 지나지 않고 빠진다.
@@ -168,12 +194,10 @@ SHORTCUTS = {
     # (정류장과 횡단보도를 지난 뒤 와우산로에 닿는 구간)는 넣지 않는다.
     "wausan13_link": {
         "nodes": {"W13": "1831674381"},
-        "alleys": [("G26", "와우산로13길", "172243759", "Y5", "W13", ALLEY_KMH, False),
-                   ("G27", "독막로15길", "172245594", "W13", "W11", ALLEY_KMH, False)],
+        "alleys": [("G26", "와우산로13길", "172243759", "Y5", "W13", ALLEY_KMH, True),
+                   ("G27", "독막로15길", "172245594", "W13", "W11", ALLEY_KMH, True)],
         "origins": ["G26"]},   # Y5 쪽에서 출발해야 와우산로13길 구간에도 차가 다닌다
     # 아래는 길을 더하지 않는 비교 실험용이다.
-    # 동서 골목 양화로6길(독막로3길, 독막로7길, 어울마당로를 가로로 잇는다)에서 차가 출발하게 한다.
-    "yanghwa6_origins": {"alleys": [], "origins": ["G4", "G5"]},
     # 양화로 중앙버스전용차로(OSM highway=busway)를 일반 차도 다니게 연다. 전용차로가 없다면 어떻게 되는지 볼 때 쓴다.
     "open_bus_lanes": {"alleys": [], "origins": [], "open_bus_lanes": True},
     # 골목에서 출발하는 차를 세 배로(간선 유입은 그대로 두고 그 위에 더한다), 신호 없는 횡단보도(S6) 보행자를 네 배로 늘린다.
@@ -185,10 +209,10 @@ SHORTCUTS = {
     "sangsu_exits_x2": {"alleys": [], "origins": [], "exit_weights": {"R128": 2.0, "R129": 2.0, "R130": 2.0}},
     "s6_walkers_x4": {"alleys": [], "origins": [], "s6_walkers_per_hour": 240},
 }
-# 측정 결과(maps/hapjeong/references/shortcuts.json)로 고른 것. 길 여덟 개와 교통 설정 네 개다.
+# 측정으로 고른 것(maps/hapjeong/README.md). 길 여덟 개와 교통 설정 네 개다.
 ACTIVE_SHORTCUTS: list[str] = ["dongmak7", "jandari3", "eoulmadang", "jandari6", "jandari2", "wausan11", "jandari26_link",
                                "wausan13_link", "alley_inflow_x3", "poisson_arrivals", "s6_walkers_x4", "sangsu_exits_x2"]
-BASE_ALLEYS = (dict(ALLEY_SPLITS), dict(ALLEY_NODES), list(ALLEYS), list(ALLEY_ORIGINS))
+BASE_ALLEYS = (dict(ALLEY_SPLITS), dict(ALLEY_NODES), list(ALLEYS), list(ALLEY_ORIGINS), list(STUB_ENDS))
 ATTACHED: list[str] = []
 ALLEY_IDS: set[str] = set()
 ALLEY_EXITS: dict[str, list[str]] = {}
@@ -205,8 +229,8 @@ BASE_S6_WALKERS_PER_HOUR = S6_WALKERS_PER_HOUR
 def use_shortcuts(names: list[str]) -> None:
     """골목 설정을 기본 골목에 names의 지름길을 더한 것으로 바꾼다."""
     global ALLEY_SPLITS, ALLEY_NODES, ALLEYS, ALLEY_ORIGINS, ATTACHED, ACTIVE_SHORTCUTS, ALLEY_IDS, ALLEY_EXITS, OPEN_BUS_LANES
-    global ALLEY_INFLOW, S6_WALKERS_PER_HOUR, BASELINE_VEHS_PER_HOUR, EXIT_WEIGHTS, FLOW_ARRIVALS
-    splits, nodes, alleys, origins = (type(part)(part) for part in BASE_ALLEYS)
+    global ALLEY_INFLOW, S6_WALKERS_PER_HOUR, BASELINE_VEHS_PER_HOUR, EXIT_WEIGHTS, FLOW_ARRIVALS, STUB_ENDS
+    splits, nodes, alleys, origins, stubs = (type(part)(part) for part in BASE_ALLEYS)
     attached, exits, open_bus_lanes, alley_inflow, walkers = [], {}, False, 1.0, BASE_S6_WALKERS_PER_HOUR
     baseline, weights, arrivals = BASE_VEHS_PER_HOUR, {}, "fixed"
     for name in names:
@@ -216,6 +240,7 @@ def use_shortcuts(names: list[str]) -> None:
         alleys += shortcut["alleys"]
         origins += shortcut["origins"]
         attached += shortcut.get("attach", [])
+        stubs += shortcut.get("stubs", [])
         exits.update(shortcut.get("exits", {}))
         open_bus_lanes = open_bus_lanes or shortcut.get("open_bus_lanes", False)
         alley_inflow = shortcut.get("alley_inflow", alley_inflow)
@@ -226,7 +251,7 @@ def use_shortcuts(names: list[str]) -> None:
     ALLEY_SPLITS, ALLEY_NODES, ALLEYS, ALLEY_ORIGINS, ATTACHED, ACTIVE_SHORTCUTS = splits, nodes, alleys, origins, attached, list(names)
     ALLEY_IDS = {direction + alley[0] for alley in alleys for direction in ("", "-")}
     ALLEY_EXITS, OPEN_BUS_LANES, ALLEY_INFLOW, S6_WALKERS_PER_HOUR = exits, open_bus_lanes, alley_inflow, walkers
-    BASELINE_VEHS_PER_HOUR, EXIT_WEIGHTS, FLOW_ARRIVALS = baseline, weights, arrivals
+    BASELINE_VEHS_PER_HOUR, EXIT_WEIGHTS, FLOW_ARRIVALS, STUB_ENDS = baseline, weights, arrivals, stubs
 
 
 EGO_ROUTE = "bus_loop"
@@ -265,6 +290,14 @@ def build_network(temporary: Path) -> Path:
             if lane.allows("bus") and not lane.allows("passenger") and not lane.allows("pedestrian"):
                 element = patches.setdefault(edge.getID(), patches.get(edge.getID()) or ET.SubElement(edges, "edge", id=edge.getID()))
                 ET.SubElement(element, "lane", index=str(lane.getIndex()), disallow="pedestrian")
+    for edge_id, count in WIDENED_EDGES.items():
+        element = patches.setdefault(edge_id, patches.get(edge_id) or ET.SubElement(edges, "edge", id=edge_id))
+        walk = [lane for lane in base.getEdge(edge_id).getLanes() if lane.allows("pedestrian")]
+        element.set("numLanes", str(count + len(walk)))
+        for lane in walk:
+            ET.SubElement(element, "lane", index=str(lane.getIndex()), allow="pedestrian", width=f"{lane.getWidth():.2f}")
+        for index in range(len(walk), count + len(walk)):
+            ET.SubElement(element, "lane", index=str(index), disallow="pedestrian")
     osm = osm_nodes()
     splits = {**MIDBLOCK_CROSSINGS, **{node_id: (forward, backward, *osm[osm_id][::-1])
                                        for node_id, (forward, backward, osm_id) in ALLEY_SPLITS.items()}}
@@ -281,7 +314,7 @@ def build_network(temporary: Path) -> Path:
     nodes = ET.Element("nodes")
     for group in JOIN:
         ET.SubElement(nodes, "join", nodes=" ".join(group))
-    for node_id, node_type in NODE_TYPES.items():
+    for node_id, node_type in {**NODE_TYPES, **dict.fromkeys(RESIGNALED, "priority")}.items():
         ET.SubElement(nodes, "node", id=node_id, type=node_type)
     ET.ElementTree(edges).write(temporary / "speed.edg.xml", encoding="utf-8")
     ET.ElementTree(nodes).write(temporary / "join.nod.xml", encoding="utf-8")
@@ -314,6 +347,14 @@ def build_network(temporary: Path) -> Path:
                       priority="true" if MIDBLOCK_PRIORITY else "false")
     for source, source_lane, target, target_lane in REMOVED_CONNECTIONS:
         ET.SubElement(crossings, "delete", {"from": source, "to": target, "fromLane": source_lane, "toLane": target_lane})
+    for source, targets in REPLACED_CONNECTIONS.items():
+        for target, links in split_net.getEdge(source).getOutgoing().items():
+            for link in links:
+                ET.SubElement(crossings, "delete", {"from": source, "to": target.getID(),
+                                                    "fromLane": str(link.getFromLane().getIndex()),
+                                                    "toLane": str(link.getToLane().getIndex())})
+        for source_lane, target, target_lane in targets:
+            ET.SubElement(crossings, "connection", {"from": source, "to": target, "fromLane": source_lane, "toLane": target_lane})
     alley_nodes, alley_edges = add_alleys(split_net, crossings)
     ET.ElementTree(crossings).write(temporary / "crossings.con.xml", encoding="utf-8")
     ET.ElementTree(alley_nodes).write(temporary / "alleys.nod.xml", encoding="utf-8")
@@ -360,6 +401,12 @@ def keep_attached_signals(net_path: Path) -> None:
                 else:
                     state.append(next(old[i] for k, i in original.items() if k[:2] == key[:2]).replace("G", "g"))
             ET.SubElement(logic, "phase", duration=phase.get("duration"), state="".join(state))
+        phases = logic.findall("phase")
+        for index, seconds in PHASE_SECONDS.get(tls, {}).items():
+            phases[index].set("duration", str(seconds))
+        for index, seconds in ALL_RED_S.get(tls, {}).items():
+            logic.insert(list(logic).index(phases[index]) + 1,
+                         ET.Element("phase", duration=str(seconds), state="r" * len(phases[0].get("state"))))
     ET.indent(tree, "    ")
     tree.write(net_path, encoding="utf-8", xml_declaration=True)
 
@@ -406,6 +453,7 @@ def signal_links(net_path: Path) -> dict[str, dict[int, tuple]]:
         target = connection.get("to")
         key = (("crossing", crossed[target]) if target in crossed else
                (original_id(connection.get("from")), connection.get("fromLane"), original_id(target), connection.get("toLane")))
+        key = MOVED_LINKS.get(key, key)
         links.setdefault(connection.get("tl"), {})[int(connection.get("linkIndex"))] = key
     return links
 
@@ -431,6 +479,8 @@ def add_alleys(net, connections: ET.Element) -> tuple[ET.Element, ET.Element]:
     attached = STUB_ENDS + list(ALLEY_SPLITS) + ATTACHED
     for node_id in STUB_ENDS:
         ET.SubElement(nodes, "node", id=node_id, type="priority")
+    for node_id in RESIGNALED:
+        ET.SubElement(nodes, "node", id=node_id, type="traffic_light", tl=node_id)
     for node_id in attached:
         coords[node_id] = net.getNode(node_id).getCoord()
 
@@ -503,7 +553,8 @@ def build_signals(net_path: Path, output: Path) -> dict[str, list[int]]:
         if tls not in built:
             raise ValueError(f"신호 프로그램 {tls}의 교차로가 도로망에 없습니다.")
         original = {key: index for index, key in base[tls].items()}
-        changed = (set(original) ^ set(built[tls].values())) - set(REMOVED_CONNECTIONS)
+        gone = {key for key in original if key[0] != "crossing" and {key[0], key[2]} & set(REMOVED_EDGES)}
+        changed = (set(original) ^ set(built[tls].values())) - set(REMOVED_CONNECTIONS) - gone
         if changed or len(original) != len(base[tls]):
             raise ValueError(f"신호 교차로 {tls}의 연결이 원본과 다릅니다: {sorted(map(str, changed))}")
         order = [original[built[tls][index]] for index in sorted(built[tls])]
@@ -512,8 +563,13 @@ def build_signals(net_path: Path, output: Path) -> dict[str, list[int]]:
         exclusive = sorted(index for index, key in built[tls].items() if key[0] == "crossing"
                            and key[1] in map(frozenset, EXCLUSIVE_CROSSINGS.get(tls, [])))
         walk_s = 0
-        for phase in logic.findall("phase"):
+        owner = {number: approach for approach, numbers in APPROACH_PHASES.get(tls, {}).items() for number in numbers}
+        for number, phase in enumerate(logic.findall("phase")):
             state = [phase.get("state")[index] for index in order]
+            if number in owner:
+                mark = "y" if "y" in state else "G"
+                state = [signal if key[0] == "crossing" else mark if key[0] == owner[number] else "r"
+                         for signal, key in zip(state, (built[tls][index] for index in sorted(built[tls])))]
             for index in yielded[tls]:
                 state[index] = "g" if state[index] == "G" else state[index]
             if any(state[index] == "G" for index in exclusive):
@@ -521,10 +577,15 @@ def build_signals(net_path: Path, output: Path) -> dict[str, list[int]]:
             for index in exclusive:
                 state[index] = "r"
             phase.set("state", "".join(state))
+        phases = logic.findall("phase")
+        width = len(phases[0].get("state"))
+        for index, seconds in PHASE_SECONDS.get(tls, {}).items():
+            phases[index].set("duration", str(seconds))
+        for index, seconds in ALL_RED_S.get(tls, {}).items():
+            logic.insert(list(logic).index(phases[index]) + 1, ET.Element("phase", duration=str(seconds), state="r" * width))
         if exclusive:
             if not walk_s:
                 raise ValueError(f"신호 교차로 {tls}에서 보행자 전용 단계로 옮길 횡단보도 녹색을 찾지 못했습니다.")
-            width = len(logic.find("phase").get("state"))
             # 교차로 안에서 기다리던 좌회전 차가 황색 뒤에 빠져나간다. 그 차가 나갈 때까지 보행 신호를 늦춘다.
             ET.SubElement(logic, "phase", duration=str(EXCLUSIVE_CLEARANCE_S), state="r" * width)
             ET.SubElement(logic, "phase", duration=str(walk_s),
@@ -597,8 +658,9 @@ def scaled_flows(net) -> list[dict]:
                 | {edge.getFromNode() for edge in node.getIncoming() if edge.allows("passenger")})
     boundary = {node.getID() for node in net.getNodes() if len(neighbours(node)) == 1}
     drivable = [edge for edge in net.getEdges() if edge.allows("passenger")]
-    entries = ([edge for edge in drivable if edge.getFromNode().getID() in boundary]
-               + [net.getEdge(edge) for edge in ALLEY_ORIGINS])
+    entries = [edge for edge in drivable if edge.getFromNode().getID() in boundary]
+    # 안쪽 끝에서 시작하는 골목은 경계 진입로로 이미 들어 있다.
+    entries += [net.getEdge(edge) for edge in ALLEY_ORIGINS if edge not in {entry.getID() for entry in entries}]
     exits = [edge for edge in drivable if edge.getToNode().getID() in boundary]
     flows = []
     for entry in entries:

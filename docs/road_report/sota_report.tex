@@ -1,0 +1,50 @@
+\documentclass[9pt,a4paper]{extarticle}
+\usepackage[margin=1.4cm,top=1.2cm,bottom=1.2cm]{geometry}
+\usepackage{fontspec}
+\setmainfont{Apple SD Gothic Neo}
+\usepackage{graphicx,booktabs,xcolor,enumitem,array}
+\XeTeXlinebreaklocale "ko"
+\XeTeXlinebreakskip=0pt plus 1pt
+\setlength{\parindent}{0pt}\setlength{\parskip}{3pt}
+\setlist{nosep,leftmargin=1.2em}
+\pagestyle{empty}
+\begin{document}
+{\Large\bfseries 합정역 도로망: 미관·시나리오·통행 분포가 가장 좋은 도로}\hfill 2026-11-14
+
+\vspace{2pt}\hrule\vspace{4pt}
+\begin{itemize}
+\item \textbf{어울마당로를 중간(Y5)에서 끊어야 시나리오가 맞는 것은 아니다.} 실제 북행 길은 독막로까지 60m 더 이어진다. 이으면(H41c) 미관 결함이 9에서 6으로 줄지만, 독막로 교차로에 가지가 하나 늘어 버스 한 바퀴가 444초에서 461초로 느려지고 완주가 기준(77회) 아래로 떨어진다. 그 60m에는 차가 다니지 않았다(시간당 0대).
+\item \textbf{세 지표를 함께 가장 잘 올린 도로는 H43b다.} 양화로6길 서쪽 184m를 양화로에 잇고 골목 입구에 횡단보도를 둔다. 미관 결함 9→7, 시나리오 +8.5\%, 지니 0.254→0.249, 300회 점검 사건 11→4다.
+\item \textbf{H43b는 아직 적용하지 않았다.} seed 500 완주가 75회다. 기준 도로(b350)도 seed 700에서 77회이고 같은 R111b 버스 순간이동이 나와 잡음으로 보이지만(추정), seed를 더 재기 전에 마감이 와서 커밋한 도로는 3.5.0 그대로다.
+\end{itemize}
+
+\begin{center}\includegraphics[width=0.80\textwidth]{../../maps/hapjeong/references/hapjeong_map.png}\end{center}
+\vspace{-4pt}
+{\small 지도(3.5.0)에 서예인 님이 넣은 양화로 정류장 여섯 곳(중앙 4, 가로변 2)과 양화로 중앙버스 노선 두 방향을 따로 그렸다. 분홍 면은 어울마당로 일방통행 두 줄 사이 보행로다.}
+
+\vspace{3pt}
+{\small
+\begin{tabular}{@{}l>{\raggedright}p{6.3cm}rrrrrl@{}}
+\toprule
+후보 & 바꾼 것 & 미관 결함 & 시나리오 & 지니 & 300회 사건 & 완주(500·600) & 판정 \\
+\midrule
+b350 & 기준(3.5.0) & 9 & 1.000 & 0.254 & 11 & 78·79 & 기준 \\
+H41 & 어울마당로 북행 연장 + 경유 흐름 & \textbf{6} & \textbf{1.235} & 0.334 & 13 & 75·74 & 기각: 골목 과부하 \\
+H41c & 어울마당로 북행 연장, 경유 없음 & \textbf{6} & 1.095 & 0.260 & 10 & 73·76 & 기각: 버스 +16초 \\
+H42 & 양화로6길 동쪽(Y3→Y5) & 7 & 0.901 & 0.262 & 10 & 78·80 & 기각: 새 충돌 8 \\
+H43 & 양화로6길 서쪽을 양화로에 연결 & 7 & 1.138 & 0.248 & 10 & 77·78 & 기각: 보행자 충돌 6 \\
+H43b & H43 + 골목 입구 횡단보도 & 7 & 1.085 & 0.249 & 4 & 75·78 & \textbf{보류: 균형 SOTA 후보} \\
+H44 & 와우산로13길 연결 & 8 & 0.875 & 0.259 & 8 & 74·77 & 기각 \\
+H45 & 독막로7길 끝 복구 & 8 & 1.039 & 0.263 & 28 & 76·77 & 기각: J23 충돌 \\
+H47 & 양화로 중앙버스 노선 운행 & 9 & 1.005 & \textbf{0.240} & 41 & 75·78 & 기각: 교차로 충돌 \\
+H48 & 서쪽 진출 몫 두 배 & 9 & 1.044 & 0.258 & 4 & 79·78 & 통과 \\
+H49 & H41c + H48 & 6 & 1.070 & 0.267 & 1 & 77·76 & 기각: 버스 +18초 \\
+H50 & H43b + H48 & 7 & 0.994 & 0.287 & 4 & 80·78 & 통과, 분포 악화 \\
+\bottomrule
+\end{tabular}}
+
+\vspace{3pt}
+\textbf{지표.} 미관 결함은 허공에서 시작하는 골목, 실제로는 이어지는데 20m 이상 그리지 않은 길, OSM 일방통행과 반대인 골목의 수다. 시나리오는 seed 500·600 버스 80회씩에서 S1·S3, S2+, S5, S5=, S6\textasciitilde{} 횟수를 b350 대비 비율로 바꾼 기하평균이다(S4 정차 택시는 도로가 아닌 시나리오 쪽이라 뺐다). 지니는 busy 한 시간 도로별 통과 대수를 골목·간선 각각의 중앙값으로 나눈 길이 가중 지니 계수이고 0이 가장 고르다. 관문은 300회 점검 사건 14회 이하, 새 자리 사건 4회 미만, 두 seed 완주 77회 이상이다.
+
+\textbf{SOTA.} 관문을 무시하면 미관은 H41·H41c·H49(결함 6), 시나리오는 H41(1.235), 분포는 H47(0.240)이 가장 좋지만 모두 안전이나 완주에서 떨어진다. 관문을 지키면 세 지표 모두 H43b가 가장 좋고, 확정 통과한 것은 H48(시나리오 1.044)이다. 다음 할 일은 H43b를 seed 700·800에서 재고, 통과하면 3.6.0으로 적용하는 것이다.
+\end{document}

@@ -5,7 +5,8 @@ env.road_config.configure_map이 읽고, env.road_builder.build가 실행 폴더
 이 모듈은 그 실행 폴더에 다음을 더한다. 도로망과 maps/는 건드리지 않는다.
 
   A1  배경 차량(vType `car_*`, 추종 모델 4종)에 양보 성격을 투입 시 독립으로 붙인다(YieldManager type_mix).
-  S5  독막로에 신호 없이 합류하는 골목(G3, G12)에서 나오는 흐름을 끼어들기형 vType으로 바꾼다.
+  S5  독막로에 신호 없이 합류하는 골목(G3, G12)에서 나오는 흐름을 끼어들기형 vType으로 바꾼다. 골목에서 출발하는
+      흐름과, 독막로에서 고리 골목을 거쳐(via) 다시 나오는 흐름이 둘 다 대상이다.
   S6  와우산로 횡단보도를 건너는 보행자를 P1(대기형)/P2(진입형)로 나눈다.
   S4  (선택) 가로변 정류장 앞에 서는 택시.
 
@@ -111,7 +112,7 @@ class HapjeongTraffic:
         tree = ET.parse(path)
         n = 0
         for flow in tree.getroot().iter("flow"):
-            if flow.get("from") in MERGE_ALLEYS:
+            if flow.get("from") in MERGE_ALLEYS or set((flow.get("via") or "").split()) & set(MERGE_ALLEYS):
                 flow.set("type", "cutin")
                 n += 1
         tree.write(path, encoding="utf-8", xml_declaration=True)

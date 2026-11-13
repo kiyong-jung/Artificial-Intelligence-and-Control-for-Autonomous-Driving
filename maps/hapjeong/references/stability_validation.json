@@ -1,8 +1,8 @@
 {
   "command": "python scripts/validate_road.py --map hapjeong --out maps/hapjeong/references/stability_validation.json",
   "map_id": "hapjeong",
-  "map_version": "3.4.0",
-  "network_sha256": "3bba75af601bdf8f0feddb6bb2fc7d82b7e133ed794109cc61e8bb1bff5f8db9",
+  "map_version": "3.5.0",
+  "network_sha256": "8d22f730a37a3094a861ccdff405b5875ed30fc19532f4711fea9add8c476847",
   "sumo_version": "Eclipse SUMO sumo 1.27.1",
   "step_length": 0.1,
   "seconds": 1800,
@@ -12,9 +12,9 @@
   "scenario_lanes": [],
   "pass_condition": "배경: 충돌 0, 순간이동 0(300초 기준), 모든 경계 진입로에서 도착. ego: 충돌·투입 실패 없음. r0는 모든 실행에서 도착. s_*는 도착, 시간 초과, 300초 정지 뒤 순간이동을 시나리오 결과로 기록만 한다.",
   "structure": {
-    "edges": 432,
+    "edges": 444,
     "routes": 1,
-    "checked_connections": 21,
+    "checked_connections": 22,
     "bus_stops": 6
   },
   "ok": true,
@@ -25,10 +25,10 @@
       "ok": true,
       "collisions": 0,
       "teleports": 0,
-      "emergency_braking": 4,
-      "mean_running": 32.49,
-      "max_trip_waiting_s": 356.7,
-      "arrived": 245,
+      "emergency_braking": 6,
+      "mean_running": 31.014,
+      "max_trip_waiting_s": 261.4,
+      "arrived": 250,
       "entries_without_arrival": [],
       "lanes": {}
     },
@@ -39,9 +39,9 @@
       "collisions": 0,
       "teleports": 0,
       "emergency_braking": 2,
-      "mean_running": 30.91,
-      "max_trip_waiting_s": 384.1,
-      "arrived": 246,
+      "mean_running": 29.875,
+      "max_trip_waiting_s": 264.4,
+      "arrived": 242,
       "entries_without_arrival": [],
       "lanes": {}
     },
@@ -51,10 +51,10 @@
       "ok": true,
       "collisions": 0,
       "teleports": 0,
-      "emergency_braking": 6,
-      "mean_running": 28.715,
-      "max_trip_waiting_s": 282.8,
-      "arrived": 212,
+      "emergency_braking": 1,
+      "mean_running": 25.129,
+      "max_trip_waiting_s": 257.1,
+      "arrived": 206,
       "entries_without_arrival": [],
       "lanes": {}
     },
@@ -64,10 +64,10 @@
       "ok": true,
       "collisions": 0,
       "teleports": 0,
-      "emergency_braking": 5,
-      "mean_running": 72.252,
-      "max_trip_waiting_s": 593.1,
-      "arrived": 477,
+      "emergency_braking": 15,
+      "mean_running": 64.142,
+      "max_trip_waiting_s": 335.0,
+      "arrived": 484,
       "entries_without_arrival": [],
       "lanes": {}
     },
@@ -77,10 +77,10 @@
       "ok": true,
       "collisions": 0,
       "teleports": 0,
-      "emergency_braking": 9,
-      "mean_running": 61.004,
-      "max_trip_waiting_s": 382.1,
-      "arrived": 464,
+      "emergency_braking": 11,
+      "mean_running": 64.277,
+      "max_trip_waiting_s": 351.2,
+      "arrived": 462,
       "entries_without_arrival": [],
       "lanes": {}
     },
@@ -90,49 +90,49 @@
       "ok": true,
       "collisions": 0,
       "teleports": 0,
-      "emergency_braking": 4,
-      "mean_running": 67.627,
-      "max_trip_waiting_s": 442.8,
-      "arrived": 467,
+      "emergency_braking": 8,
+      "mean_running": 58.678,
+      "max_trip_waiting_s": 368.5,
+      "arrived": 446,
       "entries_without_arrival": [],
       "lanes": {}
     },
     {
       "scenario": "busy",
       "seed": 0,
-      "ok": true,
-      "collisions": 0,
-      "teleports": 0,
-      "emergency_braking": 16,
-      "mean_running": 95.16,
-      "max_trip_waiting_s": 685.7,
-      "arrived": 583,
-      "entries_without_arrival": [],
-      "lanes": {}
-    },
-    {
-      "scenario": "busy",
-      "seed": 7,
-      "ok": true,
-      "collisions": 0,
-      "teleports": 0,
-      "emergency_braking": 12,
-      "mean_running": 89.196,
-      "max_trip_waiting_s": 681.1,
-      "arrived": 571,
-      "entries_without_arrival": [],
-      "lanes": {}
-    },
-    {
-      "scenario": "busy",
-      "seed": 42,
       "ok": true,
       "collisions": 0,
       "teleports": 0,
       "emergency_braking": 13,
-      "mean_running": 85.589,
-      "max_trip_waiting_s": 541.7,
-      "arrived": 566,
+      "mean_running": 91.922,
+      "max_trip_waiting_s": 624.2,
+      "arrived": 575,
+      "entries_without_arrival": [],
+      "lanes": {}
+    },
+    {
+      "scenario": "busy",
+      "seed": 7,
+      "ok": true,
+      "collisions": 0,
+      "teleports": 0,
+      "emergency_braking": 13,
+      "mean_running": 84.962,
+      "max_trip_waiting_s": 481.6,
+      "arrived": 557,
+      "entries_without_arrival": [],
+      "lanes": {}
+    },
+    {
+      "scenario": "busy",
+      "seed": 42,
+      "ok": true,
+      "collisions": 0,
+      "teleports": 0,
+      "emergency_braking": 15,
+      "mean_running": 77.467,
+      "max_trip_waiting_s": 463.5,
+      "arrived": 544,
       "entries_without_arrival": [],
       "lanes": {}
     }
@@ -147,7 +147,7 @@
       "termination_reason": "arrived",
       "episode_s": 426.0,
       "longest_stop_s": 48.5,
-      "total_reward": 28.919
+      "total_reward": 28.719
     },
     {
       "route": "bus_loop",
@@ -156,9 +156,9 @@
       "insertion_wait_s": 0.0,
       "ok": true,
       "termination_reason": "arrived",
-      "episode_s": 428.0,
-      "longest_stop_s": 46.5,
-      "total_reward": 25.672
+      "episode_s": 404.5,
+      "longest_stop_s": 47.5,
+      "total_reward": 29.383
     },
     {
       "route": "bus_loop",
@@ -167,9 +167,9 @@
       "insertion_wait_s": 0.0,
       "ok": true,
       "termination_reason": "arrived",
-      "episode_s": 402.0,
+      "episode_s": 401.5,
       "longest_stop_s": 24.5,
-      "total_reward": 28.565
+      "total_reward": 28.67
     },
     {
       "route": "bus_loop",
@@ -178,20 +178,20 @@
       "insertion_wait_s": 0.0,
       "ok": true,
       "termination_reason": "arrived",
-      "episode_s": 426.5,
+      "episode_s": 425.0,
+      "longest_stop_s": 48.5,
+      "total_reward": 32.918
+    },
+    {
+      "route": "bus_loop",
+      "scenario": "baseline",
+      "seed": 7,
+      "insertion_wait_s": 0.0,
+      "ok": true,
+      "termination_reason": "arrived",
+      "episode_s": 428.5,
       "longest_stop_s": 49.0,
-      "total_reward": 27.936
-    },
-    {
-      "route": "bus_loop",
-      "scenario": "baseline",
-      "seed": 7,
-      "insertion_wait_s": 0.0,
-      "ok": true,
-      "termination_reason": "arrived",
-      "episode_s": 409.5,
-      "longest_stop_s": 48.5,
-      "total_reward": 30.355
+      "total_reward": 27.365
     },
     {
       "route": "bus_loop",
@@ -200,31 +200,31 @@
       "insertion_wait_s": 0.0,
       "ok": true,
       "termination_reason": "arrived",
-      "episode_s": 411.5,
+      "episode_s": 406.5,
       "longest_stop_s": 24.5,
-      "total_reward": 27.267
+      "total_reward": 24.156
     },
     {
       "route": "bus_loop",
       "scenario": "busy",
       "seed": 0,
-      "insertion_wait_s": 0.0,
-      "ok": true,
-      "termination_reason": "arrived",
-      "episode_s": 425.5,
-      "longest_stop_s": 48.5,
-      "total_reward": 27.824
-    },
-    {
-      "route": "bus_loop",
-      "scenario": "busy",
-      "seed": 7,
       "insertion_wait_s": 0.0,
       "ok": true,
       "termination_reason": "arrived",
       "episode_s": 432.5,
+      "longest_stop_s": 49.0,
+      "total_reward": 22.346
+    },
+    {
+      "route": "bus_loop",
+      "scenario": "busy",
+      "seed": 7,
+      "insertion_wait_s": 0.0,
+      "ok": true,
+      "termination_reason": "arrived",
+      "episode_s": 430.5,
       "longest_stop_s": 48.5,
-      "total_reward": 26.951
+      "total_reward": 27.061
     },
     {
       "route": "bus_loop",
@@ -233,9 +233,9 @@
       "insertion_wait_s": 0.0,
       "ok": true,
       "termination_reason": "arrived",
-      "episode_s": 379.5,
+      "episode_s": 388.5,
       "longest_stop_s": 24.5,
-      "total_reward": 31.464
+      "total_reward": 23.732
     }
   ]
 }

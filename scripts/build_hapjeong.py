@@ -37,7 +37,7 @@ from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "3.4.0"
+VERSION = "3.5.0"
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]
@@ -115,9 +115,10 @@ CURB_STOPS = [
 # (S5) 두 간선을 잇는다. 골목의 안쪽 끝은 건물과 주차장에서 차가 나오는 출발점이다.
 # 골목이 독막로에 새로 닿는 점(OSM 노드)에서는 독막로를 나눠 신호 없는 교차로를 만든다.
 ALLEY_SPLITS = {"X_dongmak3": ("R71", "-R71", "1834932797"),   # 독막로3길
+                "X_dongmak4": ("R71", "-R71", "3182282262"),   # 독막로4길(성산중학교 정류장 15m 앞)
                 "X_dongmak6": ("R71", "-R71", "1834932795")}   # 독막로6길
 # 골목끼리 만나는 점과 골목의 안쪽 끝. 도로망 노드 id → OSM 노드 id
-ALLEY_NODES = {"Y2": "3066579587", "S2": "2323311243"}
+ALLEY_NODES = {"Y2": "3066579587", "D4": "3182251264", "S2": "2323311243"}
 STUB_ENDS: list[str] = []   # 원본 골목 토막의 끝 가운데 골목이 이어지는 점
 # 원본의 골목 토막. R120(어울마당로에서 독막로로 나오는 길)만 남긴다. J8의 토막(R116)으로는 독막로 동쪽 방향 차가
 # 골목으로 좌회전해 되돌아 나왔는데, 이 좌회전 차가 횡단보도 위에서 맞은편을 기다리다 보행자와 부딪혔다.
@@ -130,11 +131,19 @@ SERVICE_KMH = 20   # maps/paldalmun/source/speed_defaults.json의 service
 # 그 길에서 시작과 끝 사이의 점을 쓴다. OSM 길이 area.osm.xml에 없으면(None) 직선이다. 양방향이면 "-" + id도 만든다.
 ALLEYS = [
     ("G3", "독막로3길", "172603989", "Y2", "X_dongmak3", ALLEY_KMH, True),
+    # 독막로 남쪽의 고리. 성산중학교 정류장 앞에서 독막로4길로 들어가 성지1길과 독막로6길을 거쳐 정류장 끝에서 다시 나온다.
+    # 신호 교차로 J8의 독막로2길로 들어가게 하면 우회전 차가 횡단보도에 남은 보행자와 부딪혔다.
+    ("G30", "독막로4길", "312368845", "X_dongmak4", "D4", SERVICE_KMH, True),
+    ("G11", "성지1길", "223433265", "D4", "S2", SERVICE_KMH, True),
     ("G12", "독막로6길", "223433270", "S2", "X_dongmak6", SERVICE_KMH, True),
 ]
 # 골목 안(주차, 건물)에서 나와 간선에 신호 없이 합류하는 차(S5)를 이 도로에서 출발시킨다.
 # 유입량은 경계 골목과 같은 ALLEY다.
-ALLEY_ORIGINS = ["G3", "G12"]
+ALLEY_ORIGINS = ["G3"]
+# 간선에서 들어가 간선으로 다시 나오는 골목(이름 → 지나는 도로들). 골목 안에서 차를 출발시키지 않는다. 입구와 출구 사이의
+# 간선을 지나는 배경 차량 가운데 골목 출발지 하나만큼(ALLEY × ALLEY_INFLOW)이 이 길로 돌아간다. SUMO는 가장 빠른 길만 고르므로
+# 흐름에 경유 도로(via)를 적어야 골목으로 간다.
+THROUGH_ALLEYS = {"dongmak6": ["G30", "G11", "G12"]}
 # 지름길 후보. 버스 경로가 둘러싼 구역 안의 실제 OSM 길이고, 골목과 마찬가지로 신호가 없다.
 # splits는 버스 경로 도로를 나눠 만드는 신호 없는 합류점(나가는 방향 도로, 반대 방향 도로, OSM 노드),
 # nodes는 골목끼리 만나는 점, attach는 신호를 그대로 둔 채 골목을 붙이는 기존 신호 교차로, origins는 골목 안에서 차가 출발하는 도로,
@@ -184,6 +193,16 @@ SHORTCUTS = {
         "nodes": {"W11": "1831696285"},
         "alleys": [("G24", "와우산로11길", "172245595", "W11", "X_wausan11", ALLEY_KMH, True)],
         "exits": {"G24": ["R112"]},   # 버스와 같은 북쪽 방향으로만 나온다
+        "origins": []},
+    # 와우산로 동쪽의 이름 없는 출입로(OSM 1442563730, 18m). 극동방송 정류장 약 90m 앞에서 차가 버스와 같은 북쪽 방향으로
+    # 가장자리 차로에 나온다. 바로 옆 독막로19길(정류장 40m 앞)은 실제로 와우산로에서 들어가기만 하는 일방통행인데, 들어가게 하면
+    # 남쪽 방향 좌회전 차가 북쪽 두 차로를 가로지르다 300회 점검에서 112번 부딪혔다. 출입로는 사건을 늘리지 않았지만 버스 80회
+    # 주행 두 번에 이 자리 끼어들기가 2번씩뿐이라 넣지 않았다. 와우산로11길 합류점과 18m 거리라 효과가 겹친다.
+    "febc_drive": {
+        "splits": {"X_febc": ("R112", "-R112", "13236318512")},
+        "nodes": {"F0": "13236303922"},
+        "alleys": [("G28", "와우산로 출입로", "1442563730", "F0", "X_febc", SERVICE_KMH, True)],
+        "exits": {"G28": ["R112"]},
         "origins": []},
     # 아래 둘은 막다른 끝으로 남은 골목을 실제 길로 이어 준다.
     # 잔다리로6길의 남쪽 구간: 잔다리로2길과 잔다리로6길을 잇는다. 버스 경로 북동쪽 바깥에 고리가 생긴다.
@@ -673,8 +692,22 @@ def scaled_flows(net) -> list[dict]:
         flows += [{"id": f"f_{entry.getID()}_to_{exit.getID()}", "from": entry.getID(), "to": exit.getID(),
                    "vehs_per_hour": rate * share[exit.getID()] / sum(share.values()),
                    "boost": ALLEY_INFLOW if alley else 1.0} for exit in targets]
+    for name, via in THROUGH_ALLEYS.items():
+        entrances = {edge.getID() for edge in net.getEdge(via[0]).getIncoming()}
+        leavings = {edge.getID() for edge in net.getEdge(via[-1]).getOutgoing()}
+
+        def passes(flow):
+            path = [edge.getID() for edge in net.getShortestPath(net.getEdge(flow["from"]), net.getEdge(flow["to"]),
+                                                                 vClass="passenger")[0]]
+            return any(path.index(a) < path.index(b) for a in entrances & set(path) for b in leavings & set(path))
+        passing = [flow for flow in flows if "via" not in flow and passes(flow)]
+        share = ALLEY * ALLEY_INFLOW / sum(flow["vehs_per_hour"] for flow in passing)
+        for flow in passing:
+            flows.append({**flow, "id": f"{flow['id']}_via_{name}", "via": " ".join(via),
+                          "vehs_per_hour": flow["vehs_per_hour"] * share})
+            flow["vehs_per_hour"] *= 1 - share
     scale = BASELINE_VEHS_PER_HOUR / sum(flow["vehs_per_hour"] for flow in flows)
-    return [{"id": flow["id"], "from": flow["from"], "to": flow["to"],
+    return [{"id": flow["id"], "from": flow["from"], "to": flow["to"], **({"via": flow["via"]} if "via" in flow else {}),
              "vehs_per_hour": round(flow["vehs_per_hour"] * scale * flow["boost"], 3)} for flow in flows]
 
 
@@ -716,7 +749,8 @@ def build() -> dict:
                                                          for name in ACTIVE_SHORTCUTS],
                                            "cuts": {node: {"edges": [outward, inward], "distance_m": distance}
                                                     for node, (outward, inward, distance, _) in CUTS.items()},
-                                           "removed_connections": [list(item) for item in REMOVED_CONNECTIONS]},
+                                           "removed_connections": [list(item) for item in REMOVED_CONNECTIONS],
+                                           "through_alleys": THROUGH_ALLEYS},
                                "pedestrians": {**PEDESTRIANS, "s6_walkers_per_hour": S6_WALKERS_PER_HOUR}},
             "extra_files": EXTRA_FILES,
             "ego_vehicle": "bus",

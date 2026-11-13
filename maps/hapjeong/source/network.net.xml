@@ -55,6 +55,9 @@
     <edge id=":CUT_worldcup_w0" function="walkingarea">
         <lane id=":CUT_worldcup_w0_0" index="0" allow="pedestrian" speed="2.780" length="31.800" width="3.000" shape="-105.451,230.566 -108.358,229.823 -74.643,238.444 -77.549,237.701" />
     </edge>
+    <edge id=":D4_0" function="internal">
+        <lane id=":D4_0_0" index="0" disallow="pedestrian" speed="3.911" length="2.826" shape="279.933,-186.313 279.841,-186.611 279.789,-186.887 279.776,-187.142 279.802,-187.375 279.867,-187.587 279.971,-187.778 280.114,-187.948 280.296,-188.096 280.517,-188.224 280.778,-188.329 281.077,-188.414" />
+    </edge>
     <edge id=":E1_0" function="internal">
         <lane id=":E1_0_0" index="0" disallow="pedestrian" speed="8.330" length="0.232" shape="651.359,95.035 651.355,95.006 651.351,94.983 651.348,94.962 651.344,94.945 651.341,94.929 651.337,94.913 651.333,94.897 651.328,94.880 651.322,94.860 651.315,94.837 651.307,94.809" />
     </edge>
@@ -934,6 +937,9 @@
     <edge id=":N6_0" function="internal">
         <lane id=":N6_0_0" index="0" disallow="pedestrian" speed="6.022" length="8.023" shape="591.090,315.653 590.937,316.234 590.690,316.732 590.350,317.148 589.916,317.482 589.389,317.733 588.768,317.902 588.054,317.988 587.246,317.992 586.345,317.914 585.350,317.753 584.262,317.510" />
     </edge>
+    <edge id=":S2_0" function="internal">
+        <lane id=":S2_0_0" index="0" disallow="pedestrian" speed="3.916" length="2.475" shape="337.219,-201.408 337.477,-201.455 337.717,-201.472 337.940,-201.460 338.146,-201.419 338.335,-201.349 338.507,-201.249 338.663,-201.119 338.801,-200.961 338.922,-200.773 339.026,-200.556 339.112,-200.309" />
+    </edge>
     <edge id=":S6_wausanro_0" function="internal">
         <lane id=":S6_wausanro_0_0" index="0" disallow="pedestrian" speed="13.890" length="4.000" shape="824.577,56.775 824.468,52.776" />
         <lane id=":S6_wausanro_0_1" index="1" disallow="pedestrian" speed="13.890" length="4.000" shape="827.776,56.687 827.667,52.689" />
@@ -968,13 +974,35 @@
         <lane id=":X_dongmak3_3_2" index="2" disallow="pedestrian" speed="13.890" length="6.973" shape="235.798,-112.479 242.579,-114.106" />
     </edge>
     <edge id=":X_dongmak3_6" function="internal">
-        <lane id=":X_dongmak3_6_0" index="0" disallow="pedestrian" speed="6.268" length="7.774" shape="243.051,-97.894 242.698,-98.924 242.329,-99.844 241.945,-100.655 241.545,-101.357 241.130,-101.949 240.700,-102.432 240.254,-102.806 239.793,-103.070 239.317,-103.225 238.825,-103.271 238.318,-103.208" />
+        <lane id=":X_dongmak3_6_0" index="0" disallow="pedestrian" speed="6.267" length="7.774" shape="243.051,-97.894 242.698,-98.924 242.329,-99.844 241.945,-100.655 241.545,-101.357 241.130,-101.949 240.700,-102.432 240.254,-102.806 239.793,-103.070 239.317,-103.225 238.825,-103.271 238.318,-103.208" />
     </edge>
     <edge id=":X_dongmak3_7" function="internal">
         <lane id=":X_dongmak3_7_0" index="0" disallow="pedestrian" speed="10.017" length="23.591" shape="243.051,-97.894 241.919,-101.573 240.974,-104.924 240.216,-107.945 239.646,-110.638 239.263,-113.002 239.067,-115.037 239.059,-116.743 239.238,-118.121 239.605,-119.170 240.159,-119.890 240.900,-120.282" />
     </edge>
     <edge id=":X_dongmak3_w1" function="walkingarea">
         <lane id=":X_dongmak3_w1_0" index="0" allow="pedestrian" speed="2.780" length="6.973" width="3.000" shape="240.480,-121.826 239.693,-124.721 232.969,-123.116 233.640,-120.192" />
+    </edge>
+    <edge id=":X_dongmak4_0" function="internal">
+        <lane id=":X_dongmak4_0_0" index="0" disallow="pedestrian" speed="13.890" length="6.560" shape="313.542,-123.450 307.212,-121.729" />
+        <lane id=":X_dongmak4_0_1" index="1" disallow="pedestrian" speed="13.890" length="6.560" shape="312.703,-126.538 306.373,-124.817" />
+        <lane id=":X_dongmak4_0_2" index="2" disallow="pedestrian" speed="13.890" length="6.560" shape="311.863,-129.626 305.533,-127.905" />
+    </edge>
+    <edge id=":X_dongmak4_3" function="internal">
+        <lane id=":X_dongmak4_3_0" index="0" disallow="pedestrian" speed="9.725" length="4.265" shape="311.863,-129.626 312.375,-129.904 312.631,-130.391 312.632,-131.087 312.379,-131.993 311.871,-133.107 311.736,-133.342" />
+    </edge>
+    <edge id=":X_dongmak4_8" function="internal">
+        <lane id=":X_dongmak4_8_0" index="0" disallow="pedestrian" speed="9.725" length="13.654" shape="311.736,-133.342 311.108,-134.431 310.091,-135.963 308.818,-137.705 307.291,-139.656 305.509,-141.815 303.472,-144.184" />
+    </edge>
+    <edge id=":X_dongmak4_4" function="internal">
+        <lane id=":X_dongmak4_4_0" index="0" disallow="pedestrian" speed="5.751" length="9.189" shape="303.015,-137.169 303.899,-137.467 304.615,-137.832 305.162,-138.266 305.541,-138.767 305.751,-139.337 305.793,-139.975 305.666,-140.680 305.370,-141.454 304.906,-142.296 304.273,-143.206 303.472,-144.184" />
+    </edge>
+    <edge id=":X_dongmak4_5" function="internal">
+        <lane id=":X_dongmak4_5_0" index="0" disallow="pedestrian" speed="13.890" length="6.560" shape="303.015,-137.169 309.345,-138.890" />
+        <lane id=":X_dongmak4_5_1" index="1" disallow="pedestrian" speed="13.890" length="6.560" shape="303.854,-134.081 310.184,-135.802" />
+        <lane id=":X_dongmak4_5_2" index="2" disallow="pedestrian" speed="13.890" length="6.560" shape="304.694,-130.993 311.024,-132.714" />
+    </edge>
+    <edge id=":X_dongmak4_w0" function="walkingarea">
+        <lane id=":X_dongmak4_w0_0" index="0" allow="pedestrian" speed="2.780" length="6.560" width="3.000" shape="307.632,-120.185 308.419,-117.290 314.749,-119.011 313.962,-121.906" />
     </edge>
     <edge id=":X_dongmak6_0" function="internal">
         <lane id=":X_dongmak6_0_0" index="0" disallow="pedestrian" speed="13.890" length="7.889" shape="365.950,-137.517 358.379,-135.640" />
@@ -1229,6 +1257,20 @@
         <lane id="-R71_2" index="2" disallow="pedestrian" speed="13.890" length="51.957" shape="415.696,-152.849 365.197,-140.627" />
         <lane id="-R71_3" index="3" disallow="pedestrian" speed="13.890" length="51.957" shape="414.943,-155.959 364.444,-143.738" />
     </edge>
+    <edge id="-R71.104" from="X_dongmak4" to="X_dongmak3" name="독막로" priority="11">
+        <lane id="-R71.104_0" index="0" allow="pedestrian" speed="13.890" length="64.369" width="3.000" shape="308.026,-118.738 245.911,-101.851">
+            <param key="origId" value="-R71" />
+        </lane>
+        <lane id="-R71.104_1" index="1" disallow="pedestrian" speed="13.890" length="64.369" shape="307.212,-121.729 245.098,-104.842">
+            <param key="origId" value="-R71" />
+        </lane>
+        <lane id="-R71.104_2" index="2" disallow="pedestrian" speed="13.890" length="64.369" shape="306.373,-124.817 244.258,-107.930">
+            <param key="origId" value="-R71" />
+        </lane>
+        <lane id="-R71.104_3" index="3" disallow="pedestrian" speed="13.890" length="64.369" shape="305.533,-127.905 243.419,-111.018">
+            <param key="origId" value="-R71" />
+        </lane>
+    </edge>
     <edge id="-R71.175" from="X_dongmak3" to="J8" name="독막로" priority="11" shape="247.331,-113.740 241.300,-112.100 210.800,-105.100 103.700,-77.100">
         <lane id="-R71.175_0" index="0" allow="pedestrian" speed="13.890" length="134.873" width="3.000" shape="239.131,-100.214 213.446,-94.319 108.411,-66.858">
             <param key="origId" value="-R71" />
@@ -1243,17 +1285,17 @@
             <param key="origId" value="-R71" />
         </lane>
     </edge>
-    <edge id="-R71.55" from="X_dongmak6" to="X_dongmak3" name="독막로" priority="11" shape="363.875,-145.246 357.900,-143.800 247.331,-113.740">
-        <lane id="-R71.55_0" index="0" allow="pedestrian" speed="13.890" length="117.393" width="3.000" shape="359.192,-132.648 245.911,-101.851">
+    <edge id="-R71.55" from="X_dongmak6" to="X_dongmak4" name="독막로" priority="11" shape="363.875,-145.246 357.900,-143.800 315.921,-132.387">
+        <lane id="-R71.55_0" index="0" allow="pedestrian" speed="13.890" length="46.464" width="3.000" shape="359.192,-132.648 314.356,-120.459">
             <param key="origId" value="-R71" />
         </lane>
-        <lane id="-R71.55_1" index="1" disallow="pedestrian" speed="13.890" length="117.393" shape="358.379,-135.640 245.098,-104.842">
+        <lane id="-R71.55_1" index="1" disallow="pedestrian" speed="13.890" length="46.464" shape="358.379,-135.640 313.542,-123.450">
             <param key="origId" value="-R71" />
         </lane>
-        <lane id="-R71.55_2" index="2" disallow="pedestrian" speed="13.890" length="117.393" shape="357.540,-138.728 244.258,-107.930">
+        <lane id="-R71.55_2" index="2" disallow="pedestrian" speed="13.890" length="46.464" shape="357.540,-138.728 312.703,-126.538">
             <param key="origId" value="-R71" />
         </lane>
-        <lane id="-R71.55_3" index="3" disallow="pedestrian" speed="13.890" length="117.393" shape="356.700,-141.816 243.419,-111.018">
+        <lane id="-R71.55_3" index="3" disallow="pedestrian" speed="13.890" length="46.464" shape="356.700,-141.816 311.863,-129.626">
             <param key="origId" value="-R71" />
         </lane>
     </edge>
@@ -1341,6 +1383,9 @@
     <edge id="B4b" from="J106" to="J105" name="양화로 중앙버스전용차로(서교동사거리 하행 정류장)" priority="12" spreadType="center" shape="501.510,471.930 501.420,471.840 501.230,471.670 500.950,471.410 500.570,471.060 500.100,470.620 499.540,470.100 498.880,469.480 498.130,468.790 497.250,468.030 496.240,467.210 495.090,466.330 493.810,465.400 492.400,464.400 490.850,463.350 489.170,462.230 487.360,461.060 485.740,460.000 484.310,459.060 483.080,458.230 482.040,457.510 481.190,456.910 480.530,456.430 480.060,456.060 479.790,455.800 479.550,455.580 479.340,455.390 479.170,455.230 479.040,455.100 478.930,455.010 478.830,454.910">
         <lane id="B4b_0" index="0" allow="bus" speed="13.890" length="26.914" shape="500.408,470.908 500.100,470.620 499.540,470.100 498.880,469.480 498.130,468.790 497.250,468.030 496.240,467.210 495.090,466.330 493.810,465.400 492.400,464.400 490.850,463.350 489.170,462.230 487.360,461.060 485.740,460.000 484.310,459.060 483.080,458.230 482.040,457.510 481.190,456.910 480.530,456.430 480.060,456.060 479.790,455.800 479.550,455.580 479.340,455.390 479.170,455.230 479.040,455.100 478.930,455.010 478.830,454.910" />
     </edge>
+    <edge id="G11" from="D4" to="S2" name="성지1길" priority="1">
+        <lane id="G11_0" index="0" disallow="pedestrian" speed="5.560" length="57.626" shape="281.077,-188.414 337.219,-201.408" />
+    </edge>
     <edge id="G12" from="S2" to="X_dongmak6" name="독막로6길" priority="1" shape="337.580,-199.849 346.097,-171.469 363.875,-145.246">
         <lane id="G12_0" index="0" disallow="pedestrian" speed="5.560" length="45.819" shape="339.112,-200.309 347.559,-172.164 356.781,-158.561" />
     </edge>
@@ -1382,6 +1427,9 @@
     </edge>
     <edge id="G3" from="Y2" to="X_dongmak3" name="독막로3길" priority="1" shape="258.794,-53.814 243.614,-101.395 247.331,-113.740">
         <lane id="G3_0" index="0" disallow="pedestrian" speed="8.330" length="42.079" shape="255.841,-57.806 243.051,-97.894" />
+    </edge>
+    <edge id="G30" from="X_dongmak4" to="D4" name="독막로4길" priority="1" shape="315.921,-132.387 290.645,-161.272 281.438,-186.855">
+        <lane id="G30_0" index="0" disallow="pedestrian" speed="5.560" length="49.100" shape="303.472,-144.184 289.242,-160.446 279.933,-186.313" />
     </edge>
     <edge id="G4" from="Y2" to="Y3" name="양화로6길" priority="1" shape="258.794,-53.814 288.380,-62.825 302.581,-66.498 334.066,-74.799 354.488,-80.292 389.006,-89.836 447.877,-104.394">
         <lane id="G4_0" index="0" disallow="pedestrian" speed="8.330" length="191.058" shape="262.910,-56.740 287.946,-64.366 302.177,-68.046 333.654,-76.345 354.067,-81.836 388.601,-91.384 447.493,-105.947" />
@@ -1715,17 +1763,31 @@
         <lane id="R71_2" index="2" disallow="pedestrian" speed="13.890" length="134.750" shape="104.389,-82.241 209.656,-109.762 234.958,-115.570" />
         <lane id="R71_3" index="3" disallow="pedestrian" speed="13.890" length="134.750" shape="105.198,-79.145 210.419,-106.654 235.798,-112.479" />
     </edge>
-    <edge id="R71.135" from="X_dongmak3" to="X_dongmak6" name="독막로" priority="11" shape="235.264,-110.715 241.300,-112.100 351.970,-142.188">
-        <lane id="R71.135_0" index="0" allow="pedestrian" speed="13.890" length="117.393" width="3.000" shape="240.087,-123.273 353.368,-154.071">
+    <edge id="R71.135" from="X_dongmak3" to="X_dongmak4" name="독막로" priority="11" shape="235.264,-110.715 241.300,-112.100 303.799,-129.092">
+        <lane id="R71.135_0" index="0" allow="pedestrian" speed="13.890" length="64.369" width="3.000" shape="240.087,-123.273 302.202,-140.161">
             <param key="origId" value="R71" />
         </lane>
-        <lane id="R71.135_1" index="1" disallow="pedestrian" speed="13.890" length="117.393" shape="240.900,-120.282 354.182,-151.080">
+        <lane id="R71.135_1" index="1" disallow="pedestrian" speed="13.890" length="64.369" shape="240.900,-120.282 303.015,-137.169">
             <param key="origId" value="R71" />
         </lane>
-        <lane id="R71.135_2" index="2" disallow="pedestrian" speed="13.890" length="117.393" shape="241.740,-117.194 355.021,-147.992">
+        <lane id="R71.135_2" index="2" disallow="pedestrian" speed="13.890" length="64.369" shape="241.740,-117.194 303.854,-134.081">
             <param key="origId" value="R71" />
         </lane>
-        <lane id="R71.135_3" index="3" disallow="pedestrian" speed="13.890" length="117.393" shape="242.579,-114.106 355.861,-144.904">
+        <lane id="R71.135_3" index="3" disallow="pedestrian" speed="13.890" length="64.369" shape="242.579,-114.106 304.694,-130.993">
+            <param key="origId" value="R71" />
+        </lane>
+    </edge>
+    <edge id="R71.206" from="X_dongmak4" to="X_dongmak6" name="독막로" priority="11" shape="303.799,-129.092 351.970,-142.188">
+        <lane id="R71.206_0" index="0" allow="pedestrian" speed="13.890" length="46.464" width="3.000" shape="308.531,-141.881 353.368,-154.071">
+            <param key="origId" value="R71" />
+        </lane>
+        <lane id="R71.206_1" index="1" disallow="pedestrian" speed="13.890" length="46.464" shape="309.345,-138.890 354.182,-151.080">
+            <param key="origId" value="R71" />
+        </lane>
+        <lane id="R71.206_2" index="2" disallow="pedestrian" speed="13.890" length="46.464" shape="310.184,-135.802 355.021,-147.992">
+            <param key="origId" value="R71" />
+        </lane>
+        <lane id="R71.206_3" index="3" disallow="pedestrian" speed="13.890" length="46.464" shape="311.024,-132.714 355.861,-144.904">
             <param key="origId" value="R71" />
         </lane>
     </edge>
@@ -1942,6 +2004,9 @@
     </junction>
     <junction id="CUT_jandari" type="dead_end" x="287.917" y="493.690" incLanes="R92_0 R92_1 R92_2" intLanes="" shape="287.917,493.690 294.817,500.074 287.917,493.690" />
     <junction id="CUT_worldcup" type="dead_end" x="-89.950" y="234.530" incLanes="R61_0 R61_1 R61_2 R61_3 R61_4" intLanes="" shape="-89.950,234.530 -74.643,238.444 -89.950,234.530" />
+    <junction id="D4" type="priority" x="281.438" y="-186.855" incLanes="G30_0" intLanes=":D4_0_0" shape="278.427,-185.771 281.438,-186.855 280.716,-189.973 279.749,-189.662 279.349,-189.461 279.005,-189.229 278.717,-188.967 278.485,-188.674 278.309,-188.351 278.188,-187.997 278.124,-187.613 278.116,-187.198 278.164,-186.753 278.267,-186.278">
+        <request index="0" response="0" foes="0" cont="0" />
+    </junction>
     <junction id="E1" type="priority" x="652.903" y="94.554" incLanes="G20_0" intLanes=":E1_0_0" shape="649.779,95.287 652.940,94.783 652.902,94.568 652.861,94.420 652.849,94.380">
         <request index="0" response="0" foes="0" cont="0" />
     </junction>
@@ -2303,7 +2368,9 @@
     <junction id="N6" type="priority" x="589.219" y="317.102" incLanes="G25_0" intLanes=":N6_0_0" shape="592.667,315.923 586.359,314.844 586.253,315.255 586.178,315.428 586.089,315.579 585.986,315.709 585.869,315.816 585.738,315.902 585.592,315.966 585.432,316.008 585.258,316.028 585.070,316.026 584.868,316.003 584.651,315.958 583.873,319.062 586.143,319.504 587.153,319.599 588.079,319.610 588.922,319.536 589.682,319.379 590.358,319.138 590.952,318.812 591.461,318.402 591.888,317.909 592.231,317.331 592.491,316.669">
         <request index="0" response="0" foes="0" cont="0" />
     </junction>
-    <junction id="S2" type="dead_end" x="337.580" y="-199.849" incLanes="" intLanes="" shape="337.580,-199.849 340.645,-200.769" />
+    <junction id="S2" type="priority" x="337.580" y="-199.849" incLanes="G11_0" intLanes=":S2_0_0" shape="337.580,-199.849 340.645,-200.769 340.331,-201.569 340.137,-201.906 339.919,-202.202 339.676,-202.455 339.410,-202.666 339.118,-202.835 338.803,-202.962 338.463,-203.047 338.098,-203.090 337.709,-203.091 337.296,-203.050 336.858,-202.967">
+        <request index="0" response="0" foes="0" cont="0" />
+    </junction>
     <junction id="S6_wausanro" type="priority" x="829.037" y="44.238" incLanes="-R112_0 -R112_1 -R112_2 R112.112_0 R112.112_1 R112.112_2 :S6_wausanro_w0_0" intLanes=":S6_wausanro_0_0 :S6_wausanro_0_1 :S6_wausanro_2_0 :S6_wausanro_2_1 :S6_wausanro_c0_0" shape="819.979,56.900 838.772,56.387 838.663,52.389 819.870,52.901">
         <request index="0" response="00000" foes="10000" cont="0" />
         <request index="1" response="00000" foes="10000" cont="0" />
@@ -2317,7 +2384,7 @@
     <junction id="W13" type="priority" x="726.575" y="-21.533" incLanes="G26_0" intLanes=":W13_0_0" shape="728.096,-26.122 725.058,-27.129 722.945,-24.726 724.012,-23.928 724.508,-23.667 724.979,-23.498 725.425,-23.421 725.846,-23.436 726.243,-23.544 726.614,-23.743 726.960,-24.035 727.282,-24.419 727.578,-24.894 727.849,-25.462">
         <request index="0" response="0" foes="0" cont="0" />
     </junction>
-    <junction id="X_dongmak3" type="priority" x="247.331" y="-113.740" incLanes="-R71.55_0 -R71.55_1 -R71.55_2 -R71.55_3 R71_0 R71_1 R71_2 R71_3 G3_0" intLanes=":X_dongmak3_0_0 :X_dongmak3_0_1 :X_dongmak3_0_2 :X_dongmak3_3_0 :X_dongmak3_3_1 :X_dongmak3_3_2 :X_dongmak3_6_0 :X_dongmak3_7_0" shape="246.304,-100.404 239.693,-124.721 232.911,-123.103 239.525,-98.765 239.953,-98.820 240.151,-98.812 240.337,-98.780 240.513,-98.723 240.678,-98.643 240.832,-98.538 240.975,-98.410 241.107,-98.258 241.229,-98.081 241.339,-97.881 241.439,-97.656 241.527,-97.408 244.576,-98.381 244.498,-98.801 244.506,-98.996 244.545,-99.181 244.616,-99.356 244.717,-99.522 244.850,-99.677 245.015,-99.823 245.210,-99.959 245.437,-100.085 245.695,-100.201 245.984,-100.307">
+    <junction id="X_dongmak3" type="priority" x="247.331" y="-113.740" incLanes="-R71.104_0 -R71.104_1 -R71.104_2 -R71.104_3 R71_0 R71_1 R71_2 R71_3 G3_0" intLanes=":X_dongmak3_0_0 :X_dongmak3_0_1 :X_dongmak3_0_2 :X_dongmak3_3_0 :X_dongmak3_3_1 :X_dongmak3_3_2 :X_dongmak3_6_0 :X_dongmak3_7_0" shape="246.304,-100.404 239.693,-124.721 232.911,-123.103 239.525,-98.765 239.953,-98.820 240.151,-98.812 240.337,-98.780 240.513,-98.723 240.678,-98.643 240.832,-98.538 240.975,-98.410 241.107,-98.258 241.229,-98.081 241.339,-97.881 241.439,-97.656 241.527,-97.408 244.576,-98.381 244.498,-98.801 244.506,-98.996 244.545,-99.181 244.616,-99.356 244.717,-99.522 244.850,-99.677 245.015,-99.823 245.210,-99.959 245.437,-100.085 245.695,-100.201 245.984,-100.307">
         <request index="0" response="00000000" foes="11000000" cont="0" />
         <request index="1" response="00000000" foes="11000000" cont="0" />
         <request index="2" response="00000000" foes="11000000" cont="0" />
@@ -2327,7 +2394,17 @@
         <request index="6" response="00000111" foes="00000111" cont="0" />
         <request index="7" response="00111111" foes="00111111" cont="0" />
     </junction>
-    <junction id="X_dongmak6" type="priority" x="363.875" y="-145.246" incLanes="-R71_0 -R71_1 -R71_2 -R71_3 G12_0 R71.135_0 R71.135_1 R71.135_2 R71.135_3" intLanes=":X_dongmak6_0_0 :X_dongmak6_0_1 :X_dongmak6_0_2 :X_dongmak6_3_0 :X_dongmak6_4_0 :X_dongmak6_5_0 :X_dongmak6_5_1 :X_dongmak6_5_2" shape="367.032,-133.046 361.104,-157.539 360.653,-157.493 360.427,-157.516 360.199,-157.571 359.970,-157.656 359.741,-157.773 359.510,-157.921 359.278,-158.099 359.046,-158.309 358.812,-158.550 358.577,-158.822 358.342,-159.125 358.105,-159.459 355.456,-157.664 355.617,-157.290 355.623,-157.109 355.580,-156.932 355.488,-156.759 355.346,-156.590 355.155,-156.425 354.915,-156.264 354.626,-156.107 354.287,-155.954 353.899,-155.805 353.461,-155.660 352.975,-155.519 359.586,-131.201">
+    <junction id="X_dongmak4" type="priority" x="315.921" y="-132.387" incLanes="-R71.55_0 -R71.55_1 -R71.55_2 -R71.55_3 R71.135_0 R71.135_1 R71.135_2 R71.135_3" intLanes=":X_dongmak4_0_0 :X_dongmak4_0_1 :X_dongmak4_0_2 :X_dongmak4_8_0 :X_dongmak4_4_0 :X_dongmak4_5_0 :X_dongmak4_5_1 :X_dongmak4_5_2" shape="314.749,-119.011 308.138,-143.329 307.679,-143.272 307.440,-143.291 307.194,-143.342 306.941,-143.425 306.681,-143.540 306.415,-143.687 306.142,-143.866 305.862,-144.076 305.576,-144.319 305.282,-144.593 304.982,-144.899 304.676,-145.238 302.268,-143.130 302.514,-142.801 302.594,-142.649 302.645,-142.505 302.667,-142.371 302.661,-142.245 302.625,-142.128 302.561,-142.020 302.468,-141.920 302.346,-141.829 302.196,-141.747 302.016,-141.673 301.808,-141.608 308.419,-117.290">
+        <request index="0" response="00000000" foes="00000000" cont="0" />
+        <request index="1" response="00000000" foes="00000000" cont="0" />
+        <request index="2" response="00000000" foes="00000000" cont="0" />
+        <request index="3" response="11110000" foes="11110000" cont="1" />
+        <request index="4" response="00000000" foes="00001000" cont="0" />
+        <request index="5" response="00000000" foes="00001000" cont="0" />
+        <request index="6" response="00000000" foes="00001000" cont="0" />
+        <request index="7" response="00000000" foes="00001000" cont="0" />
+    </junction>
+    <junction id="X_dongmak6" type="priority" x="363.875" y="-145.246" incLanes="-R71_0 -R71_1 -R71_2 -R71_3 G12_0 R71.206_0 R71.206_1 R71.206_2 R71.206_3" intLanes=":X_dongmak6_0_0 :X_dongmak6_0_1 :X_dongmak6_0_2 :X_dongmak6_3_0 :X_dongmak6_4_0 :X_dongmak6_5_0 :X_dongmak6_5_1 :X_dongmak6_5_2" shape="367.032,-133.046 361.104,-157.539 360.653,-157.493 360.427,-157.516 360.199,-157.571 359.970,-157.656 359.741,-157.773 359.510,-157.921 359.278,-158.099 359.046,-158.309 358.812,-158.550 358.577,-158.822 358.342,-159.125 358.105,-159.459 355.456,-157.664 355.617,-157.290 355.623,-157.109 355.580,-156.932 355.488,-156.759 355.346,-156.590 355.155,-156.425 354.915,-156.264 354.626,-156.107 354.287,-155.954 353.899,-155.804 353.461,-155.659 352.975,-155.518 359.586,-131.201">
         <request index="0" response="00000000" foes="00010000" cont="0" />
         <request index="1" response="00000000" foes="00010000" cont="0" />
         <request index="2" response="00000000" foes="00010000" cont="0" />
@@ -2441,6 +2518,7 @@
     <junction id=":J96_34_2" type="internal" x="681.578" y="647.147" incLanes=":J96_22_2" intLanes=":J96_1_0 :J96_1_1 :J96_1_2 :J96_1_3 :J96_1_4 :J96_12_0 :J96_12_1 :J96_c4_0 :J96_c5_0" />
     <junction id=":J96_35_0" type="internal" x="705.270" y="651.669" incLanes=":J96_26_0" intLanes=":J96_1_0 :J96_1_1 :J96_1_2 :J96_1_3 :J96_1_4 :J96_6_0 :J96_7_0 :J96_7_1 :J96_9_0 :J96_9_1 :J96_9_2 :J96_15_0 :J96_15_1 :J96_15_2 :J96_15_3 :J96_15_4 :J96_20_0 :J96_21_0 :J96_c1_0 :J96_c5_0" />
     <junction id=":J96_35_1" type="internal" x="703.132" y="653.956" incLanes=":J96_26_1" intLanes=":J96_1_0 :J96_1_1 :J96_1_2 :J96_1_3 :J96_1_4 :J96_6_0 :J96_7_0 :J96_7_1 :J96_9_0 :J96_9_1 :J96_9_2 :J96_15_0 :J96_15_1 :J96_15_2 :J96_15_3 :J96_15_4 :J96_20_0 :J96_21_0 :J96_c1_0 :J96_c5_0" />
+    <junction id=":X_dongmak4_8_0" type="internal" x="311.736" y="-133.342" incLanes=":X_dongmak4_3_0 R71.135_1 R71.135_2 R71.135_3" intLanes=":X_dongmak4_4_0 :X_dongmak4_5_0 :X_dongmak4_5_1 :X_dongmak4_5_2" />
     <junction id=":cluster_J52_J56_J58_9_0" type="internal" x="573.903" y="-174.020" incLanes=":cluster_J52_J56_J58_1_0" intLanes=":cluster_J52_J56_J58_4_0 :cluster_J52_J56_J58_4_1 :cluster_J52_J56_J58_6_0 :cluster_J52_J56_J58_6_1 :cluster_J52_J56_J58_6_2 :cluster_J52_J56_J58_c0_0" />
     <junction id=":cluster_J52_J56_J58_9_1" type="internal" x="573.794" y="-170.834" incLanes=":cluster_J52_J56_J58_1_1" intLanes=":cluster_J52_J56_J58_4_0 :cluster_J52_J56_J58_4_1 :cluster_J52_J56_J58_6_0 :cluster_J52_J56_J58_6_1 :cluster_J52_J56_J58_6_2 :cluster_J52_J56_J58_c0_0" />
     <junction id=":cluster_J52_J56_J58_9_2" type="internal" x="573.731" y="-167.677" incLanes=":cluster_J52_J56_J58_1_2" intLanes=":cluster_J52_J56_J58_4_0 :cluster_J52_J56_J58_4_1 :cluster_J52_J56_J58_6_0 :cluster_J52_J56_J58_6_1 :cluster_J52_J56_J58_6_2 :cluster_J52_J56_J58_c0_0" />
@@ -2508,12 +2586,16 @@
     <connection from="-R71" to="-R71.55" fromLane="1" toLane="1" via=":X_dongmak6_0_0" dir="s" state="M" />
     <connection from="-R71" to="-R71.55" fromLane="2" toLane="2" via=":X_dongmak6_0_1" dir="s" state="M" />
     <connection from="-R71" to="-R71.55" fromLane="3" toLane="3" via=":X_dongmak6_0_2" dir="s" state="M" />
+    <connection from="-R71.104" to="-R71.175" fromLane="1" toLane="1" via=":X_dongmak3_0_0" dir="s" state="M" />
+    <connection from="-R71.104" to="-R71.175" fromLane="2" toLane="2" via=":X_dongmak3_0_1" dir="s" state="M" />
+    <connection from="-R71.104" to="-R71.175" fromLane="3" toLane="3" via=":X_dongmak3_0_2" dir="s" state="M" />
     <connection from="-R71.175" to="-R69a" fromLane="1" toLane="1" via=":J8_0_0" tl="J8" linkIndex="0" dir="s" state="o" />
     <connection from="-R71.175" to="-R69a" fromLane="2" toLane="2" via=":J8_0_1" tl="J8" linkIndex="1" dir="s" state="o" />
     <connection from="-R71.175" to="-R69a" fromLane="3" toLane="3" via=":J8_0_2" tl="J8" linkIndex="2" dir="s" state="o" />
-    <connection from="-R71.55" to="-R71.175" fromLane="1" toLane="1" via=":X_dongmak3_0_0" dir="s" state="M" />
-    <connection from="-R71.55" to="-R71.175" fromLane="2" toLane="2" via=":X_dongmak3_0_1" dir="s" state="M" />
-    <connection from="-R71.55" to="-R71.175" fromLane="3" toLane="3" via=":X_dongmak3_0_2" dir="s" state="M" />
+    <connection from="-R71.55" to="-R71.104" fromLane="1" toLane="1" via=":X_dongmak4_0_0" dir="s" state="M" />
+    <connection from="-R71.55" to="-R71.104" fromLane="2" toLane="2" via=":X_dongmak4_0_1" dir="s" state="M" />
+    <connection from="-R71.55" to="-R71.104" fromLane="3" toLane="3" via=":X_dongmak4_0_2" dir="s" state="M" />
+    <connection from="-R71.55" to="G30" fromLane="3" toLane="0" via=":X_dongmak4_3_0" dir="l" state="m" />
     <connection from="-R73" to="-R71" fromLane="1" toLane="1" via=":J23_0_0" tl="J23" linkIndex="0" dir="s" state="o" />
     <connection from="-R73" to="-R71" fromLane="2" toLane="2" via=":J23_0_1" tl="J23" linkIndex="1" dir="s" state="o" />
     <connection from="-R73" to="-R71" fromLane="2" toLane="3" via=":J23_0_2" tl="J23" linkIndex="2" dir="s" state="o" />
@@ -2539,6 +2621,7 @@
     <connection from="B3b" to="R53d" fromLane="0" toLane="4" via=":J103_0_0" dir="s" state="M" />
     <connection from="B4a" to="B4b" fromLane="0" toLane="0" via=":J106_4_0" tl="J106" linkIndex="4" dir="s" state="o" />
     <connection from="B4b" to="R55" fromLane="0" toLane="5" via=":J105_0_0" dir="s" state="M" />
+    <connection from="G11" to="G12" fromLane="0" toLane="0" via=":S2_0_0" dir="l" state="M" />
     <connection from="G12" to="R71.256" fromLane="0" toLane="1" via=":X_dongmak6_3_0" dir="r" state="m" />
     <connection from="G12" to="-R71.55" fromLane="0" toLane="1" via=":X_dongmak6_4_0" dir="l" state="m" />
     <connection from="G16" to="R96.176" fromLane="0" toLane="1" via=":X_jandari7_2_0" dir="r" state="m" />
@@ -2559,6 +2642,7 @@
     <connection from="G27" to="G24" fromLane="0" toLane="0" via=":W11_0_0" dir="l" state="M" />
     <connection from="G3" to="-R71.175" fromLane="0" toLane="1" via=":X_dongmak3_6_0" dir="r" state="m" />
     <connection from="G3" to="R71.135" fromLane="0" toLane="1" via=":X_dongmak3_7_0" dir="l" state="m" />
+    <connection from="G30" to="G11" fromLane="0" toLane="0" via=":D4_0_0" dir="l" state="M" />
     <connection from="G4" to="G16" fromLane="0" toLane="0" via=":Y3_0_0" dir="l" state="M" />
     <connection from="G8" to="R120" fromLane="0" toLane="0" via=":J92_0_0" dir="s" state="M" />
     <connection from="R111" to="R111b" fromLane="1" toLane="1" via=":J107_2_0" dir="s" state="M" />
@@ -2724,9 +2808,13 @@
     <connection from="R71" to="R71.135" fromLane="1" toLane="1" via=":X_dongmak3_3_0" dir="s" state="M" />
     <connection from="R71" to="R71.135" fromLane="2" toLane="2" via=":X_dongmak3_3_1" dir="s" state="M" />
     <connection from="R71" to="R71.135" fromLane="3" toLane="3" via=":X_dongmak3_3_2" dir="s" state="M" />
-    <connection from="R71.135" to="R71.256" fromLane="1" toLane="1" via=":X_dongmak6_5_0" dir="s" state="M" />
-    <connection from="R71.135" to="R71.256" fromLane="2" toLane="2" via=":X_dongmak6_5_1" dir="s" state="M" />
-    <connection from="R71.135" to="R71.256" fromLane="3" toLane="3" via=":X_dongmak6_5_2" dir="s" state="M" />
+    <connection from="R71.135" to="G30" fromLane="1" toLane="0" via=":X_dongmak4_4_0" dir="r" state="M" />
+    <connection from="R71.135" to="R71.206" fromLane="1" toLane="1" via=":X_dongmak4_5_0" dir="s" state="M" />
+    <connection from="R71.135" to="R71.206" fromLane="2" toLane="2" via=":X_dongmak4_5_1" dir="s" state="M" />
+    <connection from="R71.135" to="R71.206" fromLane="3" toLane="3" via=":X_dongmak4_5_2" dir="s" state="M" />
+    <connection from="R71.206" to="R71.256" fromLane="1" toLane="1" via=":X_dongmak6_5_0" dir="s" state="M" />
+    <connection from="R71.206" to="R71.256" fromLane="2" toLane="2" via=":X_dongmak6_5_1" dir="s" state="M" />
+    <connection from="R71.206" to="R71.256" fromLane="3" toLane="3" via=":X_dongmak6_5_2" dir="s" state="M" />
     <connection from="R71.256" to="R73" fromLane="1" toLane="1" via=":J23_3_0" tl="J23" linkIndex="3" dir="s" state="o" />
     <connection from="R71.256" to="R73" fromLane="2" toLane="2" via=":J23_3_1" tl="J23" linkIndex="4" dir="s" state="o" />
     <connection from="R71.256" to="R73" fromLane="3" toLane="3" via=":J23_3_2" tl="J23" linkIndex="5" dir="s" state="o" />
@@ -2756,6 +2844,7 @@
     <connection from=":C2_0" to="R79.c" fromLane="0" toLane="1" dir="s" state="M" />
     <connection from=":C3_0" to="R66.c" fromLane="0" toLane="1" dir="s" state="M" />
     <connection from=":C4_0" to="R65.c" fromLane="0" toLane="1" dir="l" state="M" />
+    <connection from=":D4_0" to="G11" fromLane="0" toLane="0" dir="l" state="M" />
     <connection from=":E1_0" to="G21" fromLane="0" toLane="0" dir="s" state="M" />
     <connection from=":J1_0" to="R40" fromLane="0" toLane="4" dir="s" state="M" />
     <connection from=":J1_1" to="R59" fromLane="0" toLane="1" dir="s" state="M" />
@@ -3050,6 +3139,7 @@
     <connection from=":J99_0" to="-R126" fromLane="0" toLane="3" dir="t" state="M" />
     <connection from=":N2_0" to="G23" fromLane="0" toLane="0" dir="r" state="M" />
     <connection from=":N6_0" to="G22" fromLane="0" toLane="0" dir="l" state="M" />
+    <connection from=":S2_0" to="G12" fromLane="0" toLane="0" dir="l" state="M" />
     <connection from=":S6_wausanro_0" to="-R112.84" fromLane="0" toLane="1" dir="s" state="M" />
     <connection from=":S6_wausanro_0" to="-R112.84" fromLane="1" toLane="2" dir="s" state="M" />
     <connection from=":S6_wausanro_2" to="R112.221" fromLane="0" toLane="1" dir="s" state="M" />
@@ -3064,6 +3154,15 @@
     <connection from=":X_dongmak3_3" to="R71.135" fromLane="2" toLane="3" dir="s" state="M" />
     <connection from=":X_dongmak3_6" to="-R71.175" fromLane="0" toLane="1" dir="r" state="M" />
     <connection from=":X_dongmak3_7" to="R71.135" fromLane="0" toLane="1" dir="l" state="M" />
+    <connection from=":X_dongmak4_0" to="-R71.104" fromLane="0" toLane="1" dir="s" state="M" />
+    <connection from=":X_dongmak4_0" to="-R71.104" fromLane="1" toLane="2" dir="s" state="M" />
+    <connection from=":X_dongmak4_0" to="-R71.104" fromLane="2" toLane="3" dir="s" state="M" />
+    <connection from=":X_dongmak4_3" to="G30" fromLane="0" toLane="0" via=":X_dongmak4_8_0" dir="l" state="m" />
+    <connection from=":X_dongmak4_8" to="G30" fromLane="0" toLane="0" dir="l" state="M" />
+    <connection from=":X_dongmak4_4" to="G30" fromLane="0" toLane="0" dir="r" state="M" />
+    <connection from=":X_dongmak4_5" to="R71.206" fromLane="0" toLane="1" dir="s" state="M" />
+    <connection from=":X_dongmak4_5" to="R71.206" fromLane="1" toLane="2" dir="s" state="M" />
+    <connection from=":X_dongmak4_5" to="R71.206" fromLane="2" toLane="3" dir="s" state="M" />
     <connection from=":X_dongmak6_0" to="-R71.55" fromLane="0" toLane="1" dir="s" state="M" />
     <connection from=":X_dongmak6_0" to="-R71.55" fromLane="1" toLane="2" dir="s" state="M" />
     <connection from=":X_dongmak6_0" to="-R71.55" fromLane="2" toLane="3" dir="s" state="M" />
@@ -3320,6 +3419,8 @@
     <connection from="R112.112" to=":S6_wausanro_w1" fromLane="0" toLane="0" dir="s" state="M" />
     <connection from=":X_dongmak3_w1" to="R71.135" fromLane="0" toLane="0" dir="s" state="M" />
     <connection from="R71" to=":X_dongmak3_w1" fromLane="0" toLane="0" dir="s" state="M" />
+    <connection from=":X_dongmak4_w0" to="-R71.104" fromLane="0" toLane="0" dir="s" state="M" />
+    <connection from="-R71.55" to=":X_dongmak4_w0" fromLane="0" toLane="0" dir="s" state="M" />
     <connection from=":X_dongmak6_w0" to="-R71.55" fromLane="0" toLane="0" dir="s" state="M" />
     <connection from="-R71" to=":X_dongmak6_w0" fromLane="0" toLane="0" dir="s" state="M" />
     <connection from=":X_jandari2_w1" to="R96.119" fromLane="0" toLane="0" dir="s" state="M" />

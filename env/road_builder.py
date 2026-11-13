@@ -108,9 +108,9 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
     # 같은 시각에 같은 차가 나와, 버스가 겪는 일이 에피소드마다 되풀이된다.
     poisson = network.get("flow_arrivals") == "poisson"
     for begin, volume, flow in sorted(staggered, key=lambda item: item[0]):
-        # 배경 차량은 출발·도착 도로만 정하고 경로는 SUMO가 고른다.
+        # 배경 차량은 출발·도착 도로만 정하고 경로는 SUMO가 고른다. 지도가 via를 적은 흐름은 그 도로들을 거쳐 간다.
         ET.SubElement(routes, "flow", _attrs({
-            "id": flow["id"], "type": "carDist", "from": flow["from"], "to": flow["to"],
+            "id": flow["id"], "type": "carDist", "from": flow["from"], "to": flow["to"], "via": flow.get("via"),
             "begin": "0" if poisson else f"{begin:.3f}", "end": 100000,
             "period": f"exp({volume / 3600.0:.6f})" if poisson else f"{3600.0 / volume:.6f}", "departLane": "best",
             "departSpeed": traffic["depart_speed"]}))

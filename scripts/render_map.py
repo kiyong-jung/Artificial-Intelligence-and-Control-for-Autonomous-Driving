@@ -1,4 +1,4 @@
-"""합정역 실행 도로망 전체를 그린다. 버스 경로, 정류장, 신호 교차로, 신호 없는 횡단보도, 골목(빨강), 골목 합류점, 자른 점을 표시한다.
+"""합정역 실행 도로망 전체를 지도처럼 그린다. 버스 경로, 정류장, 신호 교차로, 신호 없는 횡단보도, 골목(빨강), 골목 합류점, 자른 점을 표시한다.
 
     python3 scripts/render_map.py
     python3 scripts/render_map.py maps/hapjeong_trial_x "후보 포함, 측정 중"   # 다른 지도 폴더를 그릴 때(제목에 덧붙일 말)
@@ -6,23 +6,36 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 
 import matplotlib
 matplotlib.use("Agg")
-from matplotlib import font_manager
+from matplotlib import font_manager, patheffects
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from render_fix_figures import BASE, FONT, Net
 
 FOLDER = BASE / "maps" / "hapjeong"
-ROUTE, STOP, OTHER_STOP, SIGNAL, CUT, ALLEY = "#1565c0", "#f5b400", "#9bb8e0", "#ffd400", "#212121", "#d50000"
+PAPER, BUILDING, ROAD, BUS_LANE = "#f6f5f1", "#eae7df", "#c6c3ba", "#a9bfe3"
+INK, MUTED = "#222222", "#6b6b6b"
+ROUTE, STOP, SIGNAL, ALLEY, MERGE, CROSSING = "#1565c0", "#f2a900", "#ffd400", "#d32f2f", "#7b3fa0", "#2e9d48"
 ALLEY_MPS = 30 / 3.6
-# 이름표가 정류장이나 다른 골목 이름과 겹치는 길은 옮겨 적는다(pt).
-LABEL_OFFSETS = {"독막로6길": (-78, -30), "와우산로11길": (22, -26), "독막로15길": (12, 18), "와우산로13길": (30, -8)}
+HALO = [patheffects.withStroke(linewidth=3, foreground="white")]
+# 이름표 위치(pt). 정류장은 버스 경로 바깥쪽, 교차로 이름은 교차로 옆 빈 곳에 둔다.
+STOP_OFFSETS = {"합정역7번출구": (-6, -16), "성산중학교": (8, -17), "상수역": (-8, -15), "극동방송": (11, 2),
+                "서교동교회": (14, -6), "합정역": (-10, 9)}
+JUNCTION_LABELS = (("합정역 사거리", "J1", (-22, 14), "right"), ("서교동사거리", "J42", (-12, 10), "right"),
+                   ("홍대입구역사거리", "J96", (10, -12), "left"), ("상수역 사거리", "J82", (10, 12), "left"),
+                   ("삼거리포차 앞", "J83", (8, 8), "left"))
+# 골목 이름표를 길 가운데에서 옮길 거리(m, 길 방향). 이름이 정류장이나 다른 이름과 겹치는 길만 적는다.
+ALLEY_SHIFT = {"잔다리로6길": -22}
+LABEL_MIN_M = 40   # 이보다 짧은 골목은 이름을 적지 않는다(범례로 충분하다)
+# 좁은 곳에 붙어 있는 골목들은 이름을 한 줄로 묶어 지시선 끝(pt)에 적는다.
+LABEL_GROUPS = {("독막로4길", "성지1길", "독막로6길"): (-70, -46)}
 
 
 def alleys(net_path: Path) -> tuple[dict[str, list[str]], list[str]]:
@@ -44,119 +57,162 @@ def alleys(net_path: Path) -> tuple[dict[str, list[str]], list[str]]:
     return found, sorted(starts - entered)
 
 
+def along(points, fraction):
+    """선 위에서 길이 비율 fraction인 점과 그 점의 방향(도)."""
+    lengths = [math.dist(a, b) for a, b in zip(points, points[1:])]
+    target = sum(lengths) * fraction
+    for (a, b), length in zip(zip(points, points[1:]), lengths):
+        if target <= length or length == lengths[-1]:
+            t = target / length if length else 0
+            return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t), math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))
+        target -= length
+    return points[-1], 0.0
+
+
 def main(folder: Path = FOLDER, note: str = ""):
     font_manager.fontManager.addfont(FONT)
     plt.rcParams["font.family"] = font_manager.FontProperties(fname=FONT).get_name()
     net = Net((folder / "source" / "network.net.xml").read_text(encoding="utf-8"))
     definition = json.loads((folder / "map.json").read_text(encoding="utf-8"))
     route = definition["routes"][definition["ego_route"]]
+    patches = definition["network_source"]["patches"]
 
-    fig = plt.figure(figsize=(16, 10.4), dpi=150)
-    ax = fig.add_axes([0.01, 0.01, 0.98, 0.91])
-    ax.set_facecolor("#e8eee3")
-    ax.set_aspect("equal")
-    ax.set_xticks([]), ax.set_yticks([])
-    for side in ax.spines.values():
-        side.set_visible(False)
-    fig.text(0.02, 0.955, f"합정역 도로망 {definition['version']}" + (f" ({note})" if note else ""), fontsize=24, fontweight="bold")
-    fig.text(0.02, 0.928, f"버스 경로 {definition['ego_route']} {definition['route_design'][definition['ego_route']]['length_m']:,.0f}m, "
-             f"경로 가로변 정류장 {len(definition['bus_stops'])}곳, 신호 없는 횡단보도 1곳. 빨강은 대로가 아닌 길(골목), 검은 X는 자른 점",
-             fontsize=14, color="#555555")
+    xs = [x for lane in net.lanes.values() if not lane["internal"] for x, _ in lane["points"]]
+    ys = [y for lane in net.lanes.values() if not lane["internal"] for _, y in lane["points"]]
+    (x0, x1), (y0, y1) = (min(xs) - 25, max(xs) + 25), (min(ys) - 25, max(ys) + 25)
+    fig = plt.figure(figsize=(12, 12 * 0.98 * (y1 - y0) / (x1 - x0) / 0.90), dpi=200, facecolor="white")
+    ax = fig.add_axes([0.01, 0.01, 0.98, 0.90])
+    ax.set_xlim(x0, x1), ax.set_ylim(y0, y1), ax.set_aspect("equal"), ax.axis("off")
+    ax.add_patch(plt.Rectangle((x0, y0), x1 - x0, y1 - y0, fc=PAPER, ec="none", zorder=-2))
+    fig.canvas.draw()
+    meter = ax.get_window_extent().width / (x1 - x0) * 72 / fig.dpi   # 1m가 몇 pt인가
 
+    for poly in ET.parse(folder / "source" / "context.add.xml").getroot().iter("poly"):
+        if poly.get("type") in ("building", "amenity", "parking"):
+            points = [tuple(map(float, p.split(","))) for p in poly.get("shape").split()]
+            if any(x0 < x < x1 and y0 < y < y1 for x, y in points):
+                ax.fill(*zip(*points), color=BUILDING, lw=0, zorder=-1)
+    named, origins = alleys(folder / "source" / "network.net.xml")
+    alley_ids = {edge_id for edge_ids in named.values() for edge_id in edge_ids}
     for junction in net.junctions.values():
         if len(junction["shape"]) > 2:
-            ax.fill(*zip(*junction["shape"]), color="#4a4a4a", zorder=1, lw=0)
+            ax.fill(*zip(*junction["shape"]), color=ROAD, lw=0, zorder=1)
+    # 차로를 실제보다 조금 넓게 칠해 이웃 차로와 겹치게 한다. 딱 맞게 칠하면 차로 사이에 가는 틈이 보인다.
     for lane_id, lane in net.lanes.items():
-        if lane["internal"]:
+        if not lane["internal"] and lane["allow"] != "pedestrian" and lane_id.rsplit("_", 1)[0] not in alley_ids:
+            ax.plot(*zip(*lane["points"]), color=BUS_LANE if lane["allow"] == "bus" else ROAD,
+                    lw=(lane["width"] + 0.6) * meter, solid_capstyle="butt", zorder=1 + (lane["allow"] == "bus"))
+    for lane_id, lane in net.lanes.items():
+        if lane["crossing"]:
+            ax.plot(*zip(*lane["points"]), color="white", lw=lane["width"] * meter, dashes=(0.5, 0.5),
+                    solid_capstyle="butt", zorder=2)
+
+    grouped = {name for group in LABEL_GROUPS for name in group}
+    for group, offset in LABEL_GROUPS.items():
+        points = [point for name in group if name in named for edge_id in named[name]
+                  for point in net.lanes[f"{edge_id}_0"]["points"]]
+        if points:
+            center = (sum(x for x, _ in points) / len(points), sum(y for _, y in points) / len(points))
+            ax.annotate("·".join(name for name in group if name in named), center, xytext=offset,
+                        textcoords="offset points", ha="center", va="center", fontsize=8, color=ALLEY, fontweight="bold",
+                        path_effects=HALO, zorder=9, arrowprops=dict(arrowstyle="-", color=ALLEY, lw=0.8, shrinkB=2))
+    for name, edge_ids in named.items():
+        lines = [net.lanes[f"{edge_id}_0"]["points"] for edge_id in edge_ids]
+        for points in lines:
+            ax.plot(*zip(*points), color=ALLEY, lw=max(3.0 * meter, 2.2), solid_capstyle="round", zorder=3)
+        if name in grouped:
             continue
-        color = "#bdbdbd" if lane["allow"] == "pedestrian" else "#7aa0d6" if lane["allow"] == "bus" else "#4a4a4a"
-        ax.plot(*zip(*lane["points"]), color=color, lw=0.9 if lane["allow"] == "pedestrian" else 1.3,
-                solid_capstyle="butt", zorder=2)
+        points = max(lines, key=lambda line: sum(math.dist(a, b) for a, b in zip(line, line[1:])))
+        length = sum(math.dist(a, b) for a, b in zip(points, points[1:]))
+        if length < LABEL_MIN_M:
+            continue
+        (x, y), angle = along(points, min(max(0.5 + ALLEY_SHIFT.get(name, 0) / length, 0.1), 0.9))
+        angle = (angle + 90) % 180 - 90
+        normal = math.radians(angle + 90)
+        ax.annotate(name, (x, y), xytext=(7 * math.cos(normal), 7 * math.sin(normal)), textcoords="offset points",
+                    rotation=angle, rotation_mode="anchor", ha="center", va="center", fontsize=8, color=ALLEY,
+                    fontweight="bold", path_effects=HALO, zorder=9)
+
+    def route_line(points):
+        ax.plot(*zip(*points), color=ROUTE, lw=3.4, alpha=0.85, solid_capstyle="round", solid_joinstyle="round", zorder=4)
     for edge_id in route:
-        lanes = [lane for lane_id, lane in net.lanes.items()
-                 if lane_id.rsplit("_", 1)[0] == edge_id and lane["allow"] != "pedestrian"]
-        if lanes:
-            middle = lanes[len(lanes) // 2]
-            ax.plot(*zip(*middle["points"]), color=ROUTE, lw=5, alpha=0.75, solid_capstyle="round", zorder=3)
+        route_line(net.lanes[f"{edge_id}_1"]["points"])
     for index in range(len(route) - 1):
         points = next((net.path(route[index], str(lane), route[index + 1], str(target))
                        for lane in range(1, 7) for target in range(1, 7)
                        if net.path(route[index], str(lane), route[index + 1], str(target))), None)
         if points:
-            ax.plot(*zip(*points), color=ROUTE, lw=5, alpha=0.75, solid_capstyle="round", zorder=3)
-    start = net.lanes[f"{route[0]}_1"]["points"]
-    ax.annotate("", xy=start[1], xytext=start[0], zorder=4,
-                arrowprops=dict(arrowstyle="-|>", color=ROUTE, lw=3, mutation_scale=30))
-
+            route_line(points)
     for junction in net.junctions.values():
         if junction["type"].startswith("traffic_light"):
-            ax.plot(junction["x"], junction["y"], "o", ms=7, color=SIGNAL, mec="black", mew=0.8, zorder=5)
-    # 경로 밖 정류장(양화로 중앙버스차로와 가로변)은 원본의 stops.add.xml에 있다.
-    for stop in ET.parse(folder / "source" / "stops.add.xml").getroot().iter("busStop"):
-        points = net.lanes[stop.get("lane")]["points"]
-        ax.plot(*points[len(points) // 2], "s", ms=9, color=OTHER_STOP, mec="black", mew=1.0, zorder=6)
+            ax.plot(junction["x"], junction["y"], "o", ms=5, color=SIGNAL, mec=INK, mew=0.6, zorder=6)
+    merges = ["X_dongmak3", "X_dongmak6"] + [node for shortcut in patches["shortcuts"] for node in shortcut["merges"]]
+    for node in merges:
+        if node in net.junctions:
+            ax.plot(net.junctions[node]["x"], net.junctions[node]["y"], "^", ms=7, color=MERGE, mec="white", mew=0.8, zorder=7)
+    for node in origins:
+        ax.plot(net.junctions[node]["x"], net.junctions[node]["y"], "o", ms=6, color="white", mec=ALLEY, mew=1.8, zorder=7)
+    for lane_id in net.crossings:
+        if lane_id.startswith(":S6_"):
+            x, y = net.lanes[lane_id]["points"][0]
+            ax.plot(x, y, "D", ms=7.5, color=CROSSING, mec="white", mew=0.8, zorder=8)
+            ax.annotate("신호 없는 횡단보도", (x, y), xytext=(-9, -1), textcoords="offset points", ha="right", va="center",
+                        fontsize=8, color=CROSSING, fontweight="bold", path_effects=HALO, zorder=9)
     for stop in definition["bus_stops"]:
         points = net.lanes[stop["lane"]]["points"]
         x, y = points[len(points) // 2]
-        ax.plot(x, y, "s", ms=13, color=STOP, mec="black", mew=1.2, zorder=6)
-        ax.annotate(stop["name"], (x, y), xytext=(9, -14), textcoords="offset points", fontsize=12.5,
-                    fontweight="bold", zorder=7, bbox=dict(boxstyle="round,pad=0.2", fc="white", ec=STOP, alpha=0.92))
-    for lane_id, crossed in net.crossings.items():
-        if lane_id.startswith(":S6_"):
-            x, y = net.lanes[lane_id]["points"][0]
-            ax.plot(x, y, "D", ms=12, color="#2e9d48", mec="black", zorder=6)
-            ax.annotate("신호 없는 횡단보도", (x, y), xytext=(10, 6), textcoords="offset points", fontsize=12,
-                        color="#1b5e20", fontweight="bold", zorder=7)
-    ax.annotate("골목 합류점", (net.junctions["X_dongmak3"]["x"], net.junctions["X_dongmak3"]["y"]),
-                xytext=(-10, 16), textcoords="offset points", fontsize=12, color="#6c3483", fontweight="bold", zorder=7)
+        ax.plot(x, y, "s", ms=8, color=STOP, mec=INK, mew=0.9, zorder=8)
+        dx, dy = STOP_OFFSETS.get(stop["name"], (10, 0))
+        ax.annotate(stop["name"], (x, y), xytext=(dx, dy), textcoords="offset points", fontsize=9, fontweight="bold",
+                    color=INK, ha="left" if dx >= 0 else "right", va="center", path_effects=HALO, zorder=9)
+    for name, node, offset, align in JUNCTION_LABELS:
+        junction = net.junctions[node]
+        ax.annotate(name, (junction["x"], junction["y"]), xytext=offset, textcoords="offset points", fontsize=8.5,
+                    color=MUTED, ha=align, va="center", path_effects=HALO, zorder=9)
+    for node in patches["cuts"]:
+        junction = net.junctions[node]
+        ax.plot(junction["x"], junction["y"], "x", ms=8, color=INK, mew=2, zorder=8)
+    start = net.lanes[f"{route[0]}_1"]["points"]
+    (x, y), angle = along(start, 0.45)
+    ax.annotate("", xy=(x + 18 * math.cos(math.radians(angle)), y + 18 * math.sin(math.radians(angle))), xytext=(x, y),
+                arrowprops=dict(arrowstyle="-|>,head_length=0.8,head_width=0.45", color=ROUTE, lw=3.4), zorder=5)
+    ax.annotate("출발", (x, y), xytext=(-2, -13), textcoords="offset points", fontsize=8.5, color=ROUTE,
+                fontweight="bold", ha="center", path_effects=HALO, zorder=9)
 
-    named, origins = alleys(folder / "source" / "network.net.xml")
-    for name, edge_ids in named.items():
-        lines = [net.lanes[f"{edge_id}_0"] for edge_id in edge_ids]
-        for line in lines:
-            ax.plot(*zip(*line["points"]), color=ALLEY, lw=3.5, solid_capstyle="round", zorder=5)
-        # 이름은 그 길에서 가장 긴 도로의 가운데에 한 번만 적는다.
-        points = max(lines, key=lambda line: line["length"])["points"]
-        ax.annotate(name, points[len(points) // 2], xytext=LABEL_OFFSETS.get(name, (8, 6)), textcoords="offset points", fontsize=11.5,
-                    color=ALLEY, fontweight="bold", zorder=8,
-                    bbox=dict(boxstyle="round,pad=0.15", fc="white", ec=ALLEY, alpha=0.9))
-    for node in origins:
-        ax.plot(net.junctions[node]["x"], net.junctions[node]["y"], "o", ms=10, color="white", mec=ALLEY, mew=2.5, zorder=6)
-    merges = ["X_dongmak3", "X_dongmak6"] + [node for shortcut in definition["network_source"]["patches"]["shortcuts"]
-                                             for node in shortcut["merges"]]
-    for node in merges:
-        junction = net.junctions[node]
-        ax.plot(junction["x"], junction["y"], "^", ms=12, color="#8e44ad", mec="black", zorder=6)
-    for node in definition["network_source"]["patches"]["cuts"]:
-        junction = net.junctions[node]
-        ax.plot(junction["x"], junction["y"], "X", ms=20, color=CUT, mec="white", mew=1.5, zorder=9)
-    for name, node, offset in (("합정역 사거리", "J1", (14, 24)), ("서교동사거리", "J42", (14, -28)),
-                               ("홍대입구역사거리", "J96", (-44, -36)), ("상수역 사거리", "J82", (-118, 22)),
-                               ("삼거리포차 앞", "J83", (-104, 20))):
-        junction = net.junctions[node]
-        ax.annotate(name, (junction["x"], junction["y"]), xytext=offset, textcoords="offset points", fontsize=13.5,
-                    color="#222222", zorder=8, bbox=dict(boxstyle="round,pad=0.2", fc="#fff8e1", ec="#999999", alpha=0.9))
+    bar_x, bar_y = x0 + 30, y0 + 30
+    ax.plot([bar_x, bar_x + 100], [bar_y, bar_y], color=INK, lw=2, solid_capstyle="butt", zorder=9)
+    for tick in (bar_x, bar_x + 100):
+        ax.plot([tick, tick], [bar_y - 4, bar_y + 4], color=INK, lw=1.2, zorder=9)
+    ax.annotate("100m", (bar_x + 50, bar_y), xytext=(0, 5), textcoords="offset points", ha="center", fontsize=8,
+                color=INK, zorder=9)
+    ax.annotate("N", (bar_x + 160, bar_y - 10), xytext=(bar_x + 160, bar_y + 30), ha="center", va="bottom", fontsize=10,
+                fontweight="bold", color=INK, arrowprops=dict(arrowstyle="<|-", color=INK, lw=1.4), zorder=9)
 
-    handles = [plt.Line2D([], [], color=ROUTE, lw=5, label="버스 경로"),
-               plt.Line2D([], [], color="#4a4a4a", lw=2, label="차도"),
-               plt.Line2D([], [], color="#7aa0d6", lw=2, label="버스 전용 차로"),
-               plt.Line2D([], [], marker="o", ls="", ms=8, color=SIGNAL, mec="black", label="신호 교차로"),
-               plt.Line2D([], [], marker="s", ls="", ms=11, color=STOP, mec="black", label="경로 가로변 정류장"),
-               plt.Line2D([], [], marker="s", ls="", ms=9, color=OTHER_STOP, mec="black", label="경로 밖 정류장(중앙 4, 가로변 2)"),
-               plt.Line2D([], [], marker="D", ls="", ms=10, color="#2e9d48", mec="black", label="신호 없는 횡단보도"),
-               plt.Line2D([], [], marker="^", ls="", ms=11, color="#8e44ad", mec="black", label="골목 합류점(신호 없음)"),
-               plt.Line2D([], [], color=ALLEY, lw=3.5, label="대로가 아닌 길(골목, 30km/h 이하)"),
-               plt.Line2D([], [], marker="o", ls="", ms=9, color="white", mec=ALLEY, mew=2.5,
-                          label="골목이 시작하는 곳(건물·주차장에서 차가 나옴)"),
-               plt.Line2D([], [], marker="X", ls="", ms=13, color=CUT, mec="white", label="자른 점(새 경계)")]
-    ax.legend(handles=handles, loc="upper left", fontsize=12.5, framealpha=0.95)
-    xs = [x for lane in net.lanes.values() if not lane["internal"] for x, _ in lane["points"]]
-    ys = [y for lane in net.lanes.values() if not lane["internal"] for _, y in lane["points"]]
-    ax.set_xlim(min(xs) - 20, max(xs) + 20)
-    ax.set_ylim(min(ys) - 20, max(ys) + 20)
+    fig.text(0.015, 0.965, f"합정역 도로망 {definition['version']}" + (f" ({note})" if note else ""), fontsize=17,
+             fontweight="bold", color=INK, va="center")
+    fig.text(0.015, 0.932, f"버스 경로 {definition['route_design'][definition['ego_route']]['length_m']:,.0f}m, "
+             f"가로변 정류장 {len(definition['bus_stops'])}곳, 신호 교차로 "
+             f"{sum(j['type'].startswith('traffic_light') for j in net.junctions.values())}곳, 골목 {len(named)}개",
+             fontsize=10, color=MUTED, va="center")
+    handles = [plt.Line2D([], [], color=ROUTE, lw=3.4, label="버스 경로(시계 반대 방향 한 바퀴)"),
+               plt.Line2D([], [], color=ROAD, lw=8, label="간선 도로"),
+               plt.Line2D([], [], color=BUS_LANE, lw=7, label="중앙버스전용차로"),
+               plt.Line2D([], [], color=ALLEY, lw=2.4, label="골목(30km/h 이하)"),
+               plt.Line2D([], [], marker="s", ls="", ms=8, color=STOP, mec=INK, label="버스 정류장"),
+               plt.Line2D([], [], marker="o", ls="", ms=6, color=SIGNAL, mec=INK, label="신호 교차로"),
+               plt.Line2D([], [], marker="D", ls="", ms=7, color=CROSSING, mec="white", label="신호 없는 횡단보도"),
+               plt.Line2D([], [], marker="^", ls="", ms=8, color=MERGE, mec="white", label="골목 합류점(신호 없음)"),
+               plt.Line2D([], [], marker="o", ls="", ms=6, color="white", mec=ALLEY, mew=1.8, label="골목이 시작하는 곳"),
+               plt.Line2D([], [], marker="x", ls="", ms=7, color=INK, mew=2, label="도로망 경계(자른 곳)")]
+    # 범례는 지도 왼쪽 위의 건물만 있는 곳에 둔다.
+    legend = ax.legend(handles=handles, loc="upper left", fontsize=9.5, handlelength=2.2, labelspacing=0.75,
+                       borderpad=0.9, framealpha=0.93, edgecolor="#d8d4ca", fancybox=False)
+    legend.set_zorder(10)
+    ax.text(0.99, 0.01, f"옅은 면은 건물이다. 골목은 모두 일방통행이고, {LABEL_MIN_M}m보다 짧은 골목은 이름을 생략했다.",
+            ha="right", va="bottom", fontsize=8, color=MUTED, transform=ax.transAxes, path_effects=HALO, zorder=10)
     out = folder / "references" / "hapjeong_map.png"
     out.parent.mkdir(exist_ok=True)
-    fig.savefig(out)
+    fig.savefig(out, facecolor="white")
     print(out)
 
 

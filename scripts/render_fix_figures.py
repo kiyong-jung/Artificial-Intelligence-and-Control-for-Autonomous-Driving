@@ -3,7 +3,7 @@
     python scripts/render_fix_figures.py
 
 기존 도로망은 git 커밋에서 읽는다(2.0.0은 PR #3의 main, 새 원본을 옮긴 직후는 3a171af).
-수정 후는 지금의 maps/hapjeong/source/network.net.xml이다. matplotlib만 쓴다(SUMO 불필요).
+수정 후는 3.0.0 도로망(PR #4의 병합 커밋 ea24130)이다. 그 뒤 도로망 북서쪽을 잘라내 ⑤의 자리는 지금 도로망에 없다. matplotlib만 쓴다(SUMO 불필요).
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 BASE = Path(__file__).resolve().parents[1]
 SOURCE = "maps/hapjeong/source"
 OUT = BASE / "maps" / "hapjeong" / "references" / "fixes"
-V2, PORTED = "cd93867", "3a171af"
+V2, PORTED, FIXED = "cd93867", "e572260", "ea24130"
 FONT = "/System/Library/Fonts/AppleSDGothicNeo.ttc"
 RED, GREEN, ORANGE = "#e53935", "#2e9d48", "#f59a23"
 
@@ -141,7 +141,7 @@ def main():
     font_manager.fontManager.addfont(FONT)
     plt.rcParams["font.family"] = font_manager.FontProperties(fname=FONT).get_name()
     plt.rcParams["axes.unicode_minus"] = False
-    old, ported, new = Net(load(V2)), Net(load(PORTED)), Net(load(None))
+    old, ported, new = Net(load(V2)), Net(load(PORTED)), Net(load(FIXED))
 
     figure("01_seogyo_junction", "① 서교동사거리(J42): 따로 놀던 신호 교차로 4개를 하나로",
            (old, (403, 372), 62, "기존 (2.0.0)", dict(lanes=[(f"R55_{i}", RED) for i in range(1, 5)],

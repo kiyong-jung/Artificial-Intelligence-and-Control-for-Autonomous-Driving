@@ -11,3 +11,5 @@ results/
 maps/paldalmun/references/comparison.jpg
 maps/paldalmun/references/focal/comparison.jpg
 traffic/_build/
+# scripts/shortcut_experiment.py가 측정하는 동안만 쓰는 임시 지도.
+maps/hapjeong_trial_*/

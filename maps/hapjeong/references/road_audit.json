@@ -1,13 +1,7 @@
 {
   "map": "hapjeong",
   "structure": {
-    "dead_lanes": [
-      {
-        "lane": "-G15_0",
-        "junction": "S4",
-        "length_m": 29.2
-      }
-    ],
+    "dead_lanes": [],
     "outer_left_turns": [
       {
         "from": "R50_5",
@@ -85,6 +79,20 @@
       },
       {
         "edge": "R71.135",
+        "next": "R71.206",
+        "drivable_lanes": [
+          1,
+          2,
+          3
+        ],
+        "lanes_to_next": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "edge": "R71.206",
         "next": "R71.256",
         "drivable_lanes": [
           1,
@@ -158,16 +166,17 @@
         "next": "R112",
         "drivable_lanes": [
           1,
-          2
+          2,
+          3
         ],
         "lanes_to_next": [
-          1,
-          2
+          2,
+          3
         ]
       },
       {
         "edge": "R112",
-        "next": "R112.222",
+        "next": "R112.112",
         "drivable_lanes": [
           1,
           2
@@ -178,7 +187,19 @@
         ]
       },
       {
-        "edge": "R112.222",
+        "edge": "R112.112",
+        "next": "R112.221",
+        "drivable_lanes": [
+          1,
+          2
+        ],
+        "lanes_to_next": [
+          1,
+          2
+        ]
+      },
+      {
+        "edge": "R112.221",
         "next": "R113",
         "drivable_lanes": [
           1,
@@ -203,6 +224,42 @@
       },
       {
         "edge": "-R96",
+        "next": "-R96.64",
+        "drivable_lanes": [
+          1,
+          2
+        ],
+        "lanes_to_next": [
+          1,
+          2
+        ]
+      },
+      {
+        "edge": "-R96.64",
+        "next": "-R96.119",
+        "drivable_lanes": [
+          1,
+          2
+        ],
+        "lanes_to_next": [
+          1,
+          2
+        ]
+      },
+      {
+        "edge": "-R96.119",
+        "next": "-R96.201",
+        "drivable_lanes": [
+          1,
+          2
+        ],
+        "lanes_to_next": [
+          1,
+          2
+        ]
+      },
+      {
+        "edge": "-R96.201",
         "next": "R94",
         "drivable_lanes": [
           1,
@@ -221,6 +278,7 @@
           2
         ],
         "lanes_to_next": [
+          1,
           2
         ]
       },
@@ -284,26 +342,44 @@
       "events": [
         {
           "kind": "emergency_braking",
-          "lane": "R87_1",
+          "lane": "-R94_2",
           "bus": false,
-          "text": "Vehicle 'f_-R86_to_R127.0' performs emergency braking on lane 'R87_1' with decel=9.00, wished=4.50, severity=1.00, time=535.00."
+          "text": "Vehicle 'f_-R61.320_to_R130.0' performs emergency braking on lane '-R94_2' with decel=9.00, wished=4.50, severity=1.00, time=250.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": "-R127_2",
+          "lane": "-R113_2",
           "bus": false,
-          "text": "Vehicle 'f_-R127_to_R97.2' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1344.00."
+          "text": "Vehicle 'f_-R61.320_to_R130.0' performs emergency braking on lane '-R113_2' with decel=9.00, wished=4.50, severity=1.00, time=307.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": "R69a_3",
+          "lane": ":J2_1_1",
           "bus": false,
-          "text": "Vehicle 'f_R51_to_R48.2' performs emergency braking on lane 'R69a_3' with decel=9.00, wished=4.50, severity=1.00, time=1391.00."
+          "text": "Vehicle 'f_R125_to_R48.0' performs emergency braking on lane ':J2_1_1' with decel=9.00, wished=4.50, severity=1.00, time=639.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": ":J106_5_1",
+          "bus": false,
+          "text": "Vehicle 'f_R51_to_R126.2' performs emergency braking on lane ':J106_5_1' with decel=9.00, wished=4.50, severity=1.00, time=1345.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R53d_1",
+          "bus": false,
+          "text": "Vehicle 'f_G3_to_R127.0' performs emergency braking on lane 'R53d_1' with decel=9.00, wished=4.50, severity=1.00, time=1563.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R94_2",
+          "bus": false,
+          "text": "Vehicle 'f_G26_to_R126.2' performs emergency braking on lane 'R94_2' with decel=9.00, wished=4.50, severity=1.00, time=1622.50."
         }
       ],
-      "bus_trips": 11,
-      "bus_duration_s": 429.9,
-      "bus_waiting_s": 96.2,
+      "bus_trips": 12,
+      "bus_duration_s": 442.0,
+      "bus_waiting_s": 100.3,
       "bus_stop_time_s": 48.0
     },
     {
@@ -312,440 +388,446 @@
       "events": [
         {
           "kind": "emergency_braking",
-          "lane": ":J42_0_0",
+          "lane": "-R113_1",
           "bus": false,
-          "text": "Vehicle 'f_R125_to_R86.1' performs emergency braking on lane ':J42_0_0' with decel=9.00, wished=4.50, severity=1.00, time=1046.10."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R69a_3",
-          "bus": false,
-          "text": "Vehicle 'f_R51_to_R48.2' performs emergency braking on lane 'R69a_3' with decel=9.00, wished=4.50, severity=1.00, time=1391.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R126_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R126_to_R62.3' performs emergency braking on lane '-R126_1' with decel=9.00, wished=4.50, severity=1.00, time=1692.00."
-        }
-      ],
-      "bus_trips": 11,
-      "bus_duration_s": 430.0,
-      "bus_waiting_s": 96.7,
-      "bus_stop_time_s": 48.0
-    },
-    {
-      "scenario": "quiet",
-      "seed": 42,
-      "events": [
-        {
-          "kind": "emergency_braking",
-          "lane": "R87_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R86_to_R126.0' performs emergency braking on lane 'R87_1' with decel=9.00, wished=4.50, severity=1.00, time=445.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R87_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R86_to_R97.0' performs emergency braking on lane 'R87_1' with decel=9.00, wished=4.50, severity=1.00, time=895.00."
-        }
-      ],
-      "bus_trips": 11,
-      "bus_duration_s": 430.1,
-      "bus_waiting_s": 96.0,
-      "bus_stop_time_s": 48.0
-    },
-    {
-      "scenario": "baseline",
-      "seed": 0,
-      "events": [
-        {
-          "kind": "emergency_braking",
-          "lane": "-R68_3",
-          "bus": false,
-          "text": "Vehicle 'f_R51_to_R48.0' performs emergency braking on lane '-R68_3' with decel=9.00, wished=4.50, severity=1.00, time=339.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R127_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_R86.2' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=714.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R62_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R62_to_R127.3' performs emergency braking on lane '-R62_2' with decel=9.00, wished=4.50, severity=1.00, time=855.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R92_2",
-          "bus": false,
-          "text": "Vehicle 'f_R125_to_R86.2' performs emergency braking on lane 'R92_2' with decel=9.00, wished=4.50, severity=1.00, time=946.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R87_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R86_to_R97.1' performs emergency braking on lane 'R87_1' with decel=9.00, wished=4.50, severity=1.00, time=985.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R127_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_R86.4' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1164.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R87_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R86_to_R124.2' performs emergency braking on lane 'R87_1' with decel=9.00, wished=4.50, severity=1.00, time=1165.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R87_1",
-          "bus": false,
-          "text": "Vehicle 'f_R89_to_R115.3' performs emergency braking on lane '-R87_1' with decel=9.00, wished=4.50, severity=1.00, time=1434.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R92_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_R86.4' performs emergency braking on lane 'R92_2' with decel=9.00, wished=4.50, severity=1.00, time=1486.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": ":J64_6_0",
-          "bus": false,
-          "text": "Vehicle 'f_-R62_to_R126.6' performs emergency braking on lane ':J64_6_0' with decel=9.00, wished=4.50, severity=1.00, time=1606.40."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R87_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R86_to_R127.3' performs emergency braking on lane 'R87_1' with decel=9.00, wished=4.50, severity=1.00, time=1705.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R55_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R126_to_-R89.7' performs emergency braking on lane 'R55_1' with decel=9.00, wished=4.50, severity=1.00, time=1720.00."
-        }
-      ],
-      "bus_trips": 11,
-      "bus_duration_s": 417.5,
-      "bus_waiting_s": 85.1,
-      "bus_stop_time_s": 48.0
-    },
-    {
-      "scenario": "baseline",
-      "seed": 7,
-      "events": [
-        {
-          "kind": "emergency_braking",
-          "lane": "-R62_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R62_to_R97.2' performs emergency braking on lane '-R62_2' with decel=9.00, wished=4.50, severity=1.00, time=675.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R62_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R62_to_R124.3' performs emergency braking on lane '-R62_2' with decel=9.00, wished=4.50, severity=1.00, time=765.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R55_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_-R89.3' performs emergency braking on lane 'R55_1' with decel=9.00, wished=4.50, severity=1.00, time=895.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R89_1",
-          "bus": false,
-          "text": "Vehicle 'f_R89_to_R48.2' performs emergency braking on lane 'R89_1' with decel=9.00, wished=4.50, severity=1.00, time=1165.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R92_1",
-          "bus": false,
-          "text": "Vehicle 'f_R51_to_R97.3' performs emergency braking on lane 'R92_1' with decel=9.00, wished=4.50, severity=1.00, time=1295.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R127_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_R97.5' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1434.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": ":J42_0_0",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_-R89.6' performs emergency braking on lane ':J42_0_0' with decel=9.00, wished=4.50, severity=1.00, time=1701.60."
-        }
-      ],
-      "bus_trips": 11,
-      "bus_duration_s": 430.6,
-      "bus_waiting_s": 96.7,
-      "bus_stop_time_s": 48.0
-    },
-    {
-      "scenario": "baseline",
-      "seed": 42,
-      "events": [
-        {
-          "kind": "emergency_braking",
-          "lane": "-R62_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R62_to_R124.1' performs emergency braking on lane '-R62_2' with decel=9.00, wished=4.50, severity=1.00, time=315.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R92_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_R62.1' performs emergency braking on lane 'R92_2' with decel=9.00, wished=4.50, severity=1.00, time=586.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R53b_3",
-          "bus": false,
-          "text": "Vehicle 'f_R114_to_R124.1' performs emergency braking on lane 'R53b_3' with decel=9.00, wished=4.50, severity=1.00, time=869.70."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R89_1",
-          "bus": false,
-          "text": "Vehicle 'f_R89_to_R48.2' performs emergency braking on lane 'R89_1' with decel=9.00, wished=4.50, severity=1.00, time=1165.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R92_2",
-          "bus": false,
-          "text": "Vehicle 'f_R125_to_R62.3' performs emergency braking on lane 'R92_2' with decel=9.00, wished=4.50, severity=1.00, time=1216.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": ":J64_2_0",
-          "bus": false,
-          "text": "Vehicle 'f_R89_to_R124.3' performs emergency braking on lane ':J64_2_0' with decel=9.00, wished=4.50, severity=1.00, time=1493.70."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R62_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R62_to_R127.6' performs emergency braking on lane '-R62_2' with decel=9.00, wished=4.50, severity=1.00, time=1575.00."
-        }
-      ],
-      "bus_trips": 11,
-      "bus_duration_s": 429.8,
-      "bus_waiting_s": 96.2,
-      "bus_stop_time_s": 48.0
-    },
-    {
-      "scenario": "busy",
-      "seed": 0,
-      "events": [
-        {
-          "kind": "emergency_braking",
-          "lane": "-R86_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R86_to_R97.0' performs emergency braking on lane '-R86_1' with decel=9.00, wished=4.50, severity=1.00, time=354.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R87_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R86_to_R97.0' performs emergency braking on lane 'R87_1' with decel=9.00, wished=4.50, severity=1.00, time=445.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R62_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R62_to_R126.2' performs emergency braking on lane '-R62_2' with decel=9.00, wished=4.50, severity=1.00, time=495.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R127_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_R86.2' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=714.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": ":J99_0_0",
-          "bus": false,
-          "text": "Vehicle 'f_R125_to_R124.4' performs emergency braking on lane ':J99_0_0' with decel=9.00, wished=4.50, severity=1.00, time=916.80."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R69_2",
-          "bus": false,
-          "text": "Vehicle 'f_R51_to_R115.5' performs emergency braking on lane 'R69_2' with decel=9.00, wished=4.50, severity=1.00, time=1114.90."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R126_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R126_to_R115.7' performs emergency braking on lane '-R126_1' with decel=9.00, wished=4.50, severity=1.00, time=1332.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R61_4",
-          "bus": false,
-          "text": "Vehicle 'f_G3_to_R86.0' performs emergency braking on lane 'R61_4' with decel=9.00, wished=4.50, severity=1.00, time=1395.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R62_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R62_to_-R89.7' performs emergency braking on lane '-R62_2' with decel=9.00, wished=4.50, severity=1.00, time=1395.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R62_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R62_to_R126.7' performs emergency braking on lane '-R62_2' with decel=9.00, wished=4.50, severity=1.00, time=1485.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R92_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_R62.4' performs emergency braking on lane 'R92_2' with decel=9.00, wished=4.50, severity=1.00, time=1486.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R62_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R62_to_R97.7' performs emergency braking on lane '-R62_2' with decel=9.00, wished=4.50, severity=1.00, time=1575.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R127_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_-R89.7' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1794.00."
-        }
-      ],
-      "bus_trips": 11,
-      "bus_duration_s": 417.3,
-      "bus_waiting_s": 84.7,
-      "bus_stop_time_s": 48.0
-    },
-    {
-      "scenario": "busy",
-      "seed": 7,
-      "events": [
-        {
-          "kind": "emergency_braking",
-          "lane": "-R62_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R62_to_-R89.1' performs emergency braking on lane '-R62_2' with decel=9.00, wished=4.50, severity=1.00, time=225.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R127_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_-R89.2' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=534.00."
+          "text": "Vehicle 'f_-R126_to_R129.2' performs emergency braking on lane '-R113_1' with decel=9.00, wished=4.50, severity=1.00, time=1009.10."
         },
         {
           "kind": "emergency_braking",
           "lane": "R53b_2",
           "bus": false,
-          "text": "Vehicle 'f_R51_to_R126.1' performs emergency braking on lane 'R53b_2' with decel=9.00, wished=4.50, severity=1.00, time=540.00."
+          "text": "Vehicle 'f_-R92.163_to_R124.0' performs emergency braking on lane 'R53b_2' with decel=9.00, wished=4.50, severity=1.00, time=1057.90."
         },
         {
           "kind": "emergency_braking",
-          "lane": "R92_1",
+          "lane": "-R113_1",
           "bus": false,
-          "text": "Vehicle 'f_R125_to_R97.1' performs emergency braking on lane 'R92_1' with decel=9.00, wished=4.50, severity=1.00, time=575.10."
+          "text": "Vehicle 'f_R125_to_R129.4' performs emergency braking on lane '-R113_1' with decel=9.00, wished=4.50, severity=1.00, time=1165.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": "R55_1",
+          "lane": "-R128_2",
           "bus": false,
-          "text": "Vehicle 'f_R125_to_R86.2' performs emergency braking on lane 'R55_1' with decel=9.00, wished=4.50, severity=1.00, time=730.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R46_2",
-          "bus": false,
-          "text": "Vehicle 'f_R51_to_-R89.4' performs emergency braking on lane 'R46_2' with decel=9.00, wished=4.50, severity=1.00, time=867.50."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R92_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R126_to_R86.3' performs emergency braking on lane 'R92_2' with decel=9.00, wished=4.50, severity=1.00, time=946.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R127_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_R48.4' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1164.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R87_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R86_to_R97.2' performs emergency braking on lane 'R87_1' with decel=9.00, wished=4.50, severity=1.00, time=1165.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": ":J64_2_0",
-          "bus": false,
-          "text": "Vehicle 'f_R89_to_R124.3' performs emergency braking on lane ':J64_2_0' with decel=9.00, wished=4.50, severity=1.00, time=1223.90."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": ":J64_3_0",
-          "bus": false,
-          "text": "Vehicle 'f_-R126_to_-R89.5' performs emergency braking on lane ':J64_3_0' with decel=9.00, wished=4.50, severity=1.00, time=1274.60."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R55_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_-R89.4' performs emergency braking on lane 'R55_1' with decel=9.00, wished=4.50, severity=1.00, time=1390.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R127_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_R97.5' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1524.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R53b_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R62_to_R127.6' performs emergency braking on lane 'R53b_1' with decel=9.00, wished=4.50, severity=1.00, time=1596.10."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R87_1",
-          "bus": false,
-          "text": "Vehicle 'f_-R86_to_R126.4' performs emergency braking on lane 'R87_1' with decel=9.00, wished=4.50, severity=1.00, time=1705.00."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R55s_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R126_to_R115.9' performs emergency braking on lane 'R55s_2' with decel=9.00, wished=4.50, severity=1.00, time=1780.90."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R55s_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R126_to_R115.9' performs emergency braking on lane 'R55s_2' with decel=9.00, wished=4.50, severity=1.00, time=1781.10."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "-R127_2",
-          "bus": false,
-          "text": "Vehicle 'f_-R127_to_-R89.7' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1794.00."
+          "text": "Vehicle 'f_-R128_to_R129.2' performs emergency braking on lane '-R128_2' with decel=9.00, wished=4.50, severity=1.00, time=1468.00."
         }
       ],
-      "bus_trips": 11,
-      "bus_duration_s": 429.0,
-      "bus_waiting_s": 96.1,
+      "bus_trips": 12,
+      "bus_duration_s": 440.4,
+      "bus_waiting_s": 96.7,
+      "bus_stop_time_s": 48.0
+    },
+    {
+      "scenario": "quiet",
+      "seed": 42,
+      "events": [
+        {
+          "kind": "emergency_braking",
+          "lane": "-R96.119_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R130_to_R61.0' performs emergency braking on lane '-R96.119_2' with decel=9.00, wished=4.50, severity=1.00, time=1161.70."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R127_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R127_to_R92.1' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1164.00."
+        }
+      ],
+      "bus_trips": 12,
+      "bus_duration_s": 442.1,
+      "bus_waiting_s": 100.4,
+      "bus_stop_time_s": 48.0
+    },
+    {
+      "scenario": "baseline",
+      "seed": 0,
+      "events": [
+        {
+          "kind": "emergency_braking",
+          "lane": "R94_1",
+          "bus": false,
+          "text": "Vehicle 'f_-G25_to_R126.0' performs emergency braking on lane 'R94_1' with decel=9.00, wished=4.50, severity=1.00, time=120.10."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R113_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R61.320_to_R130.0' performs emergency braking on lane '-R113_2' with decel=9.00, wished=4.50, severity=1.00, time=307.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R113_1",
+          "bus": false,
+          "text": "Vehicle 'f_-G25_to_R129.0' performs emergency braking on lane '-R113_1' with decel=9.00, wished=4.50, severity=1.00, time=385.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R128_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R128_to_R129.2' performs emergency braking on lane '-R128_2' with decel=9.00, wished=4.50, severity=1.00, time=1092.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R127_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R127_to_R48.0' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1164.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R113_2",
+          "bus": false,
+          "text": "Vehicle 'f_R125_to_R130.7' performs emergency braking on lane '-R113_2' with decel=9.00, wished=4.50, severity=1.00, time=1165.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R94_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R92.163_to_R129.5' performs emergency braking on lane '-R94_1' with decel=9.00, wished=4.50, severity=1.00, time=1420.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": ":J96_0_0",
+          "bus": false,
+          "text": "Vehicle 'f_R125_to_R124.4' performs emergency braking on lane ':J96_0_0' with decel=9.00, wished=4.50, severity=1.00, time=1624.00."
+        }
+      ],
+      "bus_trips": 12,
+      "bus_duration_s": 442.6,
+      "bus_waiting_s": 94.4,
+      "bus_stop_time_s": 48.0
+    },
+    {
+      "scenario": "baseline",
+      "seed": 7,
+      "events": [
+        {
+          "kind": "emergency_braking",
+          "lane": "R73_1",
+          "bus": false,
+          "text": "Vehicle 'f_R51_to_R129.0' performs emergency braking on lane 'R73_1' with decel=9.00, wished=4.50, severity=1.00, time=312.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R96.201_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R129_to_R127.0' performs emergency braking on lane '-R96.201_1' with decel=9.00, wished=4.50, severity=1.00, time=430.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R126_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R126_to_R129.2' performs emergency braking on lane '-R126_1' with decel=9.00, wished=4.50, severity=1.00, time=432.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R73_2",
+          "bus": false,
+          "text": "Vehicle 'f_R51_to_R128.2' performs emergency braking on lane 'R73_2' with decel=9.00, wished=4.50, severity=1.00, time=582.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R127_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R127_to_R130.1' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=714.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R68_3",
+          "bus": false,
+          "text": "Vehicle 'f_G3_to_R115.0' performs emergency braking on lane '-R68_3' with decel=9.00, wished=4.50, severity=1.00, time=962.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": ":J42_0_0",
+          "bus": false,
+          "text": "Vehicle 'f_R125_to_R92.2' performs emergency braking on lane ':J42_0_0' with decel=9.00, wished=4.50, severity=1.00, time=1511.90."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R127_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R127_to_R48.2' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1524.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R53d_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R61.320_to_R127.2' performs emergency braking on lane 'R53d_1' with decel=9.00, wished=4.50, severity=1.00, time=1563.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R112_2",
+          "bus": false,
+          "text": "Vehicle 'f_R125_to_R129.6' performs emergency braking on lane '-R112_2' with decel=9.00, wished=4.50, severity=1.00, time=1631.30."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R127_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R127_to_R48.3' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1794.00."
+        }
+      ],
+      "bus_trips": 12,
+      "bus_duration_s": 442.8,
+      "bus_waiting_s": 94.3,
+      "bus_stop_time_s": 48.0
+    },
+    {
+      "scenario": "baseline",
+      "seed": 42,
+      "events": [
+        {
+          "kind": "emergency_braking",
+          "lane": "-R113_2",
+          "bus": false,
+          "text": "Vehicle 'f_G4_to_R130.0' performs emergency braking on lane '-R113_2' with decel=9.00, wished=4.50, severity=1.00, time=307.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R59_3",
+          "bus": false,
+          "text": "Vehicle 'f_-R61.320_to_R92.0' performs emergency braking on lane '-R59_3' with decel=9.00, wished=4.50, severity=1.00, time=339.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R73_1",
+          "bus": false,
+          "text": "Vehicle 'f_R51_to_R129.2' performs emergency braking on lane 'R73_1' with decel=9.00, wished=4.50, severity=1.00, time=492.10."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R113_1",
+          "bus": false,
+          "text": "Vehicle 'f_R125_to_R128.0' performs emergency braking on lane '-R113_1' with decel=9.00, wished=4.50, severity=1.00, time=619.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R55s_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R127_to_R92.1' performs emergency braking on lane 'R55s_2' with decel=9.00, wished=4.50, severity=1.00, time=732.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R130_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R130_to_R92.1' performs emergency braking on lane '-R130_1' with decel=9.00, wished=4.50, severity=1.00, time=835.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R112.221_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R129_to_R127.1' performs emergency braking on lane 'R112.221_1' with decel=9.00, wished=4.50, severity=1.00, time=1127.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": ":J106_5_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R92.163_to_R124.5' performs emergency braking on lane ':J106_5_1' with decel=9.00, wished=4.50, severity=1.00, time=1441.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R79_1",
+          "bus": false,
+          "text": "Vehicle 'f_R51_to_R128.3' performs emergency braking on lane 'R79_1' with decel=9.00, wished=4.50, severity=1.00, time=1733.90."
+        }
+      ],
+      "bus_trips": 12,
+      "bus_duration_s": 445.6,
+      "bus_waiting_s": 93.9,
+      "bus_stop_time_s": 48.0
+    },
+    {
+      "scenario": "busy",
+      "seed": 0,
+      "events": [
+        {
+          "kind": "emergency_braking",
+          "lane": "-R113_2",
+          "bus": false,
+          "text": "Vehicle 'f_G19_to_R130.3' performs emergency braking on lane '-R113_2' with decel=9.00, wished=4.50, severity=1.00, time=541.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R127_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R127_to_R129.4' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=714.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": ":J82_3_0",
+          "bus": false,
+          "text": "Vehicle 'f_R125_to_R128.0' performs emergency braking on lane ':J82_3_0' with decel=9.00, wished=4.50, severity=1.00, time=724.50."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R112.193_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R130_to_R115.3' performs emergency braking on lane '-R112.193_1' with decel=9.00, wished=4.50, severity=1.00, time=932.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R73_1",
+          "bus": false,
+          "text": "Vehicle 'f_R114_to_R129_via_dongmak6.0' performs emergency braking on lane 'R73_1' with decel=9.00, wished=4.50, severity=1.00, time=942.10."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R127_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R127_to_R130.3' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1164.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R54_3",
+          "bus": false,
+          "text": "Vehicle 'f_-R92.163_to_R48.1' performs emergency braking on lane 'R54_3' with decel=9.00, wished=4.50, severity=1.00, time=1262.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R92.163_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R92.163_to_R129.9' performs emergency braking on lane '-R92.163_1' with decel=9.00, wished=4.50, severity=1.00, time=1415.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R94_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R92.163_to_R128.7' performs emergency braking on lane '-R94_1' with decel=9.00, wished=4.50, severity=1.00, time=1420.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R128_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R128_to_R126.3' performs emergency braking on lane '-R128_1' with decel=9.00, wished=4.50, severity=1.00, time=1562.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R94_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R92.163_to_R129.10' performs emergency braking on lane '-R94_1' with decel=9.00, wished=4.50, severity=1.00, time=1600.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R96.119_1",
+          "bus": false,
+          "text": "Vehicle 'f_-G25_to_R127.2' performs emergency braking on lane '-R96.119_1' with decel=9.00, wished=4.50, severity=1.00, time=1798.10."
+        }
+      ],
+      "bus_trips": 12,
+      "bus_duration_s": 445.1,
+      "bus_waiting_s": 99.1,
+      "bus_stop_time_s": 48.0
+    },
+    {
+      "scenario": "busy",
+      "seed": 7,
+      "events": [
+        {
+          "kind": "emergency_braking",
+          "lane": "-R126_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R126_to_R128.4' performs emergency braking on lane '-R126_1' with decel=9.00, wished=4.50, severity=1.00, time=162.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R96.176_2",
+          "bus": false,
+          "text": "Vehicle 'f_G17_to_R130.0' performs emergency braking on lane 'R96.176_2' with decel=9.00, wished=4.50, severity=1.00, time=165.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "G18_0",
+          "bus": false,
+          "text": "Vehicle 'f_G17_to_R127.0' performs emergency braking on lane 'G18_0' with decel=9.00, wished=4.50, severity=1.00, time=378.70."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R96.119_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R130_to_R127.2' performs emergency braking on lane '-R96.119_1' with decel=9.00, wished=4.50, severity=1.00, time=405.90."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R94_2",
+          "bus": false,
+          "text": "Vehicle 'f_R114_to_R130.0' performs emergency braking on lane '-R94_2' with decel=9.00, wished=4.50, severity=1.00, time=430.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R96.201_1",
+          "bus": false,
+          "text": "Vehicle 'f_G19_to_R126.2' performs emergency braking on lane '-R96.201_1' with decel=9.00, wished=4.50, severity=1.00, time=610.10."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R129_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R129_to_R115.1' performs emergency braking on lane '-R129_2' with decel=9.00, wished=4.50, severity=1.00, time=650.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R68_3",
+          "bus": false,
+          "text": "Vehicle 'f_G3_to_R115.1' performs emergency braking on lane '-R68_3' with decel=9.00, wished=4.50, severity=1.00, time=784.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R96.176_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R127_to_R130.2' performs emergency braking on lane 'R96.176_2' with decel=9.00, wished=4.50, severity=1.00, time=975.10."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R55s_4",
+          "bus": false,
+          "text": "Vehicle 'f_R125_to_R128.3' performs emergency braking on lane 'R55s_4' with decel=9.00, wished=4.50, severity=1.00, time=1012.60."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R129_2",
+          "bus": false,
+          "text": "Vehicle 'f_-R129_to_R92.1' performs emergency braking on lane '-R129_2' with decel=9.00, wished=4.50, severity=1.00, time=1026.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R92.163_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R92.163_to_R130.6' performs emergency braking on lane '-R92.163_1' with decel=9.00, wished=4.50, severity=1.00, time=1051.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R96.176_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R127_to_R128.1' performs emergency braking on lane 'R96.176_1' with decel=9.00, wished=4.50, severity=1.00, time=1155.10."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R113_1",
+          "bus": false,
+          "text": "Vehicle 'f_-R92.163_to_R129.5' performs emergency braking on lane '-R113_1' with decel=9.00, wished=4.50, severity=1.00, time=1165.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R55_4",
+          "bus": false,
+          "text": "Vehicle 'f_R125_to_R128.4' performs emergency braking on lane 'R55_4' with decel=9.00, wished=4.50, severity=1.00, time=1311.00."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "-R68_3",
+          "bus": false,
+          "text": "Vehicle 'f_-R130_to_R115.3' performs emergency braking on lane '-R68_3' with decel=9.00, wished=4.50, severity=1.00, time=1318.10."
+        },
+        {
+          "kind": "emergency_braking",
+          "lane": "R55s_3",
+          "bus": false,
+          "text": "Vehicle 'f_-R127_to_R48.6' performs emergency braking on lane 'R55s_3' with decel=9.00, wished=4.50, severity=1.00, time=1637.70."
+        }
+      ],
+      "bus_trips": 12,
+      "bus_duration_s": 446.4,
+      "bus_waiting_s": 96.9,
       "bus_stop_time_s": 48.0
     },
     {
@@ -754,98 +836,86 @@
       "events": [
         {
           "kind": "emergency_braking",
-          "lane": "-R62_2",
+          "lane": "R55_4",
           "bus": false,
-          "text": "Vehicle 'f_-R62_to_R97.2' performs emergency braking on lane '-R62_2' with decel=9.00, wished=4.50, severity=1.00, time=585.00."
+          "text": "Vehicle 'f_R125_to_R130.1' performs emergency braking on lane 'R55_4' with decel=9.00, wished=4.50, severity=1.00, time=401.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": "-R87_1",
+          "lane": "R94_1",
           "bus": false,
-          "text": "Vehicle 'f_R89_to_R115.2' performs emergency braking on lane '-R87_1' with decel=9.00, wished=4.50, severity=1.00, time=804.00."
+          "text": "Vehicle 'f_-R130_to_R61.0' performs emergency braking on lane 'R94_1' with decel=9.00, wished=4.50, severity=1.00, time=484.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": "R87_1",
+          "lane": "-R113_1",
           "bus": false,
-          "text": "Vehicle 'f_-R86_to_R97.1' performs emergency braking on lane 'R87_1' with decel=9.00, wished=4.50, severity=1.00, time=805.00."
+          "text": "Vehicle 'f_R125_to_R129.0' performs emergency braking on lane '-R113_1' with decel=9.00, wished=4.50, severity=1.00, time=619.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": ":J49_20_0",
+          "lane": "-R112.193_2",
           "bus": false,
-          "text": "Vehicle 'f_R89_to_R115.2' performs emergency braking on lane ':J49_20_0' with decel=9.00, wished=4.50, severity=1.00, time=867.40."
+          "text": "Vehicle 'f_G4_to_R128.0' performs emergency braking on lane '-R112.193_2' with decel=9.00, wished=4.50, severity=1.00, time=650.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": "R55s_1",
+          "lane": "-R68_3",
           "bus": false,
-          "text": "Vehicle 'f_R125_to_R48.4' performs emergency braking on lane 'R55s_1' with decel=9.00, wished=4.50, severity=1.00, time=1012.60."
+          "text": "Vehicle 'f_-R128_to_R115.1' performs emergency braking on lane '-R68_3' with decel=9.00, wished=4.50, severity=1.00, time=695.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": ":J42_0_0",
+          "lane": "-R128_1",
           "bus": false,
-          "text": "Vehicle 'f_R125_to_-R89.4' performs emergency braking on lane ':J42_0_0' with decel=9.00, wished=4.50, severity=1.00, time=1044.00."
+          "text": "Vehicle 'f_-R128_to_R130.4' performs emergency braking on lane '-R128_1' with decel=9.00, wished=4.50, severity=1.00, time=716.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": "-R127_2",
+          "lane": "R94_1",
           "bus": false,
-          "text": "Vehicle 'f_-R127_to_-R89.4' performs emergency braking on lane '-R127_2' with decel=9.00, wished=4.50, severity=1.00, time=1074.00."
+          "text": "Vehicle 'f_G4_to_R124.1' performs emergency braking on lane 'R94_1' with decel=9.00, wished=4.50, severity=1.00, time=1030.10."
         },
         {
           "kind": "emergency_braking",
-          "lane": "R53b_1",
+          "lane": "-R112.193_2",
           "bus": false,
-          "text": "Vehicle 'f_-R62_to_R124.5' performs emergency braking on lane 'R53b_1' with decel=9.00, wished=4.50, severity=1.00, time=1116.00."
+          "text": "Vehicle 'f_-R130_to_R128.9' performs emergency braking on lane '-R112.193_2' with decel=9.00, wished=4.50, severity=1.00, time=1120.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": "R125_2",
+          "lane": "-R113_1",
           "bus": false,
-          "text": "Vehicle 'f_R125_to_R48.5' performs emergency braking on lane 'R125_2' with decel=9.00, wished=4.50, severity=1.00, time=1168.30."
+          "text": "Vehicle 'f_-R126_to_R129.8' performs emergency braking on lane '-R113_1' with decel=9.00, wished=4.50, severity=1.00, time=1165.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": "R55s_1",
+          "lane": "-R113_1",
           "bus": false,
-          "text": "Vehicle 'f_R125_to_R48.5' performs emergency braking on lane 'R55s_1' with decel=9.00, wished=4.50, severity=1.00, time=1196.80."
+          "text": "Vehicle 'f_-R92.163_to_R128.8' performs emergency braking on lane '-R113_1' with decel=9.00, wished=4.50, severity=1.00, time=1477.10."
         },
         {
           "kind": "emergency_braking",
-          "lane": "R55s_1",
+          "lane": "R55_4",
           "bus": false,
-          "text": "Vehicle 'f_R125_to_R48.5' performs emergency braking on lane 'R55s_1' with decel=9.00, wished=4.50, severity=1.00, time=1197.10."
+          "text": "Vehicle 'f_R125_to_R128.4' performs emergency braking on lane 'R55_4' with decel=9.00, wished=4.50, severity=1.00, time=1493.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": "R55s_1",
+          "lane": "-R68_3",
           "bus": false,
-          "text": "Vehicle 'f_R125_to_R86.7' performs emergency braking on lane 'R55s_1' with decel=9.00, wished=4.50, severity=1.00, time=1655.50."
+          "text": "Vehicle 'f_-R130_to_R48.2' performs emergency braking on lane '-R68_3' with decel=9.00, wished=4.50, severity=1.00, time=1674.00."
         },
         {
           "kind": "emergency_braking",
-          "lane": "R55s_1",
+          "lane": "-R130_2",
           "bus": false,
-          "text": "Vehicle 'f_R125_to_R86.7' performs emergency braking on lane 'R55s_1' with decel=9.00, wished=4.50, severity=1.00, time=1655.70."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": "R55s_1",
-          "bus": false,
-          "text": "Vehicle 'f_R125_to_R86.7' performs emergency braking on lane 'R55s_1' with decel=9.00, wished=4.50, severity=1.00, time=1655.90."
-        },
-        {
-          "kind": "emergency_braking",
-          "lane": ":J42_0_0",
-          "bus": false,
-          "text": "Vehicle 'f_R125_to_R97.6' performs emergency braking on lane ':J42_0_0' with decel=9.00, wished=4.50, severity=1.00, time=1701.50."
+          "text": "Vehicle 'f_-R130_to_R129.8' performs emergency braking on lane '-R130_2' with decel=9.00, wished=4.50, severity=1.00, time=1693.00."
         }
       ],
-      "bus_trips": 11,
-      "bus_duration_s": 431.7,
-      "bus_waiting_s": 96.9,
+      "bus_trips": 12,
+      "bus_duration_s": 445.5,
+      "bus_waiting_s": 95.8,
       "bus_stop_time_s": 48.0
     }
   ]

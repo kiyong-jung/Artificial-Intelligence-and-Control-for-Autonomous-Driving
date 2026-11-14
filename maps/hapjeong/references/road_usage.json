@@ -1,0 +1,721 @@
+{
+ "map": "hapjeong",
+ "version": "3.5.0",
+ "scenario": "busy",
+ "seconds": 3600,
+ "seeds": [
+  0,
+  7,
+  42
+ ],
+ "roads": {
+  "B1": {
+   "name": "양화로 중앙버스전용차로",
+   "length_m": 172.6,
+   "vehicles_per_hour": 0.0,
+   "on_bus_route": false
+  },
+  "B2": {
+   "name": "양화로 중앙버스전용차로(합정 방향 반대편)",
+   "length_m": 194.5,
+   "vehicles_per_hour": 0.0,
+   "on_bus_route": false
+  },
+  "B3a": {
+   "name": "양화로 중앙버스전용차로(서교동사거리 정류장)",
+   "length_m": 60.9,
+   "vehicles_per_hour": 0.0,
+   "on_bus_route": false
+  },
+  "B3b": {
+   "name": "양화로 중앙버스전용차로(서교동사거리 정류장)",
+   "length_m": 26.5,
+   "vehicles_per_hour": 0.0,
+   "on_bus_route": false
+  },
+  "B4a": {
+   "name": "양화로 중앙버스전용차로(서교동사거리 하행 정류장)",
+   "length_m": 59.6,
+   "vehicles_per_hour": 0.0,
+   "on_bus_route": false
+  },
+  "B4b": {
+   "name": "양화로 중앙버스전용차로(서교동사거리 하행 정류장)",
+   "length_m": 26.9,
+   "vehicles_per_hour": 0.0,
+   "on_bus_route": false
+  },
+  "R66": {
+   "name": "",
+   "length_m": 5.9,
+   "vehicles_per_hour": 13.3,
+   "on_bus_route": false
+  },
+  "R66.c": {
+   "name": "",
+   "length_m": 12.2,
+   "vehicles_per_hour": 13.3,
+   "on_bus_route": false
+  },
+  "R67": {
+   "name": "",
+   "length_m": 12.1,
+   "vehicles_per_hour": 20.7,
+   "on_bus_route": false
+  },
+  "R67.c": {
+   "name": "",
+   "length_m": 5.4,
+   "vehicles_per_hour": 20.7,
+   "on_bus_route": false
+  },
+  "G17": {
+   "name": "독막로3길",
+   "length_m": 214.4,
+   "vehicles_per_hour": 37.7,
+   "on_bus_route": false
+  },
+  "G18": {
+   "name": "잔다리로3길",
+   "length_m": 173.1,
+   "vehicles_per_hour": 37.7,
+   "on_bus_route": false
+  },
+  "G19": {
+   "name": "어울마당로",
+   "length_m": 257.3,
+   "vehicles_per_hour": 40.0,
+   "on_bus_route": false
+  },
+  "G20": {
+   "name": "어울마당로",
+   "length_m": 51.4,
+   "vehicles_per_hour": 40.7,
+   "on_bus_route": false
+  },
+  "G21": {
+   "name": "어울마당로",
+   "length_m": 221.4,
+   "vehicles_per_hour": 40.7,
+   "on_bus_route": false
+  },
+  "G8": {
+   "name": "어울마당로",
+   "length_m": 24.9,
+   "vehicles_per_hour": 40.7,
+   "on_bus_route": false
+  },
+  "R120": {
+   "name": "어울마당로",
+   "length_m": 18.9,
+   "vehicles_per_hour": 40.7,
+   "on_bus_route": false
+  },
+  "R59": {
+   "name": "월드컵로",
+   "length_m": 17.1,
+   "vehicles_per_hour": 40.7,
+   "on_bus_route": false
+  },
+  "G3": {
+   "name": "독막로3길",
+   "length_m": 42.1,
+   "vehicles_per_hour": 42.0,
+   "on_bus_route": false
+  },
+  "G22": {
+   "name": "잔다리로6길",
+   "length_m": 97.9,
+   "vehicles_per_hour": 45.0,
+   "on_bus_route": false
+  },
+  "G25": {
+   "name": "잔다리로6길",
+   "length_m": 66.3,
+   "vehicles_per_hour": 45.0,
+   "on_bus_route": false
+  },
+  "-G25": {
+   "name": "잔다리로6길",
+   "length_m": 66.6,
+   "vehicles_per_hour": 45.3,
+   "on_bus_route": false
+  },
+  "G16": {
+   "name": "독막로7길",
+   "length_m": 292.6,
+   "vehicles_per_hour": 45.3,
+   "on_bus_route": false
+  },
+  "G23": {
+   "name": "잔다리로2길",
+   "length_m": 58.6,
+   "vehicles_per_hour": 45.3,
+   "on_bus_route": false
+  },
+  "G24": {
+   "name": "와우산로11길",
+   "length_m": 80.5,
+   "vehicles_per_hour": 45.3,
+   "on_bus_route": false
+  },
+  "G26": {
+   "name": "와우산로13길",
+   "length_m": 142.4,
+   "vehicles_per_hour": 45.3,
+   "on_bus_route": false
+  },
+  "G27": {
+   "name": "독막로15길",
+   "length_m": 24.9,
+   "vehicles_per_hour": 45.3,
+   "on_bus_route": false
+  },
+  "G4": {
+   "name": "양화로6길",
+   "length_m": 191.1,
+   "vehicles_per_hour": 45.3,
+   "on_bus_route": false
+  },
+  "R114": {
+   "name": "",
+   "length_m": 67.3,
+   "vehicles_per_hour": 63.3,
+   "on_bus_route": false
+  },
+  "-R111": {
+   "name": "독막로",
+   "length_m": 91.2,
+   "vehicles_per_hour": 64.3,
+   "on_bus_route": false
+  },
+  "-R111b": {
+   "name": "독막로",
+   "length_m": 26.7,
+   "vehicles_per_hour": 64.3,
+   "on_bus_route": false
+  },
+  "-R71": {
+   "name": "독막로",
+   "length_m": 52.0,
+   "vehicles_per_hour": 64.3,
+   "on_bus_route": false
+  },
+  "-R73": {
+   "name": "독막로",
+   "length_m": 135.2,
+   "vehicles_per_hour": 64.3,
+   "on_bus_route": false
+  },
+  "-R77": {
+   "name": "독막로",
+   "length_m": 96.7,
+   "vehicles_per_hour": 64.3,
+   "on_bus_route": false
+  },
+  "R68": {
+   "name": "독막로",
+   "length_m": 13.4,
+   "vehicles_per_hour": 64.7,
+   "on_bus_route": false
+  },
+  "R65": {
+   "name": "",
+   "length_m": 12.2,
+   "vehicles_per_hour": 69.7,
+   "on_bus_route": false
+  },
+  "R65.c": {
+   "name": "",
+   "length_m": 8.0,
+   "vehicles_per_hour": 69.7,
+   "on_bus_route": false
+  },
+  "R45": {
+   "name": "양화로",
+   "length_m": 12.6,
+   "vehicles_per_hour": 70.3,
+   "on_bus_route": false
+  },
+  "G11": {
+   "name": "성지1길",
+   "length_m": 57.6,
+   "vehicles_per_hour": 77.0,
+   "on_bus_route": false
+  },
+  "G12": {
+   "name": "독막로6길",
+   "length_m": 45.8,
+   "vehicles_per_hour": 77.0,
+   "on_bus_route": false
+  },
+  "G30": {
+   "name": "독막로4길",
+   "length_m": 49.1,
+   "vehicles_per_hour": 77.0,
+   "on_bus_route": false
+  },
+  "-R59": {
+   "name": "월드컵로",
+   "length_m": 17.1,
+   "vehicles_per_hour": 81.0,
+   "on_bus_route": false
+  },
+  "R41": {
+   "name": "양화로",
+   "length_m": 17.9,
+   "vehicles_per_hour": 91.0,
+   "on_bus_route": false
+  },
+  "-R71.104": {
+   "name": "독막로",
+   "length_m": 64.4,
+   "vehicles_per_hour": 94.0,
+   "on_bus_route": false
+  },
+  "-R71.55": {
+   "name": "독막로",
+   "length_m": 46.5,
+   "vehicles_per_hour": 94.0,
+   "on_bus_route": false
+  },
+  "R125": {
+   "name": "양화로",
+   "length_m": 126.6,
+   "vehicles_per_hour": 96.7,
+   "on_bus_route": false
+  },
+  "R92": {
+   "name": "잔다리로",
+   "length_m": 140.8,
+   "vehicles_per_hour": 98.0,
+   "on_bus_route": false
+  },
+  "-R127": {
+   "name": "홍익로",
+   "length_m": 112.4,
+   "vehicles_per_hour": 98.7,
+   "on_bus_route": false
+  },
+  "R79": {
+   "name": "",
+   "length_m": 7.3,
+   "vehicles_per_hour": 99.7,
+   "on_bus_route": false
+  },
+  "R79.c": {
+   "name": "",
+   "length_m": 14.2,
+   "vehicles_per_hour": 99.7,
+   "on_bus_route": false
+  },
+  "R127": {
+   "name": "홍익로",
+   "length_m": 112.4,
+   "vehicles_per_hour": 100.0,
+   "on_bus_route": false
+  },
+  "-R61.320": {
+   "name": "월드컵로",
+   "length_m": 209.9,
+   "vehicles_per_hour": 101.7,
+   "on_bus_route": false
+  },
+  "R43": {
+   "name": "양화로",
+   "length_m": 381.9,
+   "vehicles_per_hour": 104.3,
+   "on_bus_route": false
+  },
+  "R50": {
+   "name": "양화로",
+   "length_m": 122.6,
+   "vehicles_per_hour": 104.3,
+   "on_bus_route": false
+  },
+  "-R68": {
+   "name": "독막로",
+   "length_m": 9.9,
+   "vehicles_per_hour": 105.0,
+   "on_bus_route": false
+  },
+  "R71.206": {
+   "name": "독막로",
+   "length_m": 46.5,
+   "vehicles_per_hour": 105.0,
+   "on_bus_route": true
+  },
+  "R126": {
+   "name": "월드컵북로",
+   "length_m": 67.0,
+   "vehicles_per_hour": 106.7,
+   "on_bus_route": false
+  },
+  "R51": {
+   "name": "양화로",
+   "length_m": 262.8,
+   "vehicles_per_hour": 106.7,
+   "on_bus_route": false
+  },
+  "R124": {
+   "name": "양화로",
+   "length_m": 126.6,
+   "vehicles_per_hour": 108.0,
+   "on_bus_route": false
+  },
+  "-R129": {
+   "name": "와우산로",
+   "length_m": 95.2,
+   "vehicles_per_hour": 110.3,
+   "on_bus_route": false
+  },
+  "R61": {
+   "name": "월드컵로",
+   "length_m": 210.3,
+   "vehicles_per_hour": 110.3,
+   "on_bus_route": false
+  },
+  "-R126": {
+   "name": "월드컵북로",
+   "length_m": 67.0,
+   "vehicles_per_hour": 110.7,
+   "on_bus_route": false
+  },
+  "-R128": {
+   "name": "독막로",
+   "length_m": 113.6,
+   "vehicles_per_hour": 111.7,
+   "on_bus_route": false
+  },
+  "R47": {
+   "name": "양화로",
+   "length_m": 26.4,
+   "vehicles_per_hour": 112.7,
+   "on_bus_route": false
+  },
+  "R48": {
+   "name": "양화로",
+   "length_m": 262.9,
+   "vehicles_per_hour": 112.7,
+   "on_bus_route": false
+  },
+  "-R92.163": {
+   "name": "잔다리로",
+   "length_m": 140.8,
+   "vehicles_per_hour": 115.7,
+   "on_bus_route": false
+  },
+  "-R130": {
+   "name": "와우산로",
+   "length_m": 121.7,
+   "vehicles_per_hour": 117.0,
+   "on_bus_route": false
+  },
+  "-R69": {
+   "name": "독막로",
+   "length_m": 79.5,
+   "vehicles_per_hour": 118.3,
+   "on_bus_route": false
+  },
+  "-R69a": {
+   "name": "독막로",
+   "length_m": 11.5,
+   "vehicles_per_hour": 118.3,
+   "on_bus_route": false
+  },
+  "-R71.175": {
+   "name": "독막로",
+   "length_m": 134.9,
+   "vehicles_per_hour": 118.3,
+   "on_bus_route": false
+  },
+  "R115": {
+   "name": "",
+   "length_m": 56.2,
+   "vehicles_per_hour": 120.7,
+   "on_bus_route": false
+  },
+  "R71.256": {
+   "name": "독막로",
+   "length_m": 52.0,
+   "vehicles_per_hour": 152.3,
+   "on_bus_route": true
+  },
+  "R73": {
+   "name": "독막로",
+   "length_m": 135.2,
+   "vehicles_per_hour": 152.3,
+   "on_bus_route": true
+  },
+  "R42": {
+   "name": "양화로",
+   "length_m": 16.0,
+   "vehicles_per_hour": 152.7,
+   "on_bus_route": true
+  },
+  "R112": {
+   "name": "와우산로",
+   "length_m": 96.3,
+   "vehicles_per_hour": 156.7,
+   "on_bus_route": true
+  },
+  "R69": {
+   "name": "독막로",
+   "length_m": 79.5,
+   "vehicles_per_hour": 164.3,
+   "on_bus_route": true
+  },
+  "R69a": {
+   "name": "독막로",
+   "length_m": 11.5,
+   "vehicles_per_hour": 164.3,
+   "on_bus_route": true
+  },
+  "R71": {
+   "name": "독막로",
+   "length_m": 134.8,
+   "vehicles_per_hour": 164.3,
+   "on_bus_route": true
+  },
+  "R46": {
+   "name": "양화로",
+   "length_m": 92.7,
+   "vehicles_per_hour": 170.0,
+   "on_bus_route": false
+  },
+  "R49": {
+   "name": "양화로",
+   "length_m": 65.1,
+   "vehicles_per_hour": 170.0,
+   "on_bus_route": false
+  },
+  "R49a": {
+   "name": "양화로",
+   "length_m": 22.9,
+   "vehicles_per_hour": 170.0,
+   "on_bus_route": false
+  },
+  "R113": {
+   "name": "잔다리로",
+   "length_m": 142.0,
+   "vehicles_per_hour": 175.7,
+   "on_bus_route": true
+  },
+  "R71.135": {
+   "name": "독막로",
+   "length_m": 64.4,
+   "vehicles_per_hour": 182.0,
+   "on_bus_route": true
+  },
+  "R130": {
+   "name": "와우산로",
+   "length_m": 121.6,
+   "vehicles_per_hour": 188.0,
+   "on_bus_route": false
+  },
+  "R128": {
+   "name": "독막로",
+   "length_m": 113.6,
+   "vehicles_per_hour": 192.7,
+   "on_bus_route": false
+  },
+  "R111": {
+   "name": "독막로",
+   "length_m": 91.2,
+   "vehicles_per_hour": 193.0,
+   "on_bus_route": true
+  },
+  "R111b": {
+   "name": "독막로",
+   "length_m": 26.7,
+   "vehicles_per_hour": 193.0,
+   "on_bus_route": true
+  },
+  "R77": {
+   "name": "독막로",
+   "length_m": 95.7,
+   "vehicles_per_hour": 193.0,
+   "on_bus_route": true
+  },
+  "-R112": {
+   "name": "와우산로",
+   "length_m": 82.8,
+   "vehicles_per_hour": 194.7,
+   "on_bus_route": false
+  },
+  "-R112.193": {
+   "name": "와우산로",
+   "length_m": 120.5,
+   "vehicles_per_hour": 194.7,
+   "on_bus_route": false
+  },
+  "-R112.84": {
+   "name": "와우산로",
+   "length_m": 96.8,
+   "vehicles_per_hour": 194.7,
+   "on_bus_route": false
+  },
+  "-R96": {
+   "name": "잔다리로",
+   "length_m": 51.4,
+   "vehicles_per_hour": 195.7,
+   "on_bus_route": true
+  },
+  "R129": {
+   "name": "와우산로",
+   "length_m": 95.2,
+   "vehicles_per_hour": 196.0,
+   "on_bus_route": false
+  },
+  "-R94": {
+   "name": "잔다리로",
+   "length_m": 88.5,
+   "vehicles_per_hour": 201.3,
+   "on_bus_route": false
+  },
+  "R96": {
+   "name": "잔다리로",
+   "length_m": 29.8,
+   "vehicles_per_hour": 201.3,
+   "on_bus_route": false
+  },
+  "R112.112": {
+   "name": "와우산로",
+   "length_m": 116.1,
+   "vehicles_per_hour": 202.0,
+   "on_bus_route": true
+  },
+  "R112.221": {
+   "name": "와우산로",
+   "length_m": 82.8,
+   "vehicles_per_hour": 202.0,
+   "on_bus_route": true
+  },
+  "R40": {
+   "name": "양화로",
+   "length_m": 14.6,
+   "vehicles_per_hour": 212.7,
+   "on_bus_route": false
+  },
+  "R96.37": {
+   "name": "잔다리로",
+   "length_m": 73.8,
+   "vehicles_per_hour": 220.0,
+   "on_bus_route": false
+  },
+  "-R96.64": {
+   "name": "잔다리로",
+   "length_m": 53.3,
+   "vehicles_per_hour": 221.0,
+   "on_bus_route": true
+  },
+  "R54": {
+   "name": "양화로",
+   "length_m": 166.8,
+   "vehicles_per_hour": 222.3,
+   "on_bus_route": true
+  },
+  "R54a": {
+   "name": "양화로",
+   "length_m": 271.0,
+   "vehicles_per_hour": 222.3,
+   "on_bus_route": true
+  },
+  "R54b": {
+   "name": "양화로",
+   "length_m": 38.2,
+   "vehicles_per_hour": 222.3,
+   "on_bus_route": true
+  },
+  "R44": {
+   "name": "양화로",
+   "length_m": 120.9,
+   "vehicles_per_hour": 233.3,
+   "on_bus_route": false
+  },
+  "R55": {
+   "name": "양화로",
+   "length_m": 102.7,
+   "vehicles_per_hour": 238.3,
+   "on_bus_route": false
+  },
+  "R55a": {
+   "name": "양화로",
+   "length_m": 186.8,
+   "vehicles_per_hour": 238.3,
+   "on_bus_route": false
+  },
+  "R55s": {
+   "name": "양화로",
+   "length_m": 58.7,
+   "vehicles_per_hour": 238.3,
+   "on_bus_route": false
+  },
+  "R55t": {
+   "name": "양화로",
+   "length_m": 26.5,
+   "vehicles_per_hour": 238.3,
+   "on_bus_route": false
+  },
+  "-R113": {
+   "name": "잔다리로",
+   "length_m": 141.0,
+   "vehicles_per_hour": 239.3,
+   "on_bus_route": false
+  },
+  "R96.119": {
+   "name": "잔다리로",
+   "length_m": 40.4,
+   "vehicles_per_hour": 240.0,
+   "on_bus_route": false
+  },
+  "-R96.119": {
+   "name": "잔다리로",
+   "length_m": 73.8,
+   "vehicles_per_hour": 246.3,
+   "on_bus_route": true
+  },
+  "R53": {
+   "name": "양화로",
+   "length_m": 68.3,
+   "vehicles_per_hour": 247.0,
+   "on_bus_route": false
+  },
+  "R53b": {
+   "name": "양화로",
+   "length_m": 60.5,
+   "vehicles_per_hour": 247.0,
+   "on_bus_route": false
+  },
+  "R53c": {
+   "name": "양화로",
+   "length_m": 26.1,
+   "vehicles_per_hour": 247.0,
+   "on_bus_route": false
+  },
+  "R53d": {
+   "name": "양화로",
+   "length_m": 219.2,
+   "vehicles_per_hour": 247.0,
+   "on_bus_route": false
+  },
+  "R96.176": {
+   "name": "잔다리로",
+   "length_m": 51.4,
+   "vehicles_per_hour": 260.0,
+   "on_bus_route": false
+  },
+  "-R96.201": {
+   "name": "잔다리로",
+   "length_m": 29.8,
+   "vehicles_per_hour": 265.3,
+   "on_bus_route": true
+  },
+  "R94": {
+   "name": "잔다리로",
+   "length_m": 88.5,
+   "vehicles_per_hour": 310.3,
+   "on_bus_route": true
+  }
+ }
+}

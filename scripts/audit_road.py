@@ -49,13 +49,12 @@ def structure(definition: dict) -> dict:
     net = readNet(definition["net_path"], withInternal=True)
     dead_lanes, outer_left_turns = [], []
     for edge in net.getEdges(withInternal=False):
-        # 경계로 나가는 도로는 되돌아오는 연결만 있다. 그 차로들은 끊긴 것이 아니라 도착지다.
         lanes = [lane for lane in edge.getLanes() if drives(lane)]
         # 경계로 나가는 도로(끝 노드의 이웃이 출발 노드뿐)의 차로는 끊긴 것이 아니라 도착지다.
         end = edge.getToNode()
-        turns = [c.getDirection() for lane in lanes for c in lane.getOutgoing()]
-        if ({e.getToNode() for e in end.getOutgoing()} | {e.getFromNode() for e in end.getIncoming()} == {edge.getFromNode()}
-                or (turns and all(turn == "t" for turn in turns))):
+        neighbours = ({e.getToNode() for e in end.getOutgoing() if not e.getID().startswith(":")}
+                      | {e.getFromNode() for e in end.getIncoming() if not e.getID().startswith(":")})
+        if neighbours == {edge.getFromNode()}:
             continue
         for lane in lanes:
             if not lane.getOutgoing():

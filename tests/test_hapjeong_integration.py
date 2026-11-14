@@ -32,10 +32,15 @@ def test_overlay_is_registered_before_other_route_files(world):
 
 def test_merge_alley_flows_use_cutin_type(world):
     flows = list(ET.parse(os.path.join(world.out_dir, "routes.rou.xml")).getroot().iter("flow"))
-    types = {f.get("from"): f.get("type") for f in flows}
-    assert all(types[a] == "cutin" for a in MERGE_ALLEYS)
-    assert all(t == "carDist" for a, t in types.items() if a not in MERGE_ALLEYS)
-    assert world.summary["cutin_flows"] == sum(f.get("from") in MERGE_ALLEYS for f in flows) > 0
+
+    def alley(flow):
+        """흐름이 출발하거나 거쳐 가는 합류 골목. 없으면 None."""
+        return next((edge for edge in [flow.get("from"), *(flow.get("via") or "").split()] if edge in MERGE_ALLEYS), None)
+    merging = [f for f in flows if alley(f)]
+    assert {alley(f) for f in merging} == set(MERGE_ALLEYS)
+    assert all(f.get("type") == "cutin" for f in merging)
+    assert all(f.get("type") == "carDist" for f in flows if not alley(f))
+    assert world.summary["cutin_flows"] == len(merging) > 0
 
 
 def test_s6_pedestrians_get_both_types(world):

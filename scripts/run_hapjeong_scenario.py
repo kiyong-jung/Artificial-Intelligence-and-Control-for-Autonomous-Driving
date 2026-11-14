@@ -247,7 +247,6 @@ def main():
                     help="A1이 버스의 차로 변경 의사를 읽는 조건. any=방향지시등만, scenario=S2(좌회전 직전)·S3(정류장 접근)·S4(정차 차량 앞) 구간만")
     ap.add_argument("--lane-buses", type=float, default=30.0,
                     help="배경 버스(전용 차로 노선, 정류장에 서고 출발) 시간당 대수. 0이면 배경 버스·택시를 넣지 않는다")
-    ap.add_argument("--pass-buses", type=float, default=12.0, help="정류장에 서지 않는 통과 버스 시간당 대수(--lane-buses보다 적어야 한다)")
     ap.add_argument("--taxis", type=float, default=40.0, help="택시 시간당 대수")
     ap.add_argument("--no-stop-ahead", action="store_true",
                     help="시험용 버스가 정류장에 들어갈 때 앞의 택시·버스가 정류장 앞에 서는 동작을 끈다")
@@ -258,7 +257,7 @@ def main():
 
     stopped = [stopped_from_arg(x, a.warmup, i) for i, x in enumerate(a.stopped)]
     from traffic.bus_traffic import BusTrafficCfg
-    bt = (BusTrafficCfg(lane_buses_per_h=a.lane_buses, pass_buses_per_h=a.pass_buses, taxis_per_h=a.taxis)
+    bt = (BusTrafficCfg(lane_buses_per_h=a.lane_buses, taxis_per_h=a.taxis)
           if a.lane_buses > 0 else None)
     world = HapjeongTraffic(a.out_dir, scenario=a.scenario, seed=a.seed, stopped=stopped, bus_traffic=bt)
     world.build()

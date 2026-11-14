@@ -1,10 +1,10 @@
-"""S4 동적판. 시험용 버스가 정류장에 들어가려 할 때, 그 앞에 있던 택시·버스가 정류장 앞에 서서 버스를 막는다.
+"""S4 동적판. 시험용 버스가 정류장에 들어가려 할 때, 그 앞에 있던 택시·일반 승용차가 정류장 앞에 서서 버스를 막는다.
 
 - 시험용 버스가 한 바퀴(노선 한 번)를 도는 동안, 정류장 6곳 중 무작위로 `n`곳에서 막힌다. n은 1 이상 3 미만(1 또는 2)이고 곳은 무작위다.
-- 막는 쪽은 버스가 그 정류장으로 들어가려 할 때(다음 정차 정류장이 그곳이고 `trigger_dist` m 이내) **버스 앞**에 있는 택시·버스다.
+- 막는 쪽은 버스가 그 정류장으로 들어가려 할 때(다음 정차 정류장이 그곳이고 `trigger_dist` m 이내) **버스 앞**에 있는 택시·일반 승용차다.
   그중 정류장에 가장 가까운 한 대를 고르고, 정류장 차로가 아닌 차로에 있으면 정류장 차로로 차선 변경을 요청한 뒤 정류장 앞에
   정차시킨다(TraCI `changeLane`, `setStop`/`setBusStop`).
-- 앞에 그런 차가 없으면 택시 한 대를 **미리 투입**한다: 시험용 버스에서 `min_spawn_dist`(200 m) 이상 앞의 도로 위에 넣어
+- 앞에 그런 차가 없으면 택시 또는 일반 승용차 한 대(무작위)를 **미리 투입**한다: 시험용 버스에서 `min_spawn_dist`(200 m) 이상 앞의 도로 위에 넣어
   달려와 정류장 앞에 서게 한다(버스 눈앞에 불쑥 생기지 않는다). 정류장이 너무 가까워 미리 넣을 수 없으면 그 정류장에서는
   막지 않는다(`none`으로 기록). 정류장 앞에 바로 넣는 방식은 쓰지 않는다. 그래서 한 바퀴에 최소 1회는 보장되지 않는다.
 - 같은 차가 정차 행동을 반복하지 않는다. 한 번 세운 차는 `driver.stopAhead`로 표시하고 다시 고르지 않는다.
@@ -16,8 +16,10 @@ from dataclasses import dataclass, field
 
 from .common import Ownership
 
-CANDIDATE_TYPES = ("bgtaxi", "bgbus_pass")      # 정류장에 원래 서지 않는 택시·버스
-TAXI_TYPE = "bgtaxi"
+# 정류장 앞에 세울 수 있는 차: 택시와 일반 승용차(배경 차량 car_*). vType 이름의 앞부분으로 가린다.
+# 배경 버스는 전용 차로 노선뿐이고 정류장마다 원래 서므로 후보가 아니다.
+CANDIDATE_TYPES = ("bgtaxi", "car_")
+SPAWN_TYPES = ("bgtaxi", "carDist")      # 미리 투입할 때 고르는 차종(택시, 일반 승용차 분포). 같은 확률
 
 
 @dataclass
@@ -37,7 +39,7 @@ class StopAheadManager:
 
     def __init__(self, traci, bus_id, stops, rng=None, owner=None, n_range=(1, 3), trigger_dist=400.0,
                  dwell=(15.0, 30.0), spawn_if_missing=True, candidate_types=CANDIDATE_TYPES,
-                 min_spawn_dist=200.0, min_before_stop=60.0):
+                 min_spawn_dist=200.0, min_before_stop=60.0, spawn_types=SPAWN_TYPES):
         """stops: [{"id", "edge", "lane"(차로 번호), "startPos", "endPos"}] 시험용 버스가 서는 정류장들(6곳)."""
         self.tc, self.bus = traci, bus_id
         self.stops = {s["id"]: s for s in stops}
@@ -47,6 +49,7 @@ class StopAheadManager:
         self.trigger_dist, self.dwell = trigger_dist, dwell
         self.spawn_if_missing = spawn_if_missing
         self.min_spawn_dist, self.min_before_stop = min_spawn_dist, min_before_stop
+        self.spawn_types = tuple(spawn_types)
         self.candidate_types = tuple(candidate_types)
         self.plan = {}                 # 이번 바퀴에 막을 정류장 id -> _Block
         self.used = set()              # 이미 정차 행동을 한 차(반복하지 않는다)
@@ -127,7 +130,7 @@ class StopAheadManager:
         return True
 
     def _find_ahead(self, stop):
-        """시험용 버스 앞에 있는 택시·버스 중 정류장에 가장 가까운 한 대. 없으면 None."""
+        """시험용 버스 앞에 있는 택시·일반 승용차 중 정류장에 가장 가까운 한 대. 없으면 None."""
         tc = self.tc
         st = self._bus_state()
         if st is None or stop["edge"] not in st[0][st[1]:]:
@@ -138,7 +141,7 @@ class StopAheadManager:
         for vid in tc.vehicle.getIDList():
             if vid == self.bus or vid in self.used or self.owner.owner(vid) not in (None, self.OWNER):
                 continue
-            if tc.vehicle.getTypeID(vid).split("@")[0] not in self.candidate_types:
+            if not tc.vehicle.getTypeID(vid).split("@")[0].startswith(self.candidate_types):
                 continue
             road = tc.vehicle.getRoadID(vid)
             if road.startswith(":") or road not in route[i:] or stop["edge"] not in tc.vehicle.getRoute(vid):
@@ -160,14 +163,15 @@ class StopAheadManager:
         vid = f"stopahead{self._n_spawn}"
         try:
             self.tc.route.add(f"r_{vid}", route_edges)
-            self.tc.vehicle.add(vid, f"r_{vid}", typeID=TAXI_TYPE, departLane=lane, departPos=f"{pos:.1f}",
+            self.tc.vehicle.add(vid, f"r_{vid}", typeID=self.rng.choice(self.spawn_types), departLane=lane,
+                                departPos=f"{pos:.1f}",
                                 departSpeed=speed)
         except Exception:
             return None
         return vid
 
     def _spawn_far(self, stop):
-        """미리 투입: 시험용 버스에서 min_spawn_dist 이상 앞의 도로 입구에 택시를 넣어 달려오게 한다."""
+        """미리 투입: 시험용 버스에서 min_spawn_dist 이상 앞의 도로 위에 택시나 승용차(spawn_types 중 무작위)를 넣어 달려오게 한다."""
         st = self._bus_state()
         if st is None or stop["edge"] not in st[0][st[1]:]:
             return None

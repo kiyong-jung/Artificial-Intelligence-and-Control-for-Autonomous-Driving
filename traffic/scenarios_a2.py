@@ -10,15 +10,15 @@ from .sumo_conn import traci, sumo_cmd, checkBinary
 ROUTE_LEN = 300.0     # main_in 길이 = 교차로까지 거리
 
 
-def build_a2_net(v_ign=15.0, bins=None, single_bin=None):
+def build_a2_net(v_ign=15.0, bins=None, single_bin=None, alley_x=300.0, alley_side=-1, name="a2"):
     """main_in -> J(priority) -> main_out, 비우선 접근로 alley(J로 합류).
 
     single_bin=(p, timegap, impatience): vType 하나만 쓰는 보정용.
     """
-    d = os.path.join(NET_DIR, "a2")
+    d = os.path.join(NET_DIR, name)
     _write(os.path.join(d, "n.nod.xml"),
-           '<nodes><node id="W" x="-300" y="0"/><node id="J" x="0" y="0" type="priority"/>'
-           '<node id="E" x="300" y="0"/><node id="S" x="0" y="-60"/></nodes>')
+           f'<nodes><node id="W" x="{-alley_x}" y="0"/><node id="J" x="0" y="0" type="priority"/>'
+           f'<node id="E" x="300" y="0"/><node id="S" x="0" y="{60 * alley_side}"/></nodes>')
     _write(os.path.join(d, "e.edg.xml"),
            '<edges><edge id="main_in" from="W" to="J" numLanes="1" speed="13.9"/>'
            '<edge id="main_out" from="J" to="E" numLanes="1" speed="13.9"/>'
@@ -37,6 +37,7 @@ def build_a2_net(v_ign=15.0, bins=None, single_bin=None):
 {vt}
 <route id="r_main" edges="main_in main_out"/>
 <route id="r_alley" edges="alley main_out"/>
+<flow id="f_alley" type="cutin" from="alley" to="main_out" begin="0" end="100000" period="exp(0.01)"/>
 </routes>""")
     _write(os.path.join(d, "a2.sumocfg"), """<configuration>
 <input><net-file value="net.net.xml"/><route-files value="r.rou.xml"/></input>
@@ -46,7 +47,7 @@ def build_a2_net(v_ign=15.0, bins=None, single_bin=None):
 
 
 def run_cutin_episode(cfg, cutter_type, seed, bus_speedmode=31, bus_speed=11.0,
-                      threshold_m=40.0, cutter_pos=0.0):
+                      threshold_m=40.0, cutter_pos=0.0, route_len=ROUTE_LEN):
     """버스가 11 m/s로 접근할 때 골목 차량이 우선권을 어기고 들어오는지 본다.
 
     entered: 버스가 교차로까지 threshold_m 이내일 때 골목 차량이 교차로에 진입했는가.
@@ -58,13 +59,14 @@ def run_cutin_episode(cfg, cutter_type, seed, bus_speedmode=31, bus_speed=11.0,
     else:
         tc.start(cmd)
     rng = random.Random(seed)
-    t_dep = rng.uniform(15.2, 17.5)          # 정지선 도착 시 버스가 15~40 m 앞
+    t_dep = rng.uniform(15.2, 17.5) + (route_len - ROUTE_LEN) / bus_speed   # 정지선 도착 시 버스가 15~40 m 앞
     tc.vehicle.add("bus0", "r_main", typeID="bus_test", departPos="0", departSpeed=str(bus_speed))
     tc.vehicle.setSpeedMode("bus0", bus_speedmode)
     entered, bus_dist_at_entry, collided, added = False, None, False, False
     t = 0.0
     step = 0
-    while t < 45.0:
+    t_limit = 45.0 + (route_len - ROUTE_LEN) / bus_speed      # 교차로가 멀수록 버스가 도착하기까지 오래 걸린다
+    while t < t_limit:
         if not added and t >= t_dep:
             tc.vehicle.add("c0", "r_alley", typeID=cutter_type, departPos=str(cutter_pos),
                            departSpeed="0")
@@ -81,7 +83,7 @@ def run_cutin_episode(cfg, cutter_type, seed, bus_speedmode=31, bus_speed=11.0,
             if road.startswith(":J") or road == "main_out":
                 if "bus0" in tc.vehicle.getIDList():
                     br = tc.vehicle.getRoadID("bus0")
-                    dist = (ROUTE_LEN - tc.vehicle.getLanePosition("bus0")) if br == "main_in" else 0.0
+                    dist = (route_len - tc.vehicle.getLanePosition("bus0")) if br == "main_in" else 0.0
                     bus_dist_at_entry = dist
                     entered = 0.0 <= dist <= threshold_m and br == "main_in"
                 else:
@@ -122,7 +124,7 @@ def build_s4_net(stop_duration=40):
     return os.path.join(d, "s4.sumocfg")
 
 
-def run_s4(cfg):
+def run_s4(cfg, sid="taxi0"):
     """택시가 정차하는 동안 버스가 뒤에서 멈추는지, 택시가 떠난 뒤 통과하는지 시계열로 기록."""
     tc = traci
     cmd = sumo_cmd(cfg, seed=0)
@@ -136,13 +138,38 @@ def run_s4(cfg):
         tc.simulationStep()
         t = round(step * 0.1, 6)
         ids = tc.vehicle.getIDList()
-        if "bus0" in ids and "taxi0" in ids:
-            rows.append((t, tc.vehicle.getLanePosition("taxi0"), tc.vehicle.getSpeed("taxi0"),
+        if "bus0" in ids and sid in ids:
+            rows.append((t, tc.vehicle.getLanePosition(sid), tc.vehicle.getSpeed(sid),
                          tc.vehicle.getLanePosition("bus0"), tc.vehicle.getSpeed("bus0"),
-                         tc.vehicle.isStoppedParking("taxi0")))
+                         tc.vehicle.isStoppedParking(sid)))
         elif "bus0" in ids:
             rows.append((t, None, None, tc.vehicle.getLanePosition("bus0"),
                          tc.vehicle.getSpeed("bus0"), False))
         if "bus0" not in ids and t > 10:
             break
     return rows
+
+
+def build_s4_kind_net(kind="taxi", stop_duration=40, lanes=1, stop_pos=300.0, stop_lane=0, name="s4k", bus_depart=8, extra_vtypes=""):
+    """S4 일반화: 정차 차량 유형(taxi|bus|car)을 바꿔 가며 같은 시험을 한다. 정차 차량 id는 stopped0, 버스는 bus0."""
+    from .cutin import StoppedSpec, stopped_vehicle_xml
+    d = os.path.join(NET_DIR, name)
+    _write(os.path.join(d, "n.nod.xml"),
+           '<nodes><node id="A" x="0" y="0"/><node id="B" x="800" y="0"/></nodes>')
+    _write(os.path.join(d, "e.edg.xml"),
+           f'<edges><edge id="E0" from="A" to="B" numLanes="{lanes}" speed="13.9"/></edges>')
+    subprocess.run([checkBinary("netconvert"), "-n", os.path.join(d, "n.nod.xml"), "-e", os.path.join(d, "e.edg.xml"),
+                    "-o", os.path.join(d, "net.net.xml"), "--no-warnings"], check=True, capture_output=True)
+    vts, vehs, pa = stopped_vehicle_xml(StoppedSpec(kind, "E0", stop_lane, stop_pos, 0, stop_duration, 1.0, "stopped0"))
+    _write(os.path.join(d, "pa.add.xml"), "<additional>" + pa + "</additional>")
+    _write(os.path.join(d, "r.rou.xml"), f"""<routes>
+<vType id="bus_test" vClass="bus" length="12" accel="1.2" decel="4.0" tau="1.0" sigma="0"/>
+{"".join(vts)}{extra_vtypes}<route id="r0" edges="E0"/>
+{"".join(vehs)}
+{"" if bus_depart is None else f'<vehicle id="bus0" type="bus_test" route="r0" depart="{bus_depart}" departLane="{stop_lane}" departSpeed="max"/>'}
+</routes>""")
+    _write(os.path.join(d, "s4.sumocfg"), """<configuration>
+<input><net-file value="net.net.xml"/><route-files value="r.rou.xml"/><additional-files value="pa.add.xml"/></input>
+<time><begin value="0"/><end value="200"/></time>
+</configuration>""")
+    return os.path.join(d, "s4.sumocfg")

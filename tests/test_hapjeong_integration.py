@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from maps import load_map  # noqa: E402
-from traffic.hapjeong import HapjeongTraffic, MERGE_ALLEYS  # noqa: E402
+from traffic.hapjeong import HapjeongTraffic  # noqa: E402
 from traffic.scenarios import ScriptedBus  # noqa: E402
 
 
@@ -30,17 +30,29 @@ def test_overlay_is_registered_before_other_route_files(world):
     assert "traffic.add.xml" in inputs.find("additional-files").get("value")
 
 
-def test_merge_alley_flows_use_cutin_type(world):
-    flows = list(ET.parse(os.path.join(world.out_dir, "routes.rou.xml")).getroot().iter("flow"))
+def test_merge_alleys_are_found_from_the_map(world):
+    """합류 골목은 지도(도로망 + 버스 경로)에서 자동으로 찾는다. 합정역 3.6.0은 흐름이 있는 합류점이 8곳이다."""
+    alleys = world.summary["cutin_alleys"]
+    active = {a["junction"] for a in alleys if a["flows"] > 0}
+    assert active == {"X_dongmak3", "X_dongmak6", "X_wausan11", "J74", "X_jandari7", "X_jandari2",
+                      "X_jandari3", "J48"}
+    assert all(a["minor"] and a["regulated"] for a in alleys)        # 골목이 비우선이고 충돌이 기록되는 교차로
 
-    def alley(flow):
-        """흐름이 출발하거나 거쳐 가는 합류 골목. 없으면 None."""
-        return next((edge for edge in [flow.get("from"), *(flow.get("via") or "").split()] if edge in MERGE_ALLEYS), None)
-    merging = [f for f in flows if alley(f)]
-    assert {alley(f) for f in merging} == set(MERGE_ALLEYS)
+
+def test_merge_alley_flows_use_cutin_type(world):
+    from traffic.alleys import flow_merges, read_net
+    net = read_net(os.path.join(world.out_dir, "network.net.xml"))
+    flows = list(ET.parse(os.path.join(world.out_dir, "routes.rou.xml")).getroot().iter("flow"))
+    merging = [f for f in flows if flow_merges(net, f.attrib, world.alleys)]
     assert all(f.get("type") == "cutin" for f in merging)
-    assert all(f.get("type") == "carDist" for f in flows if not alley(f))
+    assert all(f.get("type") == "carDist" for f in flows if f not in merging)
     assert world.summary["cutin_flows"] == len(merging) > 0
+    # a8b98cd(되돌리면 안 됨): 고리 골목(G30 G11 G12)을 via로 지나 버스 경로로 합류하는 흐름도 대상이다.
+    # 고리를 나와 서쪽(버스 반대 방향, -R71.55)으로 가는 흐름은 버스와 만나지 않아 대상이 아니다.
+    via_loop = [f for f in flows if "G12" in (f.get("via") or "").split()]
+    assert via_loop
+    assert any(f.get("type") == "cutin" for f in via_loop)
+    assert all((f.get("type") == "cutin") == (f in merging) for f in via_loop)
 
 
 def test_s6_pedestrians_get_both_types(world):

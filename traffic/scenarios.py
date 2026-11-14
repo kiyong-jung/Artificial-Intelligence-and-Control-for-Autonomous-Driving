@@ -81,7 +81,7 @@ def _param_float(tc, vid, key):
 
 
 def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
-                   follower_x0=21.5, p_override=None, record=False, bus_kwargs=None, lanes=(0, 1), edge="E0", warmup=0.0, mgr_kwargs=None):
+                   follower_x0=21.5, p_override=None, pc_override=None, record=False, bus_kwargs=None, lanes=(0, 1), edge="E0", warmup=0.0, mgr_kwargs=None):
     """한 번의 상호작용을 돌려 결과 dict를 돌려준다.
 
     p_override: 양보 확률을 고정(예: 0)해 누출 검사에 쓴다.
@@ -104,6 +104,12 @@ def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
         import copy
         types = copy.deepcopy(DEFAULT_TYPES)
         types[driver_type].p_yield = (p_override, p_override)
+        types[driver_type].yields = p_override >= 0.5     # 행동은 투입 때 확정된다: 0이면 양보하지 않는 차량
+    if pc_override is not None:
+        import copy
+        types = copy.deepcopy(types)
+        for cfg_t in types.values():
+            cfg_t.p_close_gap = pc_override
     mgr = YieldManager(tc, "bus0", rng=rng, types=types, stop_exit_pos=(edge, 100.0),
                        exit_max_dist=60.0, **(mgr_kwargs or {}))
     tc.vehicle.add("f0", "r0", typeID=driver_type, departPos=str(follower_x0),
@@ -134,9 +140,12 @@ def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
     inter = mgr.log[0] if mgr.log else None
     if inter is None and mgr.inter:
         inter = {"yield": next(iter(mgr.inter.values())).yields,
+                 "action": next(iter(mgr.inter.values())).action,
                  "max_decel": next(iter(mgr.inter.values())).max_decel,
                  "t_open": next(iter(mgr.inter.values())).t_open}
     out = {"type": driver_type, "seed": seed,
+           "action": None if inter is None else inter.get("action", "yield" if inter["yield"] else "keep"),
+           "p_close": _param_float(tc, "f0", "driver.pClose"),
            "assigned_type": tc.vehicle.getParameter("f0", "driver.type") if "f0" in tc.vehicle.getIDList() else None,
            "vtype": tc.vehicle.getTypeID("f0") if "f0" in tc.vehicle.getIDList() else None,
            "n_interactions": len(mgr.log) + len(mgr.inter),
@@ -149,3 +158,20 @@ def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
     if record:
         out["series"] = series
     return out
+
+
+def build_a1_mixed_net():
+    """배경 차량처럼 이름이 car_로 시작하고 추종 모델이 제각각(Krauss/IDM/EIDM/ACC)인 후행차를 둔 A1 도로."""
+    import shutil
+    src = os.path.dirname(build_a1_net())
+    dst = os.path.join(NET_DIR, "a1_mixed")
+    shutil.rmtree(dst, ignore_errors=True)
+    shutil.copytree(src, dst)
+    rou = os.path.join(dst, "r.rou.xml")
+    text = open(rou, encoding="utf-8").read()
+    base = ('length="4.5" accel="2.6" decel="4.5" tau="1.0" sigma="0" maxSpeed="9" '
+            'speedFactor="1" speedDev="0" actionStepLength="0.5"')
+    types = "".join(f'<vType id="car_{k}" {base} carFollowModel="{m}"/>\n'
+                    for k, m in (("krauss", "Krauss"), ("idm", "IDM"), ("eidm", "EIDM"), ("acc", "ACC")))
+    _write(rou, text.replace("<route id", types + "<route id", 1))
+    return os.path.join(dst, "a1.sumocfg")

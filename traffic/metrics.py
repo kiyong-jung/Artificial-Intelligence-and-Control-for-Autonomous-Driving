@@ -27,7 +27,15 @@ def passenger_weighted_delay(delays, occupancies):
 
 class MetricsRecorder:
     def __init__(self, traci, bus_id, radius=50.0, brake_thresh=3.0, dt=0.1,
-                 crossing_edge=None, bus_zone_roads=None, occupancy=None):
+                 crossing_edge=None, bus_zone_roads=None, occupancy=None, ped_mgr=None,
+                 harsh_decel=4.5, emergency_decel=9.0):
+        # ped_mgr: PedDefianceManager. 주면 보행자가 무시하고 건너기로 한 때의 선두 차량이 급감속(harsh_decel 이상)·
+        # 비상 감속(emergency_decel 이상)을 몇 번 했는지 센다. 연속한 한 번의 감속은 사건 하나로 센다.
+        self.ped_mgr, self.harsh_decel, self.emergency_decel = ped_mgr, harsh_decel, emergency_decel
+        self.ped_harsh_events = 0
+        self.ped_emergency_events = 0
+        self.ped_decel_vehicles = set()
+        self._pd_state = {}          # 차량 id -> (급감속 중인가, 비상 감속 중인가)
         self.tc, self.bus, self.radius, self.thresh, self.dt = traci, bus_id, radius, brake_thresh, dt
         self.prev = {}
         self.hard_brakes = {}        # 차량 id -> 최대 감속(임계 초과분만)
@@ -49,8 +57,19 @@ class MetricsRecorder:
         self.emergency_stops.update(tc.simulation.getEmergencyStoppingVehiclesIDList())
         if self.bus in ids:
             bx, by = tc.vehicle.getPosition(self.bus)
+        watched = self.ped_mgr.watched(t) if self.ped_mgr is not None else ()
         for vid in ids:
             sp = tc.vehicle.getSpeed(vid)
+            if vid in watched and vid in self.prev:
+                dec = (self.prev[vid] - sp) / self.dt
+                was_h, was_e = self._pd_state.get(vid, (False, False))
+                is_h, is_e = dec >= self.harsh_decel, dec >= self.emergency_decel
+                if is_h and not was_h:
+                    self.ped_harsh_events += 1
+                    self.ped_decel_vehicles.add(vid)
+                if is_e and not was_e:
+                    self.ped_emergency_events += 1
+                self._pd_state[vid] = (is_h, is_e)
             if vid != self.bus and self.bus in ids and vid in self.prev:
                 x, y = tc.vehicle.getPosition(vid)
                 if ((x - bx) ** 2 + (y - by) ** 2) ** 0.5 <= self.radius:
@@ -90,5 +109,8 @@ class MetricsRecorder:
                 "max_induced_decel": max(self.hard_brakes.values(), default=0.0),
                 "collisions": self.collisions,
                 "emergency_stops": len(self.emergency_stops), "pet": pets,
+                "ped_defiance_harsh_decel_events": self.ped_harsh_events,
+                "ped_defiance_emergency_decel_events": self.ped_emergency_events,
+                "ped_defiance_decel_vehicles": len(self.ped_decel_vehicles),
                 "weighted_delay_person_s": passenger_weighted_delay(
                     [self.delay[v] for v in self.delay], [self.occ[v] for v in self.delay])}

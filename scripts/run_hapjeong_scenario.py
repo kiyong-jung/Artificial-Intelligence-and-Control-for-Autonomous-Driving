@@ -22,7 +22,7 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from maps import load_map  # noqa: E402
-from traffic.hapjeong import HapjeongTraffic  # noqa: E402
+from traffic.hapjeong import HapjeongTraffic, stopped_from_arg  # noqa: E402
 from traffic.sumo_conn import traci  # noqa: E402
 from traffic.yield_logic import BLINKER_LEFT, BLINKER_RIGHT  # noqa: E402
 
@@ -140,6 +140,8 @@ class LoopBus:
         road, idx, pos = tc.vehicle.getRoadID(BUS), tc.vehicle.getLaneIndex(BUS), tc.vehicle.getLanePosition(BUS)
         off, why = (0, "") if road.startswith(":") else self._want_offset(tc, t, road, idx, pos)
         if self.phase == "idle":
+            if off != 0 and not 0 <= idx + (1 if off > 0 else -1) < tc.edge.getLaneNumber(road):
+                off = 0                                   # 없는 차로로는 요청하지 않는다(차로 수가 바뀌는 도로)
             if off != 0:
                 self.target, self.why, self._left = idx + (1 if off > 0 else -1), why, off > 0
                 self.t_disc = t if why == "추월" else self.t_disc
@@ -158,7 +160,8 @@ class LoopBus:
                 self.phase, self.t_phase = "request", t
         elif self.phase == "request":
             tc.vehicle.setSignals(BUS, BLINKER_LEFT if self._left else BLINKER_RIGHT)   # 변경이 끝날 때까지 유지
-            if idx == self.target or t - self.t_phase > self.TIMEOUT_S:
+            if (idx == self.target or t - self.t_phase > self.TIMEOUT_S or road.startswith(":")
+                    or self.target >= tc.edge.getLaneNumber(road)):     # 도로가 바뀌어 목표 차로가 없어졌다
                 self._reset(tc, t)
             elif int(round((t - self.t_phase) * 10)) % 20 == 0:
                 tc.vehicle.changeLane(BUS, self.target, self.REQUEST_DURATION)
@@ -236,13 +239,32 @@ def main():
                     help="옮겨 갈 차로 뒤에 차가 있으면, 이 간격(초)마다 일부러 그쪽으로 차로를 바꿔 상호작용을 만든다. 0이면 끈다")
     ap.add_argument("--no-companion", action="store_true", help="시험 차로 변경 때 뒤에 차를 따로 넣지 않는다(자연 교통만)")
     ap.add_argument("--no-stops", action="store_true", help="정류장에 서지 않는다")
+    ap.add_argument("--stopped", action="append", default=[], metavar="SPEC",
+                    help="S4 정차 차량(여러 번 줄 수 있다). 쉼표로 이은 key=value: kind=taxi|bus|car, "
+                         "edge=R69,lane=1,pos=30 또는 stop=<정류장 id·이름>[,gap=14], depart=60(warmup 뒤 초), "
+                         "duration=30(정차 시간 초), prob=1(발생 확률). 예) --stopped kind=taxi,stop=합정역7번출구,depart=60")
+    ap.add_argument("--triggers", choices=("any", "scenario"), default="any",
+                    help="A1이 버스의 차로 변경 의사를 읽는 조건. any=방향지시등만, scenario=S2(좌회전 직전)·S3(정류장 접근)·S4(정차 차량 앞) 구간만")
+    ap.add_argument("--lane-buses", type=float, default=30.0,
+                    help="배경 버스(전용 차로 노선, 정류장에 서고 출발) 시간당 대수. 0이면 배경 버스·택시를 넣지 않는다")
+    ap.add_argument("--pass-buses", type=float, default=12.0, help="정류장에 서지 않는 통과 버스 시간당 대수(--lane-buses보다 적어야 한다)")
+    ap.add_argument("--taxis", type=float, default=40.0, help="택시 시간당 대수")
+    ap.add_argument("--no-stop-ahead", action="store_true",
+                    help="시험용 버스가 정류장에 들어갈 때 앞의 택시·버스가 정류장 앞에 서는 동작을 끈다")
+    ap.add_argument("--no-stop-bypass", action="store_true", help="S1(정차 버스 뒤 차량의 기다림·추월)을 끈다")
+    ap.add_argument("--no-ped-defiance", action="store_true", help="A3 보강(신호 없는 횡단보도 보행자의 건너기 판정)을 끈다")
     ap.add_argument("--out-dir", default=os.path.join(tempfile.gettempdir(), "hapjeong_scenario"))
     a = ap.parse_args()
 
-    world = HapjeongTraffic(a.out_dir, scenario=a.scenario, seed=a.seed)
+    stopped = [stopped_from_arg(x, a.warmup, i) for i, x in enumerate(a.stopped)]
+    from traffic.bus_traffic import BusTrafficCfg
+    bt = (BusTrafficCfg(lane_buses_per_h=a.lane_buses, pass_buses_per_h=a.pass_buses, taxis_per_h=a.taxis)
+          if a.lane_buses > 0 else None)
+    world = HapjeongTraffic(a.out_dir, scenario=a.scenario, seed=a.seed, stopped=stopped, bus_traffic=bt)
     world.build()
-    print(f"합정역 {a.scenario} seed {a.seed}: 끼어들기 흐름 {world.summary['cutin_flows']}개, "
-          f"S6 보행자 {world.summary['s6_persons']}명. 실행 폴더 {a.out_dir}")
+    print(f"합정역 {a.scenario} seed {a.seed}: 끼어들기 흐름 {world.summary['cutin_flows']}개"
+          f"(합류 골목 {sum(1 for x in world.summary['cutin_alleys'] if x['flows'])}곳), "
+          f"S6 보행자 {world.summary['s6_persons']}명, 정차 차량 {len(world.summary['stopped'])}대. 실행 폴더 {a.out_dir}")
     print("범례: 버스=빨강 | 노랑 Krauss, 청록 IDM, 주황 EIDM, 자홍 ACC, 회색 끼어들기 | "
           "고리 초록=양보 빨강=비양보")
     tc = world.start(warmup=a.warmup, gui=not a.nogui)
@@ -256,6 +278,8 @@ def main():
     state = {"rings": None, "tracked": False}
 
     def on_step(t):
+        state["collisions"] = state.get("collisions", 0) + len(tc.simulation.getCollisions())
+        state["teleports"] = state.get("teleports", 0) + len(tc.simulation.getStartingTeleportIDList())
         if state["rings"] is None:
             state["rings"] = Rings(tc, world.mgr)
         state["rings"].step(t)
@@ -268,7 +292,10 @@ def main():
             time.sleep(a.delay / 1000.0)
 
     try:
-        world.run(tc.simulation.getTime() + a.seconds, bus_id=BUS, bus_hook=bus.tick, on_step=on_step)
+        world.run(tc.simulation.getTime() + a.seconds, bus_id=BUS, bus_hook=bus.tick, on_step=on_step,
+                  stop_bypass=not a.no_stop_bypass, ped_defiance=not a.no_ped_defiance,
+                  stop_ahead=not a.no_stop_ahead,
+                  triggers="scenario" if a.triggers == "scenario" else None)
     except (traci.exceptions.FatalTraCIError, ConnectionError):
         print("창이 닫혀 시뮬레이션을 마칩니다.")
     finally:
@@ -278,6 +305,14 @@ def main():
         print("버스 차로 변경 요청: " + (", ".join(f"{k} {v}회" for k, v in bus.changes.items()) or "없음"))
         if state["rings"]:
             print("버스를 마주친 차량의 판정(주행 모델별):\n" + state["rings"].summary())
+        if getattr(world, "stop", None) is not None:
+            print("S1 정차 버스 뒤 차량:", world.stop.summary())
+        if getattr(world, "ped", None) is not None:
+            print("A3 보행자 건너기 판정:", world.ped.summary())
+        print("정차 차량(S4):", world.summary["stopped"])
+        if getattr(world, "ahead", None) is not None:
+            print("정류장 앞 정차(시험용 버스 진입 시):", world.ahead.summary())
+        print(f"충돌 {state.get('collisions', 0)}건, 순간이동 {state.get('teleports', 0)}건")
         try:
             world.close()
         except Exception:

@@ -18,8 +18,24 @@ class _Tc:
     lane = _Lane()
 
 
-def _inj():
-    return ScenarioInjector(_Tc(), None, "bus0", [], [], "cutin_0", rng=random.Random(0))
+class _Net:
+    def __init__(self, tls=()):
+        self.tls = set(tls)
+
+    def getEdge(self, eid):
+        net = self
+
+        class _E:
+            def getToNode(self):
+                class _N:
+                    def getType(self_):
+                        return "traffic_light" if eid in net.tls else "priority"
+                return _N()
+        return _E()
+
+
+def _inj(tls=()):
+    return ScenarioInjector(_Tc(), _Net(tls), "bus0", [], [], "cutin_0", rng=random.Random(0))
 
 
 def test_back_point_walks_backwards_along_the_route():
@@ -29,6 +45,12 @@ def test_back_point_walks_backwards_along_the_route():
     assert (k, round(p)) == (1, 0) or (k, round(p)) == (0, 100)
     assert inj._back_point(route, 1, 10.0, 200.0) is None                  # 경로 시작보다 더 뒤: 투입 못 한다
     assert inj._gap(route, 0, 40.0, 2, 10.0) == 60.0 + 60.0 + 10.0
+
+
+def test_back_point_stops_after_a_signalized_junction():
+    inj, route = _inj(tls=("B",)), ["A", "B", "C"]                         # B 끝이 신호 교차로
+    assert inj._back_point(route, 2, 10.0, 70.0) == (2, 1.0)               # 신호 뒤 C 시작에서 출발(적색에 걸리지 않게)
+    assert inj._back_point(route, 2, 50.0, 30.0) == (2, 20.0)              # 같은 도로 안이면 그대로
 
 
 def test_summary_separates_natural_from_injected():

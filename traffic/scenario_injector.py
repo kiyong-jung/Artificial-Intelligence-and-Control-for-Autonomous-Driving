@@ -22,7 +22,9 @@ class ScenarioInjector:
 
     def __init__(self, traci, net, bus_id, stops, alleys, cutin_type, rng=None, back_s1=220.0, back_lane=110.0,
                  max_lane=2, s6_edges=("-R112", "R112.112"), s6_edge_before="R112", trigger_s6=100.0,
-                 follower_check=80.0, exits=(), ready_gap=40.0):
+                 follower_check=80.0, exits=(), ready_gap=40.0, s5_lead=60.0):
+        self.s5_lead = s5_lead                           # S5 끼어들기 차를 합류점 이만큼 앞에서 출발시킨다
+        self._escort = {}                                # 주입한 후행차 -> 시작 시각. 버스를 앞지르지 않게 속도를 묶는다
         self.ready_gap = ready_gap                       # 목표 차로 후행차가 이만큼 가까이 오면 버스가 차선변경을 요청한다
         self._pending = None
         self.why_fn = None                               # 시험용 버스의 차선변경 이유를 돌려주는 함수(경로·정류장만 주입 대상)
@@ -70,6 +72,10 @@ class ScenarioInjector:
             return i, pos - back
         left, k = back - pos, i - 1
         while k >= 0:
+            if self.net.getEdge(route[k]).getToNode().getType() == "traffic_light":
+                # 신호 교차로 뒤에서 출발시키면 후행차가 적색에 걸려 버스에 닿지 못한다(S2 후행차가 목표 차로에 없던 원인).
+                # 신호 교차로를 이미 지난 도로(k+1)의 시작에서 출발시킨다.
+                return k + 1, 1.0
             L = self._len(route[k])
             if left <= L:
                 return k, L - left
@@ -112,6 +118,7 @@ class ScenarioInjector:
             return
         if self._lap is None:
             self._new_lap(t)
+        self._escort_step(t)
         st = self._state()
         if st is None:
             return
@@ -171,11 +178,28 @@ class ScenarioInjector:
         k, p = bp
         target = idx + (1 if left else -1)
         lane = str(target) if 0 <= target < tc.edge.getLaneNumber(route[k]) and target >= 1 else "best"
-        vid = self._add_car("lane", route[k:i + 3], lane, p)
+        vid = self._add_car("lane", route[k:i + 8], lane, p)       # 경로를 넉넉히 줘서 중간에 사라지지 않게 한다
         self._record("S2" if left else "S3", t, "injected" if vid else False, vid)
         if vid:
             self._pending = {"vid": vid, "left": left, "t": t}
+            self._escort[vid] = t
         lap[key] = lap.get(key, 0) + 1
+
+    def _escort_step(self, t):
+        """주입한 후행차가 시험용 버스를 앞지르지 않게 최고 속도를 버스 속도 +2 m/s로 묶는다(최대 30초).
+        그래야 버스가 방향지시등을 켜고 차선변경을 요청할 때 후행차가 가까운 뒤에 있어 A1이 켜진다(앞지르면 상호작용이 사라진다)."""
+        if not self._escort:
+            return
+        tc = self.tc
+        ids = set(tc.vehicle.getIDList())
+        v_bus = tc.vehicle.getSpeed(self.bus) if self.bus in ids else 0.0
+        for vid, t0 in list(self._escort.items()):
+            if vid not in ids or t - t0 > 30.0 or self.bus not in ids:
+                if vid in ids:
+                    tc.vehicle.setMaxSpeed(vid, 13.89)      # 묶음을 푼다
+                del self._escort[vid]
+                continue
+            tc.vehicle.setMaxSpeed(vid, max(4.0, v_bus + 2.0))
 
     def gate(self, t):
         """시험용 버스가 차선변경을 요청해도 되는가. 목표 차로 후행차가 `ready_gap` 안으로 오기 전에는 False다.
@@ -215,7 +239,10 @@ class ScenarioInjector:
             a = lap["s5_alley"] = self.rng.choice(ahead)
             d = dist(a)
         feeder_len = self.net.getEdge(a.feeder).getLength()
-        t_cut = feeder_len / 8.0 + 1.0                        # 골목 차가 합류점에 닿는 데 걸리는 시간
+        # 골목이 길면(예: G16 190 m) 시작점에서 출발해 합류점에 닿기까지 20초 넘게 걸려 그 사이 버스가 정류장·신호로 늦어지면
+        # 골목 차가 이미 멀리 가 버린다. 합류점 `lead` m 앞에서 출발시킨다(골목 안은 버스가 볼 수 없어 갑자기 생겨도 자연스럽다).
+        spawn_pos = max(1.0, feeder_len - self.s5_lead)
+        t_cut = (feeder_len - spawn_pos) / 8.0 + 0.5          # 골목 차가 합류점에 닿는 데 걸리는 시간
         if d / max(tc.vehicle.getSpeed(self.bus), 5.0) > t_cut + 2.0:
             return                                            # 아직 이르다: 버스가 합류점에 닿기 2초 전에 골목 차가 먼저 닿도록 맞춘다
         lap["s5"] = True
@@ -225,7 +252,7 @@ class ScenarioInjector:
             seg, _ = self.net.getOptimalPath(self.net.getEdge(a.into), self.net.getEdge(out), vClass="passenger")
             path = [a.feeder] + [e.getID() for e in seg] if seg else None
         path = path or [a.feeder, a.into]
-        vid = self._add_car("s5", path, "0", 1.0, vtype=self.cutin_type)
+        vid = self._add_car("s5", path, "0", spawn_pos, vtype=self.cutin_type)
         self._record("S5", t, "injected" if vid else False, vid)
 
     def _s6(self, t, st):
@@ -233,11 +260,11 @@ class ScenarioInjector:
         if lap["s6"]:
             return
         route, i, pos, idx = st
-        if self.s6_before not in route[i:]:
-            return
-        j = route.index(self.s6_before, i)
-        d = self._gap(route, i, pos, j, self._len(self.s6_before))     # 횡단보도(그 도로의 끝)까지 남은 거리
-        if d < 0 or d > self.trigger_s6:
+        if route[i] != self.s6_before:
+            return                                       # 횡단보도 바로 앞 도로에 들어온 뒤에만 넣는다(그 전에 신호 대기가 끼면 보행자가 먼저 건너 버린다)
+        d = self._len(self.s6_before) - pos              # 횡단보도(그 도로의 끝)까지 남은 거리
+        # 보행자는 7초 걸어 횡단보도에 닿고 약 13초 건넌다. 보행자가 닿을 때 버스가 60 m 앞에 오도록 맞춘다.
+        if d < 0 or d > max(60.0, 7.0 * max(tc.vehicle.getSpeed(self.bus), 5.0) + 60.0):
             return
         lap["s6"] = True
         # 이미 횡단보도 위에 사람이 있어도 그 사람이 버스가 50 m 안에 올 때까지 건너고 있을지 알 수 없으므로, 바퀴마다 한 명은

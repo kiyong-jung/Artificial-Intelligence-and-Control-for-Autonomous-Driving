@@ -185,7 +185,12 @@ def main():
             safety["by_type"][key] = safety["by_type"].get(key, 0) + 1
             safety["pairs"].add((c.collider, c.victim))
             if len(safety["coll_examples"]) < 10:
-                safety["coll_examples"].append((round(t), c.type, c.collider, c.victim, c.lane))
+                tls_info = None
+                for tid, ror in (world.summary.get("right_on_red") or {}).items():
+                    if c.lane.startswith(f":{tid}_"):          # 우회전을 바꾼 신호 교차로 안: 그때 위상과 원래 프로그램의 상태
+                        ph = tc.trafficlight.getPhase(tid)
+                        tls_info = (tid, ph, tc.trafficlight.getRedYellowGreenState(tid), ror["orig"][ph])
+                safety["coll_examples"].append((round(t), c.type, c.collider, c.victim, c.lane, tls_info))
         safety["teleports"] += len(tc.simulation.getStartingTeleportIDList())
         ids = tc.vehicle.getIDList()
         if "bus0" in ids:
@@ -199,6 +204,25 @@ def main():
                     safety["popin_200m"] += 1
                 if d < 100:
                     safety["popin_100m"].append((round(t), v, round(d)))
+
+    trace = {"s6": [], "s5": [], "s2": []}              # 주입한 보행자·끼어들기 차·후행차가 실제로 무엇을 하는지(원인 확인용)
+
+    def sample_trace(t):
+        ids = tc.vehicle.getIDList()
+        busr = ((tc.vehicle.getRoadID("bus0"), round(tc.vehicle.getLanePosition("bus0")), tc.vehicle.getLaneIndex("bus0"))
+                if "bus0" in ids else None)
+        for v in ids:
+            if v.startswith("inj_s5") and len(trace["s5"]) < 150:
+                trace["s5"].append((round(t, 1), lap(), v, tc.vehicle.getRoadID(v), round(tc.vehicle.getLanePosition(v)),
+                                    round(tc.vehicle.getSpeed(v), 1), busr))
+            elif v.startswith("inj_lane") and len(trace["s2"]) < 250:
+                trace["s2"].append((round(t, 1), lap(), v, tc.vehicle.getRoadID(v), tc.vehicle.getLaneIndex(v),
+                                    round(tc.vehicle.getLanePosition(v)), round(tc.vehicle.getSpeed(v), 1), busr,
+                                    tc.vehicle.getSignals("bus0") if busr else None, bus.phase))
+        for p in tc.person.getIDList():
+            if p.startswith("inj_s6") and len(trace["s6"]) < 200:
+                trace["s6"].append((round(t, 1), lap(), p, tc.person.getRoadID(p), round(tc.person.getLanePosition(p), 1),
+                                    round(tc.person.getSpeed(p), 2), busr))
 
     def sample_s6(t):
         """신호 없는 횡단보도 앞 대기: 가장 오래 기다린 차, 20·30초 넘게 기다린 차 수, 대기 줄 길이, 보행자 점유."""
@@ -234,6 +258,7 @@ def main():
     def on_step(t):                                   # noqa: F811
         if int(round(t * 10)) % 5 == 0:                # 횡단보도 계측은 0.5초마다(속도)
             sample_s6(t)
+            sample_trace(t)
         sample_safety(t)
         _on_step(t)
 
@@ -279,7 +304,7 @@ def main():
                       "new_vehicles_within_200m_of_bus": safety["popin_200m"],
                       "new_vehicles_within_100m_of_bus": len(safety["popin_100m"]),
                       "within_100m_examples": safety["popin_100m"][:8]},
-           "ped_x": PED_X, "ped_cfg": "old" if OLD_PED else "new", "variant": TAG,
+           "ped_x": PED_X, "ped_cfg": "old" if OLD_PED else "new", "variant": TAG, "trace": trace,
            "injector": ({**world.injector.summary(), "log": world.injector.log} if world.injector else None),
            "ped_revoked": world.ped.revoked if world.ped else None,
            "bus_long_waits_outside_stops": bw["long"], "s3_trace": bw["s3_trace"],

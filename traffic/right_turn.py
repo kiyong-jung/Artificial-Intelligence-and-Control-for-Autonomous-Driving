@@ -95,5 +95,6 @@ def apply_right_on_red(traci, net, exclude=("J1",), foe_ok="ry"):
                 phase.state = "".join(s)
             traci.trafficlight.setProgramLogic(tid, logic)
         changed[tid] = {"links": len(links), "opened_share": round(opened / total, 2) if total else 0.0,
-                        "blocked_by_ped": round(by_ped / total, 2) if total else 0.0}
+                        "blocked_by_ped": round(by_ped / total, 2) if total else 0.0,
+                        "orig": origs}               # 바꾸기 전 위상별 상태(충돌이 우리가 연 위상에서 났는지 가리는 데 쓴다)
     return changed

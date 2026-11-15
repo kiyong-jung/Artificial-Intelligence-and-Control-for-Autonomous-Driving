@@ -243,8 +243,8 @@ class ScenarioInjector:
         # 골목 차가 이미 멀리 가 버린다. 합류점 `lead` m 앞에서 출발시킨다(골목 안은 버스가 볼 수 없어 갑자기 생겨도 자연스럽다).
         spawn_pos = max(1.0, feeder_len - self.s5_lead)
         t_cut = (feeder_len - spawn_pos) / 8.0 + 0.5          # 골목 차가 합류점에 닿는 데 걸리는 시간
-        if d / max(tc.vehicle.getSpeed(self.bus), 5.0) > t_cut + 2.0:
-            return                                            # 아직 이르다: 버스가 합류점에 닿기 2초 전에 골목 차가 먼저 닿도록 맞춘다
+        if d / max(tc.vehicle.getSpeed(self.bus), 5.0) > t_cut + 3.0:
+            return                                            # 아직 이르다: 버스가 합류점에 닿기 3초 전에 골목 차가 먼저 닿도록 맞춘다(2초일 때 버스 뒤로 처진 경우가 있었다)
         lap["s5"] = True
         out = self.rng.choice(self.exits) if self.exits else None
         path = None

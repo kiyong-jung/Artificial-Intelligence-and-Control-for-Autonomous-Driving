@@ -180,9 +180,20 @@ class YieldManager:
         if self.triggers is not None and not any(tr.matches(side, edge, pos) for tr in self.triggers):
             return 0
         old = self.pos_hist[0]
-        if old[2] != edge or pos - old[1] < self.advance_min:
+        # 직전 2 s 사이 도로가 바뀌었으면 앞으로 간 것이다(짧은 도로 R111b 27 m는 진입 2 s 안에 항상 이전 도로가 이력에 남아
+        # 예전에는 여기서 거부되어 S2 A1이 켜지지 않았다). 같은 도로에서만 전진 거리를 본다.
+        if old[2] == edge and pos - old[1] < self.advance_min and not self._waiting_at_line(edge, pos):
             return 0
         return side
+
+    def _waiting_at_line(self, edge, pos, within=5.0):
+        """정지선(도로 끝) 앞에서 신호를 기다리며 방향지시등을 켠 버스인가. 이때는 서 있어도 진입 의사로 본다
+        (신호 대기 중 뒤차가 다가오는 S2 상황이 A1에서 빠지던 원인)."""
+        try:
+            lane = self.traci.vehicle.getLaneID(self.bus)
+            return self.traci.lane.getLength(lane) - pos <= within
+        except Exception:
+            return False
 
     def _target_follower(self, side):
         """들어가려는 차로 하나에서 버스에 가장 가까운 후행차 한 대. 없으면 None."""

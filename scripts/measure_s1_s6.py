@@ -30,9 +30,9 @@ SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 0
 TAG = sys.argv[3] if len(sys.argv) > 3 else ""          # 결과 파일 이름 꼬리표
 OLD_PED = "old" in TAG                                  # 꼬리표에 old가 있으면 보행자 수정 전 설정으로 잰다
 PED_X = 4 if "hiped" in TAG else 1                      # 꼬리표에 hiped가 있으면 횡단보도 보행자를 4배로 늘린다
-LAPS, T_MAX = 3, 2600.0
+LAPS, T_MAX = int(os.environ.get("MEASURE_LAPS", "3")), float(os.environ.get("MEASURE_TMAX", "2600"))
 CUT_WINDOW, NEAR = 15.0, 50.0
-S6_CROSS, S6_EDGE = ":S6_wausanro_c", "R112"
+S6_CROSS, S6_EDGE = ":S6_wausanro_c", "R112.112"      # 횡단보도는 R112.112의 끝(116 m)에 있다. 예전 값 R112는 횡단보도 116 m 전이라 건너는 사람을 놓쳤다
 S6_APPROACH = ["-R112_0", "-R112_1", "-R112_2", "R112.112_0", "R112.112_1", "R112.112_2"]   # 횡단보도로 들어오는 차로
 S6_QUEUE_M = 40.0                                       # 횡단보도 앞 이 거리 안에 서 있는 차를 대기 차로 센다
 
@@ -205,22 +205,33 @@ def main():
                 if d < 100:
                     safety["popin_100m"].append((round(t), v, round(d)))
 
-    trace = {"s6": [], "s5": [], "s2": []}              # 주입한 보행자·끼어들기 차·후행차가 실제로 무엇을 하는지(원인 확인용)
+    trace = {"s6": [], "s5": [], "s2": [], "a1": []}             # 주입한 보행자·끼어들기 차·후행차가 실제로 무엇을 하는지(원인 확인용)
 
     def sample_trace(t):
         ids = tc.vehicle.getIDList()
         busr = ((tc.vehicle.getRoadID("bus0"), round(tc.vehicle.getLanePosition("bus0")), tc.vehicle.getLaneIndex("bus0"))
                 if "bus0" in ids else None)
+        if busr and tc.vehicle.getSignals("bus0") & 3 and len(trace["a1"]) < 400:   # 방향지시등이 켜진 동안 A1이 왜 안 켜지는지
+            side = 1 if tc.vehicle.getSignals("bus0") & 2 else -1
+            mgr = world.mgr
+            f = tc.vehicle.getLeftFollowers("bus0") if side > 0 else tc.vehicle.getRightFollowers("bus0")
+            tf = mgr._target_follower(side)
+            trace["a1"].append((round(t, 1), lap(), busr, side, bus.phase,
+                                [(i, round(d)) for i, d in f if i][:3], tf,
+                                tc.vehicle.getParameter(tf, "driver.type") if tf else None,
+                                mgr.owner.owner(tf) if tf else None,
+                                any(tr.matches(side, busr[0], busr[1]) for tr in (mgr.triggers or [])),
+                                len(mgr.inter)))
         for v in ids:
-            if v.startswith("inj_s5") and len(trace["s5"]) < 150:
+            if v.startswith("inj_s5") and len(trace["s5"]) < 900:
                 trace["s5"].append((round(t, 1), lap(), v, tc.vehicle.getRoadID(v), round(tc.vehicle.getLanePosition(v)),
                                     round(tc.vehicle.getSpeed(v), 1), busr))
-            elif v.startswith("inj_lane") and len(trace["s2"]) < 250:
+            elif v.startswith("inj_lane") and len(trace["s2"]) < 1500:
                 trace["s2"].append((round(t, 1), lap(), v, tc.vehicle.getRoadID(v), tc.vehicle.getLaneIndex(v),
                                     round(tc.vehicle.getLanePosition(v)), round(tc.vehicle.getSpeed(v), 1), busr,
                                     tc.vehicle.getSignals("bus0") if busr else None, bus.phase))
         for p in tc.person.getIDList():
-            if p.startswith("inj_s6") and len(trace["s6"]) < 200:
+            if p.startswith("inj_s6") and len(trace["s6"]) < 1200:
                 trace["s6"].append((round(t, 1), lap(), p, tc.person.getRoadID(p), round(tc.person.getLanePosition(p), 1),
                                     round(tc.person.getSpeed(p), 2), busr))
 

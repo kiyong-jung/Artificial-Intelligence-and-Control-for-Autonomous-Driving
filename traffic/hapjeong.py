@@ -282,21 +282,34 @@ class HapjeongTraffic:
         route = loop or m["routes"]["bus_loop"]
         net = read_net(os.path.join(self.out_dir, "network.net.xml"))
         out = []
+
+        def zones_before(k, pos):
+            """경로의 k번째 도로 pos 앞 approach m를 도로 경계를 넘어 거슬러 올라가며 구간으로 만든다.
+            짧은 도로(R111b 27 m)가 구간이면 버스가 방향지시등을 켜는 앞 도로(R111)가 빠져 A1이 켜지지 않았다."""
+            zs, left_m = [], approach
+            while left_m > 0 and k >= 0 and net.hasEdge(route[k]):
+                lo = max(0.0, pos - left_m)
+                zs.append(Zone(route[k], lo, pos))
+                left_m -= pos - lo
+                k -= 1
+                if k >= 0 and net.hasEdge(route[k]):
+                    pos = net.getEdge(route[k]).getLength()
+            return zs
+
         left = []
-        for a, b in zip(route, route[1:]):
+        for k, (a, b) in enumerate(zip(route, route[1:])):
             if not (net.hasEdge(a) and net.hasEdge(b)):
                 continue
             conns = net.getEdge(a).getConnections(net.getEdge(b))
             if conns and all(c.getDirection() in ("l", "L") for c in conns):
-                L = net.getEdge(a).getLength()
-                left.append(Zone(a, max(0.0, L - approach), L))
+                left += zones_before(k, net.getEdge(a).getLength())
         if left:
             out.append(Trigger(+1, left))
         right = []
         for s in m["bus_stops"]:
             edge = s["lane"].rsplit("_", 1)[0]
             if edge in route:
-                right.append(Zone(edge, max(0.0, s["startPos"] - approach), s["startPos"]))
+                right += zones_before(route.index(edge), s["startPos"])
         if right:
             out.append(Trigger(-1, right))
         for item in self.summary.get("stopped", []):

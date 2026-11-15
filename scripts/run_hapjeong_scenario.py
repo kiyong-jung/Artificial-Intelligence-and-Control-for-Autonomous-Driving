@@ -39,8 +39,14 @@ class LoopBus:
     한 바퀴를 마치면 같은 자리에서 다시 출발한다.
     """
     SIGNAL_S, REQUEST_DURATION, TIMEOUT_S = 3.0, 5.0, 14.0
+    SIGNAL_MAX = 12.0     # gate가 있으면 방향지시등을 켜 두고 이 시간까지 기다린 뒤 차선변경을 요청한다
 
-    def __init__(self, tc, loop_edges, stops, with_stops=True, stop_s=8.0, discretionary=True, probe_s=10.0, companions=True):
+    def __init__(self, tc, loop_edges, stops, with_stops=True, stop_s=8.0, discretionary=True, probe_s=10.0, companions=True,
+                 cruise=True):
+        # cruise: 정류장을 떠난 뒤 가로변 차로(1번)에서 한 칸 왼쪽 차로로 옮겨 달리고, 다음 정류장에 닿기 전 오른쪽으로 돌아온다.
+        # 노선에서 오른쪽 차선변경(S3, 정류장 접근)이 생기게 하는 규칙이다.
+        self.cruise, self.t_cruise = cruise, -99.0
+        self.gate = None      # 차선변경 요청 전에 호출되는 함수 gate(t) -> bool. False면 방향지시등만 켜고 기다린다(주입기가 단다)
         self.tc, self.stops, self.with_stops, self.stop_s = tc, stops, with_stops, stop_s
         closure = tc.simulation.findRoute(loop_edges[-1], loop_edges[0], vType="bus_test").edges
         self.route = list(loop_edges) + list(closure[1:])      # 끝에서 시작점으로 이어 붙여 이음새 없이 돈다
@@ -118,6 +124,13 @@ class LoopBus:
             for s in self.stops:
                 if s["edge"] == road and 0 <= s["startPos"] - pos < 150.0 and idx != s["lane_idx"]:
                     return s["lane_idx"] - idx, "정류장"
+        if (self.cruise and self.with_stops and tc.vehicle.getStopState(BUS) == 0 and idx == 1
+                and t - self.t_cruise >= 20.0 and tc.edge.getLaneNumber(road) >= 3 and self._drivable(tc, road, 2)
+                and tc.lane.getLength(tc.vehicle.getLaneID(BUS)) - pos > 150.0
+                and tc.vehicle.getSpeed(BUS) > 3.0
+                and not any(s["edge"] == road and 0 <= s["startPos"] - pos <= 200.0 for s in self.stops)):
+            self.t_cruise = t
+            return 1, "순항"                                # 가로변 차로를 떠나 한 칸 왼쪽으로. 정류장이 가까워지면 오른쪽으로 돌아온다
         if self.discretionary and t - self.t_disc >= 25.0 and tc.vehicle.getStopState(BUS) == 0:
             lead = tc.vehicle.getLeader(BUS, 40.0)
             if lead and lead[1] < 30.0 and tc.vehicle.getSpeed(lead[0]) < tc.vehicle.getSpeed(BUS) - 1.0                     and tc.lane.getLength(tc.vehicle.getLaneID(BUS)) - pos > 80.0:
@@ -153,9 +166,10 @@ class LoopBus:
                 print(f"[{t:7.1f}s] 버스 방향지시등 {'왼쪽' if off > 0 else '오른쪽'} ({why}) "
                       f"{road} 차로 {idx}→{self.target}")
         elif self.phase == "signal":
-            if off == 0 and self.why not in ("추월", "시험", "시험(동행차)"):
+            if off == 0 and self.why not in ("추월", "시험", "시험(동행차)", "순항"):
                 self._reset(tc, t)
-            elif t - self.t_phase >= self.SIGNAL_S:
+            elif t - self.t_phase >= self.SIGNAL_S and (self.gate is None or self.gate(t)
+                                                        or t - self.t_phase >= self.SIGNAL_MAX):
                 tc.vehicle.changeLane(BUS, self.target, self.REQUEST_DURATION)
                 self.phase, self.t_phase = "request", t
         elif self.phase == "request":
@@ -235,6 +249,10 @@ def main():
     ap.add_argument("--zoom", type=float, default=900.0, help="버스를 따라갈 때의 확대율")
     ap.add_argument("--no-track", action="store_true", help="버스를 자동으로 따라가지 않는다")
     ap.add_argument("--no-overtake", action="store_true", help="느린 앞차를 피하는 선택적 차로 변경을 끈다")
+    ap.add_argument("--no-cruise", action="store_true",
+                    help="정류장을 떠난 뒤 한 칸 왼쪽 차로로 옮겨 달리는 순항 규칙을 끈다(켜 두면 정류장에 닿기 전 오른쪽 차선변경(S3)이 생긴다)")
+    ap.add_argument("--inject", action="store_true",
+                    help="시나리오 주입기: 시험용 버스가 지나는 순간 S1·S2·S3·S5·S6 상대가 없으면 미리 투입한다")
     ap.add_argument("--probe", type=float, default=10.0,
                     help="옮겨 갈 차로 뒤에 차가 있으면, 이 간격(초)마다 일부러 그쪽으로 차로를 바꿔 상호작용을 만든다. 0이면 끈다")
     ap.add_argument("--no-companion", action="store_true", help="시험 차로 변경 때 뒤에 차를 따로 넣지 않는다(자연 교통만)")
@@ -273,7 +291,8 @@ def main():
     stops = [{"id": s["id"], "name": s["name"], "edge": s["lane"].rsplit("_", 1)[0], "startPos": s["startPos"],
               "lane_idx": int(s["lane"].rsplit("_", 1)[1])}
              for s in m["bus_stops"] if s["lane"].rsplit("_", 1)[0] in loop]
-    bus = LoopBus(tc, loop, stops, with_stops=not a.no_stops, discretionary=not a.no_overtake, probe_s=a.probe, companions=not a.no_companion)
+    bus = LoopBus(tc, loop, stops, with_stops=not a.no_stops, discretionary=not a.no_overtake, probe_s=a.probe, companions=not a.no_companion,
+                  cruise=not a.no_cruise)
     state = {"rings": None, "tracked": False}
 
     def on_step(t):
@@ -282,6 +301,9 @@ def main():
         if state["rings"] is None:
             state["rings"] = Rings(tc, world.mgr)
         state["rings"].step(t)
+        if bus.gate is None and getattr(world, "injector", None) is not None:
+            bus.gate = world.injector.gate         # 주입한 후행차가 가까이 올 때까지 시험용 버스가 방향지시등을 켜고 기다린다
+            world.injector.why_fn = lambda: bus.why
         if not a.nogui:
             if not a.no_track and not state["tracked"] and BUS in tc.vehicle.getIDList():
                 view = tc.gui.getIDList()[0]
@@ -293,7 +315,7 @@ def main():
     try:
         world.run(tc.simulation.getTime() + a.seconds, bus_id=BUS, bus_hook=bus.tick, on_step=on_step,
                   stop_bypass=not a.no_stop_bypass, ped_defiance=not a.no_ped_defiance,
-                  stop_ahead=not a.no_stop_ahead,
+                  stop_ahead=not a.no_stop_ahead, scenario_inject=a.inject,
                   triggers="scenario" if a.triggers == "scenario" else None)
     except (traci.exceptions.FatalTraCIError, ConnectionError):
         print("창이 닫혀 시뮬레이션을 마칩니다.")

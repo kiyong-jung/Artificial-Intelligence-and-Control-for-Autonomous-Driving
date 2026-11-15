@@ -30,6 +30,9 @@ from .pedestrian import ped_vtypes_xml
 from .runner import run as run_loop
 from .sumo_conn import traci, sumo_cmd
 from .bus_traffic import BusTrafficCfg, build_bus_traffic
+from .interior_spawner import InteriorSpawner
+from .scenario_injector import ScenarioInjector
+from .right_turn import apply_right_on_red
 from .stop_ahead import StopAheadManager
 from .stop_bypass import StopBypassManager
 from .yield_logic import YieldManager, DEFAULT_TYPES, Trigger, Zone
@@ -90,7 +93,15 @@ class HapjeongTraffic:
 
     def __init__(self, out_dir, scenario="baseline", seed=0, *, yield_mix=None, cutin=True,
                  cutin_bins=None, ped_mix=0.5, ped_v_low=1.5, taxi_depart=None, stopped=None, merge_route=None,
-                 bus_traffic=None):
+                 bus_traffic=None, right_on_red=True, right_on_red_exclude=("J1",),
+                 interior_share=0.3, interior_min_dist=200.0):
+        # interior_share: 입구 배경 차량 흐름 중 이 비율을 노선 위 임의의 지점에서 출발시킨다(0이면 끈다). 시험용 버스에서
+        # interior_min_dist m 안에서는 투입하지 않아 눈앞에 갑자기 생기지 않는다.
+        self.interior_share, self.interior_min_dist = interior_share, interior_min_dist
+        # right_on_red: True면 신호 교차로의 우회전이 신호와 무관하게 간다. 단 우회전 차가 지나는 횡단보도의 보행자 신호가
+        # 적색이고 겹치는 직진·좌회전이 녹색이 아닌 위상에서만 열린다(신호 프로그램만 바꾼다). exclude는 합정역 사거리.
+        self.right_on_red, self.right_on_red_exclude = right_on_red, tuple(right_on_red_exclude)
+        self.interior, self.interior_per_h = None, 0.0
         # bus_traffic: BusTrafficCfg 또는 True(기본 설정). 배경 버스(전용 차로 노선·통과)와 택시를 투입한다. None이면 없다.
         self.bus_traffic = BusTrafficCfg() if bus_traffic is True else bus_traffic
         self.out_dir = os.path.abspath(out_dir)
@@ -119,9 +130,14 @@ class HapjeongTraffic:
             overlay_routes.append(cutin_vtype_xml("cutin", bins=bins, v_ign=15.0, base_attrs=_krauss_attrs()))
             self.summary["cutin_flows"] = self._retype_alley_flows()
             self.cutin_aggr = self._cutin_aggressiveness(bins)
+            self.cutin_full_ignore = next((f"cutin_{i}" for i, b in enumerate(bins) if b[0] >= 1.0), "cutin_0")
         if self.ped_mix is not None:
             overlay_routes.append(ped_vtypes_xml(self.ped_v_low, 0.75))
             self.summary["s6_persons"] = self._retype_s6_persons(rng)
+        self.interior_per_h = 0.0
+        if self.interior_share > 0:
+            self.interior_per_h = self._shift_entry_flows(self.interior_share)
+            self.summary["interior"] = {"share": self.interior_share, "per_h": round(self.interior_per_h, 1)}
         vtypes_seen = set()
         for i, spec in enumerate(self.stopped):
             if rng.random() >= spec.prob:             # 이번 실행에서는 이 정차가 일어나지 않는다
@@ -195,6 +211,27 @@ class HapjeongTraffic:
         return {f"cutin_{i}": (b[4] if len(b) > 4 else min(1.0, max(0.0, AGGRESSION.aggressiveness_from_ignore(b[0]))))
                 for i, b in enumerate(bins)}
 
+    def _shift_entry_flows(self, share):
+        """입구에서 들어오는 배경 차량(carDist) 흐름을 share 비율만큼 줄이고, 그 대수(대/시간)를 돌려준다.
+        줄인 만큼은 InteriorSpawner가 노선 위 임의의 지점에서 넣어 전체 대수를 지킨다."""
+        path = os.path.join(self.out_dir, "routes.rou.xml")
+        tree = ET.parse(path)
+        moved = 0.0
+        for flow in tree.getroot().iter("flow"):
+            if flow.get("type") != "carDist":
+                continue
+            period = flow.get("period") or ""
+            if period.startswith("exp("):
+                rate = float(period[4:-1])                       # 대/초
+                flow.set("period", f"exp({rate * (1 - share):.6f})")
+                moved += rate * share * 3600.0
+            elif period:
+                p = float(period)
+                flow.set("period", f"{p / (1 - share):.6f}")
+                moved += 3600.0 / p * share
+        tree.write(path, encoding="utf-8", xml_declaration=True)
+        return moved
+
     def _retype_s6_persons(self, rng):
         path = os.path.join(self.out_dir, "pedestrians.rou.xml")
         tree = ET.parse(path)
@@ -218,9 +255,23 @@ class HapjeongTraffic:
         extra = ["--start", "--delay", "0"] if gui else None
         cmd = sumo_cmd(self.cfg, seed=self.seed, extra=extra, binary="sumo-gui" if gui else "sumo")
         traci.load(cmd[1:]) if traci.isLoaded() else traci.start(cmd)
-        for _ in range(int(round(warmup / 0.1))):
+        if self.right_on_red:      # 신호와 무관한 우회전(횡단보도에 사람이 없을 때). 합정역 사거리(J1)는 제외
+            net = read_net(os.path.join(self.out_dir, "network.net.xml"))
+            self.summary["right_on_red"] = apply_right_on_red(traci, net, exclude=self.right_on_red_exclude)
+        self.interior = self._make_interior("bus0")
+        for k in range(int(round(warmup / 0.1))):
+            if self.interior is not None:
+                self.interior.update(k * 0.1)      # 예열 중에도 노선 위에서 출발시켜 시작 때부터 밀도를 맞춘다
             traci.simulationStep()
         return traci
+
+    def _make_interior(self, bus_id):
+        if self.interior_share <= 0 or self.interior_per_h <= 0:
+            return None
+        m = load_map(MAP_ID)
+        net = read_net(os.path.join(self.out_dir, "network.net.xml"))
+        return InteriorSpawner(traci, net, bus_id, m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}),
+                               self.interior_per_h, rng=random.Random(self.seed + 6), min_dist=self.interior_min_dist)
 
     def scenario_triggers(self, approach=120.0, loop=None):
         """A1 진입 의사 구간: S2(좌회전 직전, 좌측), S3(정류장 접근, 우측), S4(정차 차량 앞, 양쪽).
@@ -255,7 +306,7 @@ class HapjeongTraffic:
 
     def run(self, t_end, bus_id="bus0", bus_hook=None, metrics=None, yield_types=None, on_step=None,
             assign_existing=True, ped_defiance=True, stop_bypass=True, triggers=None, stop_ahead=True,
-            **mgr_kwargs):
+            ped_cfg=None, scenario_inject=False, **mgr_kwargs):
         """warmup 뒤 t_end초 동안 공통 실행 루프(runner.run)로 돌린다. 반환: (YieldManager, 마지막 시각).
 
         triggers: A1 진입 의사 구간. None이면 방향지시등만 본다. "scenario"면 scenario_triggers()를 쓴다.
@@ -271,7 +322,8 @@ class HapjeongTraffic:
         self.mgr = mgr
         if assign_existing:        # warmup 중에 투입된 차량에도 성격을 준다
             mgr.on_departed(traci.vehicle.getIDList())
-        self.ped = PedDefianceManager(traci, bus_id, rng=random.Random(self.seed + 2)) if ped_defiance else None
+        self.ped = (PedDefianceManager(traci, bus_id, rng=random.Random(self.seed + 2), cfg=ped_cfg)
+                    if ped_defiance else None)
         if metrics is not None and self.ped is not None and getattr(metrics, "ped_mgr", None) is None:
             metrics.ped_mgr = self.ped        # 보행자가 무시하고 건널 때의 급감속·비상 감속을 센다
         self.stop = (StopBypassManager(traci, bus_id, rng=random.Random(self.seed + 3), owner=self.owner)
@@ -283,9 +335,25 @@ class HapjeongTraffic:
                       "startPos": s["startPos"], "endPos": s["endPos"]}
                      for s in m["bus_stops"] if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]]
             self.ahead = StopAheadManager(traci, bus_id, stops, rng=random.Random(self.seed + 4), owner=self.owner)
+        extras = [self.ahead] if self.ahead else []
+        self.injector = None
+        if scenario_inject:                 # 방법 2: 시나리오 주입기(자연 발생이 없을 때만 상대를 미리 투입)
+            m = load_map(MAP_ID)
+            net = read_net(os.path.join(self.out_dir, "network.net.xml"))
+            self.injector = ScenarioInjector(
+                traci, net, bus_id,
+                [{"id": s["id"], "edge": s["lane"].rsplit("_", 1)[0]} for s in m["bus_stops"]
+                 if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]],
+                self.alleys, getattr(self, "cutin_full_ignore", "cutin_0"), rng=random.Random(self.seed + 8),
+                exits=sorted({f["to"] for f in m["flows"]}))
+            extras.append(self.injector)
+        if self.interior is None:
+            self.interior = self._make_interior(bus_id)
+        if self.interior is not None:
+            self.interior.bus = bus_id
+            extras.append(self.interior)
         t = run_loop(traci, t_end, bus_id, bus_hook=bus_hook, yield_mgr=mgr, metrics=metrics,
-                     on_step=on_step, ped_mgr=self.ped, stop_mgr=self.stop,
-                     extras=[self.ahead] if self.ahead else ())
+                     on_step=on_step, ped_mgr=self.ped, stop_mgr=self.stop, extras=extras)
         return mgr, t
 
     def close(self):

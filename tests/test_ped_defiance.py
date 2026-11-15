@@ -24,6 +24,32 @@ def test_factor_functions():
     assert distract_chance(16) > distract_chance(40) > 0
 
 
+def test_vehicle_wait_factor_lets_long_waiting_cars_go():
+    from traffic.ped_defiance import veh_wait_factor
+    assert veh_wait_factor(0, C) == veh_wait_factor(C.veh_wait_free, C) == 1.0
+    assert veh_wait_factor(6, C) < 1.0
+    assert veh_wait_factor(C.veh_wait_stop, C) == veh_wait_factor(60, C) == C.f_veh_wait_min
+    assert veh_wait_factor(4, C) > veh_wait_factor(8, C) > veh_wait_factor(11, C)
+
+
+def test_standing_car_is_not_treated_as_far_away():
+    """서 있는 차는 곧 출발할 차(통과 시간 2~3초대)로 본다. 예전처럼 10초로 보면 건너기 계수가 최대(×3)가 된다."""
+    class _V:
+        def getLanePosition(self, v): return 95.0
+        def getSpeed(self, v): return 0.0
+    class _L:
+        def getLastStepVehicleIDs(self, lane): return ["v"]
+        def getLength(self, lane): return 100.0
+    class _Tc:
+        vehicle, lane = _V(), _L()
+    m = object.__new__(PedDefianceManager)
+    m.traci, m.cfg = _Tc(), C
+    veh, ttc = m._closest("lane")
+    assert veh == "v" and ttc == C.standing_ttc                       # 5 m 앞에 선 차: 하한 2초
+    assert ttc_factor(ttc, C) == C.f_under_lower                      # 건너기 계수 ×0.1
+    assert ttc_factor(10.0, C) == C.f_over_upper                      # 예전 값은 ×3이었다
+
+
 def _episode(v, T, seed, on):
     d = os.path.join(NET_DIR, "a3")
     _write(os.path.join(d, "r.rou.xml"), f"""<routes>

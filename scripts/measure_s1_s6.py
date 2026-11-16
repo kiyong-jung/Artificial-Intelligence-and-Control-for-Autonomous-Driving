@@ -42,31 +42,16 @@ class Done(Exception):
 
 
 def multiply_s6_persons(path, k, seed):
-    """신호 없는 횡단보도를 건너는 보행자(s6ped*)를 k배로 늘린다. 사본은 출발 시각을 0~40초 흩뜨린 뒤 출발 시각 순으로 다시 쓴다."""
-    import copy
+    """신호 없는 횡단보도를 건너는 보행자(s6ped*)를 k배로 늘린다(persons.json). 사본은 출발 시각을 0~40초 흩뜨린다."""
+    import json
     import random
-    import xml.etree.ElementTree as ET
     rng = random.Random(seed + 77)
-    tree = ET.parse(path)
-    root = tree.getroot()
-    persons = list(root.findall("person"))
-    extra = []
-    for p in persons:
-        if p.get("id", "").startswith("s6ped"):
-            for j in range(1, k):
-                q = copy.deepcopy(p)
-                q.set("id", f"{p.get('id')}x{j}")
-                q.set("depart", f"{float(p.get('depart')) + rng.uniform(0, 40):.2f}")
-                extra.append(q)
-    for p in persons:
-        root.remove(p)
-    others = [e for e in list(root) if e.tag != "person"]
-    for e in persons + extra:
-        pass
-    allp = sorted(persons + extra, key=lambda e: float(e.get("depart")))
-    for e in allp:
-        root.append(e)
-    tree.write(path, encoding="utf-8", xml_declaration=True)
+    with open(path, encoding="utf-8") as f:
+        persons = json.load(f)
+    extra = [dict(p, id=f"{p['id']}x{j}", depart=round(p["depart"] + rng.uniform(0, 40), 2))
+             for p in persons if p["id"].startswith("s6ped") for j in range(1, k)]
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(sorted(persons + extra, key=lambda p: p["depart"]), f, ensure_ascii=False)
 
 
 def main():
@@ -75,7 +60,7 @@ def main():
                             right_on_red="noror" not in TAG, interior_share=0.0 if "nointer" in TAG else 0.3)
     world.build()
     if PED_X > 1:
-        multiply_s6_persons(os.path.join(out_dir, "pedestrians.rou.xml"), PED_X, SEED)
+        multiply_s6_persons(os.path.join(out_dir, "persons.json"), PED_X, SEED)
     tc = world.start(warmup=120)
     m = load_map("hapjeong")
     loop = m["routes"]["bus_loop"]

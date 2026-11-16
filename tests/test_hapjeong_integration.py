@@ -56,8 +56,12 @@ def test_merge_alley_flows_use_cutin_type(world):
 
 
 def test_s6_pedestrians_get_both_types(world):
-    persons = ET.parse(os.path.join(world.out_dir, "pedestrians.rou.xml")).getroot().iter("person")
-    typed = [p.get("type") for p in persons if p.get("type")]
+    # 보행자는 경로 파일에서 떼어 persons.json으로 옮긴다(PersonSpawner가 버스 반경 밖에서 넣는다)
+    import json
+    assert list(ET.parse(os.path.join(world.out_dir, "pedestrians.rou.xml")).getroot().iter("person")) == []
+    with open(os.path.join(world.out_dir, "persons.json"), encoding="utf-8") as f:
+        persons = json.load(f)
+    typed = [p["type"] for p in persons if p.get("type")]
     assert len(typed) == world.summary["s6_persons"] > 0
     assert set(typed) == {"ped_p1", "ped_p2"}
 

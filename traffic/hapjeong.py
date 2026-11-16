@@ -14,6 +14,7 @@ env.road_config.configure_map이 읽고, env.road_builder.build가 실행 폴더
 
 버스는 이 모듈이 만들지 않는다. 버스 제어 쪽이 `bus_hook(traci, t)`로 버스를 넣고 몰면 된다.
 """
+import json
 import os
 import random
 import xml.etree.ElementTree as ET
@@ -31,6 +32,7 @@ from .runner import run as run_loop
 from .sumo_conn import traci, sumo_cmd
 from .bus_traffic import BusTrafficCfg, build_bus_traffic
 from .interior_spawner import InteriorSpawner
+from .person_spawner import PersonSpawner, extract_persons
 from .scenario_injector import ScenarioInjector
 from .right_turn import apply_right_on_red
 from .stop_ahead import StopAheadManager
@@ -41,6 +43,16 @@ MAP_ID = "hapjeong"
 S6_EDGES = ("R112", "-R112")           # 와우산로. 이 둘을 모두 걷는 보행자가 횡단보도를 건넌다
 BUS_VTYPE = ('<vType id="bus_test" vClass="bus" length="12" width="2.5" accel="1.2" decel="4.0" '
              'tau="1.0" sigma="0" guiShape="bus" color="255,0,0"/>')   # 버스는 빨간색
+
+
+class _TimeAdapter:
+    """실행 루프의 t는 0부터 세지만 보행자 출발 시각은 SUMO 시각이다. SUMO 시각으로 바꿔 넘긴다."""
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    def update(self, t):
+        self.inner.update(traci.simulation.getTime())
 
 
 def _fragment(xml_text):
@@ -134,6 +146,11 @@ class HapjeongTraffic:
         if self.ped_mix is not None:
             overlay_routes.append(ped_vtypes_xml(self.ped_v_low, 0.75))
             self.summary["s6_persons"] = self._retype_s6_persons(rng)
+        # 보행자는 경로 파일에서 떼어 PersonSpawner가 시험용 버스 반경 밖에서만 넣는다(버스 옆에서 갑자기 생기지 않게)
+        persons = extract_persons(os.path.join(self.out_dir, "pedestrians.rou.xml"))
+        with open(os.path.join(self.out_dir, "persons.json"), "w", encoding="utf-8") as f:
+            json.dump(persons, f, ensure_ascii=False)
+        self.summary["persons"] = len(persons)
         self.interior_per_h = 0.0
         if self.interior_share > 0:
             self.interior_per_h = self._shift_entry_flows(self.interior_share)
@@ -259,11 +276,23 @@ class HapjeongTraffic:
             net = read_net(os.path.join(self.out_dir, "network.net.xml"))
             self.summary["right_on_red"] = apply_right_on_red(traci, net, exclude=self.right_on_red_exclude)
         self.interior = self._make_interior("bus0")
+        self.persons = self._make_person_spawner("bus0")
         for k in range(int(round(warmup / 0.1))):
+            if self.persons is not None:
+                self.persons.update(traci.simulation.getTime())
             if self.interior is not None:
                 self.interior.update(k * 0.1)      # 예열 중에도 노선 위에서 출발시켜 시작 때부터 밀도를 맞춘다
             traci.simulationStep()
         return traci
+
+    def _make_person_spawner(self, bus_id):
+        path = os.path.join(self.out_dir, "persons.json")
+        if not os.path.exists(path):
+            return None
+        with open(path, encoding="utf-8") as f:
+            persons = json.load(f)
+        net = read_net(os.path.join(self.out_dir, "network.net.xml"))
+        return PersonSpawner(traci, net, bus_id, persons)
 
     def _make_interior(self, bus_id):
         if self.interior_share <= 0 or self.interior_per_h <= 0:
@@ -361,6 +390,9 @@ class HapjeongTraffic:
                 self.alleys, getattr(self, "cutin_full_ignore", "cutin_0"), rng=random.Random(self.seed + 8),
                 exits=sorted({f["to"] for f in m["flows"]}))
             extras.append(self.injector)
+        if getattr(self, "persons", None) is not None:
+            self.persons.bus = bus_id
+            extras.insert(0, _TimeAdapter(self.persons))
         if self.interior is None:
             self.interior = self._make_interior(bus_id)
         if self.interior is not None:

@@ -109,13 +109,14 @@ class HapjeongTraffic:
 
     def __init__(self, out_dir, scenario="baseline", seed=0, *, yield_mix=None, cutin=True,
                  cutin_bins=None, ped_mix=0.5, ped_v_low=1.5, taxi_depart=None, stopped=None, merge_route=None,
-                 bus_traffic=None, right_on_red=True, right_on_red_exclude=("J1",),
+                 bus_traffic=None, right_on_red=True, right_on_red_exclude=("J1", "J82"),
                  interior_share=0.3, interior_min_dist=200.0):
         # interior_share: 입구 배경 차량 흐름 중 이 비율을 노선 위 임의의 지점에서 출발시킨다(0이면 끈다). 시험용 버스에서
         # interior_min_dist m 안에서는 투입하지 않아 눈앞에 갑자기 생기지 않는다.
         self.interior_share, self.interior_min_dist = interior_share, interior_min_dist
         # right_on_red: True면 신호 교차로의 우회전이 신호와 무관하게 간다. 단 우회전 차가 지나는 횡단보도의 보행자 신호가
-        # 적색이고 겹치는 직진·좌회전이 녹색이 아닌 위상에서만 열린다(신호 프로그램만 바꾼다). exclude는 합정역 사거리.
+        # 적색이고 겹치는 직진·좌회전이 녹색이 아닌 위상에서만 열린다(신호 프로그램만 바꾼다). exclude는 합정역 사거리(J1)와
+        # 상수역 사거리(J82). J82는 우회전을 연 뒤 교차로가 막히는 문제가 생겨 원래 신호 프로그램으로 되돌렸다(사용자 결정).
         self.right_on_red, self.right_on_red_exclude = right_on_red, tuple(right_on_red_exclude)
         self.interior, self.interior_per_h = None, 0.0
         # bus_traffic: BusTrafficCfg 또는 True(기본 설정). 배경 버스(전용 차로 노선·통과)와 택시를 투입한다. None이면 없다.

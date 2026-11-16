@@ -19,6 +19,9 @@ import random
 from sumolib.geomhelper import positionAtShapeOffset
 
 from .presence import PRESENCE_RADIUS_M, far_from_bus, nearest_boundary_exit
+from .signal_areas import is_signalized
+
+CATCH_UP_DV, CATCH_UP_OVER_LIMIT, DROP_BACK_DV = 8.0, 5.0, 3.0   # 후행차 따라잡기: 버스 + 최대 8 m/s, 제한 속도 + 5 m/s까지
 
 BLINKER_RIGHT, BLINKER_LEFT = 1, 2
 
@@ -28,7 +31,7 @@ class ScenarioInjector:
 
     def __init__(self, traci, net, bus_id, stops, alleys, cutin_type, lap_fn, plans, rng=None, a1_active=None,
                  back_s1=220.0, back_lane=PRESENCE_RADIUS_M + 15.0, s5_per_lap=(1, 2), follower_gap=(3.0, 12.0),
-                 lane_lead=60.0,
+                 lane_lead=300.0,
                  s6_edges=("-R112", "R112.112"), s6_edge_before="R112", s5_lead=60.0, follower_check=80.0):
         self.tc, self.net, self.bus = traci, net, bus_id
         self.stops = {s["id"]: s for s in stops}
@@ -80,7 +83,7 @@ class ScenarioInjector:
             return i, pos - back
         left, k = back - pos, i - 1
         while k >= 0:
-            if self.net.getEdge(route[k]).getToNode().getType() == "traffic_light":
+            if is_signalized(self.net.getEdge(route[k]).getToNode()):
                 # 신호 교차로 뒤에서 출발시키면 후행차가 적색에 걸려 버스에 닿지 못한다. 신호를 지난 도로(k+1) 시작에서 출발시킨다.
                 return k + 1, 1.0
             L = self._len(route[k])
@@ -207,6 +210,22 @@ class ScenarioInjector:
             tc.vehicle.setLaneChangeMode(rec["vid"], rec["lc0"])
         rec["released"] = True
 
+    def _signal_ahead(self, route, i, j_end):
+        """버스 도로(i)부터 창 끝 도로 앞(j_end - 1)까지 신호 교차로로 끝나는 도로가 있는가."""
+        return any(is_signalized(self.net.getEdge(route[k]).getToNode()) for k in range(i, j_end))
+
+    def _lane_back(self, route, k, j_end, target):
+        """창 끝 도로(route[j_end])의 target 차로로 곧장 이어지는 route[k]의 차로. 못 찾으면 None.
+        J1 앞처럼 차로를 여러 칸 옮기는 창에서는 후행차가 마지막 변경의 목표 차로(좌회전 차로)에 있게 된다."""
+        lane = target
+        for m in range(j_end, k, -1):
+            a, b = self.net.getEdge(route[m - 1]), self.net.getEdge(route[m])
+            froms = [c.getFromLane().getIndex() for c in a.getConnections(b) if c.getToLane().getIndex() == lane]
+            if not froms:
+                return None
+            lane = max(froms)
+        return lane
+
     def _lanes(self, t, st):
         tc, lap = self.tc, self._lap
         route, i, pos, idx = st
@@ -220,6 +239,9 @@ class ScenarioInjector:
             d_start = d_end - plan.length
             if d_start > self.lane_lead:
                 continue
+            j_end = self._ahead_index(route, i, plan.edge, span=40)
+            if self._signal_ahead(route, i, j_end):
+                continue                                 # 버스와 창 사이에 신호가 있으면 후행차가 적색에 걸린다: 지난 뒤 넣는다
             left = plan.kind == "S2"
             f = tc.vehicle.getLeftFollowers(self.bus) if left else tc.vehicle.getRightFollowers(self.bus)
             near = [(d, v) for v, d in f if v and 0 <= d <= self.follower_check]
@@ -236,10 +258,11 @@ class ScenarioInjector:
                 continue
             k, p = bp
             lanes = tc.edge.getLaneNumber(route[k])
-            target = plan.target_lane if plan.kind == "S3" else idx + 1
+            target = self._lane_back(route, k, j_end, plan.target_lane)
+            if target is None:
+                target = plan.target_lane if plan.kind == "S3" else idx + 1
             lane = str(min(max(1, target), lanes - 1))
-            j = self._ahead_index(route, i, plan.edge, span=40)
-            vid, why = self._add_car("lane", route[k:j + 1], lane, p)
+            vid, why = self._add_car("lane", route[k:j_end + 1], lane, p)
             if vid:
                 self._track(plan, vid, t)
                 self._record(plan.kind, t, "injected", vid)
@@ -300,12 +323,12 @@ class ScenarioInjector:
                 continue
             if g > hi:
                 try:
-                    cap = tc.lane.getMaxSpeed(tc.vehicle.getLaneID(vid)) + 2.0
+                    cap = tc.lane.getMaxSpeed(tc.vehicle.getLaneID(vid)) + CATCH_UP_OVER_LIMIT
                 except Exception:
-                    cap = 16.0
-                target = min(max(v_bus + min(4.0, (g - 8.0) / 2.0), v_bus + 1.0), cap)
+                    cap = 19.0
+                target = min(max(v_bus + min(CATCH_UP_DV, (g - 8.0) / 2.0), v_bus + 2.0), cap)
             elif g < lo:
-                target = max(0.0, v_bus - 1.0)
+                target = max(0.0, v_bus - DROP_BACK_DV)       # 버스 옆이나 앞에 있다: 확실히 뒤로 물러난다
             else:
                 target = v_bus
             tc.vehicle.setSpeed(vid, target)

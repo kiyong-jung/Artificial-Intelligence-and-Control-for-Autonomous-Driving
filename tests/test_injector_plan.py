@@ -202,10 +202,17 @@ def test_catch_up_speeds_follower_toward_bus_then_matches():
     gaps = {"g": 30.0}
     inj._follower_gap = lambda vid, p: gaps["g"]
     inj._catch_up(0.1)
-    assert tc.f.set_speed["f"] == pytest.approx(12.0)           # 8 + min(4, (30-8)/2)
+    assert tc.f.set_speed["f"] == pytest.approx(16.0)           # 8 + min(8, (30-8)/2): 늦지 않게 더 빨리 다가온다
+    gaps["g"], tc.f.bus_speed = 60.0, 12.0
+    inj._catch_up(0.15)
+    assert tc.f.set_speed["f"] == pytest.approx(13.89 + 5.0)    # 12 + 8 = 20이지만 도로 제한 속도 + 5 m/s까지
+    tc.f.bus_speed = 8.0
     gaps["g"] = 8.0
     inj._catch_up(0.2)
     assert tc.f.set_speed["f"] == pytest.approx(8.0)
+    gaps["g"] = 1.0                                             # 버스 옆이나 앞: 확실히 뒤로 물러난다
+    inj._catch_up(0.25)
+    assert tc.f.set_speed["f"] == pytest.approx(5.0)
     active.add("f")                                             # A1 상호작용 시작: 손을 뗀다
     inj._catch_up(0.3)
     assert tc.f.set_speed["f"] == -1
@@ -270,26 +277,34 @@ def _s3_window_start():
     return _net().getEdge("R71").getLength() - back
 
 
-def test_lane_follower_is_inserted_just_before_window_close_behind_and_lane_held():
-    # S3 창(s2 앞) 시작 60 m 앞에 오면 목표 차로(오른쪽)에 버스 반경 + 15 m 뒤에서 후행차를 넣고, 차로를 붙잡아 둔다
-    start = _s3_window_start()                                    # R71 위 창 시작(약 52 m)
-    tc = _TC2(bus_road="R69", bus_pos=10.0)                       # 창 시작까지 60 m보다 멀다
+def test_follower_waits_until_bus_has_passed_last_signal_before_window():
+    # S3 창 앞에는 신호 교차로 J8(R69a 끝)이 있다. 버스가 그 앞에 있을 때 넣으면 후행차가 적색에 걸려 늦었다(3바퀴 측정)
+    tc = _TC2(bus_road="R69", bus_pos=60.0)
     inj = _inj(tc, alleys=[])
     inj.update(0.0)
-    assert not any(a["id"].startswith("inj_lane") for a in tc.f.added)          # 아직 이르다
-    tc.f.bus_road, tc.f.bus_pos = "R71", start + 8.0                            # 창 안
+    assert not any(a["id"].startswith("inj_lane") for a in tc.f.added)
+    tc.f.bus_road, tc.f.bus_pos = "R71", 70.0                                   # J8을 지났다
     inj._lanes(0.1, inj._state())
     lane = [a for a in tc.f.added if a["id"].startswith("inj_lane")]
-    assert lane and ends_at_boundary(_net(), lane[0]["route"][-1])
-    assert lane[0]["route"][0] == "R71"
-    assert float(lane[0]["departPos"]) == pytest.approx(start + 8.0 - (PRESENCE_RADIUS_M + 15.0), abs=0.2)
+    assert lane and ends_at_boundary(_net(), lane[0]["route"][-1]) and lane[0]["route"][0] == "R71"
+    assert float(lane[0]["departPos"]) == pytest.approx(70.0 - (PRESENCE_RADIUS_M + 15.0), abs=0.2)
     assert lane[0]["departLane"] == "1" and tc.f.lc_mode[lane[0]["id"]] == 0
-    assert inj.follower_ready(inj._lap["S3"]) is not None
+
+
+def test_j1_follower_is_in_the_lane_feeding_the_left_turn_lane():
+    # J1 앞은 차로를 3~4칸 옮긴다. 후행차는 마지막 변경(좌회전 차로 R54 5 -> R42 4)의 목표 차로에 있어야 한다.
+    # R54a 차로 3 -> R54b 차로 4 -> R54 차로 5 -> R42 차로 4로 이어진다
+    tc = _TC2(bus_road="R54a", bus_pos=120.0)                                  # J42(신호)를 지났다
+    inj = _inj(tc, alleys=[])
+    inj.update(0.0)
+    inj._lanes(0.1, inj._state())
+    lane = [a for a in tc.f.added if a["id"].startswith("inj_lane")]
+    assert lane and lane[0]["route"][0] == "R54a" and lane[0]["departLane"] == "3"
+    assert inj.follower_ready(inj._lap["S2"][1]) is not None
 
 
 def test_released_follower_gets_its_lane_change_mode_back():
-    start = _s3_window_start()
-    tc = _TC2(bus_road="R71", bus_pos=start + 8.0)
+    tc = _TC2(bus_road="R71", bus_pos=70.0)
     active = set()
     inj = _inj(tc, alleys=[], a1_active=lambda vid: vid in active)
     inj.update(0.0)

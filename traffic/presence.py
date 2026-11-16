@@ -8,7 +8,7 @@
 import heapq
 import math
 
-PRESENCE_RADIUS_M = 30.0
+PRESENCE_RADIUS_M = 50.0      # 학습 차량의 관측 거리(env/mdp_config.py visibility 50 m)와 같게 둔다
 
 
 # ---- 지도 경계 ---------------------------------------------------------------------------------

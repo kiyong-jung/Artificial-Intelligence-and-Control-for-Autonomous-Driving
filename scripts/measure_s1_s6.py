@@ -322,7 +322,7 @@ def main():
            "presence": presence.summary(),
            "a1_in_signal_area": len(sig["in_area"]), "a1_in_signal_area_examples": sig["in_area"][:8],
            "stops_by_lap": {k: v for k, v in sig["stops"].items()},
-           "bus": {"missed": bus.missed, "late": bus.late, "slowed": bus.slowed, "changes": bus.changes},
+           "bus": {"missed": bus.missed, "forced": bus.forced, "late": bus.late, "slowed": bus.slowed, "changes": bus.changes},
            "persons": world.persons.summary() if getattr(world, "persons", None) else None,
            "arrival_guard_extended": len(world.arrival_guard.extended) if getattr(world, "arrival_guard", None) else None,
            "S5": {"per_lap": per_lap(ev["S5"])},

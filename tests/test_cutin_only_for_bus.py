@@ -58,13 +58,19 @@ def test_cutter_timing_uses_the_alley_speed_limit_not_a_fixed_8_mps():
     alley = [a for a in T._alleys() if a.junction == "X_jandari2"]
     route = T._route()
     from traffic.test_bus import _back
-    edge, pos = _back(T._net(), route, route.index(alley[0].into), 0.0, 90.0)      # J74를 지난 -R96 위, 합류점 90 m 앞(8 m/s로 11.3초)
+    edge, pos = _back(T._net(), route, route.index(alley[0].into), 0.0, 100.0)     # J74를 지난 -R96 위, 합류점 100 m 앞(8 m/s로 12.5초)
     tc = T._TC2(bus_road=edge, bus_pos=pos, bus_speed=8.0)
     tc.f.lane.getMaxSpeed = lambda lane: 13.89 if not lane.startswith("G") else 5.56
     inj = T._inj(tc, alleys=alley)
     inj.update(0.0)
     inj._s5(0.1, inj._state())
     assert any(a["id"].startswith("inj_s5") for a in tc.f.added)                    # 5.56 m/s면 이미 출발할 때다
+
+
+def test_cutter_is_sent_4_seconds_before_the_bus_and_ignores_only_with_2_seconds_margin():
+    # 여유 1초로는 버스가 가속해 예상보다 일찍 닿아 교차로 안에서 겹쳤다(busy 측정 충돌 12 샘플). 주입은 4초 먼저, 무시는 2초 이상
+    import traffic.scenario_injector as SI
+    assert SI.CUT_LEAD_S == 4.0 and SI.IGNORE_MARGIN_S == 2.0
 
 
 def test_no_cutter_when_bus_is_far_from_the_alley():

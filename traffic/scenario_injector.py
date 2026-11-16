@@ -26,6 +26,8 @@ from .yield_logic import A1_TRIGGER_GAP_M
 CATCH_UP_DV, CATCH_UP_OVER_LIMIT, DROP_BACK_DV = 8.0, 8.0, 3.0   # 후행차 따라잡기: 버스 + 최대 8 m/s, 제한 속도 + 8 m/s까지
 # A1은 TraCI 후행차 간격(최소 간격을 뺀 값)이 3 m 안일 때 시작한다. 노선 거리(앞끝·뒤끝 사이)로는 최소 간격 2.5 m를 더한다
 FOLLOWER_MIN_GAP_M = 2.5
+CUT_LEAD_S = 4.0          # 끼어들기 차가 버스보다 이만큼 먼저 합류점에 닿게 출발시킨다(3초에서는 버스가 가속해 교차로 안에서 겹쳤다)
+IGNORE_MARGIN_S = 2.0     # 차가 이만큼 넘게 먼저 닿을 때만 시험용 버스를 무시한다. 아니면 보통 차처럼 양보한다
 LET_GO_AHEAD_M = 10.0      # 후행차가 버스 뒤끝보다 이만큼 앞서 있으면(이미 지나갔으면) 놓는다
 
 BLINKER_RIGHT, BLINKER_LEFT = 1, 2
@@ -178,7 +180,7 @@ class ScenarioInjector:
                 continue
             remain = self.net.getEdge(a.feeder).getLength() - tc.vehicle.getLanePosition(vid)
             eta_car = remain / max(tc.vehicle.getSpeed(vid), 2.0)
-            if eta_car + 1.0 < self._bus_eta(self._t_now, st, d_bus, a.into):
+            if eta_car + IGNORE_MARGIN_S < self._bus_eta(self._t_now, st, d_bus, a.into):
                 try:
                     tc.vehicle.setParameter(vid, "junctionModel.ignoreIDs", self.bus)
                 except Exception:
@@ -532,7 +534,7 @@ class ScenarioInjector:
                 v_alley = max(2.0, min(8.0, tc.lane.getMaxSpeed(f"{a.feeder}_0")))
             except Exception:
                 v_alley = 8.0
-            if eta > (feeder_len - main) / v_alley + 0.5 + 3.0:
+            if eta > (feeder_len - main) / v_alley + 0.5 + CUT_LEAD_S:
                 continue                                      # 아직 이르다: 버스가 합류점에 닿기 3초 전에 골목 차가 먼저 닿게
             for spawn_pos in sorted({main, max(1.0, main - 40.0), 1.0}, reverse=True):
                 self._cur_alley = a

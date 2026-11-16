@@ -130,6 +130,21 @@ def test_lingering_person_removed_only_when_bus_far():
     assert tc.removed == ["p0"] and sp.summary()["forced_vanish"] == 0
 
 
+def test_person_not_yet_inserted_is_still_tracked():
+    # SUMO는 person.add 한 사람을 다음 스텝에야 목록에 올린다. 그 사이 목록에 없다고 추적을 버리면 끝까지 서 있게 된다
+    tc = _FakeTC(bus_xy=None)
+    hide = {"on": True}
+    real = tc.person.getIDList
+    tc.person.getIDList = lambda: [] if hide["on"] else real()
+    sp = PersonSpawner(tc, _net(), "bus0", [_person()])
+    sp.update(0.0)
+    sp.update(0.6)                                  # 아직 목록에 없다
+    hide["on"] = False
+    _walk_done(tc, "p0")
+    sp.update(1.2)
+    assert tc.removed == ["p0"]
+
+
 def test_lingering_person_removed_after_cap_even_if_bus_near():
     tc = _FakeTC(bus_xy=None)
     sp = PersonSpawner(tc, _net(), "bus0", [_person()], linger_max=120.0)

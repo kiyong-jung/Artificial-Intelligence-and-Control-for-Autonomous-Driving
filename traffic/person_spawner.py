@@ -45,6 +45,7 @@ class PersonSpawner:
         self._i = 0
         self._waiting = []            # [다시 볼 시각, 사람] 출발을 미룬 사람
         self._alive = {}              # 넣은 사람 id -> 서 있기 시작한 시각(None이면 아직 걷는 중)
+        self._unseen = set()          # 넣었지만 아직 SUMO 목록에 나타나지 않은 사람
         self._t_check = -1e9
         self.n = {"spawned": 0, "deferred": 0, "removed": 0, "forced_vanish": 0, "failed": 0}
 
@@ -70,6 +71,7 @@ class PersonSpawner:
             self.n["failed"] += 1
             return True
         self._alive[p["id"]] = None
+        self._unseen.add(p["id"])          # SUMO는 다음 스텝에야 목록에 올린다
         self.n["spawned"] += 1
         return True
 
@@ -93,8 +95,10 @@ class PersonSpawner:
         ids = set(tc.person.getIDList())
         for pid in list(self._alive):
             if pid not in ids:
-                del self._alive[pid]
+                if pid not in self._unseen:
+                    del self._alive[pid]                  # 한 번 나타났다가 없어졌다(SUMO가 지웠다)
                 continue
+            self._unseen.discard(pid)
             if self._alive[pid] is None:
                 if tc.person.getRemainingStages(pid) <= 1 and tc.person.getStage(pid).type == STAGE_WAITING:
                     self._alive[pid] = t                                  # 걷기가 끝나 서 있기 시작했다

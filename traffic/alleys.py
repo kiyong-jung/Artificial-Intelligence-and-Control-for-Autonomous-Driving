@@ -34,6 +34,23 @@ def read_net(net_path):
     return sumolib.net.readNet(net_path, withInternal=False, withPrograms=False)
 
 
+def close_loop(net, route):
+    """순환 노선의 끝과 처음 사이에 시뮬레이션이 최단 경로로 잇는 도로를 노선 뒤에 붙여 돌려준다.
+
+    노선 목록은 R42로 끝나고 R69로 시작해 둘이 이어져 있지 않다. 시뮬레이션은 시작할 때 최단 경로로 둘을 잇는다
+    (scripts/run_hapjeong_scenario.py). 그 사이 도로(R68)에 있는 좌회전을 노선 목록만 보면 놓친다.
+    잇지 못하거나 이미 이어져 있으면 노선을 그대로 돌려준다.
+    """
+    route = list(route)
+    if len(route) < 2 or not (net.hasEdge(route[-1]) and net.hasEdge(route[0])):
+        return route
+    try:
+        path = net.getShortestPath(net.getEdge(route[-1]), net.getEdge(route[0]))[0]
+    except Exception:
+        return route
+    return route + [e.getID() for e in (path or [])[1:-1]]
+
+
 def find_merge_alleys(net, route_edges, max_alley_speed=8.4):
     """버스 경로에 합류하는 골목 진입 도로를 모두 찾는다. 반환: [MergeAlley]."""
     route = list(route_edges)

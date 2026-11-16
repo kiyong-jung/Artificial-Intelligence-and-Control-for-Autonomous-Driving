@@ -22,7 +22,7 @@ from env import road_builder
 from maps import load_map
 from env.road_config import ROAD, EGO, TRAFFIC, configure_map
 
-from .alleys import find_merge_alleys, flow_merges, read_net
+from .alleys import close_loop, find_merge_alleys, flow_merges, read_net
 from .common import AGGRESSION, Ownership
 from .cutin import STOPPED_KINDS, StoppedSpec, cutin_bins_once, cutin_vtype_xml, stopped_vehicle_xml
 from .ped_defiance import PedDefianceManager
@@ -282,6 +282,7 @@ class HapjeongTraffic:
         route = loop or m["routes"]["bus_loop"]
         net = read_net(os.path.join(self.out_dir, "network.net.xml"))
         out = []
+        route = close_loop(net, route)      # 노선 끝과 처음 사이에 시뮬레이션이 잇는 도로(R42 -> R68 -> R69)를 포함한다
 
         def zones_before(k, pos):
             """경로의 k번째 도로 pos 앞 approach m를 도로 경계를 넘어 거슬러 올라가며 구간으로 만든다.

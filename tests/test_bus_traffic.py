@@ -45,6 +45,18 @@ def test_bus_lines_use_the_dedicated_lanes_and_stop(world):
     assert all(k.startswith(("bgbus_line", "bgtaxi")) for k in flows)
 
 
+def test_central_routes_run_boundary_to_boundary(world):
+    # 배경 버스는 J1 같은 교차로에서 생기거나 사라지지 않고 양화로 양 끝 지도 경계에서 경계까지 달린다
+    from traffic.alleys import read_net
+    from traffic.presence import ends_at_boundary, starts_at_boundary
+    net = read_net(os.path.join(world.out_dir, "network.net.xml"))
+    lines = {l["id"]: l for l in world.summary["bus_traffic"]["lines"]}
+    for name, via, _ in CENTRAL_GROUPS:
+        r = lines[f"bgbus_line_{name}"]["edges"]
+        assert starts_at_boundary(net, r[0]) and ends_at_boundary(net, r[-1]), (name, r[0], r[-1])
+        assert all(v in r for v in via)
+
+
 def test_taxis_are_flowing(world):
     s = world.summary["bus_traffic"]
     assert "pass_od" not in s

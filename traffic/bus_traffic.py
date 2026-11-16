@@ -44,22 +44,30 @@ def _chain(net, edges, vclass="bus"):
 
 
 def central_route(net, via, entries, exits):
-    """via(중앙 우회 차로 도로들)를 지나는 가장 짧은 버스 경로. (문 → via → 나가는 곳)."""
-    # 노선은 우회 차로를 지난 뒤 그 바로 다음 도로의 끝에서 끝낸다. 더 가면 우회 차로에서 막 합류한 버스가 가장 왼쪽 전용
-    # 차로(예: R55_5)에서 다음 도로로 빠지려 차선을 바꾸지 못하고 300초 서 있다 순간이동하는 일이 있었다(검증으로 확인).
-    out = [o.getID() for o in net.getEdge(via[-1]).getOutgoing() if o.allows("bus")]
-    if not out:
+    """via(중앙 우회 차로 도로들)를 지나는 가장 짧은 버스 경로. (지도 경계 입구 → via → 지도 경계 출구).
+
+    배경 버스는 도로가 끊긴 곳(양화로 양 끝)에서 생기고 사라진다. 예전에는 우회 차로 바로 다음 도로(J1 뒤 R41 등)에서 끝나
+    시험용 버스가 지나는 J1 근처에서 버스가 사라졌다(순간이동으로 보였다).
+    """
+    from .presence import ends_at_boundary, starts_at_boundary
+    heads = [a for a in entries if starts_at_boundary(net, a)]
+    tails = [b for b in exits if ends_at_boundary(net, b)]
+    mid = _chain(net, via) if len(via) > 1 else [via[0]]
+    if not mid:
         return None
     best = None
-    for a in entries:
+    for a in heads:
         head = _chain(net, [a, via[0]])
         if not head:
             continue
-        mid = _chain(net, via) if len(via) > 1 else [via[0]]
-        path = head + mid[1:] + [out[0]]
-        length = sum(net.getEdge(e).getLength() for e in path)
-        if best is None or length < best[0]:
-            best = (length, path)
+        for b in tails:
+            tail = _chain(net, [via[-1], b])
+            if not tail:
+                continue
+            path = head + mid[1:] + tail[1:]
+            length = sum(net.getEdge(e).getLength() for e in path)
+            if best is None or length < best[0]:
+                best = (length, path)
     return best[1] if best else None
 
 

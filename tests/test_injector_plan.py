@@ -291,6 +291,7 @@ def test_long_alley_cutter_waits_for_normal_spawn_point():
     edge, pos = _back(_net(), route, route.index(a[0].into), 0.0, 200.0)       # 합류점 200 m 앞(8 m/s로 25초)
     tc = _TC2(bus_road=edge, bus_pos=pos)
     inj = _inj(tc, alleys=a)
+    inj._signal_ahead = lambda *args: False          # 이 시험은 출발 시점만 본다(신호는 test_cutin_only_for_bus에서 따로 본다)
     inj.update(0.0)
     inj._s5(0.1, inj._state())
     assert not any(x["id"].startswith("inj_s5") for x in tc.f.added)

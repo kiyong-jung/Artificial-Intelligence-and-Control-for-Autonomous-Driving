@@ -1,14 +1,15 @@
 """시험용 버스가 노선을 3바퀴 도는 동안 시나리오 S1~S6이 몇 번 일어나는지 센다(사건 단위, 바퀴별).
 
-    python scripts/measure_s1_s6.py baseline 0        # 인자: 수요(quiet|baseline|busy) 시드(기본 0)
+    python scripts/measure_s1_s6.py baseline 0 route   # 인자: 수요(quiet|baseline|busy) 시드(기본 0) 꼬리표
 
-자연 발생만 센다. 시험용 버스의 인위적 차선변경(probe, 동행차, 선택적 추월)은 끈다. 결과는
-results/traffic_verification/s1_s6_<수요>_<시드>.json 에 쓴다.
+시험용 버스는 traffic/test_bus.py(R68 출발, 끊김 없는 바퀴, 정해진 차선 변경 창)로 달리고, 시나리오 주입기와 정류장 앞
+정차(S4)가 켜져 있다(꼬리표에 noinject·noahead를 넣으면 끈다). 결과는
+results/traffic_verification/s1_s6_<수요>_<시드>_<꼬리표>.json 에 쓴다.
 
 사건 정의
   S1  시험용 버스가 정류장에 서서 출발한 횟수(stops) / 그때 정차 버스 바로 뒤 후행차에 대한 S1 판정이 일어난 횟수(rear_events)
-  S2  경로상 왼쪽 차선변경을 시도한 횟수(attempts) / 그중 목표 차로 후행차 A1 상호작용이 있었던 횟수(a1)
-  S3  정류장에 닿으려 오른쪽 차선변경을 시도한 횟수 / 같은 A1 상호작용 횟수
+  S2  J82·J1 앞 창에서 왼쪽 차선변경을 시도한 횟수(attempts) / 그중 목표 차로 후행차 A1 상호작용이 있었던 횟수(a1)
+  S3  s2 앞 창에서 오른쪽 차선변경을 시도한 횟수 / 같은 A1 상호작용 횟수
   S4  정류장 앞 정차로 시험용 버스를 막은 횟수
   S5  골목에서 나온 차가 15초 안에 버스와 같은 도로의 앞 50 m에 들어온 횟수
   S6  신호 없는 횡단보도 50 m 앞에서 보행자가 건너고 있던 통과 횟수(버스 한 번 지날 때 한 번)
@@ -25,6 +26,8 @@ import run_hapjeong_scenario as RS  # noqa: E402
 from maps import load_map  # noqa: E402
 from traffic.alleys import read_net  # noqa: E402
 from traffic.hapjeong import HapjeongTraffic  # noqa: E402
+from traffic.presence import PresenceMonitor  # noqa: E402
+from traffic.signal_areas import forbidden_intervals, is_signalized  # noqa: E402
 from traffic.test_bus import TestBusPilot  # noqa: E402
 
 SCEN = sys.argv[1] if len(sys.argv) > 1 else "baseline"
@@ -70,7 +73,13 @@ def main():
     bus = TestBusPilot(tc, read_net(os.path.join(out_dir, "network.net.xml")), loop, stops)
     feeders = {a.feeder for a in world.alleys}
     ev = {k: collections.Counter() for k in ("S1_stops", "S2_attempts", "S2_done", "S2_a1", "S3_attempts", "S3_done",
-                                             "S3_a1", "S5", "S6", "other_attempts")}
+                                             "S3_a1", "S5", "S6", "other_attempts", "S2_J82_attempts", "S2_J82_a1",
+                                             "S2_J1_attempts", "S2_J1_a1")}
+    net = read_net(os.path.join(out_dir, "network.net.xml"))
+    presence = PresenceMonitor(tc, net, "bus0")
+    forbidden = forbidden_intervals(net, bus.lap_edges)
+    sig = {"seen": set(), "in_area": [], "stops": collections.defaultdict(list)}
+    WIN_JUNCTION = {"R111b": "J82", "R42": "J1"}         # S2 창 끝 도로 -> 좌회전 교차로
     st = {"prev_phase": "idle", "attempt": None, "n_a1": 0, "stopped": False, "alley_seen": {}, "cut": set(),
           "s6_pass": set(), "s6_now": False, "stop_ev_n": 0, "t0": None}
 
@@ -107,14 +116,29 @@ def main():
             at_stop = bool(state & 1 and state & 16)
             if st["stopped"] and not at_stop:
                 ev["S1_stops"][lap()] += 1
+            if at_stop and not st["stopped"]:
+                sig["stops"][lap()].append(road)            # 어느 정류장에 섰나(s2·s4·s5·s6만이어야 한다)
             st["stopped"] = at_stop
+            # A1이 신호 교차로 영역(정지선 앞 금지 거리, 교차로 안)에서 시작했나
+            for vid in list(world.mgr.inter):
+                if vid in sig["seen"]:
+                    continue
+                sig["seen"].add(vid)
+                node = road[1:].rsplit("_", 1)[0] if road.startswith(":") else None
+                inside = node is not None and net.hasNode(node) and is_signalized(net.getNode(node))
+                if inside or any(lo <= pos <= hi for lo, hi in forbidden.get(road, [])):
+                    sig["in_area"].append((round(t, 1), lap(), vid, road, round(pos, 1)))
             # S2/S3: 차선변경 시도(시험용 버스 규칙의 방향지시등 시작)
             if bus.phase == "signal" and st["prev_phase"] != "signal":
                 # S2 = 경로상 왼쪽 변경. S3 = 정류장이 있는 도로에서 오른쪽으로 옮기는 변경(SUMO가 정류장 위치를 알고 '경로'로
                 # 요청하기도 하고 시험용 버스 규칙이 '정류장'으로 요청하기도 한다)
                 kind = bus.why if bus.why in ("S2", "S3") else "other"     # 정해진 창(S3 s2 앞, S2 J82·J1 앞)의 변경
-                st["attempt"] = {"kind": kind, "target": bus.target, "lap": lap(), "a1_before": len(world.mgr.log) + len(world.mgr.inter)}
+                win = WIN_JUNCTION.get(bus.plan.edge) if (kind == "S2" and bus.plan is not None) else None
+                st["attempt"] = {"kind": kind, "target": bus.target, "lap": lap(), "win": win,
+                                 "a1_before": len(world.mgr.log) + len(world.mgr.inter)}
                 ev[f"{kind}_attempts" if kind != "other" else "other_attempts"][lap()] += 1
+                if win:
+                    ev[f"S2_{win}_attempts"][lap()] += 1
             if st["attempt"] and idx == st["attempt"]["target"] and st["attempt"]["kind"] != "other" and not st["attempt"].get("done"):
                 st["attempt"]["done"] = True
                 ev[f"{st['attempt']['kind']}_done"][st["attempt"]["lap"]] += 1
@@ -122,6 +146,8 @@ def main():
                 a = st["attempt"]
                 if len(world.mgr.log) + len(world.mgr.inter) > a["a1_before"] and a["kind"] != "other":
                     ev[f"{a['kind']}_a1"][a["lap"]] += 1
+                    if a.get("win"):
+                        ev[f"S2_{a['win']}_a1"][a["lap"]] += 1
                 st["attempt"] = None
             st["prev_phase"] = bus.phase
             # S5: 골목에서 나온 차가 버스 앞 50 m에 들어옴
@@ -253,6 +279,7 @@ def main():
             sample_s6(t)
             sample_trace(t)
         sample_safety(t)
+        presence.update(t)                             # 시험용 버스 반경 안 출현·소멸·순간이동
         _on_step(t)
 
     ped_cfg = None
@@ -262,12 +289,13 @@ def main():
                               use=("ttc", "wait", "group", "width", "size", "momentum", "age", "distract"))
     try:
         world.run(tc.simulation.getTime() + T_MAX + 10, bus_id="bus0", bus_hook=bus.tick, on_step=on_step,
-                  ped_cfg=ped_cfg, stop_ahead="noahead" not in TAG, scenario_inject="inject" in TAG)
+                  ped_cfg=ped_cfg, stop_ahead="noahead" not in TAG, scenario_inject="noinject" not in TAG,
+                  pilot=bus, triggers="scenario")
     except Done:
         pass
     # S4, S1 후행차 판정은 관리자 기록에서 센다(바퀴는 시험용 버스 한 바퀴)
     s4 = (world.ahead.summary() if world.ahead is not None else
-          {"blocks_per_lap": [0] * LAPS, "existing": 0, "spawned_far": 0, "none": 0})      # --no-stop-ahead 변형도 끝까지 돈다
+          {"blocks_per_lap": [0] * LAPS, "alley": 0, "none": 0})      # noahead 변형도 끝까지 돈다
     laps_done = len(bus.lap_times)
     per_lap = lambda c: [c.get(i, 0) for i in range(1, LAPS + 1)]
     bounds, acc = [], st["t0"] or 0.0
@@ -282,8 +310,17 @@ def main():
                   "rear_outcomes": world.stop.summary()},
            "S2": {"attempts": per_lap(ev["S2_attempts"]), "done": per_lap(ev["S2_done"]), "with_a1_follower": per_lap(ev["S2_a1"])},
            "S3": {"attempts": per_lap(ev["S3_attempts"]), "done": per_lap(ev["S3_done"]), "with_a1_follower": per_lap(ev["S3_a1"])},
+           "S2_by_junction": {j: {"attempts": per_lap(ev[f"S2_{j}_attempts"]), "with_a1": per_lap(ev[f"S2_{j}_a1"])}
+                              for j in ("J82", "J1")},
            "S4": {"blocks_per_lap": s4["blocks_per_lap"][:LAPS], "total": sum(s4["blocks_per_lap"][:LAPS]),
-                  "existing": s4["existing"], "spawned_far": s4["spawned_far"], "none": s4["none"]},
+                  "alley": s4["alley"], "none": s4["none"],
+                  "actually_stopped": s4.get("actually_stopped"), "log": getattr(world.ahead, "log", None)},
+           "presence": presence.summary(),
+           "a1_in_signal_area": len(sig["in_area"]), "a1_in_signal_area_examples": sig["in_area"][:8],
+           "stops_by_lap": {k: v for k, v in sig["stops"].items()},
+           "bus": {"missed": bus.missed, "late": bus.late, "slowed": bus.slowed, "changes": bus.changes},
+           "persons": world.persons.summary() if getattr(world, "persons", None) else None,
+           "arrival_guard_extended": len(world.arrival_guard.extended) if getattr(world, "arrival_guard", None) else None,
            "S5": {"per_lap": per_lap(ev["S5"])},
            "S6": {"per_lap": per_lap(ev["S6"]), "ped_decisions": world.ped.summary()},
            "S6_vehicle_waiting": {"max_wait_s": round(wait["max_wait"], 1), "vehicles_over_20s": len(wait["over20"]),

@@ -33,6 +33,7 @@ from .sumo_conn import traci, sumo_cmd
 from .bus_traffic import BusTrafficCfg, build_bus_traffic
 from .interior_spawner import InteriorSpawner
 from .person_spawner import PersonSpawner, extract_persons
+from .presence import VehicleArrivalGuard
 from .scenario_injector import ScenarioInjector
 from .right_turn import apply_right_on_red
 from .signal_areas import clip_zones, unsignalized_alleys, unsignalized_crossings
@@ -413,6 +414,9 @@ class HapjeongTraffic:
         if getattr(self, "persons", None) is not None:
             self.persons.bus = bus_id
             extras.insert(0, _TimeAdapter(self.persons))
+        # 지도 안쪽에서 끝나는 경로의 차가 시험용 버스 가까이에서 사라지지 않게 목적지를 지도 경계로 늘린다
+        self.arrival_guard = VehicleArrivalGuard(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
+        extras.append(self.arrival_guard)
         if self.interior is None:
             self.interior = self._make_interior(bus_id)
         if self.interior is not None:

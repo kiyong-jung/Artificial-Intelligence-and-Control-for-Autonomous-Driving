@@ -98,14 +98,15 @@ def main():
     ap.add_argument("--delay", type=int, default=50, help="GUI에서 0.1초 스텝마다 쉬는 시간(ms). 클수록 느리다")
     ap.add_argument("--zoom", type=float, default=900.0, help="버스를 따라갈 때의 확대율")
     ap.add_argument("--no-track", action="store_true", help="버스를 자동으로 따라가지 않는다")
-    ap.add_argument("--inject", action="store_true",
-                    help="시나리오 주입기: 매 바퀴 S2·S3·S6과 S5 1~2곳의 상대를 넣는다")
+    ap.add_argument("--no-inject", action="store_true",
+                    help="시나리오 주입기를 끈다(기본은 켬: 매 바퀴 S2·S3·S6과 S5 1~2곳의 상대를 넣는다)")
     ap.add_argument("--stopped", action="append", default=[], metavar="SPEC",
                     help="S4 정차 차량(여러 번 줄 수 있다). 쉼표로 이은 key=value: kind=taxi|bus|car, "
                          "edge=R69,lane=1,pos=30 또는 stop=<정류장 id·이름>[,gap=14], depart=60(warmup 뒤 초), "
                          "duration=30(정차 시간 초), prob=1(발생 확률). 예) --stopped kind=taxi,stop=합정역7번출구,depart=60")
-    ap.add_argument("--triggers", choices=("any", "scenario"), default="any",
-                    help="A1이 버스의 차로 변경 의사를 읽는 조건. any=방향지시등만, scenario=S2(좌회전 직전)·S3(정류장 접근)·S4(정차 차량 앞) 구간만")
+    ap.add_argument("--triggers", choices=("any", "scenario"), default="scenario",
+                    help="A1이 버스의 차로 변경 의사를 읽는 조건. scenario(기본)=시험용 버스의 S2·S3 차선 변경 창과 S4 정차 차량 앞만, "
+                         "any=방향지시등만")
     ap.add_argument("--lane-buses", type=float, default=30.0,
                     help="배경 버스(전용 차로 노선, 정류장에 서고 출발) 시간당 대수. 0이면 배경 버스·택시를 넣지 않는다")
     ap.add_argument("--taxis", type=float, default=40.0, help="택시 시간당 대수")
@@ -154,7 +155,7 @@ def main():
     try:
         world.run(tc.simulation.getTime() + a.seconds, bus_id=BUS, bus_hook=bus.tick, on_step=on_step,
                   stop_bypass=not a.no_stop_bypass, ped_defiance=not a.no_ped_defiance,
-                  stop_ahead=not a.no_stop_ahead, scenario_inject=a.inject, pilot=bus,
+                  stop_ahead=not a.no_stop_ahead, scenario_inject=not a.no_inject, pilot=bus,
                   triggers="scenario" if a.triggers == "scenario" else None)
     except (traci.exceptions.FatalTraCIError, ConnectionError):
         print("창이 닫혀 시뮬레이션을 마칩니다.")

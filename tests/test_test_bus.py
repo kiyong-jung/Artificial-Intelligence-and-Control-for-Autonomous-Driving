@@ -160,13 +160,15 @@ def test_lane_plans_are_s3_then_two_s2_and_end_before_signals():
     # 정류장 차로에는 정류장 시작 10 m 전까지 들어가야 한다(성산중학교 13.31 m -> 3.31 m)
     assert (p[0].edge, p[0].target_lane) == ("R71.206", 1) and p[0].end_pos == pytest.approx(3.31, abs=0.01)
     assert (p[1].edge, p[1].target_lane) == ("R111b", 2) and p[1].end_pos == pytest.approx(7.0, abs=0.5)
-    assert (p[2].edge, p[2].target_lane) == ("R42", 4) and p[2].end_pos == pytest.approx(6.0, abs=0.5)
+    # J1은 3.7.0부터 R42 차로 3도 좌회전(R68 차로 1)이다. 버스는 더 가까운 차로 3을 목표로 한다
+    assert (p[2].edge, p[2].target_lane) == ("R42", 3) and p[2].end_pos == pytest.approx(6.0, abs=0.5)
     assert all(x.length >= 120.0 for x in p) and p[2].length > p[1].length     # J1 앞은 차로를 더 많이 옮긴다
     # J1 창은 합정역(s6, R54a 245.5~270.5 m) 안에서 시작한다. 감속 판단은 정류장 끝부터 센다
     net = _net()
     eff = (net.getEdge("R54a").getLength() - 270.5 + net.getEdge("R54b").getLength() + net.getEdge("R54").getLength()
            + p[2].end_pos)
-    assert p[2].eff_length == pytest.approx(eff, abs=0.5) and p[2].eff_length < p[2].length
+    # 3.7.0: 목표 차로가 4 -> 3이라 창이 240 -> 200 m로 줄어 s6 끝(창 끝 211.6 m 전)이 창 밖이다. 그래서 창 전체를 센다
+    assert eff > p[2].length and p[2].eff_length == p[2].length
     assert p[0].eff_length == p[0].length and p[1].eff_length == p[1].length
 
 

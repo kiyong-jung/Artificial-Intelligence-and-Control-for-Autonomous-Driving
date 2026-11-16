@@ -228,6 +228,15 @@ class ScenarioInjector:
             tc.vehicle.setLaneChangeMode(rec["vid"], rec["lc0"])
         rec["released"] = True
 
+    def _in_served_stop(self, st):
+        """버스가 서는 정류장의 구간(시작~끝) 안에 있는가."""
+        route, i, pos, _ = st
+        for s in self.stops.values():
+            if s["id"] in self.stop_ids and s["edge"] == route[i] and "endPos" in s \
+                    and s.get("startPos", 0.0) - 1.0 <= pos <= s["endPos"] + 1.0:
+                return True
+        return False
+
     def _signal_ahead(self, route, i, j_end):
         """버스 도로(i)부터 창 끝 도로 앞(j_end - 1)까지 신호 교차로로 끝나는 도로가 있는가."""
         return any(is_signalized(self.net.getEdge(route[k]).getToNode()) for k in range(i, j_end))
@@ -259,6 +268,8 @@ class ScenarioInjector:
                 continue
             if plan.eff_length < plan.length - 1e-6 and d_end > plan.eff_length:
                 continue                                 # 창 안 정류장(J1 앞 s6)을 아직 떠나지 않았다: 떠난 뒤 넣는다
+            if self._in_served_stop(st):
+                continue                                 # 정류장 구간 안(J1 창이 길어져 s6이 창 밖이어도): 떠난 뒤 넣는다
             j_end = self._ahead_index(route, i, plan.edge, span=40)
             if self._signal_ahead(route, i, j_end):
                 continue                                 # 버스와 창 사이에 신호가 있으면 후행차가 적색에 걸린다: 지난 뒤 넣는다

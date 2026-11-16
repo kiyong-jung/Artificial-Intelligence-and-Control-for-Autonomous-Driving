@@ -46,7 +46,8 @@ def test_a1_same_seed_same_result(a1):
 
 
 def test_a1_opengap_reaches_target_within_duration(a1):
-    r = run_a1_episode(a1, "yielder", 1, record=True, bus_kwargs={"t_request": 1e9})
+    # 이 시험은 먼 후행차(50 m)의 상호작용을 본다. A1 시작 거리 기본값(3 m)이 아니라 50 m로 둔다
+    r = run_a1_episode(a1, "yielder", 1, record=True, bus_kwargs={"t_request": 1e9}, mgr_kwargs={"follower_range": 50.0})
     target = r["new_tau"] * 9.0
     reach = next(s["t"] for s in r["series"] if s["t"] >= r["t_open"] and s["gap"] >= target - 0.5)
     assert reach - r["t_open"] <= 12.0

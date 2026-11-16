@@ -79,10 +79,10 @@ class _V:
         return self.tc.stop_state
 
     def getLeftFollowers(self, v):
-        return []
+        return list(self.tc.left_followers)
 
     def getRightFollowers(self, v):
-        return []
+        return list(self.tc.right_followers)
 
     def getFollower(self, v, dist):
         return ("", -1.0)
@@ -142,6 +142,7 @@ class _FakeTC:
         self.cars, self.added, self.routes, self.set_speed, self.lc_mode = [], [], {}, {}, {}
         self.stop_state = 0
         self.params = {}                 # (차 id, 키) -> 값
+        self.left_followers, self.right_followers = [], []     # 버스 옆 차로의 후행차 [(id, TraCI 간격)]
         self.lanes = {}                  # 다른 차 id -> 차로 번호
         self.vehicle = _V(self)
         self.lane, self.edge, self.person = _L(), _E(), _P()
@@ -228,6 +229,35 @@ def test_catch_up_speeds_follower_toward_bus_then_matches():
     active.add("f")                                             # A1 상호작용 시작: 손을 뗀다
     inj._catch_up(0.3)
     assert tc.f.set_speed["f"] == -1
+
+
+def test_nearest_follower_is_the_partner_whoever_it_is():
+    # 주입한 차보다 가까운 앞차(자연 후행차)가 있으면 시나리오 상대는 그 차다. 주입 차는 상대가 아니다
+    tc = _TC2(bus_road="R112.221", bus_pos=10.0, bus_speed=8.0)
+    inj = _inj(tc)
+    inj.update(0.0)
+    plan = inj._lap["S2"][1]
+    tc.f.cars += ["inj", "nat"]
+    inj._track(plan, "inj", 0.0)
+    inj._follower_gap = lambda vid, p: 30.0                       # 주입 차는 30 m 뒤
+    assert inj.follower_ready(plan) is False
+    tc.f.left_followers = [("nat", 2.0)]                          # 자연 후행차가 버스 2 m 뒤(왼쪽 차로)
+    assert inj.follower_ready(plan) is True                       # 상대가 바뀌었다
+    inj._catch_up(0.1)
+    assert tc.f.set_speed["inj"] == -1 and inj._lap["lane"][("S2", "R42")]["released"]   # 주입 차는 손을 뗀다
+
+
+def test_injected_follower_stays_partner_when_it_is_the_nearest():
+    tc = _TC2(bus_road="R112.221", bus_pos=10.0, bus_speed=8.0)
+    inj = _inj(tc)
+    inj.update(0.0)
+    plan = inj._lap["S2"][1]
+    tc.f.cars += ["inj", "far"]
+    inj._track(plan, "inj", 0.0)
+    inj._follower_gap = lambda vid, p: 8.0
+    tc.f.left_followers = [("far", 25.0)]                         # 더 먼 자연 차
+    inj._catch_up(0.1)
+    assert tc.f.set_speed["inj"] == pytest.approx(10.0) and not inj._lap["lane"][("S2", "R42")]["released"]
 
 
 def test_injector_has_no_gate():

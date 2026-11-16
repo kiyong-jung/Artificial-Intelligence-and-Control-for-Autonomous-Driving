@@ -345,15 +345,33 @@ class ScenarioInjector:
         ahead = self._gap(route, j, fpos, i, pos) if j < i else pos - fpos
         return ahead - tc.vehicle.getLength(self.bus)
 
+    def _partner(self, plan, rec):
+        """이번 창에서 버스에 가장 가까운 목표 차로 후행차 (id, 노선 간격). 주입한 차든 자연 차든 가장 가까운 차가 상대다.
+        TraCI 후행차 간격에는 최소 간격을 더해 주입 차의 노선 간격과 같은 기준으로 견준다. 없으면 None."""
+        tc = self.tc
+        best = None
+        if rec is not None and rec["vid"] in tc.vehicle.getIDList():
+            g = self._follower_gap(rec["vid"], plan)
+            if g is not None:
+                best = (rec["vid"], g)
+        try:
+            f = tc.vehicle.getLeftFollowers(self.bus) if plan.kind == "S2" else tc.vehicle.getRightFollowers(self.bus)
+        except Exception:
+            f = []
+        for vid, d in f:
+            if vid and 0 <= d and (best is None or d + FOLLOWER_MIN_GAP_M < best[1]):
+                best = (vid, d + FOLLOWER_MIN_GAP_M)
+        return best
+
     def follower_ready(self, plan):
-        """이번 창의 상대가 버스 뒤 follower_gap 안에 있으면 True, 아직 멀면 False, 상대가 없으면 None."""
+        """이번 창의 상대(버스에 가장 가까운 목표 차로 후행차)가 버스 뒤 follower_gap 안에 있으면 True, 아직 멀면 False,
+        상대가 없으면 None. 주입한 차가 아니어도 더 가까운 차가 있으면 그 차가 상대다."""
         if self._lap is None or plan is None:
             return None
-        rec = self._lap["lane"].get(self._key(plan))
-        if rec is None or rec["vid"] not in self.tc.vehicle.getIDList():
+        p = self._partner(plan, self._lap["lane"].get(self._key(plan)))
+        if p is None:
             return None
-        g = self._follower_gap(rec["vid"], plan)
-        return g is not None and self.follower_gap[0] <= g <= self.follower_gap[1]
+        return self.follower_gap[0] <= p[1] <= self.follower_gap[1]
 
     def _catch_up(self, t):
         tc = self.tc
@@ -373,6 +391,10 @@ class ScenarioInjector:
             passed = st is not None and (self._dist_to(st, plan.edge, plan.end_pos) or 0.0) <= 0
             if (self.a1_active is not None and self.a1_active(vid)) or passed:
                 self._release(rec)                       # A1 상호작용이 시작되었거나 창이 끝났다: 손을 뗀다
+                continue
+            partner = self._partner(plan, rec)
+            if partner is not None and partner[0] != vid:
+                self._release(rec)                       # 더 가까운 차가 있다: 그 차가 상대다. 주입한 차는 시나리오에서 빠진다
                 continue
             if self._stop_t0 is not None and tc.vehicle.getLaneIndex(vid) != tc.vehicle.getLaneIndex(self.bus):
                 tc.vehicle.setSpeed(vid, -1)             # 버스가 정류장에 서 있다: 다른 차로의 차를 버스 뒤에 두려고 세우지 않는다

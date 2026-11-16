@@ -70,6 +70,25 @@ def test_clip_crosses_short_edge_backwards():
     assert [(x.edge, round(x.end)) for x in z] == [("-R96.201", 10)]
 
 
+def test_scenario_triggers_follow_the_pilot_windows():
+    # A1 구간은 시험용 버스의 차선 변경 창과 같다(J1 앞 첫 변경은 R54b에서 일어난다)
+    from traffic.hapjeong import HapjeongTraffic
+    from traffic.test_bus import lane_plans, lap_route
+    with open(os.path.join(ROOT, "map.json"), encoding="utf-8") as f:
+        m = json.load(f)
+    stops = [{"id": s["id"], "edge": s["lane"].rsplit("_", 1)[0], "startPos": s["startPos"],
+              "lane_idx": int(s["lane"].rsplit("_", 1)[1])} for s in m["bus_stops"]]
+    plans = lane_plans(_net(), lap_route(_net(), m["routes"]["bus_loop"]), stops)
+    h = HapjeongTraffic.__new__(HapjeongTraffic)
+    h.out_dir, h.summary = os.path.join(ROOT, "source"), {}
+    trig = h.scenario_triggers(plans=plans)
+    left = next(t for t in trig if t.side == +1).zones
+    right = next(t for t in trig if t.side == -1).zones
+    assert {"R54b", "R54", "R42", "R111", "R111b"} <= {z.edge for z in left}
+    assert all(not (z.edge == "R42" and z.end > 6.5) for z in left)            # J1 앞 10 m는 뺀다
+    assert {z.edge for z in right} <= {"R71.206", "R71.135", "R71"}            # S3는 s2 앞 창뿐
+
+
 def test_crossings_at_signals_are_excluded():
     c = unsignalized_crossings(_net(), _lane_ids())
     assert any(x.startswith(":S6_wausanro_c") for x in c)

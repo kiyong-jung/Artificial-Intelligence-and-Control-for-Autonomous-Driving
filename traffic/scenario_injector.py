@@ -1,18 +1,24 @@
-"""방법 2: 시나리오 주입기. 시험용 버스가 지나는 순간에 상호작용 상대가 없으면 상대를 미리 투입한다.
+"""방법 2: 시나리오 주입기. 시험용 버스의 바퀴마다 상호작용 상대를 계획해 넣는다.
 
-밀도 분산(방법 1)만으로는 시험용 버스 곁에 차가 있다는 보장이 없어(S1 뒤차 0인 바퀴, S2 후행차 상호작용 0~3건, S5 0~6건),
-버스가 시나리오 지점에 가까워질 때 **자연 발생이 없을 때만** 상대를 넣는다. 눈앞에 갑자기 생기지 않도록 투입 위치는 버스에서 멀다.
-
-| 시나리오 | 언제 | 무엇을 | 어디에 |
+| 시나리오 | 바퀴마다 | 무엇을 | 어디에 |
 |---|---|---|---|
-| S1 뒤차 | 한 바퀴에 한 번, 무작위 정류장에서 버스가 서고 뒤 200 m 안에 차가 없을 때 | 승용차 한 대 | 버스 뒤 `back_s1`(220 m), 버스와 같은 차로 |
-| S2·S3 후행차 | 버스가 방향지시등을 켜고 옮겨 갈 차로 뒤 80 m 안에 차가 없을 때(바퀴당 최대 `max_lane`번) | 승용차 한 대 | 버스 뒤 `back_lane`(110 m), 옮겨 갈 차로 |
-| S5 끼어들기 | 한 바퀴에 한 번, 앞에 있는 합류 골목 하나를 무작위로 골라 버스가 곧 합류점에 닿을 때 | 끼어들기(무시 확률 1) 차 한 대 | 그 골목의 시작점에서 출발 |
-| S6 보행자 | 한 바퀴에 한 번, 버스가 신호 없는 횡단보도 100 m 앞에 왔고 횡단보도에 사람이 없을 때 | 보행자 한 명 | 횡단보도 바로 옆 인도에서 출발(걸어서 건넌다) |
+| S1 뒤차 | 무작위 정류장 하나에서 버스가 서고 뒤 200 m 안에 차가 없을 때 | 승용차 한 대 | 버스 뒤 `back_s1`(220 m), 같은 차로 |
+| S2·S3 후행차 | 차선 변경 창(test_bus.lane_plans: S3 s2 앞, S2 J82·J1 앞) 시작 `lane_lead`(60 m) 앞에서, 목표 차로 뒤 80 m 안에 차가 없으면 | 승용차 한 대 | 버스 뒤 `back_lane`(버스 반경 + 15 m), 목표 차로. 창이 끝날 때까지 차로를 붙잡는다 |
+| S5 끼어들기 | 신호 없는 합류 골목 1~2곳(무작위) | 앞차 무시 확률 1인 끼어들기 차 | 골목 안 합류점 `s5_lead` m 앞(가까우면 골목 시작 쪽) |
+| S6 보행자 | 신호 없는 횡단보도 앞 | 보행자 한 명 | 횡단보도 바로 옆 인도 |
 
-투입한 것은 `log`에 따로 기록해 자연 발생과 구분한다. 투입된 차는 `carDist`라 주행 모델 4종과 양보 성격이 그대로 붙는다.
+- 바퀴는 시험용 버스 조종의 바퀴 번호(`lap_fn`)로 나눈다. 버스는 바퀴 사이에 사라지지 않는다.
+- 시험용 버스는 S2·S3 상대를 기다리지 않는다. 후행차가 따라잡는다(`_catch_up`): 버스 뒤 `follower_gap`(3~12 m) 밖이면
+  버스보다 빠르게 달려 다가오고, 안에 들어오면 버스와 같은 속도로 나란히 간다. A1 상호작용이 시작되면 손을 뗀다.
+  `follower_ready(plan)`으로 시험용 버스에 상대가 가까이 왔는지 알려 준다(버스는 늦으면 속도를 줄인다).
+- 모든 생성은 시험용 버스 반경(`presence.PRESENCE_RADIUS_M`) 밖에서만 하고, 모든 주입 차량의 경로는 지도 경계에서 끝난다.
+- 투입한 것은 `log`에 따로 기록해 자연 발생과 구분한다. 투입된 차는 `carDist`라 주행 모델 4종과 양보 성격이 그대로 붙는다.
 """
 import random
+
+from sumolib.geomhelper import positionAtShapeOffset
+
+from .presence import PRESENCE_RADIUS_M, far_from_bus, nearest_boundary_exit
 
 BLINKER_RIGHT, BLINKER_LEFT = 1, 2
 
@@ -20,36 +26,38 @@ BLINKER_RIGHT, BLINKER_LEFT = 1, 2
 class ScenarioInjector:
     """update(t)를 매 스텝 simulationStep() 앞에서 호출한다(runner의 extras)."""
 
-    def __init__(self, traci, net, bus_id, stops, alleys, cutin_type, rng=None, back_s1=220.0, back_lane=110.0,
-                 max_lane=2, s6_edges=("-R112", "R112.112"), s6_edge_before="R112", trigger_s6=100.0,
-                 follower_check=80.0, exits=(), ready_gap=40.0, s5_lead=60.0):
-        self.s5_lead = s5_lead                           # S5 끼어들기 차를 합류점 이만큼 앞에서 출발시킨다
-        self._escort = {}                                # 주입한 후행차 -> 시작 시각. 버스를 앞지르지 않게 속도를 묶는다
-        self.ready_gap = ready_gap                       # 목표 차로 후행차가 이만큼 가까이 오면 버스가 차선변경을 요청한다
-        self._pending = None
-        self.why_fn = None                               # 시험용 버스의 차선변경 이유를 돌려주는 함수(경로·정류장만 주입 대상)
+    def __init__(self, traci, net, bus_id, stops, alleys, cutin_type, lap_fn, plans, rng=None, a1_active=None,
+                 back_s1=220.0, back_lane=PRESENCE_RADIUS_M + 15.0, s5_per_lap=(1, 2), follower_gap=(3.0, 12.0),
+                 lane_lead=60.0,
+                 s6_edges=("-R112", "R112.112"), s6_edge_before="R112", s5_lead=60.0, follower_check=80.0):
         self.tc, self.net, self.bus = traci, net, bus_id
         self.stops = {s["id"]: s for s in stops}
         self.alleys = list(alleys)
         self.cutin_type = cutin_type
+        self.lap_fn, self.plans = lap_fn, list(plans)
+        self.a1_active = a1_active
         self.rng = rng or random.Random(0)
-        self.back_s1, self.back_lane, self.max_lane = back_s1, back_lane, max_lane
-        self.s6_walk, self.s6_before, self.trigger_s6 = list(s6_edges), s6_edge_before, trigger_s6
-        self.follower_check = follower_check
-        self.exits = [e for e in exits if net.hasEdge(e)]
+        self.back_s1, self.back_lane = back_s1, back_lane
+        self.s5_per_lap, self.follower_gap, self.lane_lead = s5_per_lap, follower_gap, lane_lead
+        self.s6_walk, self.s6_before = list(s6_edges), s6_edge_before
+        self.s5_lead, self.follower_check = s5_lead, follower_check
         self.log = []
         self._lens = {}
-        self._lap = None
+        self._lap, self._lap_no = None, None
+        self._laps_done = ()
         self._seq = 0
-        self._prev_sig = 0
         self._was_stopped = False
 
     # ---- 바퀴 ---------------------------------------------------------------------------------
     def _new_lap(self, t):
         stop_ids = sorted(self.stops)
-        self._lap = {"t0": t, "s1_stop": self.rng.choice(stop_ids) if stop_ids else None, "s1": False, "lane": 0,
-                     "s5": False, "s6": False,
-                     "s5_alley": self.rng.choice(self.alleys) if self.alleys else None}
+        k = min(len(self.alleys), self.rng.randint(*self.s5_per_lap)) if self.alleys else 0
+        self._lap = {"t0": t, "s1_stop": self.rng.choice(stop_ids) if stop_ids else None, "s1": False,
+                     "S3": next((p for p in self.plans if p.kind == "S3"), None),
+                     "S2": [p for p in self.plans if p.kind == "S2"],
+                     "lane": {}, "lane_done": set(),
+                     "S5": self.rng.sample(self.alleys, k) if k else [], "s5_done": set(),
+                     "S6": False}
 
     # ---- 경로 위 거리(모두 시험용 버스의 경로 기준) --------------------------------------------
     def _len(self, edge):
@@ -73,8 +81,7 @@ class ScenarioInjector:
         left, k = back - pos, i - 1
         while k >= 0:
             if self.net.getEdge(route[k]).getToNode().getType() == "traffic_light":
-                # 신호 교차로 뒤에서 출발시키면 후행차가 적색에 걸려 버스에 닿지 못한다(S2 후행차가 목표 차로에 없던 원인).
-                # 신호 교차로를 이미 지난 도로(k+1)의 시작에서 출발시킨다.
+                # 신호 교차로 뒤에서 출발시키면 후행차가 적색에 걸려 버스에 닿지 못한다. 신호를 지난 도로(k+1) 시작에서 출발시킨다.
                 return k + 1, 1.0
             L = self._len(route[k])
             if left <= L:
@@ -91,39 +98,62 @@ class ScenarioInjector:
             d += self._len(e)
         return d + pos2
 
+    def _ahead_index(self, route, i, edge, span=None):
+        """버스 위치(i)부터 앞으로 edge가 처음 나오는 index. 없으면 None."""
+        hi = len(route) if span is None else min(len(route), i + span)
+        for j in range(i, hi):
+            if route[j] == edge:
+                return j
+        return None
+
+    def _dist_to(self, st, edge, pos2):
+        route, i, pos, _ = st
+        j = self._ahead_index(route, i, edge, span=40)
+        return None if j is None else self._gap(route, i, pos, j, pos2)
+
+    # ---- 생성 ---------------------------------------------------------------------------------
+    def _xy(self, edge, pos):
+        return positionAtShapeOffset(self.net.getEdge(edge).getShape(), pos)
+
+    def _exit_path(self, edges):
+        """edges 끝 도로에서 지도 경계까지 이어 붙인 경로(중간에서 사라지지 않게)."""
+        tail = nearest_boundary_exit(self.net, edges[-1])
+        return list(edges[:-1]) + tail if tail else list(edges)
+
     def _add_car(self, kind, route_edges, lane, pos, vtype="carDist", speed="max"):
+        """(차 id, 이유). 버스 반경 안이면 ("", "near_bus"), 넣지 못하면 ("", "failed")."""
+        pos = max(1.0, pos)
+        if not far_from_bus(self.tc, self.bus, self._xy(route_edges[0], pos), PRESENCE_RADIUS_M):
+            return "", "near_bus"
         self._seq += 1
         vid, rid = f"inj_{kind}{self._seq}", f"r_inj_{kind}{self._seq}"
         try:
-            self.tc.route.add(rid, route_edges)
-            self.tc.vehicle.add(vid, rid, typeID=vtype, departLane=lane, departPos=f"{max(1.0, pos):.1f}",
-                                departSpeed=speed)
+            self.tc.route.add(rid, self._exit_path(route_edges))
+            self.tc.vehicle.add(vid, rid, typeID=vtype, departLane=lane, departPos=f"{pos:.1f}", departSpeed=speed)
         except Exception:
-            return None
-        return vid
+            return "", "failed"
+        return vid, "injected"
 
     def _record(self, kind, t, ok, vid=None):
         self.log.append({"t": round(t, 1), "lap": len(self._laps_done) + 1, "kind": kind, "ok": ok, "id": vid})
 
-    _laps_done = ()
-
     # ---- 매 스텝 ------------------------------------------------------------------------------
     def update(self, t):
-        tc = self.tc
-        if self.bus not in tc.vehicle.getIDList():
+        lap = self.lap_fn()
+        if lap != self._lap_no:
             if self._lap is not None:
                 self._laps_done = self._laps_done + (self._lap,)
-                self._lap = None
-            self._prev_sig, self._was_stopped, self._pending = 0, False, None
-            return
-        if self._lap is None:
+            self._lap_no = lap
             self._new_lap(t)
-        self._escort_step(t)
+        tc = self.tc
+        if self.bus not in tc.vehicle.getIDList():
+            return
+        self._catch_up(t)
         st = self._state()
         if st is None:
             return
         self._s1(t, st)
-        self._lane(t, st)
+        self._lanes(t, st)
         self._s5(t, st)
         self._s6(t, st)
 
@@ -132,7 +162,6 @@ class ScenarioInjector:
         state = tc.vehicle.getStopState(self.bus)
         stopped = bool(state & 1 and state & 16)
         if stopped and not self._was_stopped and not lap["s1"]:
-            nxt = tc.vehicle.getStops(self.bus, 1)
             here = tc.vehicle.getRoadID(self.bus)
             at = next((sid for sid, s in self.stops.items() if s["edge"] == here), None)
             if at == lap["s1_stop"]:
@@ -147,134 +176,190 @@ class ScenarioInjector:
                         self._record("S1", t, False)
                     else:
                         k, p = bp
-                        vid = self._add_car("s1", route[k:i + 2], str(idx), p)
-                        self._record("S1", t, "injected" if vid else False, vid)
+                        vid, why = self._add_car("s1", route[k:i + 2], str(idx), p)
+                        self._record("S1", t, why if vid else why, vid or None)
         self._was_stopped = stopped
 
-    def _lane(self, t, st):
+    # ---- S2·S3 후행차 ------------------------------------------------------------------------
+    @staticmethod
+    def _key(plan):
+        return (plan.kind, plan.edge)
+
+    def _lane_plans(self):
+        lap = self._lap
+        return ([lap["S3"]] if lap["S3"] is not None else []) + list(lap["S2"])
+
+    def _track(self, plan, vid, t):
+        """이번 창의 상대로 삼는다. 창이 끝나거나 A1이 시작될 때까지 차로를 붙잡는다(SUMO가 버스 뒤 같은 차로로 옮기면
+        목표 차로 후행차가 아니게 된다 — 짧은 실행에서 확인)."""
+        tc = self.tc
+        try:
+            lc0 = tc.vehicle.getLaneChangeMode(vid)
+            tc.vehicle.setLaneChangeMode(vid, 0)
+        except Exception:
+            lc0 = None
+        self._lap["lane"][self._key(plan)] = {"vid": vid, "t": t, "released": False, "plan": plan, "lc0": lc0}
+
+    def _release(self, rec):
+        tc = self.tc
+        tc.vehicle.setSpeed(rec["vid"], -1)
+        if rec.get("lc0") is not None:
+            tc.vehicle.setLaneChangeMode(rec["vid"], rec["lc0"])
+        rec["released"] = True
+
+    def _lanes(self, t, st):
         tc, lap = self.tc, self._lap
-        sig = tc.vehicle.getSignals(self.bus) & (BLINKER_LEFT | BLINKER_RIGHT)
-        rising = sig and not (self._prev_sig & sig)
-        self._prev_sig = sig
-        if not rising:
-            return
-        if self.why_fn is not None and self.why_fn() not in ("경로", "정류장"):
-            return                                       # 순항·추월 같은 선택적 차선변경에는 넣지 않는다(S2·S3는 필수 변경이다)
-        left = bool(sig & BLINKER_LEFT)
-        key = "lane_l" if left else "lane_r"
-        if lap.get(key, 0) >= self.max_lane:
-            return
-        f = tc.vehicle.getLeftFollowers(self.bus) if left else tc.vehicle.getRightFollowers(self.bus)
-        near = [(d, v) for v, d in f if v and 0 <= d <= self.follower_check]
-        if near:
-            self._record("S2" if left else "S3", t, "natural")
-            lap[key] = lap.get(key, 0) + 1
-            self._pending = {"vid": min(near)[1], "left": left, "t": t}        # 자연 후행차도 가까이 올 때까지 기다린다
-            return
         route, i, pos, idx = st
-        bp = self._back_point(route, i, pos, self.back_lane)
-        if bp is None:
-            return
-        k, p = bp
-        target = idx + (1 if left else -1)
-        lane = str(target) if 0 <= target < tc.edge.getLaneNumber(route[k]) and target >= 1 else "best"
-        vid = self._add_car("lane", route[k:i + 8], lane, p)       # 경로를 넉넉히 줘서 중간에 사라지지 않게 한다
-        self._record("S2" if left else "S3", t, "injected" if vid else False, vid)
-        if vid:
-            self._pending = {"vid": vid, "left": left, "t": t}
-            self._escort[vid] = t
-        lap[key] = lap.get(key, 0) + 1
-
-    def _escort_step(self, t):
-        """주입한 후행차가 시험용 버스를 앞지르지 않게 최고 속도를 버스 속도 +2 m/s로 묶는다(최대 30초).
-        그래야 버스가 방향지시등을 켜고 차선변경을 요청할 때 후행차가 가까운 뒤에 있어 A1이 켜진다(앞지르면 상호작용이 사라진다)."""
-        if not self._escort:
-            return
-        tc = self.tc
-        ids = set(tc.vehicle.getIDList())
-        v_bus = tc.vehicle.getSpeed(self.bus) if self.bus in ids else 0.0
-        for vid, t0 in list(self._escort.items()):
-            if vid not in ids or t - t0 > 30.0 or self.bus not in ids:
-                if vid in ids:
-                    tc.vehicle.setMaxSpeed(vid, 13.89)      # 묶음을 푼다
-                del self._escort[vid]
+        for plan in self._lane_plans():
+            key = self._key(plan)
+            if key in lap["lane"] or key in lap["lane_done"]:
                 continue
-            tc.vehicle.setMaxSpeed(vid, max(4.0, v_bus + 2.0))
+            d_end = self._dist_to(st, plan.edge, plan.end_pos)
+            if d_end is None or d_end <= 0:
+                continue
+            d_start = d_end - plan.length
+            if d_start > self.lane_lead:
+                continue
+            left = plan.kind == "S2"
+            f = tc.vehicle.getLeftFollowers(self.bus) if left else tc.vehicle.getRightFollowers(self.bus)
+            near = [(d, v) for v, d in f if v and 0 <= d <= self.follower_check]
+            if near:
+                self._track(plan, min(near)[1], t)
+                self._record(plan.kind, t, "natural", min(near)[1])
+                continue
+            bp = self._back_point(route, i, pos, self.back_lane)
+            if bp is None:
+                if d_start > 0:
+                    continue                             # 노선 뒤가 아직 없다(첫 바퀴 시작). 버스가 나아간 뒤 다시 본다
+                lap["lane_done"].add(key)
+                self._record(plan.kind, t, False)
+                continue
+            k, p = bp
+            lanes = tc.edge.getLaneNumber(route[k])
+            target = plan.target_lane if plan.kind == "S3" else idx + 1
+            lane = str(min(max(1, target), lanes - 1))
+            j = self._ahead_index(route, i, plan.edge, span=40)
+            vid, why = self._add_car("lane", route[k:j + 1], lane, p)
+            if vid:
+                self._track(plan, vid, t)
+                self._record(plan.kind, t, "injected", vid)
+            elif why == "near_bus" and d_start > 0:
+                continue                                 # 버스가 출발 지점에서 멀어지면 다시 본다
+            else:
+                lap["lane_done"].add(key)
+                self._record(plan.kind, t, why)
 
-    def gate(self, t):
-        """시험용 버스가 차선변경을 요청해도 되는가. 목표 차로 후행차가 `ready_gap` 안으로 오기 전에는 False다.
-        그래서 A1이 켜지는 때(방향지시등 + 후행차 접근)가 두 차가 가까워 버스가 바로 옮길 수 없는 때가 되고, 버스는 후행차의
-        행동(양보하면 옮기고, 아니면 기다리거나 다시 시도)에 따라 차선변경 시점을 정한다. 최대 대기는 버스 쪽(SIGNAL_MAX)이 정한다."""
-        p = self._pending
-        if p is None:
-            return True
+    def _follower_gap(self, vid, plan):
+        """버스 뒤끝에서 후행차 앞끝까지 노선 거리(양수 = 버스 뒤). 같은 노선 위에 없으면 None."""
         tc = self.tc
-        if p["vid"] not in tc.vehicle.getIDList() or t - p["t"] > 30.0:
-            self._pending = None
-            return True
-        f = tc.vehicle.getLeftFollowers(self.bus) if p["left"] else tc.vehicle.getRightFollowers(self.bus)
-        if any(v == p["vid"] and 0 <= d <= self.ready_gap for v, d in f):
-            self._pending = None
-            return True
-        return False
+        st = self._state()
+        if st is None:
+            return None
+        route, i, pos, _ = st
+        road = tc.vehicle.getRoadID(vid)
+        if road.startswith(":"):
+            return None
+        j = next((k for k in range(i, max(-1, i - 12), -1) if route[k] == road), None)
+        if j is None:
+            return None
+        fpos = tc.vehicle.getLanePosition(vid)
+        ahead = self._gap(route, j, fpos, i, pos) if j < i else pos - fpos
+        return ahead - tc.vehicle.getLength(self.bus)
 
+    def follower_ready(self, plan):
+        """이번 창의 상대가 버스 뒤 follower_gap 안에 있으면 True, 아직 멀면 False, 상대가 없으면 None."""
+        if self._lap is None or plan is None:
+            return None
+        rec = self._lap["lane"].get(self._key(plan))
+        if rec is None or rec["vid"] not in self.tc.vehicle.getIDList():
+            return None
+        g = self._follower_gap(rec["vid"], plan)
+        return g is not None and self.follower_gap[0] <= g <= self.follower_gap[1]
+
+    def _catch_up(self, t):
+        tc = self.tc
+        if self._lap is None or not self._lap["lane"]:
+            return
+        ids = set(tc.vehicle.getIDList())
+        v_bus = tc.vehicle.getSpeed(self.bus)
+        st = self._state()
+        lo, hi = self.follower_gap
+        for rec in self._lap["lane"].values():
+            if rec["released"]:
+                continue
+            vid, plan = rec["vid"], rec["plan"]
+            if vid not in ids:
+                rec["released"] = True
+                continue
+            passed = st is not None and (self._dist_to(st, plan.edge, plan.end_pos) or 0.0) <= 0
+            if (self.a1_active is not None and self.a1_active(vid)) or passed:
+                self._release(rec)                       # A1 상호작용이 시작되었거나 창이 끝났다: 손을 뗀다
+                continue
+            g = self._follower_gap(vid, plan)
+            if g is None:
+                continue
+            if g > hi:
+                try:
+                    cap = tc.lane.getMaxSpeed(tc.vehicle.getLaneID(vid)) + 2.0
+                except Exception:
+                    cap = 16.0
+                target = min(max(v_bus + min(4.0, (g - 8.0) / 2.0), v_bus + 1.0), cap)
+            elif g < lo:
+                target = max(0.0, v_bus - 1.0)
+            else:
+                target = v_bus
+            tc.vehicle.setSpeed(vid, target)
+
+    # ---- S5 ---------------------------------------------------------------------------------
     def _s5(self, t, st):
         tc, lap = self.tc, self._lap
-        a = lap["s5_alley"]
-        if lap["s5"] or a is None:
-            return
-        route, i, pos, idx = st
+        v = max(tc.vehicle.getSpeed(self.bus), 5.0)
+        for a in lap["S5"]:
+            if a.junction in lap["s5_done"]:
+                continue
+            d = self._dist_to(st, a.into, 0.0)
+            if d is None or d < 0:
+                continue                                  # 이번 바퀴에 아직 앞에 없다(또는 지났다)
+            if d < 30.0:
+                lap["s5_done"].add(a.junction)
+                self._record("S5", t, "late")
+                continue
+            feeder_len = self.net.getEdge(a.feeder).getLength()
+            # 골목 안 합류점 s5_lead m 앞에서 출발. 버스와 가까우면 골목 시작 쪽으로 물린다(그만큼 일찍 출발해야 한다)
+            cands = sorted({max(1.0, feeder_len - self.s5_lead), max(1.0, feeder_len - self.s5_lead - 40.0), 1.0},
+                           reverse=True)
+            for spawn_pos in cands:
+                t_cut = (feeder_len - spawn_pos) / 8.0 + 0.5      # 골목 차가 합류점에 닿는 데 걸리는 시간
+                if d / v > t_cut + 3.0:
+                    continue                                  # 이 자리에서 출발하기에는 아직 이르다
+                vid, why = self._add_car("s5", [a.feeder, a.into], "0", spawn_pos, vtype=self.cutin_type)
+                if vid:
+                    lap["s5_done"].add(a.junction)
+                    self._record("S5", t, "injected", vid)
+                    break
 
-        def dist(x):                                          # 버스에서 합류점(들어가는 도로 시작)까지 경로상 거리. 지났으면 None
-            if x.into not in route[i:]:
-                return None
-            d0 = self._gap(route, i, pos, route.index(x.into, i), 0.0)
-            return d0 if d0 >= 0 else None
-
-        d = dist(a)
-        if d is None or d < 60.0:                             # 이미 지났거나 너무 가까우면 앞에 있는 다른 골목으로 바꾼다
-            ahead = [x for x in self.alleys if (dist(x) or 0) >= 150.0]
-            if not ahead:
-                return
-            a = lap["s5_alley"] = self.rng.choice(ahead)
-            d = dist(a)
-        feeder_len = self.net.getEdge(a.feeder).getLength()
-        # 골목이 길면(예: G16 190 m) 시작점에서 출발해 합류점에 닿기까지 20초 넘게 걸려 그 사이 버스가 정류장·신호로 늦어지면
-        # 골목 차가 이미 멀리 가 버린다. 합류점 `lead` m 앞에서 출발시킨다(골목 안은 버스가 볼 수 없어 갑자기 생겨도 자연스럽다).
-        spawn_pos = max(1.0, feeder_len - self.s5_lead)
-        t_cut = (feeder_len - spawn_pos) / 8.0 + 0.5          # 골목 차가 합류점에 닿는 데 걸리는 시간
-        if d / max(tc.vehicle.getSpeed(self.bus), 5.0) > t_cut + 3.0:
-            return                                            # 아직 이르다: 버스가 합류점에 닿기 3초 전에 골목 차가 먼저 닿도록 맞춘다(2초일 때 버스 뒤로 처진 경우가 있었다)
-        lap["s5"] = True
-        out = self.rng.choice(self.exits) if self.exits else None
-        path = None
-        if out is not None:
-            seg, _ = self.net.getOptimalPath(self.net.getEdge(a.into), self.net.getEdge(out), vClass="passenger")
-            path = [a.feeder] + [e.getID() for e in seg] if seg else None
-        path = path or [a.feeder, a.into]
-        vid = self._add_car("s5", path, "0", spawn_pos, vtype=self.cutin_type)
-        self._record("S5", t, "injected" if vid else False, vid)
-
+    # ---- S6 ---------------------------------------------------------------------------------
     def _s6(self, t, st):
         tc, lap = self.tc, self._lap
-        if lap["s6"]:
+        if lap["S6"]:
             return
         route, i, pos, idx = st
         if route[i] != self.s6_before:
-            return                                       # 횡단보도 바로 앞 도로에 들어온 뒤에만 넣는다(그 전에 신호 대기가 끼면 보행자가 먼저 건너 버린다)
-        d = self._len(self.s6_before) - pos              # 횡단보도(그 도로의 끝)까지 남은 거리
+            return                                       # 횡단보도 바로 앞 도로에 들어온 뒤에만 넣는다
+        d = self._len(self.s6_before) - pos
         # 보행자는 7초 걸어 횡단보도에 닿고 약 13초 건넌다. 보행자가 닿을 때 버스가 60 m 앞에 오도록 맞춘다.
         if d < 0 or d > max(60.0, 7.0 * max(tc.vehicle.getSpeed(self.bus), 5.0) + 60.0):
             return
-        lap["s6"] = True
-        # 이미 횡단보도 위에 사람이 있어도 그 사람이 버스가 50 m 안에 올 때까지 건너고 있을지 알 수 없으므로, 바퀴마다 한 명은
-        # 항상 넣는다(자연 발생이 있었는지는 따로 적는다).
+        first = self.s6_walk[0]
+        start = max(0.0, tc.lane.getLength(f"{first}_0") - 8.0)
+        if not far_from_bus(tc, self.bus, self._xy(first, start), PRESENCE_RADIUS_M):
+            return                                       # 버스 반경 안: 버스가 지나가기 전 다음 스텝에 다시 본다
+        lap["S6"] = True
         natural = any(tc.person.getRoadID(p).startswith(":S6_wausanro_c") for p in tc.person.getIDList())
-        pid = f"inj_s6_{self._seq + 1}"
         self._seq += 1
+        pid = f"inj_s6_{self._seq}"
         try:
-            first = self.s6_walk[0]
-            tc.person.add(pid, first, max(0.0, tc.lane.getLength(f"{first}_0") - 8.0))
+            tc.person.add(pid, first, start)
             tc.person.appendWalkingStage(pid, self.s6_walk, 20.0)
             # 버스가 와도 건너는 사람이다(PedSUMO의 '무시하고 건너기'와 같다). 이 사람이 있어야 버스가 서는 상호작용이 보장된다.
             tc.person.setParameter(pid, "junctionModel.ignoreTypes", " ".join(tc.vehicletype.getIDList()))
@@ -291,4 +376,5 @@ class ScenarioInjector:
             by.setdefault(r["kind"], {"natural": 0, "injected": 0, "failed": 0})
             k = r["ok"] if r["ok"] in ("natural", "injected") else "failed"
             by[r["kind"]][k] += 1
-        return {"laps": len(laps), "by_kind": by}
+        return {"laps": len(laps), "by_kind": by,
+                "s5_alleys_per_lap": [[a.junction for a in lap["S5"]] for lap in laps]}

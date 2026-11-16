@@ -304,10 +304,12 @@ class HapjeongTraffic:
         return InteriorSpawner(traci, net, bus_id, m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}),
                                self.interior_per_h, rng=random.Random(self.seed + 6), min_dist=self.interior_min_dist)
 
-    def scenario_triggers(self, approach=120.0, loop=None):
+    def scenario_triggers(self, approach=120.0, loop=None, plans=None):
         """A1 진입 의사 구간: S2(좌회전 직전, 좌측), S3(정류장 접근, 우측), S4(정차 차량 앞, 양쪽).
 
-        지도의 버스 경로(loop)에서 읽는다. 경로의 다음 도로로 가는 연결이 좌회전이면 앞 도로의 끝 approach m가 S2 구간이다.
+        plans(test_bus.lane_plans)를 주면 S2·S3 구간은 시험용 버스의 차선 변경 창과 같다(J1 앞은 차로를 3~4칸 옮기므로
+        창이 240 m로 길어 120 m 구간으로는 첫 변경이 빠졌다). 주지 않으면 지도의 버스 경로(loop)에서 읽는다: 다음 도로로 가는
+        연결이 좌회전이면 앞 도로의 끝 approach m가 S2 구간, 정류장 앞 approach m가 S3 구간이다.
         """
         m = load_map(MAP_ID)
         route = loop or m["routes"]["bus_loop"]
@@ -315,10 +317,10 @@ class HapjeongTraffic:
         out = []
         route = close_loop(net, route)      # 노선 끝과 처음 사이에 시뮬레이션이 잇는 도로(R42 -> R68 -> R69)를 포함한다
 
-        def zones_before(k, pos):
-            """경로의 k번째 도로 pos 앞 approach m를 도로 경계를 넘어 거슬러 올라가며 구간으로 만든다.
+        def zones_before(k, pos, length=approach):
+            """경로의 k번째 도로 pos 앞 length m를 도로 경계를 넘어 거슬러 올라가며 구간으로 만든다.
             짧은 도로(R111b 27 m)가 구간이면 버스가 방향지시등을 켜는 앞 도로(R111)가 빠져 A1이 켜지지 않았다."""
-            zs, left_m = [], approach
+            zs, left_m = [], length
             while left_m > 0 and k >= 0 and net.hasEdge(route[k]):
                 lo = max(0.0, pos - left_m)
                 zs.append(Zone(route[k], lo, pos))
@@ -328,21 +330,26 @@ class HapjeongTraffic:
                     pos = net.getEdge(route[k]).getLength()
             return zs
 
-        left = []
-        for k, (a, b) in enumerate(zip(route, route[1:])):
-            if not (net.hasEdge(a) and net.hasEdge(b)):
-                continue
-            conns = net.getEdge(a).getConnections(net.getEdge(b))
-            if conns and all(c.getDirection() in ("l", "L") for c in conns):
-                left += zones_before(k, net.getEdge(a).getLength())
+        left, right = [], []
+        if plans is not None:
+            for p in plans:
+                if p.edge in route:
+                    zs = zones_before(route.index(p.edge), p.end_pos, p.length)
+                    (left if p.kind == "S2" else right).extend(zs)
+        else:
+            for k, (a, b) in enumerate(zip(route, route[1:])):
+                if not (net.hasEdge(a) and net.hasEdge(b)):
+                    continue
+                conns = net.getEdge(a).getConnections(net.getEdge(b))
+                if conns and all(c.getDirection() in ("l", "L") for c in conns):
+                    left += zones_before(k, net.getEdge(a).getLength())
+            for s in m["bus_stops"]:
+                edge = s["lane"].rsplit("_", 1)[0]
+                if edge in route:
+                    right += zones_before(route.index(edge), s["startPos"])
         left = clip_zones(net, route, left)           # 신호 교차로 정지선 앞(기본 20 m, J1 10 m)에서는 A1을 켜지 않는다
         if left:
             out.append(Trigger(+1, left))
-        right = []
-        for s in m["bus_stops"]:
-            edge = s["lane"].rsplit("_", 1)[0]
-            if edge in route:
-                right += zones_before(route.index(edge), s["startPos"])
         right = clip_zones(net, route, right)
         if right:
             out.append(Trigger(-1, right))
@@ -362,7 +369,7 @@ class HapjeongTraffic:
         """
         self.owner = Ownership()
         if triggers == "scenario":
-            triggers = self.scenario_triggers()
+            triggers = self.scenario_triggers(plans=pilot.plans if pilot is not None else None)
         mgr = YieldManager(traci, bus_id, rng=random.Random(self.seed), types=yield_types or DEFAULT_TYPES,
                            type_mix=self.yield_mix, mix_vtype_prefixes=("car_",), owner=self.owner, triggers=triggers,
                            vtype_aggr=getattr(self, "cutin_aggr", None),
@@ -389,15 +396,17 @@ class HapjeongTraffic:
             self.ahead = StopAheadManager(traci, bus_id, stops, rng=random.Random(self.seed + 4), owner=self.owner)
         extras = [self.ahead] if self.ahead else []
         self.injector = None
-        if scenario_inject:                 # 방법 2: 시나리오 주입기(자연 발생이 없을 때만 상대를 미리 투입)
+        if scenario_inject and pilot is not None:   # 방법 2: 시나리오 주입기(바퀴마다 S2·S3·S5·S6 상대를 계획해 넣는다)
             m = load_map(MAP_ID)
             net = read_net(os.path.join(self.out_dir, "network.net.xml"))
             self.injector = ScenarioInjector(
                 traci, net, bus_id,
                 [{"id": s["id"], "edge": s["lane"].rsplit("_", 1)[0]} for s in m["bus_stops"]
                  if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]],
-                self.alleys, getattr(self, "cutin_full_ignore", "cutin_0"), rng=random.Random(self.seed + 8),
-                exits=sorted({f["to"] for f in m["flows"]}))
+                self.alleys, getattr(self, "cutin_full_ignore", "cutin_0"),
+                lap_fn=lambda: pilot.lap, plans=pilot.plans, rng=random.Random(self.seed + 8),
+                a1_active=lambda vid: vid in mgr.inter)
+            pilot.follower_ready = self.injector.follower_ready     # 상대가 늦으면 시험용 버스가 속도를 줄인다
             extras.append(self.injector)
         if getattr(self, "persons", None) is not None:
             self.persons.bus = bus_id

@@ -1,0 +1,287 @@
+"""주입기 바퀴 계획: 매 바퀴 S2·S3·S6, S5 1~2곳, 100% 끼어들기, 버스 반경 밖 생성, 경계로 끝나는 경로."""
+import json
+import os
+import random
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from traffic.alleys import close_loop, find_merge_alleys, read_net  # noqa: E402
+from traffic.presence import PRESENCE_RADIUS_M, ends_at_boundary  # noqa: E402
+from traffic.scenario_injector import ScenarioInjector  # noqa: E402
+from traffic.signal_areas import unsignalized_alleys  # noqa: E402
+from traffic.test_bus import lane_plans, lap_route  # noqa: E402
+
+ROOT = os.path.join(os.path.dirname(__file__), "..", "maps", "hapjeong")
+_cache = {}
+
+
+def _net():
+    if "net" not in _cache:
+        _cache["net"] = read_net(os.path.join(ROOT, "source", "network.net.xml"))
+    return _cache["net"]
+
+
+def _map():
+    if "map" not in _cache:
+        with open(os.path.join(ROOT, "map.json"), encoding="utf-8") as f:
+            _cache["map"] = json.load(f)
+    return _cache["map"]
+
+
+def _route():
+    return lap_route(_net(), _map()["routes"]["bus_loop"])
+
+
+def _stops():
+    return [{"id": s["id"], "name": s["name"], "edge": s["lane"].rsplit("_", 1)[0], "startPos": s["startPos"],
+             "lane_idx": int(s["lane"].rsplit("_", 1)[1])} for s in _map()["bus_stops"]]
+
+
+def _alleys():
+    return unsignalized_alleys(find_merge_alleys(_net(), close_loop(_net(), _map()["routes"]["bus_loop"])))
+
+
+class _V:
+    def __init__(self, tc):
+        self.tc = tc
+
+    def getIDList(self):
+        return ["bus0"] + list(self.tc.cars)
+
+    def getPosition(self, v):
+        return self.tc.bus_xy if v == "bus0" else (0.0, 0.0)
+
+    def getSpeed(self, v):
+        return self.tc.bus_speed if v == "bus0" else 8.0
+
+    def getRoadID(self, v):
+        return self.tc.bus_road
+
+    def getRoute(self, v):
+        return self.tc.route
+
+    def getRouteIndex(self, v):
+        return self.tc.route.index(self.tc.bus_road)
+
+    def getLanePosition(self, v):
+        return self.tc.bus_pos
+
+    def getLaneIndex(self, v):
+        return 2
+
+    def getLength(self, v):
+        return 12.0
+
+    def getStopState(self, v):
+        return 0
+
+    def getLeftFollowers(self, v):
+        return []
+
+    def getRightFollowers(self, v):
+        return []
+
+    def getFollower(self, v, dist):
+        return ("", -1.0)
+
+    def add(self, vid, rid, typeID="carDist", **kw):
+        self.tc.added.append({"id": vid, "route": self.tc.routes[rid], "type": typeID, **kw})
+        self.tc.cars.append(vid)
+
+    def setSpeed(self, v, s):
+        self.tc.set_speed[v] = s
+
+    def setLaneChangeMode(self, v, m):
+        self.tc.lc_mode[v] = m
+
+    def getLaneChangeMode(self, v):
+        return self.tc.lc_mode.get(v, 1621)
+
+    def getLaneID(self, v):
+        return "R71_2"
+
+
+class _R:
+    def __init__(self, tc):
+        self.tc = tc
+
+    def add(self, rid, edges):
+        self.tc.routes[rid] = list(edges)
+
+
+class _L:
+    def getLength(self, lane):
+        return _net().getEdge(lane.rsplit("_", 1)[0]).getLength()
+
+    def getMaxSpeed(self, lane):
+        return 13.89
+
+
+class _E:
+    def getLaneNumber(self, e):
+        return _net().getEdge(e).getLaneNumber()
+
+
+class _P:
+    def getIDList(self):
+        return []
+
+
+class _FakeTC:
+    """버스 상태와 기록. route는 버스 경로(도로 id 목록)다."""
+
+    def __init__(self, bus_road="R71", bus_pos=20.0, bus_xy=(1e5, 1e5), bus_speed=8.0):
+        self.bus_road, self.bus_pos, self.bus_xy, self.bus_speed = bus_road, bus_pos, bus_xy, bus_speed
+        self.route = _route()
+        self.cars, self.added, self.routes, self.set_speed, self.lc_mode = [], [], {}, {}, {}
+        self.vehicle = _V(self)
+        self.lane, self.edge, self.person = _L(), _E(), _P()
+
+
+class _TC2:
+    """route 속성 이름이 traci와 같게(tc.route.add) 쓰이도록 감싼다."""
+
+    def __init__(self, **kw):
+        self.f = _FakeTC(**kw)
+        self.vehicle, self.lane, self.edge, self.person = self.f.vehicle, self.f.lane, self.f.edge, self.f.person
+        self.route = _R(self.f)
+
+
+def _inj(tc, lap=lambda: 1, alleys=None, seed=0, a1_active=None):
+    plans = lane_plans(_net(), _route(), _stops())
+    return ScenarioInjector(tc, _net(), "bus0", _stops(), _alleys() if alleys is None else alleys, "cutin_full",
+                            lap_fn=lap, plans=plans, rng=random.Random(seed), a1_active=a1_active)
+
+
+def test_lap_plan_has_both_s2_one_s3_and_one_or_two_s5():
+    for seed in range(10):
+        inj = _inj(_TC2(), seed=seed)
+        inj.update(0.0)
+        p = inj._lap
+        assert [x.kind for x in p["S2"]] == ["S2", "S2"] and p["S3"].kind == "S3"
+        assert 1 <= len(p["S5"]) <= 2 and len({a.junction for a in p["S5"]}) == len(p["S5"]) and p["S6"] is False
+
+
+def test_new_lap_follows_pilot_lap_not_bus_presence():
+    lap = {"n": 1}
+    inj = _inj(_TC2(), lap=lambda: lap["n"])
+    inj.update(0.0)
+    inj.update(1.0)
+    assert len(inj._laps_done) == 0
+    lap["n"] = 2
+    inj.update(2.0)
+    assert len(inj._laps_done) == 1
+
+
+def test_follower_ready_only_when_close_behind():
+    tc = _TC2(bus_road="R112.221", bus_pos=10.0)                 # J1 창(R42 앞)은 아직 멀다
+    inj = _inj(tc)
+    inj.update(0.0)
+    plan = inj._lap["S2"][1]
+    assert inj.follower_ready(plan) is None                     # 상대가 없다
+    tc.f.cars.append("f")
+    inj._track(plan, "f", 0.0)
+    gaps = {"g": 20.0}
+    inj._follower_gap = lambda vid, p: gaps["g"]
+    assert inj.follower_ready(plan) is False
+    gaps["g"] = 8.0
+    assert inj.follower_ready(plan) is True
+
+
+def test_catch_up_speeds_follower_toward_bus_then_matches():
+    tc = _TC2(bus_road="R112.221", bus_pos=10.0, bus_speed=8.0)
+    active = set()
+    inj = _inj(tc, a1_active=lambda vid: vid in active)
+    inj.update(0.0)
+    plan = inj._lap["S2"][1]
+    tc.f.cars.append("f")
+    inj._track(plan, "f", 0.0)
+    gaps = {"g": 30.0}
+    inj._follower_gap = lambda vid, p: gaps["g"]
+    inj._catch_up(0.1)
+    assert tc.f.set_speed["f"] == pytest.approx(12.0)           # 8 + min(4, (30-8)/2)
+    gaps["g"] = 8.0
+    inj._catch_up(0.2)
+    assert tc.f.set_speed["f"] == pytest.approx(8.0)
+    active.add("f")                                             # A1 상호작용 시작: 손을 뗀다
+    inj._catch_up(0.3)
+    assert tc.f.set_speed["f"] == -1
+
+
+def test_injector_has_no_gate():
+    assert not hasattr(ScenarioInjector, "gate")
+
+
+def _dongmak3():
+    return [a for a in _alleys() if a.junction == "X_dongmak3"]
+
+
+def _near_merge():
+    return _net().getEdge("R71").getLength() - 40.0           # 합류점(R71.135 시작) 40 m 앞
+
+
+def test_cutter_uses_full_ignore_type_and_ends_at_boundary():
+    tc = _TC2(bus_road="R71", bus_pos=_near_merge())
+    inj = _inj(tc, alleys=_dongmak3())
+    inj.update(0.0)
+    inj._s5(0.1, inj._state())
+    cut = [a for a in tc.f.added if a["id"].startswith("inj_s5")]
+    assert cut and cut[0]["type"] == "cutin_full" and cut[0]["route"][0] == "G3"
+    assert ends_at_boundary(_net(), cut[0]["route"][-1])
+
+
+def test_no_spawn_within_radius_of_bus():
+    from sumolib.geomhelper import positionAtShapeOffset
+    g3 = _net().getEdge("G3")
+    xy = positionAtShapeOffset(g3.getShape(), 1.0)
+    tc = _TC2(bus_road="R71", bus_pos=_near_merge(), bus_xy=(xy[0] + 0.5 * PRESENCE_RADIUS_M, xy[1]))
+    inj = _inj(tc, alleys=_dongmak3())
+    inj.update(0.0)
+    inj._s5(0.1, inj._state())
+    assert not any(a["id"].startswith("inj_s5") for a in tc.f.added)
+
+
+def _s3_window_start():
+    p = next(x for x in lane_plans(_net(), _route(), _stops()) if x.kind == "S3")
+    back = p.length - p.end_pos - _net().getEdge("R71.135").getLength()   # R71 위에서 창이 시작하는 곳까지
+    return _net().getEdge("R71").getLength() - back
+
+
+def test_lane_follower_is_inserted_just_before_window_close_behind_and_lane_held():
+    # S3 창(s2 앞) 시작 60 m 앞에 오면 목표 차로(오른쪽)에 버스 반경 + 15 m 뒤에서 후행차를 넣고, 차로를 붙잡아 둔다
+    start = _s3_window_start()                                    # R71 위 창 시작(약 52 m)
+    tc = _TC2(bus_road="R69", bus_pos=10.0)                       # 창 시작까지 60 m보다 멀다
+    inj = _inj(tc, alleys=[])
+    inj.update(0.0)
+    assert not any(a["id"].startswith("inj_lane") for a in tc.f.added)          # 아직 이르다
+    tc.f.bus_road, tc.f.bus_pos = "R71", start + 8.0                            # 창 안
+    inj._lanes(0.1, inj._state())
+    lane = [a for a in tc.f.added if a["id"].startswith("inj_lane")]
+    assert lane and ends_at_boundary(_net(), lane[0]["route"][-1])
+    assert lane[0]["route"][0] == "R71"
+    assert float(lane[0]["departPos"]) == pytest.approx(start + 8.0 - (PRESENCE_RADIUS_M + 15.0), abs=0.2)
+    assert lane[0]["departLane"] == "1" and tc.f.lc_mode[lane[0]["id"]] == 0
+    assert inj.follower_ready(inj._lap["S3"]) is not None
+
+
+def test_released_follower_gets_its_lane_change_mode_back():
+    start = _s3_window_start()
+    tc = _TC2(bus_road="R71", bus_pos=start + 8.0)
+    active = set()
+    inj = _inj(tc, alleys=[], a1_active=lambda vid: vid in active)
+    inj.update(0.0)
+    vid = next(a["id"] for a in tc.f.added if a["id"].startswith("inj_lane"))
+    active.add(vid)
+    inj._catch_up(0.2)
+    assert tc.f.lc_mode[vid] == 1621 and tc.f.set_speed[vid] == -1
+
+
+def test_no_back_point_is_retried_not_given_up():
+    # 첫 바퀴 시작(R68)에서는 노선 뒤가 없다. 포기하지 말고 버스가 나아간 뒤 다시 본다
+    tc = _TC2(bus_road="R68", bus_pos=1.0)
+    inj = _inj(tc, alleys=[])
+    inj.update(0.0)
+    assert ("S3", "R71.206") not in inj._lap["lane_done"]

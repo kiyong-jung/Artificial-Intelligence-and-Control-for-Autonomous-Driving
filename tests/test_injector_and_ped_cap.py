@@ -35,7 +35,8 @@ class _Net:
 
 
 def _inj(tls=()):
-    return ScenarioInjector(_Tc(), _Net(tls), "bus0", [], [], "cutin_0", rng=random.Random(0))
+    return ScenarioInjector(_Tc(), _Net(tls), "bus0", [], [], "cutin_0", lap_fn=lambda: 1, plans=[],
+                            rng=random.Random(0))
 
 
 def test_back_point_walks_backwards_along_the_route():

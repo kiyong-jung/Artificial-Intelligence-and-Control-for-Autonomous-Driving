@@ -115,3 +115,64 @@ def stopped_vehicle_xml(spec, index=0, car_attrs=None):
     if spec.kind == "car":
         vt_xml = f'<vType id="{vt_id}" {car_attrs or DEFAULT_CAR_ATTRS} color="0.3,0.5,0.9"/>'
     return [vt_xml], [veh], pa
+
+
+class CutinTypeSwitch:
+    """끼어들기 vType(앞차 무시 확률 1 등)은 합류 골목 안에서만 쓴다. 그 밖에서는 보통 차 vType으로 바꾼다.
+
+    jmIgnoreFoeProb는 차뿐 아니라 보행자도 무시하게 한다. 그래서 끼어들기 vType으로 계속 달리면 골목에서 나온 뒤 지나는 신호
+    교차로 횡단보도에서도 보행자를 무시해 부딪혔다(baseline 3바퀴 측정 2건, cluster_J52_J56_J58). 골목(feeders) 안에 있거나
+    합류 중(교차로 내부)일 때만 원래 끼어들기 vType이고, 합류를 마치거나 아직 골목에 닿지 않았으면 normal_type이다.
+    update(t)를 매 스텝 부른다(runner의 extras).
+    """
+
+    def __init__(self, traci, feeders, normal_type="car_krauss", prefix="cutin_", period=0.2):
+        self.tc, self.feeders, self.normal = traci, set(feeders), normal_type
+        self.prefix, self.period = prefix, period
+        self.cut = {}            # 차 id -> 원래 끼어들기 vType
+        self.state = {}          # 차 id -> "out"(골목 밖) | "in"(골목 안·합류 중)
+        self._started, self._t_next = False, -1e9
+        self.switches = 0
+
+    def _set(self, vid, vtype):
+        try:
+            self.tc.vehicle.setType(vid, vtype)
+            self.switches += 1
+        except Exception:
+            pass
+
+    def _register(self, vid):
+        vt = self.tc.vehicle.getTypeID(vid).split("@")[0]
+        if not vt.startswith(self.prefix):
+            return
+        self.cut[vid] = vt
+        if self.tc.vehicle.getRoadID(vid) in self.feeders:
+            self.state[vid] = "in"
+        else:
+            self.state[vid] = "out"
+            self._set(vid, self.normal)
+
+    def update(self, t):
+        tc = self.tc
+        if not self._started:                      # 예열 중에 나온 차도 맡는다
+            self._started = True
+            for vid in tc.vehicle.getIDList():
+                self._register(vid)
+        for vid in tc.simulation.getDepartedIDList():
+            if vid not in self.state:
+                self._register(vid)
+        if t < self._t_next:
+            return
+        self._t_next = t + self.period
+        ids = set(tc.vehicle.getIDList())
+        for vid in list(self.state):
+            if vid not in ids:
+                del self.state[vid], self.cut[vid]
+                continue
+            road = tc.vehicle.getRoadID(vid)
+            if self.state[vid] == "out" and road in self.feeders:
+                self._set(vid, self.cut[vid])                   # 골목에 들어왔다: 버스 앞으로 끼어든다
+                self.state[vid] = "in"
+            elif self.state[vid] == "in" and not road.startswith(":") and road not in self.feeders:
+                self._set(vid, self.normal)                     # 합류를 마쳤다: 다시 보통 차
+                del self.state[vid], self.cut[vid]

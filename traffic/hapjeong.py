@@ -25,7 +25,8 @@ from env.road_config import ROAD, EGO, TRAFFIC, configure_map
 
 from .alleys import close_loop, find_merge_alleys, flow_merges, read_net
 from .common import AGGRESSION, Ownership
-from .cutin import STOPPED_KINDS, StoppedSpec, cutin_bins_once, cutin_vtype_xml, stopped_vehicle_xml
+from .cutin import (STOPPED_KINDS, CutinTypeSwitch, StoppedSpec, cutin_bins_once, cutin_vtype_xml,
+                    stopped_vehicle_xml)
 from .ped_defiance import PedDefianceManager
 from .pedestrian import ped_vtypes_xml
 from .runner import run as run_loop
@@ -415,6 +416,11 @@ class HapjeongTraffic:
         if getattr(self, "persons", None) is not None:
             self.persons.bus = bus_id
             extras.insert(0, _TimeAdapter(self.persons))
+        # 끼어들기 vType은 합류 골목 안에서만 쓴다(그 밖의 신호 횡단보도에서 보행자를 무시해 부딪혔다)
+        self.cutin_switch = None
+        if self.cutin and getattr(self, "alleys", None):
+            self.cutin_switch = CutinTypeSwitch(traci, {a.feeder for a in self.alleys}, normal_type="car_krauss")
+            extras.insert(0, self.cutin_switch)
         # 지도 안쪽에서 끝나는 경로의 차가 시험용 버스 가까이에서 사라지지 않게 목적지를 지도 경계로 늘린다
         self.arrival_guard = VehicleArrivalGuard(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
         extras.append(self.arrival_guard)

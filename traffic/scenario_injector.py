@@ -276,7 +276,13 @@ class ScenarioInjector:
             if target is None:
                 target = plan.target_lane if plan.kind == "S3" else idx + 1
             lane = str(min(max(1, target), lanes - 1))
-            vid, why = self._add_car("lane", route[k:j_end + 1], lane, p)
+            # 창 끝 다음 도로(좌회전 도착 도로)까지 버스와 같은 길로 간다. 그래야 SUMO가 그 회전 차로로 이어지는 차로를 고른다
+            # (J1: 곧장 나가는 경로였을 때 R54b 3 -> R54 4로 가 버스의 중간 목표 차로에 있었다)
+            path = list(route[k:j_end + 1])
+            nxt = route[j_end + 1] if j_end + 1 < len(route) else route[0]     # 노선 끝이면 다음 바퀴 처음(R42 -> R68)
+            if self.net.getEdge(route[j_end]).getConnections(self.net.getEdge(nxt)):
+                path.append(nxt)
+            vid, why = self._add_car("lane", path, lane, p)
             if vid:
                 self._track(plan, vid, t)
                 self._record(plan.kind, t, "injected", vid)

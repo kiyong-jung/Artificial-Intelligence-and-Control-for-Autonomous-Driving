@@ -339,6 +339,9 @@ def test_j1_follower_is_in_the_lane_feeding_the_left_turn_lane():
     inj._lanes(0.1, inj._state())
     lane = [a for a in tc.f.added if a["id"].startswith("inj_lane")]
     assert lane and lane[0]["route"][0] == "R54a" and lane[0]["departLane"] == "3"
+    # 좌회전 도착 도로(R68)까지 버스와 같은 길로 가야 SUMO가 좌회전 차로(R54b 4 -> R54 5)를 고른다. 예전에는 R42에서
+    # 곧장 나가는 경로라 R54b 3 -> R54 4(버스의 중간 목표 차로)로 가 중간 변경에서 A1이 켜지고 마지막 변경 상대가 없었다
+    assert lane[0]["route"][:5] == ["R54a", "R54b", "R54", "R42", "R68"]
     assert inj.follower_ready(inj._lap["S2"][1]) is not None
 
 

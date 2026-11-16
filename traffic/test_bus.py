@@ -23,6 +23,7 @@ START_EDGE = "R68"
 # 서는 정류장: s2 성산중학교, s4 극동방송, s5 서교동교회, s6 합정역
 STOP_AT = ("osm_stop_357920024", "osm_stop_5930628870", "osm_stop_3446267493", "osm_stop_3424857165")
 CHANGE_WINDOW_M = 120.0
+STOP_LANE_LEAD_M = 10.0         # 정류장 차로에는 정류장 시작 이만큼 전까지 들어가 있어야 한다
 EXTRA_PER_LANE_M = 40.0         # 차로를 한 칸 더 옮겨야 하면 창을 이만큼 늘린다
 BLINKER_RIGHT, BLINKER_LEFT = 1, 2
 LC_MANUAL, LC_SUMO = 512, 1621
@@ -65,7 +66,11 @@ def lane_plans(net, route, stops):
     plans = []
     s2 = next(s for s in stops if s["id"] == STOP_AT[0])
     top = net.getEdge(s2["edge"]).getLaneNumber() - 1
-    plans.append(LanePlan("S3", s2["edge"], s2["startPos"], s2["lane_idx"],
+    # 정류장 차로에는 정류장 시작 STOP_LANE_LEAD_M m 전까지 들어가야 한다
+    edge, end = s2["edge"], s2["startPos"] - STOP_LANE_LEAD_M
+    if end < 0:
+        edge, end = _back(net, route, route.index(s2["edge"]), s2["startPos"], STOP_LANE_LEAD_M)
+    plans.append(LanePlan("S3", edge, end, s2["lane_idx"],
                           CHANGE_WINDOW_M + EXTRA_PER_LANE_M * max(0, top - s2["lane_idx"] - 1)))
     for k, (a, b) in enumerate(zip(route, route[1:] + route[:1])):
         ea, eb = net.getEdge(a), net.getEdge(b)

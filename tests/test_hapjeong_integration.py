@@ -40,6 +40,15 @@ def test_merge_alleys_are_found_from_the_map(world):
     assert all(a["minor"] and a["regulated"] for a in alleys)        # 골목이 비우선이고 충돌이 기록되는 교차로
 
 
+def test_s5_candidates_are_only_the_two_chosen_alleys_and_never_signalized(world):
+    # S5 끼어들기 후보는 독막로6길(X_dongmak6, G12 -> R71.256)과 잔다리로2길(X_jandari2, G23 -> -R96.119) 두 곳뿐이다.
+    # 신호 교차로(cluster_J52_J56_J58, J74, J48)는 원래대로 제외한다. S4(정류장 근처 정차)는 다른 골목도 쓸 수 있어 그대로다
+    got = {(a.junction, a.feeder, a.into) for a in world.s5_alleys}
+    assert got == {("X_dongmak6", "G12", "R71.256"), ("X_jandari2", "G23", "-R96.119")}
+    assert not any(a.signalized for a in world.s5_alleys)
+    assert {a.junction for a in world.alleys} >= {"X_dongmak3", "X_wausan11", "X_jandari7", "X_jandari3"}   # S4용은 유지
+
+
 def test_background_flows_never_use_cutin_type(world):
     # 끼어들기는 시험용 버스와만 상호작용한다. 배경 골목 흐름을 끼어들기 vType(앞차 무시)으로 바꾸면 배경 차와 부딪혔다
     # (busy 측정의 cutin_0 대 배경 차 충돌 11회). 골목 흐름도 보통 배경 차다. 끼어들기 차는 주입기만 시험용 버스가 가까울 때 넣는다

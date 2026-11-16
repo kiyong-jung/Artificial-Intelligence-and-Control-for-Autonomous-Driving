@@ -45,6 +45,8 @@ from .yield_logic import YieldManager, DEFAULT_TYPES, Trigger, Zone
 
 MAP_ID = "hapjeong"
 S6_EDGES = ("R112", "-R112")           # 와우산로. 이 둘을 모두 걷는 보행자가 횡단보도를 건넌다
+# S5 끼어들기 후보 골목 (교차로, 골목 도로, 합류하는 버스 도로). 둘 다 신호 없는 교차로다
+S5_ALLEYS = {("X_dongmak6", "G12", "R71.256"), ("X_jandari2", "G23", "-R96.119")}
 BUS_VTYPE = ('<vType id="bus_test" vClass="bus" length="12" width="2.5" accel="1.2" decel="4.0" '
              'tau="1.0" sigma="0" guiShape="bus" color="255,0,0"/>')   # 버스는 빨간색
 
@@ -224,7 +226,10 @@ class HapjeongTraffic:
             for a in alleys:
                 if flow_merges(net, flow.attrib, [a]):
                     per_alley[a.junction] += 1                  # 합류하는 배경 흐름 수(기록만)
-        self.alleys = alleys
+        self.alleys = alleys                       # S4(정류장 근처 정차)가 쓰는 신호 없는 합류 골목 전부
+        # S5 끼어들기 후보는 두 곳뿐이다(사용자 결정): 독막로6길 G12 -> R71.256, 잔다리로2길 G23 -> -R96.119. 그 밖의 골목은
+        # 끼어들기가 다른 차로·교차로의 차에 영향을 줘 사고·정체가 났다. 신호 교차로 제외(alleys가 이미 걸렀다)는 그대로다
+        self.s5_alleys = [a for a in alleys if (a.junction, a.feeder, a.into) in S5_ALLEYS and not a.signalized]
         self.summary["cutin_alleys"] = [
             {"junction": a.junction, "feeder": a.feeder, "into": a.into, "junction_type": a.junction_type,
              "minor": a.minor, "regulated": a.regulated, "flows": per_alley[a.junction]} for a in alleys]
@@ -410,7 +415,7 @@ class HapjeongTraffic:
                 traci, net, bus_id,
                 [{"id": s["id"], "edge": s["lane"].rsplit("_", 1)[0], "startPos": s["startPos"], "endPos": s["endPos"]}
                  for s in m["bus_stops"] if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]],
-                self.alleys, "carDist",           # 끼어들기 차도 보통 차다. 시험용 버스만 무시한다(주입기가 ignoreIDs를 건다)
+                self.s5_alleys, "carDist",        # 끼어들기 차도 보통 차다. 시험용 버스만 무시한다(주입기가 ignoreIDs를 건다)
                 lap_fn=lambda: pilot.lap, plans=pilot.plans, rng=random.Random(self.seed + 8),
                 a1_active=lambda vid: vid in mgr.inter, dwell_s=pilot.stop_s, stop_ids=STOP_AT)
             pilot.follower_ready = self.injector.follower_ready     # 상대가 늦으면 시험용 버스가 속도를 줄인다

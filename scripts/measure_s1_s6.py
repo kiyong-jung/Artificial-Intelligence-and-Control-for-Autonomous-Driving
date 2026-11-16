@@ -191,14 +191,18 @@ def main():
             safety["collisions"] += 1
             key = (c.type, str(c.colliderType).split("@")[0], str(c.victimType).split("@")[0])
             safety["by_type"][key] = safety["by_type"].get(key, 0) + 1
+            new_pair = (c.collider, c.victim) not in safety["pairs"]
             safety["pairs"].add((c.collider, c.victim))
-            if len(safety["coll_examples"]) < 10:
+            if new_pair and len(safety["coll_examples"]) < 30:      # 같은 쌍은 한 번만 적는다(한 사건이 스텝마다 반복돼 예시를 채웠다)
+                bus_pos = (tc.vehicle.getRoadID("bus0"), round(tc.vehicle.getLanePosition("bus0"), 1)) \
+                    if "bus0" in tc.vehicle.getIDList() else None
+                coll_extra = (c.colliderSpeed, c.victimSpeed, bus_pos)
                 tls_info = None
                 for tid, ror in (world.summary.get("right_on_red") or {}).items():
                     if c.lane.startswith(f":{tid}_"):          # 우회전을 바꾼 신호 교차로 안: 그때 위상과 원래 프로그램의 상태
                         ph = tc.trafficlight.getPhase(tid)
                         tls_info = (tid, ph, tc.trafficlight.getRedYellowGreenState(tid), ror["orig"][ph])
-                safety["coll_examples"].append((round(t), c.type, c.collider, c.victim, c.lane, tls_info))
+                safety["coll_examples"].append((round(t), c.type, c.collider, c.victim, c.lane, tls_info, coll_extra))
         safety["teleports"] += len(tc.simulation.getStartingTeleportIDList())
         ids = tc.vehicle.getIDList()
         if "bus0" in ids:

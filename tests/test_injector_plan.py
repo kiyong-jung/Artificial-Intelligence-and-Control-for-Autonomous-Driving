@@ -363,6 +363,26 @@ def test_follower_waits_until_bus_has_passed_last_signal_before_window():
     assert lane[0]["departLane"] == "1" and tc.f.lc_mode[lane[0]["id"]] == 0
 
 
+def test_platoon_is_queued_behind_while_bus_waits_at_red_before_the_window():
+    # S3 창 앞 신호(J8)에서 버스가 적색으로 서 있다. 목표 차로 줄에 후행차를 50 m 이상 뒤부터 여러 대 넣어 녹색에 같이 출발하게 한다
+    tc = _TC2(bus_road="R69", bus_pos=_net().getEdge("R69").getLength() - 3.0, bus_speed=0.0)
+    inj = _inj(tc, alleys=[])
+    inj.update(0.0)
+    added = [a for a in tc.f.added if a["id"].startswith("inj_lane")]
+    assert len(added) >= 2                                                    # 여러 대
+    assert all(a["route"][0] == "R69" for a in added)
+    assert all(float(a["departPos"]) <= _net().getEdge("R69").getLength() - 3.0 - PRESENCE_RADIUS_M + 0.5 for a in added)
+    assert len({a["departPos"] for a in added}) == len(added)                  # 서로 다른 자리
+    assert inj._lap["lane"][("S3", "R71.206")]["vid"] == added[0]["id"]       # 버스에 가장 가까운(앞) 차가 상대로 시작한다
+
+
+def test_no_platoon_while_the_bus_is_still_moving_toward_the_signal():
+    tc = _TC2(bus_road="R69", bus_pos=20.0, bus_speed=8.0)
+    inj = _inj(tc, alleys=[])
+    inj.update(0.0)
+    assert not any(a["id"].startswith("inj_lane") for a in tc.f.added)
+
+
 def test_follower_after_signal_starts_10m_into_the_road():
     # 신호 바로 뒤 도로 1 m에 넣으면 교차로를 막 빠져나오던 차와 부딪혔다(baseline 측정, J42). 10 m 안쪽에서 출발시킨다
     tc = _TC2(bus_road="R71", bus_pos=62.0)                                   # 65 m 뒤는 J8 너머: 신호 뒤 도로 시작으로 당긴다

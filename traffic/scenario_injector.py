@@ -42,6 +42,7 @@ class ScenarioInjector:
                  dwell_s=8.0, stop_ids=None):
         # dwell_s: 시험용 버스의 정류장 정차 시간. stop_ids: 버스가 실제로 서는 정류장(없으면 stops 전부).
         # 끼어들기 출발 시점에 버스의 정차 시간을 넣는다(X_dongmak6은 s2 끝 바로 뒤에서 합류해 정차 중에 골목 차가 먼저 지나갔다)
+        self.platoon_n, self.platoon_gap = 3, 14.0       # 적색 대기 중 넣는 후행차 수와 간격(m)
         self.dwell_s = dwell_s
         self.stop_ids = set(stop_ids) if stop_ids is not None else {s["id"] for s in stops}
         self._stop_t0, self._left_stop = None, None
@@ -289,7 +290,11 @@ class ScenarioInjector:
                 continue                                 # 정류장 구간 안(J1 창이 길어져 s6이 창 밖이어도): 떠난 뒤 넣는다
             j_end = self._ahead_index(route, i, plan.edge, span=40)
             if self._signal_ahead(route, i, j_end):
-                continue                                 # 버스와 창 사이에 신호가 있으면 후행차가 적색에 걸린다: 지난 뒤 넣는다
+                # 버스와 창 사이에 신호가 있다. 지나는 중에 넣으면 후행차가 적색에 걸린다. 버스가 그 신호에서 적색으로 서 있으면
+                # 목표 차로 줄에 여러 대를 50 m 이상 뒤부터 넣어 녹색에 같이 출발하게 한다. 아니면 지난 뒤 넣는다
+                if tc.vehicle.getSpeed(self.bus) < 0.5 and self._queue_platoon(t, st, plan, j_end):
+                    continue
+                continue
             left = plan.kind == "S2"
             f = tc.vehicle.getLeftFollowers(self.bus) if left else tc.vehicle.getRightFollowers(self.bus)
             near = [(d, v) for v, d in f if v and 0 <= d <= self.follower_check]
@@ -312,13 +317,7 @@ class ScenarioInjector:
             if target is None:
                 target = plan.target_lane if plan.kind == "S3" else idx + 1
             lane = str(min(max(1, target), lanes - 1))
-            # 창 끝 다음 도로(좌회전 도착 도로)까지 버스와 같은 길로 간다. 그래야 SUMO가 그 회전 차로로 이어지는 차로를 고른다
-            # (J1: 곧장 나가는 경로였을 때 R54b 3 -> R54 4로 가 버스의 중간 목표 차로에 있었다)
-            path = list(route[k:j_end + 1])
-            nxt = route[j_end + 1] if j_end + 1 < len(route) else route[0]     # 노선 끝이면 다음 바퀴 처음(R42 -> R68)
-            if self.net.getEdge(route[j_end]).getConnections(self.net.getEdge(nxt)):
-                path.append(nxt)
-            vid, why = self._add_car("lane", path, lane, p)
+            vid, why = self._add_car("lane", self._window_path(route, k, j_end), lane, p)
             if vid:
                 self._track(plan, vid, t)
                 self._record(plan.kind, t, "injected", vid)
@@ -327,6 +326,50 @@ class ScenarioInjector:
             else:
                 lap["lane_done"].add(key)
                 self._record(plan.kind, t, why)
+
+    def _window_path(self, route, k, j_end):
+        """route[k]에서 창 끝 도로(j_end)까지, 그 다음 도로(좌회전 도착 도로)까지 버스와 같은 길. 그래야 SUMO가 그 회전 차로로
+        이어지는 차로를 고른다(J1: 곧장 나가는 경로였을 때 R54b 3 -> R54 4로 가 버스의 중간 목표 차로에 있었다)."""
+        path = list(route[k:j_end + 1])
+        nxt = route[j_end + 1] if j_end + 1 < len(route) else route[0]         # 노선 끝이면 다음 바퀴 처음(R42 -> R68)
+        if self.net.getEdge(route[j_end]).getConnections(self.net.getEdge(nxt)):
+            path.append(nxt)
+        return path
+
+    def _queue_platoon(self, t, st, plan, j_end):
+        """버스가 신호에서 적색으로 서 있을 때, 목표 차로 줄에 후행차 `platoon_n`대를 버스 반경 + 10 m 이상 뒤부터 간격을 두고
+        넣는다. 가장 앞(버스에 가까운) 차를 이번 창의 상대로 삼는다. 넣었으면 True."""
+        tc, lap = self.tc, self._lap
+        route, i, pos, idx = st
+        left = plan.kind == "S2"
+        f = tc.vehicle.getLeftFollowers(self.bus) if left else tc.vehicle.getRightFollowers(self.bus)
+        if any(v and 0 <= d <= self.follower_check for v, d in f):
+            return False                                 # 이미 가까이 있는 차가 있다: 그 차가 상대다
+        bp = self._back_point(route, i, pos, PRESENCE_RADIUS_M + 10.0)
+        if bp is None:
+            return False
+        k, p = bp
+        target = self._lane_back(route, k, j_end, plan.target_lane)
+        lanes = tc.edge.getLaneNumber(route[k])
+        if target is None:
+            return False
+        lane = str(min(max(1, target), lanes - 1))
+        path = self._window_path(route, k, j_end)
+        made = []
+        for n in range(self.platoon_n):
+            at = p - n * self.platoon_gap
+            if at < 1.0:
+                break
+            vid, why = self._add_car("lane", path, lane, at)
+            if not vid:
+                break
+            made.append(vid)
+        if not made:
+            return False
+        self._track(plan, made[0], t)
+        for vid in made:
+            self._record(plan.kind, t, "injected", vid)
+        return True
 
     def _follower_gap(self, vid, plan):
         """버스 뒤끝에서 후행차 앞끝까지 노선 거리(양수 = 버스 뒤). 같은 노선 위에 없으면 None."""

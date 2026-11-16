@@ -9,6 +9,15 @@ import heapq
 import math
 
 PRESENCE_RADIUS_M = 50.0      # 학습 차량의 관측 거리(env/mdp_config.py visibility 50 m)와 같게 둔다
+PERSON_MARGIN_M = 5.0         # 보행자 출발 거리 여유: 인도 위치로 재도 버스가 그 스텝에 다가오면 반경 안에서 보였다
+
+
+def sidewalk_xy(net, edge_id, pos=0.0):
+    """보행자가 실제로 걷는 인도 차로(보행자 허용 차로) 위 pos 지점의 좌표. 없으면 도로 중심선."""
+    from sumolib.geomhelper import positionAtShapeOffset
+    e = net.getEdge(edge_id)
+    lane = next((ln for ln in e.getLanes() if ln.allows("pedestrian")), None)
+    return positionAtShapeOffset((lane or e).getShape(), pos)
 
 
 # ---- 지도 경계 ---------------------------------------------------------------------------------

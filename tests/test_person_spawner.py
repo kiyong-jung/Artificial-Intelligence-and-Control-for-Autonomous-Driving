@@ -110,6 +110,23 @@ def test_person_departure_waits_until_bus_is_far():
     assert [s[0] for s in tc.alive["p0"]["stages"]] == ["walk", "wait"]   # 걷고 나서 기다리며 서 있는다
 
 
+def _sidewalk_xy(edge):
+    lane = next(ln for ln in _net().getEdge(edge).getLanes() if ln.allows("pedestrian"))
+    return positionAtShapeOffset(lane.getShape(), 0.0)
+
+
+def test_departure_distance_is_measured_on_the_sidewalk_with_margin():
+    # 도로 중심선으로 재면 인도에서 생긴 보행자가 반경 바로 안(28~29 m)에서 보였다(3바퀴 측정). 인도 위치 + 여유 5 m로 잰다
+    x, y = _sidewalk_xy("R71.206")
+    tc = _FakeTC(bus_xy=(x + R + 3.0, y))
+    sp = PersonSpawner(tc, _net(), "bus0", [_person()])
+    sp.update(0.0)
+    assert tc.added == []
+    tc.bus_xy = (x + R + 6.0, y)
+    sp.update(1.0)
+    assert tc.added == ["p0"]
+
+
 def test_spawned_person_keeps_its_type():
     tc = _FakeTC(bus_xy=None)
     PersonSpawner(tc, _net(), "bus0", [_person(ptype="ped_p1")]).update(0.0)

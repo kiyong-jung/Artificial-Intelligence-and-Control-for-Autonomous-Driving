@@ -9,9 +9,7 @@
 """
 import xml.etree.ElementTree as ET
 
-from sumolib.geomhelper import positionAtShapeOffset
-
-from .presence import PRESENCE_RADIUS_M, far_from_bus
+from .presence import PERSON_MARGIN_M, PRESENCE_RADIUS_M, far_from_bus, sidewalk_xy
 
 STAGE_WAITING = 1
 
@@ -49,14 +47,12 @@ class PersonSpawner:
         self._t_check = -1e9
         self.n = {"spawned": 0, "deferred": 0, "removed": 0, "forced_vanish": 0, "failed": 0}
 
-    def _xy(self, edge):
-        return positionAtShapeOffset(self.net.getEdge(edge).getShape(), 0.0)
-
     def _try_add(self, p):
         if not self.net.hasEdge(p["edges"][0]) or not self.net.hasEdge(p["edges"][-1]):
             self.n["failed"] += 1
             return True
-        if not far_from_bus(self.tc, self.bus, self._xy(p["edges"][0]), self.radius):
+        # 인도 위치로 재고 여유를 둔다(도로 중심선으로 재면 반경 바로 안 28~29 m에서 생겼다)
+        if not far_from_bus(self.tc, self.bus, sidewalk_xy(self.net, p["edges"][0]), self.radius + PERSON_MARGIN_M):
             return False
         tc = self.tc
         last = self.net.getEdge(p["edges"][-1]).getLength()

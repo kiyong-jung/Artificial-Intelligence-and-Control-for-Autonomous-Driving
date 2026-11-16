@@ -18,7 +18,7 @@ import random
 
 from sumolib.geomhelper import positionAtShapeOffset
 
-from .presence import PRESENCE_RADIUS_M, far_from_bus, nearest_boundary_exit
+from .presence import PERSON_MARGIN_M, PRESENCE_RADIUS_M, far_from_bus, nearest_boundary_exit, sidewalk_xy
 from .signal_areas import is_signalized
 
 CATCH_UP_DV, CATCH_UP_OVER_LIMIT, DROP_BACK_DV = 8.0, 5.0, 3.0   # 후행차 따라잡기: 버스 + 최대 8 m/s, 제한 속도 + 5 m/s까지
@@ -412,7 +412,7 @@ class ScenarioInjector:
             return
         first = self.s6_walk[0]
         start = max(0.0, tc.lane.getLength(f"{first}_0") - 8.0)
-        if not far_from_bus(tc, self.bus, self._xy(first, start), PRESENCE_RADIUS_M):
+        if not far_from_bus(tc, self.bus, sidewalk_xy(self.net, first, start), PRESENCE_RADIUS_M + PERSON_MARGIN_M):
             return                                       # 버스 반경 안: 버스가 지나가기 전 다음 스텝에 다시 본다
         lap["S6"] = True
         natural = any(tc.person.getRoadID(p).startswith(":S6_wausanro_c") for p in tc.person.getIDList())

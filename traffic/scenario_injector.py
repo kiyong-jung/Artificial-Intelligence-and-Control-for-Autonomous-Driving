@@ -355,7 +355,8 @@ class ScenarioInjector:
 
     # ---- S5 ---------------------------------------------------------------------------------
     def _stop_pending(self, st, edge):
-        """버스가 edge(합류 도로)에 닿기 전에 설 정류장이 남아 있는가."""
+        """버스가 edge(합류 도로) 시작에 닿기 전에 설 정류장이 남아 있는가. 합류 도로 위 정류장은 합류점(도로 시작) 뒤에
+        있으므로 넣지 않는다(X_jandari3: s5가 합류 도로 -R96.201 위라 정차 시간을 더하면 출발 조건을 끝내 못 맞췄다)."""
         route, i, pos, _ = st
         j = self._ahead_index(route, i, edge, span=40)
         if j is None:
@@ -364,7 +365,7 @@ class ScenarioInjector:
             if s["id"] not in self.stop_ids or "endPos" not in s:
                 continue
             k = self._ahead_index(route, i, s["edge"], span=40)
-            if k is None or k > j:
+            if k is None or k >= j:
                 continue
             if k > i or (s["endPos"] >= pos - 1.0 and route[i] != self._left_stop):
                 return True

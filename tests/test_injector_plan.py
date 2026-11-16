@@ -278,6 +278,20 @@ def test_cutter_timing_counts_bus_dwell_at_stop_before_merge():
     assert any(x["id"].startswith("inj_s5") for x in tc.f.added)
 
 
+def test_stop_after_the_merge_point_does_not_delay_cutter():
+    # X_jandari3(G18 -> -R96.201)은 서교동교회(s5) 정류장 도로 시작에서 합류한다. 정류장은 합류점 뒤라 버스가 서기 전에 합류점을
+    # 지난다. 이 정차 시간을 더하면 출발 조건을 끝내 못 맞춰 세 시나리오 모두 2바퀴째 주입이 없었다
+    from traffic.test_bus import _back
+    a = [x for x in _alleys() if x.junction == "X_jandari3"]
+    route = _route()
+    edge, pos = _back(_net(), route, route.index(a[0].into), 0.0, 80.0)        # 합류점 80 m 앞(8 m/s로 10초)
+    tc = _TC2(bus_road=edge, bus_pos=pos)
+    inj = _inj(tc, alleys=a)
+    inj.update(0.0)
+    inj._s5(0.1, inj._state())
+    assert any(x["id"].startswith("inj_s5") for x in tc.f.added)
+
+
 def test_no_spawn_within_radius_of_bus():
     from sumolib.geomhelper import positionAtShapeOffset
     g3 = _net().getEdge("G3")

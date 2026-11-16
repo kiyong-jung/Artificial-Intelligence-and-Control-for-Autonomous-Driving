@@ -1,9 +1,13 @@
 """A1 (R1). 목표 차로 후행차의 속도 조절 로직.
 
-버스가 지금 들어가려는 차로 하나에서 버스에 가장 가까운 후행차 한 대만 대상이다. 그 한 대에 대해
-{감속(양보, openGap), 유지(무시), 가속(간격 좁힘)} 중 하나를 한다. 어느 것인지는 차량 투입 때 정해진 값(`driver.action`)이다.
+버스가 지금 들어가려는 차로 하나에서 버스에 가장 가까운 후행차 한 대만 대상이다. 그 한 대에 대해 차량 투입 때 정해진
+행동(`driver.action`)을 한다.
+- 양보형(`yield`): 반응 지연 뒤 버스보다 `YIELD_DV` 느리게 달려 길을 터 준다(`setSpeed`).
+- 비양보형(`block`): 반응 지연 뒤 버스보다 `BLOCK_DV` 빠르게(최저 `BLOCK_MIN_SPEED`) 달려 버스가 못 들어오게 막는다. 그 차의
+  뒤끝이 버스 앞끝보다 `PASS_MARGIN` 앞서거나 `BLOCK_MAX_S`가 지나면 놓는다. 버스는 속도를 줄여 이 차를 먼저 보낸 뒤 옮긴다
+  (traffic/test_bus.py).
 상호작용 동안 그 차는 changeLane으로 현재 차로에 고정한다(기본 모델의 속도 이득 차선변경이 뒤차를 옆 차로로 보내는 것을 막는다).
-행동은 투입 때 확정된다(양보형 = 감속, 비양보형 = 유지 또는 가속). 연속 차선변경은 변경마다 따로 켜졌다 꺼진다. 상호작용이 끝나면 openGap과 차로 고정을 해제한다.
+연속 차선변경은 변경마다 따로 켜졌다 꺼진다. 상호작용이 끝나면 속도 지정(`setSpeed(-1)`)과 차로 고정을 해제한다.
 진입 의사는 `Trigger`(구간 목록 + 방향)로 정한다. S2(좌회전 직전 구간, 좌측), S3(정류장 접근 구간, 우측) 모두 받는다.
 """
 import random
@@ -14,20 +18,19 @@ from .common import AGGRESSION, LaneLock, Ownership
 BLINKER_RIGHT = 1    # SUMO signal 비트
 BLINKER_LEFT = 2
 
+YIELD_DV = 2.0          # 양보형: 버스보다 이만큼 느리게 [m/s]
+BLOCK_DV = 2.0          # 비양보형: 버스보다 이만큼 빠르게 [m/s]
+BLOCK_MIN_SPEED = 4.0   # 비양보형 목표 속도의 바닥(버스가 서 있어도 지나가게) [m/s]
+BLOCK_MAX_S = 20.0      # 비양보형이 막는 최대 시간 [s]
+PASS_MARGIN = 5.0       # 비양보형 뒤끝이 버스 앞끝보다 이만큼 앞서면 지나간 것으로 본다 [m]
+
 
 @dataclass
 class DriverTypeCfg:
     p_yield: tuple          # 양보 성향 U(lo, hi) — 투입 시 1회 샘플. 공격성 값(1-p)의 원천이고 행동은 yields가 정한다
     delay: tuple            # 반응 지연 U(lo, hi) [s]
     new_tau: tuple          # openGap newTau U(lo, hi) [s]
-    yields: bool = False    # True면 이 유형의 차량은 투입 때 '감속(양보)'으로 확정된다. False면 유지 또는 가속
-    max_decel: float = 2.0
-    duration: float = 12.0   # openGap 지속 시간 [s]
-    change_rate: float = 1.0
-    new_space: float = 0.0
-    p_close_gap: float = 0.0     # 양보하지 않기로 한 차가 가속해 간격을 좁힐 확률(정식 행동 '가속')
-    close_accel: float = 1.5     # 가속 행동의 가속도 [m/s²]
-    close_duration: float = 3.0  # 가속 행동 지속 시간 [s]
+    yields: bool = False    # True면 투입 때 '양보(yield)', False면 '막기(block)'로 확정된다
     lc_params: dict = field(default_factory=dict)   # laneChangeModel.<속성>
 
 
@@ -39,7 +42,7 @@ DEFAULT_TYPES = {
                              new_tau=(2.0, 3.0),
                              lc_params={"lcCooperative": -1, "lcCooperativeSpeed": 0}),
     "nonyielder": DriverTypeCfg(
-        p_yield=(0.05, 0.30), delay=(0.5, 1.5), new_tau=(2.0, 3.0), p_close_gap=0.3,
+        p_yield=(0.05, 0.30), delay=(0.5, 1.5), new_tau=(2.0, 3.0),
         # lcCooperativeHelpTime은 SUMO 1.27.1 LC2013에서 지원되지 않아 뺐다.
         lc_params={"lcCooperative": -1, "lcCooperativeSpeed": 0}),
 }
@@ -75,11 +78,12 @@ class Trigger:
 @dataclass
 class _Interaction:
     follower: str
-    action: str               # "yield" 감속 | "keep" 유지 | "close" 가속
+    action: str               # "yield" 버스보다 느리게 | "block" 버스보다 빠르게
     delay: float
     t_start: float
-    t_open: float = None      # openGap 실제 발행 시각
-    acted: bool = False       # 판정을 행동으로 옮겼는가
+    t_open: float = None      # 속도 지정을 처음 한 시각
+    v0: float = 0.0           # 그때 후행차 속도(막는 차는 이보다 느려지지 않는다)
+    acted: bool = False       # 행동을 마쳤는가(비양보형을 놓은 뒤 True)
     max_decel: float = 0.0    # 관측된 최대 감속 [m/s²] (양수)
     prev_speed: float = None
     lane0: int = None         # 상호작용 시작 때 차로
@@ -88,10 +92,6 @@ class _Interaction:
     @property
     def yields(self):
         return self.action == "yield"
-
-    @property
-    def closed_gap(self):
-        return self.action == "close" and self.acted
 
 
 class YieldManager:
@@ -156,9 +156,8 @@ class YieldManager:
             tau = self.rng.uniform(*cfg.new_tau)
             tc.vehicle.setParameter(vid, "driver.type", key)
             tc.vehicle.setParameter(vid, "driver.pYield", f"{p:.4f}")
-            tc.vehicle.setParameter(vid, "driver.pClose", f"{cfg.p_close_gap:.4f}")
-            # 행동은 투입 때 확정한다: 양보형은 감속, 비양보형은 유지 또는 가속(가속 확률 p_close_gap)
-            action = "yield" if cfg.yields else ("close" if self.rng.random() < cfg.p_close_gap else "keep")
+            # 행동은 투입 때 확정한다: 양보형은 버스보다 느리게, 비양보형은 버스보다 빠르게(막기)
+            action = "yield" if cfg.yields else "block"
             tc.vehicle.setParameter(vid, "driver.action", action)
             tc.vehicle.setParameter(vid, "driver.aggressiveness", f"{1.0 - p:.4f}")   # 시나리오 확률은 이 값에서 나온다
             tc.vehicle.setParameter(vid, "driver.delay", f"{d:.4f}")
@@ -233,7 +232,7 @@ class YieldManager:
                 if it.prev_speed is not None:
                     it.max_decel = max(it.max_decel, (it.prev_speed - sp) / self.dt)
                 it.prev_speed = sp
-                passed = self._passed(vid)
+                passed = self._passed_by(vid, PASS_MARGIN) if it.action == "block" else self._passed(vid)
             if (not alive) or passed or side == 0:
                 self._finish(vid, t, alive)
                 continue
@@ -241,15 +240,17 @@ class YieldManager:
                 self.lock.hold(vid, t)          # 자발적 차선변경 방지(상호작용 내내)
             if t - it.t_start < it.delay or it.acted:
                 continue
-            cfg = self.types[tc.vehicle.getParameter(vid, "driver.type")]
+            v_bus = tc.vehicle.getSpeed(self.bus)
+            if it.t_open is None:
+                it.t_open, it.v0 = t, tc.vehicle.getSpeed(vid)
             if it.action == "yield":
-                tau = float(tc.vehicle.getParameter(vid, "driver.newTau"))
-                tc.vehicle.openGap(vid, tau, cfg.new_space, cfg.duration,
-                                   cfg.change_rate, cfg.max_decel, self.bus)
-                it.t_open = t
-            elif it.action == "close":
-                tc.vehicle.setAcceleration(vid, cfg.close_accel, cfg.close_duration)
-            it.acted = True               # 유지: 명령 없음, 결정은 유지
+                tc.vehicle.setSpeed(vid, max(0.0, v_bus - YIELD_DV))
+            elif t - it.t_open > BLOCK_MAX_S:
+                tc.vehicle.setSpeed(vid, -1)      # 오래 막았다: 놓는다
+                it.acted = True
+            else:
+                # 막는 차는 감속하지 않는다: 버스가 막 출발해 느릴 때 '버스 + 2'로 맞추면 오던 속도보다 느려져 간격이 열렸다
+                tc.vehicle.setSpeed(vid, max(v_bus + BLOCK_DV, BLOCK_MIN_SPEED, it.v0))
 
     def _passed(self, vid):
         tc = self.traci
@@ -257,10 +258,18 @@ class YieldManager:
         return same and (tc.vehicle.getLanePosition(vid)
                          > tc.vehicle.getLanePosition(self.bus) + 1.0)
 
+    def _passed_by(self, vid, margin):
+        """후행차 뒤끝이 버스 앞끝보다 margin 넘게 앞섰는가(같은 도로)."""
+        tc = self.traci
+        if tc.vehicle.getRoadID(vid) != tc.vehicle.getRoadID(self.bus):
+            return False
+        rear = tc.vehicle.getLanePosition(vid) - tc.vehicle.getLength(vid)
+        return rear > tc.vehicle.getLanePosition(self.bus) + margin
+
     def _finish(self, vid, t, alive):
         it = self.inter.pop(vid)
         if alive and it.t_open is not None:
-            self.traci.vehicle.openGap(vid, -1, -1, -1, -1)   # 해제
+            self.traci.vehicle.setSpeed(vid, -1)              # 속도 지정 해제
         if alive and self.lock is not None:
             self.lock.release(vid)
         self.owner.release(vid, self.OWNER)

@@ -87,6 +87,8 @@ class TestBusPilot:
     # 같은 창에서 이어지는 변경(J1 앞 3~4칸)은 식힘 없이 방향지시등을 켠 채 이 시간 뒤 요청한다.
     # 한 칸에 6초 남짓 걸리면 14 m/s에서 4칸에 350 m가 필요해 창(240 m)을 넘었다(짧은 실행에서 확인).
     NEXT_SIGNAL_S = 1.0
+    # 비양보형 대응: 목표 차로 후행차가 버스보다 0.5 m/s 넘게 빠른 상태가 1초 이어지면 속도를 줄여 먼저 보낸다
+    BLOCKER_DV, BLOCKER_S, PASS_MARGIN, BLOCKER_WAIT_S = 0.5, 1.0, 5.0, 25.0
 
     def __init__(self, tc, net, loop, stops, follower_ready=None, stop_s=8.0):
         self.tc, self.net = tc, net
@@ -110,6 +112,7 @@ class TestBusPilot:
         self._late_noted = False
         self._chain = None              # 방금 변경을 마친 창(같은 창의 다음 변경은 빠르게)
         self._signal_s = self.SIGNAL_S
+        self._blocker, self._blocker_t0, self._fast_t0 = None, 0.0, None
 
     # ---- 노선 ----------------------------------------------------------------------------------
     def _L(self, edge):
@@ -263,6 +266,8 @@ class TestBusPilot:
             self.phase, self.t_phase = "request", t
         elif self.phase == "request":
             tc.vehicle.setSignals(BUS, BLINKER_LEFT if self.target > idx else BLINKER_RIGHT)
+            if idx != self.target and not forbidden and self._let_blocker_pass(tc, t, road, pos):
+                return                                   # 비양보형을 먼저 보내는 중
             if idx == self.target and self.plan is not None and not forbidden:
                 # 한 칸 옮겼다. 같은 창에서 더 옮겨야 하면 방향지시등을 켠 채 바로 다음 변경으로 간다
                 self._release_speed(tc, t)
@@ -275,6 +280,42 @@ class TestBusPilot:
                 tc.vehicle.changeLane(BUS, self.target, self.REQUEST_DURATION)
         elif self.phase == "cool" and t - self.t_phase >= self.COOL_S:
             self.phase = "idle"
+
+    def _let_blocker_pass(self, tc, t, road, pos):
+        """목표 차로 후행차가 버스보다 `BLOCKER_DV` 넘게 빠른 상태가 `BLOCKER_S` 이어지면 비양보형으로 보고, 속도를 줄여
+        먼저 보낸다. 그 차 뒤끝이 버스 앞끝보다 `PASS_MARGIN` 앞서면 속도를 풀고 다시 요청한다. 진행 중이면 True.
+        버스는 상대의 성격(driver.type)을 읽지 않고 속도만 본다."""
+        v = tc.vehicle.getSpeed(BUS)
+        if self._blocker is not None:
+            b = self._blocker
+            gone = b not in tc.vehicle.getIDList()
+            passed = (not gone and tc.vehicle.getRoadID(b) == road
+                      and tc.vehicle.getLanePosition(b) - tc.vehicle.getLength(b) > pos + self.PASS_MARGIN)
+            if gone or passed or t - self._blocker_t0 > self.BLOCKER_WAIT_S or tc.vehicle.getRoadID(b) != road:
+                self._blocker = None
+                self._release_speed(tc, t)
+                tc.vehicle.changeLane(BUS, self.target, self.REQUEST_DURATION)
+                self.t_phase = t                          # 다시 요청했으니 시간 초과를 새로 센다
+                return False
+            return True
+        f = tc.vehicle.getLeftFollowers(BUS) if self.target > tc.vehicle.getLaneIndex(BUS) \
+            else tc.vehicle.getRightFollowers(BUS)
+        near = [(d, vid) for vid, d in f if vid and 0 <= d <= 50.0]
+        if not near:
+            self._fast_t0 = None
+            return False
+        vid = min(near)[1]
+        if tc.vehicle.getSpeed(vid) > v + self.BLOCKER_DV:
+            self._fast_t0 = t if self._fast_t0 is None else self._fast_t0
+            if t - self._fast_t0 >= self.BLOCKER_S:
+                self._blocker, self._blocker_t0, self._fast_t0 = vid, t, None
+                if self._slow_t0 is None:
+                    tc.vehicle.setSpeed(BUS, max(v - 3.0, 2.0))
+                    self._slow_t0 = t
+                return True
+        else:
+            self._fast_t0 = None
+        return False
 
     def _emergency(self, tc, road, pos):
         """창 밖 예외: 지금 차로가 다음 도로로 이어지지 않는데 도로 끝이 30 m 안이면 옮긴다."""
@@ -296,3 +337,4 @@ class TestBusPilot:
         self._release_speed(tc, t)
         tc.vehicle.setSignals(BUS, 0)
         self.phase, self.t_phase, self.plan, self._chain = "cool", t, None, None
+        self._blocker, self._fast_t0 = None, None

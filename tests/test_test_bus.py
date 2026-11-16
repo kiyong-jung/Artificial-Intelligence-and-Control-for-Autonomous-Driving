@@ -46,10 +46,10 @@ class _V:
         self.tc.routes[vid] = list(self.tc.route_defs[rid])
 
     def getIDList(self):
-        return [BUS] if self.tc.alive else []
+        return ([BUS] if self.tc.alive else []) + list(self.tc.others)
 
     def getRoadID(self, v):
-        return self.tc.road
+        return self.tc.others[v]["road"] if v in self.tc.others else self.tc.road
 
     def getLaneIndex(self, v):
         return self.tc.lane
@@ -58,7 +58,10 @@ class _V:
         return f"{self.tc.road}_{self.tc.lane}"
 
     def getLanePosition(self, v):
-        return self.tc.pos
+        return self.tc.others[v]["pos"] if v in self.tc.others else self.tc.pos
+
+    def getLength(self, v):
+        return self.tc.others[v]["len"] if v in self.tc.others else 12.0
 
     def getRoute(self, v):
         return self.tc.routes[v]
@@ -85,7 +88,7 @@ class _V:
         self.tc.change_req.append(lane)
 
     def getSpeed(self, v):
-        return self.tc.speed
+        return self.tc.others[v]["speed"] if v in self.tc.others else self.tc.speed
 
     def setSpeed(self, v, s):
         self.tc.set_speed.append(s)
@@ -123,6 +126,7 @@ class _FakeTC:
         self.added, self.bus_stops, self.lc_mode, self.change_req, self.set_speed = [], [], [], [], []
         self.routes, self.route_defs = {}, {}
         self.signals, self.best_offset, self.continues, self.followers = 0, 0, True, []
+        self.others = {}                 # 다른 차 id -> {"road", "pos", "len", "speed"}
         self.vehicle, self.route, self.edge = _V(self), _R(self), _E()
 
 
@@ -243,6 +247,24 @@ def test_follow_on_change_in_same_window_is_quick():
     assert pilot.phase == "signal" and tc.signals != 0
     _run(pilot, tc, 3.4, 4.5)                       # 1초 안팎 뒤 다음 요청
     assert tc.change_req[-1] == 4
+
+
+def test_bus_slows_and_lets_blocker_pass_then_changes():
+    tc = _FakeTC()
+    pilot = _pilot(tc)
+    pilot.tick(tc, 0.0)
+    tc.road, tc.lane, tc.pos = "R71.135", 2, 20.0                    # S3 창 안, 목표 차로 1
+    tc.others["f"] = {"road": "R71.135", "pos": 12.0, "len": 4.5, "speed": 10.0}
+    tc.followers = [("f", 3.5)]
+    _run(pilot, tc, 0.1, 3.2)                                         # 방향지시등 3초 뒤 첫 요청
+    assert pilot.phase == "request" and tc.set_speed == []
+    _run(pilot, tc, 3.2, 4.4)                                         # 후행차가 버스보다 2 m/s 빠른 상태가 1초 넘게 이어짐
+    assert tc.set_speed and tc.set_speed[-1] == pytest.approx(max(8.0 - 3.0, 2.0))
+    n = len(tc.change_req)
+    tc.others["f"]["pos"] = tc.pos + 4.5 + 6.0                        # 비양보형이 버스를 지나 앞 6 m
+    tc.followers = []
+    _run(pilot, tc, 4.4, 4.6)
+    assert tc.set_speed[-1] == -1 and len(tc.change_req) > n and tc.change_req[-1] == 1
 
 
 def test_pilot_slows_but_never_waits_for_follower():

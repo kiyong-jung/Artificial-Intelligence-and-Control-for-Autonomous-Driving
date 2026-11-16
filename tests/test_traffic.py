@@ -19,16 +19,24 @@ def a1():
     return build_a1_net()
 
 
+def _realized(r):
+    """양보형이면 버스가 후행차 앞으로 들어간다. 비양보형이면 버스 앞으로 들어가지 못한다(옮겼다면 후행차가 먼저 지나간 뒤)."""
+    if r["decision"]:
+        return r["changed"] and not r["f_ahead_at_change"]
+    return (not r["changed"]) or bool(r["f_ahead_at_change"])
+
+
 def test_a1_outcome_follows_decision(a1):
     rows = [run_a1_episode(a1, t, s) for t in ("yielder", "nonyielder") for s in range(15)]
-    assert all(bool(r["decision"]) == r["changed"] for r in rows)
+    assert all(_realized(r) for r in rows)
     assert any(r["decision"] for r in rows) and any(not r["decision"] for r in rows)
 
 
 def test_a1_no_leak_when_p_zero(a1):
+    # 양보하지 않는 차 앞으로 버스가 들어가는 일(누출)이 없다
     for t in ("yielder", "nonyielder"):
         rows = [run_a1_episode(a1, t, 500 + s, p_override=0.0) for s in range(10)]
-        assert not any(r["changed"] for r in rows)
+        assert not any(r["changed"] and not r["f_ahead_at_change"] for r in rows)
 
 
 def test_a1_same_seed_same_result(a1):
@@ -193,7 +201,7 @@ MIX = dict(type_mix={"yielder": 0.5, "nonyielder": 0.5}, mix_vtype_prefixes=("ca
 def test_a1_personality_attaches_to_any_driving_model(a1_mixed_models, model):
     rows = [run_a1_episode(a1_mixed_models, f"car_{model}", s, mgr_kwargs=MIX) for s in range(12)]
     assert {r["assigned_type"] for r in rows} == {"yielder", "nonyielder"}
-    assert all(bool(r["decision"]) == r["changed"] for r in rows)
+    assert all(_realized(r) for r in rows)
 
 
 def test_a1_mix_off_leaves_unnamed_vehicles_alone(a1_mixed_models):

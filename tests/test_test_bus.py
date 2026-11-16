@@ -309,11 +309,22 @@ def test_pilot_slows_but_never_waits_for_follower():
     tc.road, tc.lane, tc.pos = "R71", 2, _net().getEdge("R71").getLength() - 20.0   # S3 창 앞 절반(창 끝까지 약 98 m)
     _run(pilot, tc, 0.1, 3.5)
     # 감속 속도는 지금 속도가 아니라 도로 제한 속도 기준이다(막 출발한 버스가 3 m/s로 30초 기던 문제)
-    assert tc.change_req == [] and tc.set_speed and tc.set_speed[0] == pytest.approx(max(0.6 * 13.89, 3.0))
+    # 제한 속도의 45%(6.3 m/s)로 줄여 후행차가 3 m까지 따라붙을 시간을 번다(60%에서는 후행차가 20 m 뒤에서 A1이 못 켜졌다)
+    assert tc.change_req == [] and tc.set_speed and tc.set_speed[0] == pytest.approx(max(0.45 * 13.89, 3.0))
     assert tc.signals != 0                                            # 방향지시등은 켠 채로 달린다
     state["ready"] = True
     _run(pilot, tc, 3.5, 4.0)
     assert tc.set_speed[-1] == -1 and tc.change_req and tc.change_req[0] == 1
+
+
+def test_pilot_keeps_slowing_until_the_last_30_percent_of_the_window():
+    # 창 절반이 아니라 마지막 30%까지 속도를 줄여 후행차를 기다린다(원래는 절반에서 그냥 옮겨 후행차가 20 m 뒤였다)
+    tc = _FakeTC()
+    pilot = _pilot(tc, follower_ready=lambda plan: False)
+    pilot.tick(tc, 0.0)
+    tc.road, tc.lane, tc.pos = "R71.135", 2, 0.0                      # S3 창 끝까지 약 78 m(창 160 m의 49%)
+    _run(pilot, tc, 0.1, 3.5)
+    assert tc.change_req == [] and tc.set_speed and tc.set_speed[-1] > 0   # 절반(80 m)은 막 지났지만 아직 기다린다
 
 
 def test_pilot_gives_up_slowing_after_half_window():

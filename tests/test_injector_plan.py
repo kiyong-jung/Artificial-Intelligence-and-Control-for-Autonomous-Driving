@@ -212,9 +212,9 @@ def test_catch_up_speeds_follower_toward_bus_then_matches():
     inj._follower_gap = lambda vid, p: gaps["g"]
     inj._catch_up(0.1)
     assert tc.f.set_speed["f"] == pytest.approx(16.0)           # 8 + min(8, (30-5.5)/2): 최대한 빨리 다가온다
-    gaps["g"], tc.f.bus_speed = 60.0, 12.0
+    gaps["g"], tc.f.bus_speed = 60.0, 15.0
     inj._catch_up(0.15)
-    assert tc.f.set_speed["f"] == pytest.approx(13.89 + 5.0)    # 12 + 8 = 20이지만 도로 제한 속도 + 5 m/s까지
+    assert tc.f.set_speed["f"] == pytest.approx(13.89 + 8.0)    # 15 + 8 = 23이지만 도로 제한 속도 + 8 m/s(21.9)까지
     tc.f.bus_speed = 8.0
     gaps["g"] = 8.0                                             # 아직 A1 시작 거리 밖: 계속 다가온다(최소 버스 + 2 m/s)
     inj._catch_up(0.18)

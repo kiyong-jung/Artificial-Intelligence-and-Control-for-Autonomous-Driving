@@ -23,7 +23,7 @@ from .signal_areas import is_signalized
 
 from .yield_logic import A1_TRIGGER_GAP_M
 
-CATCH_UP_DV, CATCH_UP_OVER_LIMIT, DROP_BACK_DV = 8.0, 5.0, 3.0   # 후행차 따라잡기: 버스 + 최대 8 m/s, 제한 속도 + 5 m/s까지
+CATCH_UP_DV, CATCH_UP_OVER_LIMIT, DROP_BACK_DV = 8.0, 8.0, 3.0   # 후행차 따라잡기: 버스 + 최대 8 m/s, 제한 속도 + 8 m/s까지
 # A1은 TraCI 후행차 간격(최소 간격을 뺀 값)이 3 m 안일 때 시작한다. 노선 거리(앞끝·뒤끝 사이)로는 최소 간격 2.5 m를 더한다
 FOLLOWER_MIN_GAP_M = 2.5
 LET_GO_AHEAD_M = 10.0      # 후행차가 버스 뒤끝보다 이만큼 앞서 있으면(이미 지나갔으면) 놓는다
@@ -387,7 +387,7 @@ class ScenarioInjector:
                 try:
                     cap = tc.lane.getMaxSpeed(tc.vehicle.getLaneID(vid)) + CATCH_UP_OVER_LIMIT
                 except Exception:
-                    cap = 19.0
+                    cap = 22.0
                 target = min(max(v_bus + min(CATCH_UP_DV, (g - hi) / 2.0), v_bus + 2.0), cap)   # 최대한 빨리 3 m 안으로
             elif g < lo:
                 target = max(0.0, v_bus - DROP_BACK_DV)       # 버스 옆이나 앞에 있다: 확실히 뒤로 물러난다

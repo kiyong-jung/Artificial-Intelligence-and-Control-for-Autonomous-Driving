@@ -28,6 +28,8 @@ EXTRA_PER_LANE_M = 40.0         # 차로를 한 칸 더 옮겨야 하면 창을 
 BLINKER_RIGHT, BLINKER_LEFT = 1, 2
 LC_MANUAL, LC_SUMO = 512, 1621
 MIN_SLOW = 3.0
+SLOW_FRAC = 0.45                # 상대를 기다릴 때 제한 속도의 이 비율로 줄인다
+SLOW_UNTIL_FRAC = 0.30          # 창 끝까지 남은 거리가 창의 이 비율 안이면 더는 기다리지 않는다(그냥 옮긴다)
 
 
 @dataclass
@@ -282,10 +284,11 @@ class TestBusPilot:
             if t - self.t_phase < self._signal_s:
                 return
             ready = self.follower_ready(p) if (self.follower_ready is not None and p is not None) else None
-            if ready is False and d is not None and d > p.eff_length / 2.0:
+            if ready is False and d is not None and d > SLOW_UNTIL_FRAC * p.eff_length:
                 if self._slow_t0 is None:            # 상대가 따라오도록 속도를 줄여 달린다(서지 않는다)
-                    # 기준은 도로 제한 속도다. 지금 속도 기준이면 정류장에서 막 출발한 버스가 3 m/s로 30초 기었다
-                    tc.vehicle.setSpeed(BUS, max(0.6 * tc.vehicle.getAllowedSpeed(BUS), MIN_SLOW))
+                    # 기준은 도로 제한 속도다. 지금 속도 기준이면 정류장에서 막 출발한 버스가 3 m/s로 30초 기었다.
+                    # 45%·창의 마지막 30%까지: 60%·절반까지일 때는 후행차가 20 m 뒤에서 버스가 옮겨 A1이 켜지지 않았다
+                    tc.vehicle.setSpeed(BUS, max(SLOW_FRAC * tc.vehicle.getAllowedSpeed(BUS), MIN_SLOW))
                     self._slow_t0 = t
                 return
             if ready is False and not self._late_noted:

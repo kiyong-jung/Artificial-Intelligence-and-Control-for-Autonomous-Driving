@@ -33,6 +33,7 @@ from .sumo_conn import traci, sumo_cmd
 from .bus_traffic import BusTrafficCfg, build_bus_traffic
 from .interior_spawner import InteriorSpawner
 from .person_spawner import PersonSpawner, extract_persons
+from .lane_route import LaneRouteAdapter
 from .presence import VehicleArrivalGuard
 from .scenario_injector import ScenarioInjector
 from .right_turn import apply_right_on_red
@@ -417,6 +418,9 @@ class HapjeongTraffic:
         if getattr(self, "persons", None) is not None:
             self.persons.bus = bus_id
             extras.insert(0, _TimeAdapter(self.persons))
+        # 지금 있는 차로에서 갈 수 있는 쪽으로 진로를 바꾼다(좌회전 전용 차로에 들어온 우회전 차는 좌회전한다)
+        self.lane_route = LaneRouteAdapter(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
+        extras.append(self.lane_route)
         # 지도 안쪽에서 끝나는 경로의 차가 시험용 버스 가까이에서 사라지지 않게 목적지를 지도 경계로 늘린다
         self.arrival_guard = VehicleArrivalGuard(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
         extras.append(self.arrival_guard)

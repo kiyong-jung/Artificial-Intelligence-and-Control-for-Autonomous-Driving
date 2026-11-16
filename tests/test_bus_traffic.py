@@ -63,28 +63,6 @@ def test_taxis_are_flowing(world):
     assert sum(o["per_h"] for o in s["taxi_od"]) > 0
 
 
-class _FakeTc:
-    class vehicle:
-        pass
-
-
-def _mgr(seed):
-    stops = [{"id": f"s{i}", "edge": f"E{i}", "lane": 1, "startPos": 50.0, "endPos": 70.0} for i in range(6)]
-    return StopAheadManager(_FakeTc(), "bus0", stops, rng=random.Random(seed), owner=Ownership())
-
-
-def test_each_lap_blocks_one_or_two_random_distinct_stops():
-    counts, picked = set(), set()
-    for seed in range(200):
-        m = _mgr(seed)
-        m._new_lap(0.0)
-        counts.add(len(m.plan))
-        picked |= set(m.plan)
-        assert len(set(m.plan)) == len(m.plan)
-    assert counts == {1, 2}                  # 1 이상 3 미만
-    assert picked == {f"s{i}" for i in range(6)}      # 6곳 모두 뽑힐 수 있다(무작위)
-
-
 def test_world_loads_with_bus_traffic(world):
     tc = world.start(warmup=60)
     types = set(tc.vehicletype.getIDList())

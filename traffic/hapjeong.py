@@ -388,12 +388,14 @@ class HapjeongTraffic:
         self.stop = (StopBypassManager(traci, bus_id, rng=random.Random(self.seed + 3), owner=self.owner)
                      if stop_bypass else None)
         self.ahead = None
-        if stop_ahead:
+        if stop_ahead and pilot is not None:      # S4: 골목에서 나온 차가 정류장 근처에 선다(바퀴마다 1~2곳)
             m = load_map(MAP_ID)
             stops = [{"id": s["id"], "edge": s["lane"].rsplit("_", 1)[0], "lane": int(s["lane"].rsplit("_", 1)[1]),
                       "startPos": s["startPos"], "endPos": s["endPos"]}
                      for s in m["bus_stops"] if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]]
-            self.ahead = StopAheadManager(traci, bus_id, stops, rng=random.Random(self.seed + 4), owner=self.owner)
+            self.ahead = StopAheadManager(traci, bus_id, read_net(os.path.join(self.out_dir, "network.net.xml")),
+                                          pilot.lap_edges, stops, self.alleys, lap_fn=lambda: pilot.lap,
+                                          rng=random.Random(self.seed + 4), owner=self.owner)
         extras = [self.ahead] if self.ahead else []
         self.injector = None
         if scenario_inject and pilot is not None:   # 방법 2: 시나리오 주입기(바퀴마다 S2·S3·S5·S6 상대를 계획해 넣는다)

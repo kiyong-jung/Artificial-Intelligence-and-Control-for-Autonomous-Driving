@@ -26,6 +26,7 @@ from .yield_logic import A1_TRIGGER_GAP_M
 CATCH_UP_DV, CATCH_UP_OVER_LIMIT, DROP_BACK_DV = 8.0, 5.0, 3.0   # 후행차 따라잡기: 버스 + 최대 8 m/s, 제한 속도 + 5 m/s까지
 # A1은 TraCI 후행차 간격(최소 간격을 뺀 값)이 3 m 안일 때 시작한다. 노선 거리(앞끝·뒤끝 사이)로는 최소 간격 2.5 m를 더한다
 FOLLOWER_MIN_GAP_M = 2.5
+LET_GO_AHEAD_M = 10.0      # 후행차가 버스 뒤끝보다 이만큼 앞서 있으면(이미 지나갔으면) 놓는다
 
 BLINKER_RIGHT, BLINKER_LEFT = 1, 2
 
@@ -256,6 +257,8 @@ class ScenarioInjector:
             d_start = d_end - plan.length
             if d_start > self.lane_lead:
                 continue
+            if plan.eff_length < plan.length - 1e-6 and d_end > plan.eff_length:
+                continue                                 # 창 안 정류장(J1 앞 s6)을 아직 떠나지 않았다: 떠난 뒤 넣는다
             j_end = self._ahead_index(route, i, plan.edge, span=40)
             if self._signal_ahead(route, i, j_end):
                 continue                                 # 버스와 창 사이에 신호가 있으면 후행차가 적색에 걸린다: 지난 뒤 넣는다
@@ -343,8 +346,14 @@ class ScenarioInjector:
             if (self.a1_active is not None and self.a1_active(vid)) or passed:
                 self._release(rec)                       # A1 상호작용이 시작되었거나 창이 끝났다: 손을 뗀다
                 continue
+            if self._stop_t0 is not None and tc.vehicle.getLaneIndex(vid) != tc.vehicle.getLaneIndex(self.bus):
+                tc.vehicle.setSpeed(vid, -1)             # 버스가 정류장에 서 있다: 다른 차로의 차를 버스 뒤에 두려고 세우지 않는다
+                continue
             g = self._follower_gap(vid, plan)
             if g is None:
+                continue
+            if g < -LET_GO_AHEAD_M:
+                self._release(rec)                       # 이미 버스를 지나 앞에 있다: 되돌아오게 하지 않는다
                 continue
             if g > hi:
                 try:

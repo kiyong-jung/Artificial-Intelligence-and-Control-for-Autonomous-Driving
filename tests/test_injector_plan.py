@@ -70,7 +70,7 @@ class _V:
         return self.tc.bus_pos
 
     def getLaneIndex(self, v):
-        return 2
+        return 2 if v == "bus0" else self.tc.lanes.get(v, 2)
 
     def getLength(self, v):
         return 12.0
@@ -138,6 +138,7 @@ class _FakeTC:
         self.route = _route()
         self.cars, self.added, self.routes, self.set_speed, self.lc_mode = [], [], {}, {}, {}
         self.stop_state = 0
+        self.lanes = {}                  # 다른 차 id -> 차로 번호
         self.vehicle = _V(self)
         self.lane, self.edge, self.person = _L(), _E(), _P()
 
@@ -349,10 +350,45 @@ def test_near_bus_is_retried_during_first_half_of_window():
     assert any(a["id"].startswith("inj_lane") and a["route"][0] == "R77" for a in tc.f.added)
 
 
+def test_followers_in_other_lanes_keep_moving_while_bus_dwells():
+    # 버스가 정류장에 서 있을 때 버스 차로에 없는 후행차를 버스 뒤에 두려고 세우면 부자연스럽다. 묶지 않고 그대로 달리게 한다
+    tc = _TC2(bus_road="R112.221", bus_pos=10.0, bus_speed=0.0)
+    inj = _inj(tc)
+    inj.update(0.0)
+    plan = inj._lap["S2"][1]
+    tc.f.cars.append("f")
+    tc.f.lanes["f"] = 1                                          # 버스(차로 2)와 다른 차로
+    inj._track(plan, "f", 0.0)
+    inj._follower_gap = lambda vid, p: 4.0
+    tc.f.stop_state = 1 | 16
+    inj.update(0.1)                                              # 정차 시작
+    inj._catch_up(0.2)
+    assert tc.f.set_speed["f"] == -1                             # 멈추게 하지 않는다(속도 지정을 푼다)
+
+
+def test_follower_that_passed_the_bus_is_let_go():
+    tc = _TC2(bus_road="R112.221", bus_pos=10.0, bus_speed=8.0)
+    inj = _inj(tc)
+    inj.update(0.0)
+    plan = inj._lap["S2"][1]
+    tc.f.cars.append("f")
+    inj._track(plan, "f", 0.0)
+    inj._follower_gap = lambda vid, p: -15.0                     # 이미 버스를 지나 앞에 있다: 되돌아오게 하지 않는다
+    inj._catch_up(0.1)
+    assert tc.f.set_speed["f"] == -1 and inj._lap["lane"][("S2", "R42")]["released"]
+
+
+def test_j1_follower_waits_until_bus_leaves_s6():
+    # J1 창은 합정역(s6) 안에서 시작한다. 정차 전에 넣으면 정차하는 동안 옆 차로 후행차가 지나가 버린다
+    tc = _TC2(bus_road="R54a", bus_pos=250.0)                                  # s6(245.5~270.5) 안
+    inj = _inj(tc, alleys=[])
+    inj.update(0.0)
+    assert not any(a["id"].startswith("inj_lane") for a in tc.f.added)
+
+
 def test_j1_follower_is_in_the_lane_feeding_the_left_turn_lane():
-    # J1 앞은 차로를 3~4칸 옮긴다. 후행차는 마지막 변경(좌회전 차로 R54 5 -> R42 4)의 목표 차로에 있어야 한다.
-    # R54a 차로 3 -> R54b 차로 4 -> R54 차로 5 -> R42 차로 4로 이어진다
-    tc = _TC2(bus_road="R54a", bus_pos=120.0)                                  # J42(신호)를 지났다
+    # J1 앞은 차로를 여러 칸 옮긴다. 후행차는 마지막 변경(좌회전 차로로 들어가는 변경)의 목표 차로에 있어야 한다
+    tc = _TC2(bus_road="R54b", bus_pos=20.0)                                   # s6을 떠났다
     inj = _inj(tc, alleys=[])
     inj.update(0.0)
     inj._lanes(0.1, inj._state())

@@ -23,7 +23,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.dirname(__file__))
 import run_hapjeong_scenario as RS  # noqa: E402
 from maps import load_map  # noqa: E402
+from traffic.alleys import read_net  # noqa: E402
 from traffic.hapjeong import HapjeongTraffic  # noqa: E402
+from traffic.test_bus import TestBusPilot  # noqa: E402
 
 SCEN = sys.argv[1] if len(sys.argv) > 1 else "baseline"
 SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 0
@@ -64,9 +66,8 @@ def main():
     tc = world.start(warmup=120)
     m = load_map("hapjeong")
     loop = m["routes"]["bus_loop"]
-    stops = [{"id": s["id"], "name": s["name"], "edge": s["lane"].rsplit("_", 1)[0], "startPos": s["startPos"],
-              "lane_idx": int(s["lane"].rsplit("_", 1)[1])} for s in m["bus_stops"] if s["lane"].rsplit("_", 1)[0] in loop]
-    bus = RS.LoopBus(tc, loop, stops, discretionary=False, probe_s=0, companions=False)
+    stops = RS.map_stops(m)
+    bus = TestBusPilot(tc, read_net(os.path.join(out_dir, "network.net.xml")), loop, stops)
     feeders = {a.feeder for a in world.alleys}
     ev = {k: collections.Counter() for k in ("S1_stops", "S2_attempts", "S2_done", "S2_a1", "S3_attempts", "S3_done",
                                              "S3_a1", "S5", "S6", "other_attempts")}
@@ -74,16 +75,13 @@ def main():
           "s6_pass": set(), "s6_now": False, "stop_ev_n": 0, "t0": None}
 
     def lap():
-        return bus.laps + 1
+        return bus.lap
 
     stop_edges = {s["edge"] for s in stops}
     bw = {"cur": 0.0, "long": [], "s3_trace": []}      # 시험용 버스가 정류장 밖에서 15초 넘게 선 곳, S3 시도 중 궤적
 
     def on_step(t):
         ids = tc.vehicle.getIDList()
-        if bus.gate is None and getattr(world, "injector", None) is not None:
-            bus.gate = world.injector.gate         # 주입한 후행차가 가까이 올 때까지 시험용 버스가 방향지시등을 켜고 기다린다
-            world.injector.why_fn = lambda: bus.why
         if "bus0" in ids:
             st["t0"] = st["t0"] if st["t0"] is not None else t
             road, idx = tc.vehicle.getRoadID("bus0"), tc.vehicle.getLaneIndex("bus0")
@@ -114,8 +112,7 @@ def main():
             if bus.phase == "signal" and st["prev_phase"] != "signal":
                 # S2 = 경로상 왼쪽 변경. S3 = 정류장이 있는 도로에서 오른쪽으로 옮기는 변경(SUMO가 정류장 위치를 알고 '경로'로
                 # 요청하기도 하고 시험용 버스 규칙이 '정류장'으로 요청하기도 한다)
-                kind = ("S2" if (bus.why == "경로" and bus._left) else
-                        "S3" if (not bus._left and bus.why in ("경로", "정류장") and road in stop_edges) else "other")
+                kind = bus.why if bus.why in ("S2", "S3") else "other"     # 정해진 창(S3 s2 앞, S2 J82·J1 앞)의 변경
                 st["attempt"] = {"kind": kind, "target": bus.target, "lap": lap(), "a1_before": len(world.mgr.log) + len(world.mgr.inter)}
                 ev[f"{kind}_attempts" if kind != "other" else "other_attempts"][lap()] += 1
             if st["attempt"] and idx == st["attempt"]["target"] and st["attempt"]["kind"] != "other" and not st["attempt"].get("done"):
@@ -153,7 +150,7 @@ def main():
             a = st["attempt"]                          # 한 바퀴를 마치며 버스가 사라졌다: 진행 중이던 시도는 거짓 시도다(노선 끝 R69)
             ev[f"{a['kind']}_attempts"][a["lap"]] -= 1
             st["attempt"] = None
-        if bus.laps >= LAPS or t > T_MAX:
+        if len(bus.lap_times) >= LAPS or t > T_MAX:
             raise Done()
 
     wait = {"max_wait": 0.0, "over20": set(), "over30": set(), "max_queue": 0, "occ_steps": 0, "steps": 0,
@@ -271,7 +268,7 @@ def main():
     # S4, S1 후행차 판정은 관리자 기록에서 센다(바퀴는 시험용 버스 한 바퀴)
     s4 = (world.ahead.summary() if world.ahead is not None else
           {"blocks_per_lap": [0] * LAPS, "existing": 0, "spawned_far": 0, "none": 0})      # --no-stop-ahead 변형도 끝까지 돈다
-    laps_done = bus.laps
+    laps_done = len(bus.lap_times)
     per_lap = lambda c: [c.get(i, 0) for i in range(1, LAPS + 1)]
     bounds, acc = [], st["t0"] or 0.0
     for d in bus.lap_times:                      # 바퀴 끝 시각(루프 시각)

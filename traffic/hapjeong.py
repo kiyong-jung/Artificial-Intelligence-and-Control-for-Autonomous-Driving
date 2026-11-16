@@ -354,7 +354,7 @@ class HapjeongTraffic:
 
     def run(self, t_end, bus_id="bus0", bus_hook=None, metrics=None, yield_types=None, on_step=None,
             assign_existing=True, ped_defiance=True, stop_bypass=True, triggers=None, stop_ahead=True,
-            ped_cfg=None, scenario_inject=False, **mgr_kwargs):
+            ped_cfg=None, scenario_inject=False, pilot=None, **mgr_kwargs):
         """warmup 뒤 t_end초 동안 공통 실행 루프(runner.run)로 돌린다. 반환: (YieldManager, 마지막 시각).
 
         triggers: A1 진입 의사 구간. None이면 방향지시등만 본다. "scenario"면 scenario_triggers()를 쓴다.

@@ -495,6 +495,9 @@ class ScenarioInjector:
             d = self._dist_to(st, a.into, 0.0)
             if d is None or d < 0:
                 continue                                  # 이번 바퀴에 아직 앞에 없다(또는 지났다)
+            j_into = self._ahead_index(st[0], st[1], a.into, span=40)
+            if j_into is not None and self._signal_ahead(st[0], st[1], j_into):
+                continue                                  # 버스와 합류점 사이에 신호가 있다: 지난 뒤에 넣는다(적색 대기 중 넣으면 차만 먼저 지나간다)
             if d < 30.0 and self._stop_t0 is None and not self._stop_pending(st, a.into):
                 lap["s5_done"].add(a.junction)
                 self._record("S5", t, "late")

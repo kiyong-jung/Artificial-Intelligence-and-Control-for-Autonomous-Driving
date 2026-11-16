@@ -67,6 +67,24 @@ def test_cutter_timing_uses_the_alley_speed_limit_not_a_fixed_8_mps():
     assert any(a["id"].startswith("inj_s5") for a in tc.f.added)                    # 5.56 m/s면 이미 출발할 때다
 
 
+def test_cutter_spawn_position_makes_it_arrive_4_seconds_before_the_bus():
+    # 출발 위치를 골목 끝 60 m 앞으로 고정하면, 짧은 골목(G23 59 m)에서 신호를 지난 버스가 합류점까지 11초인데 차는 골목 시작에서
+    # 10초 걸려 1초밖에 못 앞섰다. 버스가 닿을 시각에서 4초를 뺀 만큼 골목 안에서 출발해야 한다
+    alley = [a for a in T._alleys() if a.junction == "X_jandari2"]
+    route = T._route()
+    from traffic.test_bus import _back
+    edge, pos = _back(T._net(), route, route.index(alley[0].into), 0.0, 90.0)      # 합류점 90 m 앞, 8 m/s로 11.25초
+    tc = T._TC2(bus_road=edge, bus_pos=pos, bus_speed=8.0)
+    tc.f.lane.getMaxSpeed = lambda lane: 13.89 if not lane.startswith("G") else 5.56
+    inj = T._inj(tc, alleys=alley)
+    inj.update(0.0)
+    inj._s5(0.1, inj._state())
+    cut = next(a for a in tc.f.added if a["id"].startswith("inj_s5"))
+    L = T._net().getEdge(alley[0].feeder).getLength()
+    arrive = (L - float(cut["departPos"])) / 5.56 + 0.5                              # 차가 합류점에 닿는 데 걸리는 시간
+    assert arrive == __import__("pytest").approx(11.25 - 4.0, abs=0.6)               # 버스(11.25초)보다 4초 먼저
+
+
 def test_cutter_is_sent_4_seconds_before_the_bus_and_ignores_only_with_2_seconds_margin():
     # 여유 1초로는 버스가 가속해 예상보다 일찍 닿아 교차로 안에서 겹쳤다(busy 측정 충돌 12 샘플). 주입은 4초 먼저, 무시는 2초 이상
     import traffic.scenario_injector as SI

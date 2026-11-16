@@ -526,16 +526,16 @@ class ScenarioInjector:
                 continue
             eta = self._bus_eta(t, st, d, a.into)
             feeder_len = self.net.getEdge(a.feeder).getLength()
-            # 골목 안 합류점 s5_lead m 앞에서 출발한다. 출발 시각은 이 자리 기준으로만 맞춘다(먼 자리 기준으로 맞추면 긴 골목
-            # G16에서 버스가 아직 먼데 골목 시작에서 출발해 버스와 만나지 못했다). 이 자리가 버스 반경 안일 때만 골목 시작
-            # 쪽으로 물린다(조금 늦게 닿는다).
-            main = max(1.0, feeder_len - self.s5_lead)
             try:                                              # 골목 제한 속도로 계산한다(G23 5.56 m/s). 8 m/s로 가정하면 3초 늦게 닿았다
                 v_alley = max(2.0, min(8.0, tc.lane.getMaxSpeed(f"{a.feeder}_0")))
             except Exception:
                 v_alley = 8.0
-            if eta > (feeder_len - main) / v_alley + 0.5 + CUT_LEAD_S:
-                continue                                      # 아직 이르다: 버스가 합류점에 닿기 3초 전에 골목 차가 먼저 닿게
+            # 버스가 합류점에 닿을 시각보다 CUT_LEAD_S초 먼저 닿도록, 골목 안 어디서 출발할지 계산한다. 출발 위치를 고정하면
+            # 짧은 골목(G23 59 m)에서 신호를 지난 버스가 합류점까지 11초인데 차는 골목 시작에서 10초 걸려 1초밖에 못 앞섰다.
+            travel = eta - CUT_LEAD_S - 0.5                   # 차가 골목에서 달릴 시간
+            if travel * v_alley > feeder_len - 1.0:
+                continue                                      # 아직 이르다: 골목 시작에서 출발해도 너무 일찍 닿는다
+            main = max(1.0, feeder_len - 3.0 - travel * v_alley) if travel > 0 else feeder_len - 3.0
             for spawn_pos in sorted({main, max(1.0, main - 40.0), 1.0}, reverse=True):
                 self._cur_alley = a
                 vid, why = self._add_car("s5", [a.feeder, a.into], "0", spawn_pos, vtype=self.cutin_type)

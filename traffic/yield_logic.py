@@ -23,6 +23,10 @@ BLOCK_DV = 2.0          # 비양보형: 버스보다 이만큼 빠르게 [m/s]
 BLOCK_MIN_SPEED = 4.0   # 비양보형 목표 속도의 바닥(버스가 서 있어도 지나가게) [m/s]
 BLOCK_MAX_S = 20.0      # 비양보형이 막는 최대 시간 [s]
 PASS_MARGIN = 5.0       # 비양보형 뒤끝이 버스 앞끝보다 이만큼 앞서면 지나간 것으로 본다 [m]
+# A1은 목표 차로 후행차가 버스에 이만큼 다가왔을 때 시작한다(TraCI getLeft/RightFollowers 간격) [m].
+# 50 m 안이면 바로 켜던 때는 비양보형이 먼 뒤에서 억지로 따라와 버스를 추월해 부자연스러웠다. 후행차는 50 m 밖에서 들어와
+# 버스보다 빠르게 다가온다(scenario_injector).
+A1_TRIGGER_GAP_M = 3.0
 
 
 @dataclass
@@ -101,7 +105,7 @@ class YieldManager:
 
     def __init__(self, traci, bus_id, rng=None, types=None, stop_exit_pos=None,
                  exit_max_dist=30.0, advance_window=2.0, advance_min=0.5,
-                 follower_range=50.0, dt=0.1, type_mix=None, mix_vtype_prefixes=None,
+                 follower_range=A1_TRIGGER_GAP_M, dt=0.1, type_mix=None, mix_vtype_prefixes=None,
                  triggers=None, owner=None, lock_lane=True, aggression=None, vtype_aggr=None):
         self.traci = traci
         self.bus = bus_id

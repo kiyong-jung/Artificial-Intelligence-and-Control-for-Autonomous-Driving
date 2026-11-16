@@ -377,7 +377,7 @@ class HapjeongTraffic:
         mgr = YieldManager(traci, bus_id, rng=random.Random(self.seed), types=yield_types or DEFAULT_TYPES,
                            type_mix=self.yield_mix, mix_vtype_prefixes=("car_",), owner=self.owner, triggers=triggers,
                            vtype_aggr=getattr(self, "cutin_aggr", None),
-                           **{"follower_range": 50.0, **mgr_kwargs})
+                           **mgr_kwargs)                  # A1은 후행차가 버스 3 m 안일 때 시작(yield_logic.A1_TRIGGER_GAP_M)
         self.mgr = mgr
         if assign_existing:        # warmup 중에 투입된 차량에도 성격을 준다
             mgr.on_departed(traci.vehicle.getIDList())

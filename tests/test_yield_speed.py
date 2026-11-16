@@ -34,7 +34,7 @@ class _V:
         return 1 if v == "bus0" else 2
 
     def getLeftFollowers(self, v):
-        return [("f", self.tc.pos["bus0"] - self.tc.pos["f"] - 12.0)]
+        return [("f", self.tc.gap)]
 
     def getRightFollowers(self, v):
         return []
@@ -83,6 +83,7 @@ class _FakeTC:
                        "driver.delay": "0.5", "driver.newTau": "2.0"}
         self.set_speed, self.opengap, self.accel = {}, 0, 0
         self.lane_len = 103.0          # 버스가 정지선 3 m 앞: 서 있어도 진입 의사로 본다(_waiting_at_line)
+        self.gap = 2.0                 # 목표 차로 후행차와 버스 사이 간격(getLeftFollowers)
         self.vehicle, self.lane = _V(self), _Lane(self)
 
 
@@ -92,6 +93,19 @@ def _step(mgr, tc, t0, t1):
         mgr.update(t)
         t = round(t + 0.1, 6)
     return t
+
+
+def test_a1_starts_only_when_follower_is_within_3m():
+    # 50 m 안이면 바로 A1이 켜져 비양보형이 먼 뒤에서 억지로 버스를 따라잡아 추월했다(부자연스럽다는 지적).
+    # 후행차가 버스 3 m 안에 들어왔을 때만 A1이 시작한다
+    tc = _FakeTC(8.0, "block")
+    tc.gap = 10.0
+    mgr = YieldManager(tc, "bus0")
+    _step(mgr, tc, 0.0, 1.0)
+    assert "f" not in mgr.inter and "f" not in tc.set_speed
+    tc.gap = 2.5
+    _step(mgr, tc, 1.0, 2.0)
+    assert "f" in mgr.inter
 
 
 def test_yielder_slows_below_bus_speed():

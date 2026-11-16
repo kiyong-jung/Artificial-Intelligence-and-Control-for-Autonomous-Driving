@@ -189,7 +189,9 @@ def test_follower_ready_only_when_close_behind():
     gaps = {"g": 20.0}
     inj._follower_gap = lambda vid, p: gaps["g"]
     assert inj.follower_ready(plan) is False
-    gaps["g"] = 8.0
+    gaps["g"] = 8.0                                             # 예전 기준(3~12 m)으로는 준비됨이었다
+    assert inj.follower_ready(plan) is False
+    gaps["g"] = 4.0                                             # A1 시작 거리(3 m + 최소 간격 2.5 m) 안
     assert inj.follower_ready(plan) is True
 
 
@@ -204,15 +206,18 @@ def test_catch_up_speeds_follower_toward_bus_then_matches():
     gaps = {"g": 30.0}
     inj._follower_gap = lambda vid, p: gaps["g"]
     inj._catch_up(0.1)
-    assert tc.f.set_speed["f"] == pytest.approx(16.0)           # 8 + min(8, (30-8)/2): 늦지 않게 더 빨리 다가온다
+    assert tc.f.set_speed["f"] == pytest.approx(16.0)           # 8 + min(8, (30-5.5)/2): 최대한 빨리 다가온다
     gaps["g"], tc.f.bus_speed = 60.0, 12.0
     inj._catch_up(0.15)
     assert tc.f.set_speed["f"] == pytest.approx(13.89 + 5.0)    # 12 + 8 = 20이지만 도로 제한 속도 + 5 m/s까지
     tc.f.bus_speed = 8.0
-    gaps["g"] = 8.0
+    gaps["g"] = 8.0                                             # 아직 A1 시작 거리 밖: 계속 다가온다(최소 버스 + 2 m/s)
+    inj._catch_up(0.18)
+    assert tc.f.set_speed["f"] == pytest.approx(10.0)
+    gaps["g"] = 4.0                                             # A1 시작 거리 안: 나란히 간다(A1이 곧 켜진다)
     inj._catch_up(0.2)
     assert tc.f.set_speed["f"] == pytest.approx(8.0)
-    gaps["g"] = 1.0                                             # 버스 옆이나 앞: 확실히 뒤로 물러난다
+    gaps["g"] = -2.0                                            # 버스 옆이나 앞: 확실히 뒤로 물러난다
     inj._catch_up(0.25)
     assert tc.f.set_speed["f"] == pytest.approx(5.0)
     active.add("f")                                             # A1 상호작용 시작: 손을 뗀다

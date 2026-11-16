@@ -66,7 +66,8 @@ def test_target_is_only_the_nearest_follower_in_range():
     veh = _Veh(2, "A", 0.0, left=[("far", 40.0), ("near", 12.0), ("mid", 25.0), ("out", 80.0), ("behind", -3.0)])
     assert _mgr(veh, follower_range=50.0)._target_follower(+1) == "near"
     veh = _Veh(1, "A", 0.0, right=[("r1", 9.0)], left=[("l1", 5.0)])
-    assert _mgr(veh)._target_follower(-1) == "r1"                      # 우측 차로로 들어갈 때는 우측 차로의 후행차
+    assert _mgr(veh, follower_range=50.0)._target_follower(-1) == "r1"  # 우측 차로로 들어갈 때는 우측 차로의 후행차
+    assert _mgr(veh)._target_follower(-1) is None                       # 기본은 3 m 안일 때만(A1_TRIGGER_GAP_M)
     assert _mgr(_Veh(2, "A", 0.0, left=[("x", 99.0)]), follower_range=50.0)._target_follower(+1) is None
 
 

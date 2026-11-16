@@ -21,7 +21,11 @@ from sumolib.geomhelper import positionAtShapeOffset
 from .presence import PERSON_MARGIN_M, PRESENCE_RADIUS_M, far_from_bus, nearest_boundary_exit, sidewalk_xy
 from .signal_areas import is_signalized
 
+from .yield_logic import A1_TRIGGER_GAP_M
+
 CATCH_UP_DV, CATCH_UP_OVER_LIMIT, DROP_BACK_DV = 8.0, 5.0, 3.0   # 후행차 따라잡기: 버스 + 최대 8 m/s, 제한 속도 + 5 m/s까지
+# A1은 TraCI 후행차 간격(최소 간격을 뺀 값)이 3 m 안일 때 시작한다. 노선 거리(앞끝·뒤끝 사이)로는 최소 간격 2.5 m를 더한다
+FOLLOWER_MIN_GAP_M = 2.5
 
 BLINKER_RIGHT, BLINKER_LEFT = 1, 2
 
@@ -30,7 +34,8 @@ class ScenarioInjector:
     """update(t)를 매 스텝 simulationStep() 앞에서 호출한다(runner의 extras)."""
 
     def __init__(self, traci, net, bus_id, stops, alleys, cutin_type, lap_fn, plans, rng=None, a1_active=None,
-                 back_s1=220.0, back_lane=PRESENCE_RADIUS_M + 15.0, s5_per_lap=(1, 2), follower_gap=(3.0, 12.0),
+                 back_s1=220.0, back_lane=PRESENCE_RADIUS_M + 15.0, s5_per_lap=(1, 2),
+                 follower_gap=(0.0, A1_TRIGGER_GAP_M + FOLLOWER_MIN_GAP_M),
                  lane_lead=300.0,
                  s6_edges=("-R112", "R112.112"), s6_edge_before="R112", s5_lead=60.0, follower_check=80.0,
                  dwell_s=8.0, stop_ids=None):
@@ -346,7 +351,7 @@ class ScenarioInjector:
                     cap = tc.lane.getMaxSpeed(tc.vehicle.getLaneID(vid)) + CATCH_UP_OVER_LIMIT
                 except Exception:
                     cap = 19.0
-                target = min(max(v_bus + min(CATCH_UP_DV, (g - 8.0) / 2.0), v_bus + 2.0), cap)
+                target = min(max(v_bus + min(CATCH_UP_DV, (g - hi) / 2.0), v_bus + 2.0), cap)   # 최대한 빨리 3 m 안으로
             elif g < lo:
                 target = max(0.0, v_bus - DROP_BACK_DV)       # 버스 옆이나 앞에 있다: 확실히 뒤로 물러난다
             else:

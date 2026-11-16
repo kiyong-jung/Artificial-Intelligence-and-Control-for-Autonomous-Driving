@@ -37,9 +37,6 @@ COMMON_ARGS = [
     "--collision.action", "warn",
     "--collision.check-junctions",
     "--intermodal-collision.action", "warn",
-    # 보행자 정체를 20초 뒤 풀기(기본 300초). busy에서 J82 보행 구역의 보행자와 교차로 안 시험용 버스가 서로 기다리며
-    # 약 300초 멈췄고 그 사이 버스 옆 차들이 순간이동했다
-    "--pedestrian.striping.jamtime", "20",
     "--no-step-log", "--no-warnings", "true",
     "--duration-log.disable",
 ]

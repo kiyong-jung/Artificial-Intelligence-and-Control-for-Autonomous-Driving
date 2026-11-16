@@ -25,20 +25,20 @@
         <phase duration="5" state="rrrrrrrr" />
     </tlLogic>
     <tlLogic id="J42" type="static" programID="config" offset="9">
-        <phase duration="10" state="rrrrrrGrrrrrrrrrrrrrrrrrrrr" />
-        <phase duration="3" state="rrrrrryrrrrrrrrrrrrrrrrrrrr" />
-        <phase duration="15" state="rrrrGGrrrrrrrrrrrrrrrrrrrrr" />
-        <phase duration="3" state="rrrryyrrrrrrrrrrrrrrrrrrrrr" />
-        <phase duration="4" state="rrrrrrrrrrrrrrrrrrrrrrrrrrr" />
-        <phase duration="25" state="gGGGrrrrrrrrgGGGggGrrrrrGrG" />
-        <phase duration="5" state="gGGGrrrrrrrrgGGGggGrrrrrrrr" />
-        <phase duration="6" state="yyyyrrrrrrrryyyyyyyrrrrrrrr" />
-        <phase duration="35" state="rrrrrrrGGGGGrrrrrrrrrrrrrrr" />
-        <phase duration="5" state="rrrrrrrGGGGGrrrrrrrrrrrrrrr" />
-        <phase duration="6" state="rrrrrrryyyyyrrrrrrrrrrrrrrr" />
-        <phase duration="15" state="rrrrrrrrrrrrrrrrrrrGGGGrrrr" />
-        <phase duration="6" state="rrrrrrrrrrrrrrrrrrryyyyrrrr" />
-    <phase duration="5" state="rrrrrrrrrrrrrrrrrrrrrrrrrrr" /><phase duration="34" state="rrrrrrrrrrrrrrrrrrrrrrrGrGr" /><phase duration="5" state="rrrrrrrrrrrrrrrrrrrrrrrrrrr" /></tlLogic>
+        <phase duration="10" state="rrrrrrGrrrrrrrrrrrrrrrrrrr" />
+        <phase duration="3" state="rrrrrryrrrrrrrrrrrrrrrrrrr" />
+        <phase duration="15" state="rrrrGGrrrrrrrrrrrrrrrrrrrr" />
+        <phase duration="3" state="rrrryyrrrrrrrrrrrrrrrrrrrr" />
+        <phase duration="4" state="rrrrrrrrrrrrrrrrrrrrrrrrrr" />
+        <phase duration="25" state="gGGGrrrrrrrgGGGggGrrrrrGrG" />
+        <phase duration="5" state="gGGGrrrrrrrgGGGggGrrrrrrrr" />
+        <phase duration="6" state="yyyyrrrrrrryyyyyyyrrrrrrrr" />
+        <phase duration="35" state="rrrrrrrGGGGrrrrrrrrrrrrrrr" />
+        <phase duration="5" state="rrrrrrrGGGGrrrrrrrrrrrrrrr" />
+        <phase duration="6" state="rrrrrrryyyyrrrrrrrrrrrrrrr" />
+        <phase duration="15" state="rrrrrrrrrrrrrrrrrrGGGGrrrr" />
+        <phase duration="6" state="rrrrrrrrrrrrrrrrrryyyyrrrr" />
+    <phase duration="5" state="rrrrrrrrrrrrrrrrrrrrrrrrrr" /><phase duration="34" state="rrrrrrrrrrrrrrrrrrrrrrGrGr" /><phase duration="5" state="rrrrrrrrrrrrrrrrrrrrrrrrrr" /></tlLogic>
     <tlLogic id="J8" type="static" programID="config" offset="0">
         <phase duration="60" state="GGGGGGrr" />
         <phase duration="6" state="yyyyyyrr" />

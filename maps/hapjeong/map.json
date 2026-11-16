@@ -1,12 +1,12 @@
 {
   "id": "hapjeong",
   "name": "합정역 · 양화로와 독막로",
-  "version": "3.7.0",
+  "version": "3.8.0",
   "description": "합정역 일대 실제 도로. 신호 교차로, 인도·횡단보도·보행자, 중앙버스차로, 연구 경로의 가로변 정류장 6곳과 신호 없는 횡단보도가 있다.",
   "source_status": "osm_generated",
   "network_source": {
     "path": "source/network.net.xml",
-    "sha256": "ce31adfe1562d890d0a6a97aba74c301393655a37beb0df2a8ac7aca553503b5",
+    "sha256": "159eaa4c3b0be9cfad424ff5b4042f44c32a695dd8b19e6c21e2caccc1d5c52d",
     "base_path": "source/network.base.net.xml",
     "base_sha256": "3be54d491627c289497b936102eedfa307c547f4edc04a1e80756ba8f25b11c7",
     "generator": "generator/ (서예인, seogyo-hongdae 066e5b1)",
@@ -214,6 +214,15 @@
           "2"
         ],
         "script": "scripts/add_j1_left_lane.py"
+      },
+      "j42_r94_no_right_turn": {
+        "removed": [
+          "R94",
+          "1",
+          "R53",
+          "1"
+        ],
+        "script": "scripts/remove_j42_right_turn.py"
       }
     },
     "pedestrians": {

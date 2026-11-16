@@ -19,7 +19,7 @@ def _net():
 
 def test_reachable_next_lists_only_the_roads_this_lane_connects_to():
     # J42 R94: 차로 1은 R53(우회전)·R92(직진)·R54a(좌회전), 차로 2는 R54a(좌회전)뿐이다
-    assert reachable_next(_net(), "R94", 1) == {"R53", "R92", "R54a"}
+    assert reachable_next(_net(), "R94", 1) == {"R92", "R54a"}      # 3.8.0: 우회전(R53) 없음
     assert reachable_next(_net(), "R94", 2) == {"R54a"}
 
 
@@ -110,9 +110,16 @@ def test_a_failed_route_does_not_stop_the_other_cars():
 
 
 def test_vehicle_in_a_lane_that_connects_keeps_its_route():
-    tc = _TC({"a": _car(1, 70.0, ["R94", "R53", "R53b"]), "b": _car(2, 70.0, ["R94", "R54a", "R54b"])})
+    tc = _TC({"a": _car(1, 70.0, ["R94", "R92"]), "b": _car(2, 70.0, ["R94", "R54a", "R54b"])})
     LaneRouteAdapter(tc, _net(), bus_id="bus0").update(0.0)
     assert tc.set_routes == []
+
+
+def test_right_turn_was_removed_so_lane1_cars_for_r53_go_straight_or_left():
+    # 3.8.0: J42 R94에는 우회전(R53)이 없다. 우회전하려던 차는 갈 수 있는 도로로 간다
+    tc = _TC({"v": _car(1, 70.0, ["R94", "R53", "R53b"])})
+    LaneRouteAdapter(tc, _net(), bus_id="bus0").update(0.0)
+    assert tc.set_routes and tc.set_routes[0][1][1] in ("R92", "R54a")
 
 
 def test_far_from_the_stop_line_it_is_left_alone():

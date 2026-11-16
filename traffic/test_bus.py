@@ -29,7 +29,8 @@ BLINKER_RIGHT, BLINKER_LEFT = 1, 2
 LC_MANUAL, LC_SUMO = 512, 1621
 MIN_SLOW = 3.0
 SLOW_FRAC = 0.45                # 상대를 기다릴 때 제한 속도의 이 비율로 줄인다
-SLOW_UNTIL_FRAC = 0.30          # 창 끝까지 남은 거리가 창의 이 비율 안이면 더는 기다리지 않는다(그냥 옮긴다)
+FORCE_DECEL, FORCE_MARGIN_M = 2.5, 4.0   # 도착 보장: 이 감속도로 멈출 거리 + 여유 안에 창 끝이 들어오면 멈춰서 기다린다
+SLOW_UNTIL_FRAC = 0.30         # 창 끝까지 남은 거리가 창의 이 비율 안이면 더는 기다리지 않는다(그냥 옮긴다)
 
 
 @dataclass
@@ -144,6 +145,8 @@ class TestBusPilot:
         self._chain = None              # 방금 변경을 마친 창(같은 창의 다음 변경은 빠르게)
         self._signal_s = self.SIGNAL_S
         self._blocker, self._blocker_t0, self._fast_t0, self._blocker_seen = None, 0.0, None, 0.0
+        self.forced = []                    # 도착 보장으로 멈춘 창 (바퀴, 종류)
+        self._forced_p, self._forced_t0 = None, 0.0
 
     # ---- 노선 ----------------------------------------------------------------------------------
     def _L(self, edge):
@@ -252,6 +255,8 @@ class TestBusPilot:
         idx, pos = tc.vehicle.getLaneIndex(BUS), tc.vehicle.getLanePosition(BUS)
         act = self._active(tc, road, idx, pos)
         forbidden = self._forbidden(road, pos) or self._handover
+        if self._force_arrival(tc, t, act, idx):
+            return                                       # 도착 보장 중(멈춰서 빈틈을 기다린다): 시나리오 단계는 건너뛴다
         if act is not None:
             k, p, d = act
             off = self._offset(tc, road, idx, p)
@@ -313,6 +318,41 @@ class TestBusPilot:
                 tc.vehicle.changeLane(BUS, self.target, self.REQUEST_DURATION)
         elif self.phase == "cool" and t - self.t_phase >= self.COOL_S:
             self.phase = "idle"
+
+    def _force_arrival(self, tc, t, act, idx):
+        """창 끝(정류장 차로 정류장 10 m 전, 좌회전 차로 신호 정지선 앞)까지 목표 차로에 도착하는 것을 보장한다.
+
+        S2·S3 상호작용(후행차 기다리기, 비양보형 보내기)으로 차선 변경이 늦어져 창 끝을 놓치면 버스가 정류장·좌회전 차로 앞에서
+        이상한 자세로 서 있으면서 주변 차를 막았다(3바퀴 측정에서 700초 넘는 바퀴). 도착 보장이 시나리오보다 우선이다:
+        창 끝이 제동 거리 안인데 아직 목표 차로가 아니면 버스가 멈춰서 목표 차로의 차를 먼저 보내고, 빈틈에 차선을 바꾼다.
+        목표 차로에 닿으면 멈춤을 푼다. 하고 있으면 True.
+        """
+        if act is None or tc.vehicle.getStopState(BUS) & 1:
+            return self._end_forced(tc, t) if self._forced_p is not None else False
+        _, p, d = act
+        if idx == p.target_lane:
+            return self._end_forced(tc, t) if self._forced_p is not None else False
+        v = tc.vehicle.getSpeed(BUS)
+        if self._forced_p is None:
+            if d > v * v / (2.0 * FORCE_DECEL) + FORCE_MARGIN_M:
+                return False
+            self._forced_p, self._forced_t0 = p, t
+            self.forced.append((self.lap, p.kind))
+            self._release_speed(tc, t)
+            self._blocker = None
+        tc.vehicle.setSpeed(BUS, 0.0)
+        step = 1 if p.target_lane > idx else -1
+        tc.vehicle.setSignals(BUS, BLINKER_LEFT if step > 0 else BLINKER_RIGHT)
+        if int(round((t - self._forced_t0) * 10)) % 10 == 0:          # 1초마다 다시 요청한다(빈틈이 생기면 SUMO가 옮긴다)
+            tc.vehicle.changeLane(BUS, idx + step, self.REQUEST_DURATION)
+        self.phase, self.t_phase = "cool", t
+        return True
+
+    def _end_forced(self, tc, t):
+        tc.vehicle.setSpeed(BUS, -1)
+        tc.vehicle.setSignals(BUS, 0)
+        self._forced_p, self.phase, self.t_phase, self.plan, self._chain = None, "cool", t, None, None
+        return False
 
     def _let_blocker_pass(self, tc, t, road, pos):
         """목표 차로 후행차가 버스보다 `BLOCKER_DV` 넘게 빠른 상태가 `BLOCKER_S` 이어지면 비양보형으로 보고, 속도를 줄여

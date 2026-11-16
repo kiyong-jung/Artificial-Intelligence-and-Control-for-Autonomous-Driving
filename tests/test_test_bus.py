@@ -261,6 +261,35 @@ def test_follow_on_change_in_same_window_is_quick():
     assert tc.change_req[-1] == 4
 
 
+def test_bus_stops_to_guarantee_arrival_in_target_lane_before_window_end():
+    # 정류장 차로 10 m 전 도착 보장이 S2·S3 상호작용보다 우선이다. 창 끝이 가까운데 아직 목표 차로가 아니면 버스가 멈춰서
+    # 목표 차로의 차를 보내고 빈틈에 차선을 바꾼다(양보형·비양보형과 무관)
+    tc = _FakeTC(speed=10.0)
+    pilot = _pilot(tc, follower_ready=lambda plan: False)
+    pilot.tick(tc, 0.0)
+    tc.road, tc.lane, tc.pos = "R71.135", 2, 45.0          # S3 창 끝(R71.206 3.3 m)까지 약 22 m, 목표 차로 1
+    tc.followers = [("x", 1.0)]                              # 목표 차로에 차가 바로 옆에 있다(차선 변경 불가)
+    _run(pilot, tc, 0.1, 1.0)
+    assert tc.set_speed and tc.set_speed[-1] == 0.0          # 멈춘다
+    assert tc.change_req and tc.signals != 0                 # 방향지시등을 켜고 차선 변경을 계속 요청한다
+    assert pilot.forced == [(1, "S3")]
+    tc.lane, tc.followers = 1, []                            # 빈틈이 생겨 목표 차로로 옮겼다
+    _run(pilot, tc, 1.0, 1.5)
+    assert tc.set_speed[-1] == -1                            # 멈춤을 푼다
+
+
+def test_no_forced_stop_when_far_from_window_end_or_already_in_target_lane():
+    tc = _FakeTC(speed=10.0)
+    pilot = _pilot(tc, follower_ready=lambda plan: False)
+    pilot.tick(tc, 0.0)
+    tc.road, tc.lane, tc.pos = "R71", 2, 20.0                # 창 끝까지 100 m 넘게 남았다
+    _run(pilot, tc, 0.1, 1.0)
+    assert 0.0 not in tc.set_speed
+    tc.road, tc.lane, tc.pos = "R71.135", 1, 45.0            # 이미 목표 차로
+    _run(pilot, tc, 1.0, 2.0)
+    assert 0.0 not in tc.set_speed and pilot.forced == []
+
+
 def test_bus_slows_and_lets_blocker_pass_then_changes():
     tc = _FakeTC()
     pilot = _pilot(tc)
@@ -282,7 +311,7 @@ def test_bus_slows_and_lets_blocker_pass_then_changes():
 def test_blocker_on_next_short_road_is_still_tracked():
     # 비양보형이 다음 짧은 도로(R111b 27 m)로 넘어가도 노선 거리로 따라간다. 도로 이름이 다르다고 놓으면 버스가 그 차 앞으로
     # 끼어들 수 있었다(리뷰 지적)
-    tc = _FakeTC()
+    tc = _FakeTC(speed=2.0)                                            # 느리게 달려 창 끝의 제동 거리 밖(도착 보장 정지와 겹치지 않게)
     pilot = _pilot(tc)
     pilot.tick(tc, 0.0)
     L = _net().getEdge("R111").getLength()

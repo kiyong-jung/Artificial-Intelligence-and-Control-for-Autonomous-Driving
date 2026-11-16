@@ -31,11 +31,12 @@ def test_overlay_is_registered_before_other_route_files(world):
 
 
 def test_merge_alleys_are_found_from_the_map(world):
-    """합류 골목은 지도(도로망 + 버스 경로)에서 자동으로 찾는다. 합정역 3.6.0은 흐름이 있는 합류점이 8곳이다."""
+    """합류 골목은 지도(도로망 + 버스 경로)에서 자동으로 찾는다. 합정역 3.6.0은 흐름이 있는 합류점이 8곳이고,
+    그중 신호 교차로(J74, J48)는 신호가 순서를 정해 끼어들기가 없으므로 뺀다. 남는 곳은 6곳이다."""
     alleys = world.summary["cutin_alleys"]
     active = {a["junction"] for a in alleys if a["flows"] > 0}
-    assert active == {"X_dongmak3", "X_dongmak6", "X_wausan11", "J74", "X_jandari7", "X_jandari2",
-                      "X_jandari3", "J48"}
+    assert active == {"X_dongmak3", "X_dongmak6", "X_wausan11", "X_jandari7", "X_jandari2", "X_jandari3"}
+    assert not any(a["junction"] in {"J74", "J48", "cluster_J52_J56_J58"} for a in alleys)
     assert all(a["minor"] and a["regulated"] for a in alleys)        # 골목이 비우선이고 충돌이 기록되는 교차로
 
 

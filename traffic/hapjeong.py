@@ -35,6 +35,7 @@ from .interior_spawner import InteriorSpawner
 from .person_spawner import PersonSpawner, extract_persons
 from .scenario_injector import ScenarioInjector
 from .right_turn import apply_right_on_red
+from .signal_areas import clip_zones, unsignalized_alleys, unsignalized_crossings
 from .stop_ahead import StopAheadManager
 from .stop_bypass import StopBypassManager
 from .yield_logic import YieldManager, DEFAULT_TYPES, Trigger, Zone
@@ -202,9 +203,10 @@ class HapjeongTraffic:
 
     def _retype_alley_flows(self):
         """버스 경로에 합류하는 골목(지도에서 자동 탐지)으로 나오는 흐름을 모두 끼어들기 vType으로 바꾼다."""
-        route = self.merge_route or load_map(MAP_ID)["routes"]["bus_loop"]
         net = read_net(os.path.join(self.out_dir, "network.net.xml"))
-        alleys = find_merge_alleys(net, route)
+        route = close_loop(net, self.merge_route or load_map(MAP_ID)["routes"]["bus_loop"])
+        # 신호 교차로로 합류하는 골목(cluster_J52_J56_J58, J74, J48)은 신호가 순서를 정해 끼어들기가 없으므로 뺀다
+        alleys = unsignalized_alleys(find_merge_alleys(net, route))
         path = os.path.join(self.out_dir, "routes.rou.xml")
         tree = ET.parse(path)
         per_alley = {a.junction: 0 for a in alleys}
@@ -333,6 +335,7 @@ class HapjeongTraffic:
             conns = net.getEdge(a).getConnections(net.getEdge(b))
             if conns and all(c.getDirection() in ("l", "L") for c in conns):
                 left += zones_before(k, net.getEdge(a).getLength())
+        left = clip_zones(net, route, left)           # 신호 교차로 정지선 앞(기본 20 m, J1 10 m)에서는 A1을 켜지 않는다
         if left:
             out.append(Trigger(+1, left))
         right = []
@@ -340,11 +343,13 @@ class HapjeongTraffic:
             edge = s["lane"].rsplit("_", 1)[0]
             if edge in route:
                 right += zones_before(route.index(edge), s["startPos"])
+        right = clip_zones(net, route, right)
         if right:
             out.append(Trigger(-1, right))
         for item in self.summary.get("stopped", []):
-            z = Zone(item["edge"], max(0.0, item["pos"] - approach), item["pos"])
-            out += [Trigger(+1, [z]), Trigger(-1, [z])]
+            zs = clip_zones(net, route, [Zone(item["edge"], max(0.0, item["pos"] - approach), item["pos"])])
+            if zs:
+                out += [Trigger(+1, zs), Trigger(-1, zs)]
         return out
 
     def run(self, t_end, bus_id="bus0", bus_hook=None, metrics=None, yield_types=None, on_step=None,
@@ -365,7 +370,11 @@ class HapjeongTraffic:
         self.mgr = mgr
         if assign_existing:        # warmup 중에 투입된 차량에도 성격을 준다
             mgr.on_departed(traci.vehicle.getIDList())
-        self.ped = (PedDefianceManager(traci, bus_id, rng=random.Random(self.seed + 2), cfg=ped_cfg)
+        # A3는 신호 없는 횡단보도에서만 판정한다(신호 횡단보도는 보행자 신호가 순서를 정한다)
+        crossings = (unsignalized_crossings(read_net(os.path.join(self.out_dir, "network.net.xml")),
+                                            traci.lane.getIDList()) if ped_defiance else None)
+        self.ped = (PedDefianceManager(traci, bus_id, rng=random.Random(self.seed + 2), cfg=ped_cfg,
+                                       crossings=crossings)
                     if ped_defiance else None)
         if metrics is not None and self.ped is not None and getattr(metrics, "ped_mgr", None) is None:
             metrics.ped_mgr = self.ped        # 보행자가 무시하고 건널 때의 급감속·비상 감속을 센다

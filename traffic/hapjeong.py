@@ -25,8 +25,7 @@ from env.road_config import ROAD, EGO, TRAFFIC, configure_map
 
 from .alleys import close_loop, find_merge_alleys, flow_merges, read_net
 from .common import AGGRESSION, Ownership
-from .cutin import (STOPPED_KINDS, CutinTypeSwitch, StoppedSpec, cutin_bins_once, cutin_vtype_xml,
-                    stopped_vehicle_xml)
+from .cutin import STOPPED_KINDS, StoppedSpec, cutin_bins_once, cutin_vtype_xml, stopped_vehicle_xml
 from .ped_defiance import PedDefianceManager
 from .pedestrian import ped_vtypes_xml
 from .runner import run as run_loop
@@ -206,7 +205,12 @@ class HapjeongTraffic:
         tree.write(cfg, encoding="utf-8", xml_declaration=True)
 
     def _retype_alley_flows(self):
-        """버스 경로에 합류하는 골목(지도에서 자동 탐지)으로 나오는 흐름을 모두 끼어들기 vType으로 바꾼다."""
+        """버스 경로에 합류하는 골목(지도에서 자동 탐지)을 찾아 둔다. 주입기(S5)와 S4가 쓴다.
+
+        배경 골목 흐름은 **바꾸지 않는다.** 끼어들기는 시험용 버스와만 상호작용해야 한다. 흐름을 앞차 무시 vType으로 바꾸면 배경 차와
+        충돌했다(busy 측정의 cutin_0 대 배경 차 11회). 끼어들기 차는 주입기가 시험용 버스가 가까울 때만 넣고, 그 차는 시험용
+        버스만 무시한다(junctionModel.ignoreIDs).
+        """
         net = read_net(os.path.join(self.out_dir, "network.net.xml"))
         route = close_loop(net, self.merge_route or load_map(MAP_ID)["routes"]["bus_loop"])
         # 신호 교차로로 합류하는 골목(cluster_J52_J56_J58, J74, J48)은 신호가 순서를 정해 끼어들기가 없으므로 뺀다
@@ -216,13 +220,9 @@ class HapjeongTraffic:
         per_alley = {a.junction: 0 for a in alleys}
         n = 0
         for flow in tree.getroot().iter("flow"):
-            hit = [a for a in alleys if flow_merges(net, flow.attrib, [a])]
-            if hit:
-                flow.set("type", "cutin")
-                n += 1
-                for a in hit:
-                    per_alley[a.junction] += 1
-        tree.write(path, encoding="utf-8", xml_declaration=True)
+            for a in alleys:
+                if flow_merges(net, flow.attrib, [a]):
+                    per_alley[a.junction] += 1                  # 합류하는 배경 흐름 수(기록만)
         self.alleys = alleys
         self.summary["cutin_alleys"] = [
             {"junction": a.junction, "feeder": a.feeder, "into": a.into, "junction_type": a.junction_type,
@@ -409,7 +409,7 @@ class HapjeongTraffic:
                 traci, net, bus_id,
                 [{"id": s["id"], "edge": s["lane"].rsplit("_", 1)[0], "startPos": s["startPos"], "endPos": s["endPos"]}
                  for s in m["bus_stops"] if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]],
-                self.alleys, getattr(self, "cutin_full_ignore", "cutin_0"),
+                self.alleys, "carDist",           # 끼어들기 차도 보통 차다. 시험용 버스만 무시한다(주입기가 ignoreIDs를 건다)
                 lap_fn=lambda: pilot.lap, plans=pilot.plans, rng=random.Random(self.seed + 8),
                 a1_active=lambda vid: vid in mgr.inter, dwell_s=pilot.stop_s, stop_ids=STOP_AT)
             pilot.follower_ready = self.injector.follower_ready     # 상대가 늦으면 시험용 버스가 속도를 줄인다
@@ -417,11 +417,6 @@ class HapjeongTraffic:
         if getattr(self, "persons", None) is not None:
             self.persons.bus = bus_id
             extras.insert(0, _TimeAdapter(self.persons))
-        # 끼어들기 vType은 합류 골목 안에서만 쓴다(그 밖의 신호 횡단보도에서 보행자를 무시해 부딪혔다)
-        self.cutin_switch = None
-        if self.cutin and getattr(self, "alleys", None):
-            self.cutin_switch = CutinTypeSwitch(traci, {a.feeder for a in self.alleys}, normal_type="car_krauss")
-            extras.insert(0, self.cutin_switch)
         # 지도 안쪽에서 끝나는 경로의 차가 시험용 버스 가까이에서 사라지지 않게 목적지를 지도 경계로 늘린다
         self.arrival_guard = VehicleArrivalGuard(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
         extras.append(self.arrival_guard)

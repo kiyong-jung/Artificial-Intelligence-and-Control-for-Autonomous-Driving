@@ -40,20 +40,14 @@ def test_merge_alleys_are_found_from_the_map(world):
     assert all(a["minor"] and a["regulated"] for a in alleys)        # 골목이 비우선이고 충돌이 기록되는 교차로
 
 
-def test_merge_alley_flows_use_cutin_type(world):
-    from traffic.alleys import flow_merges, read_net
-    net = read_net(os.path.join(world.out_dir, "network.net.xml"))
+def test_background_flows_never_use_cutin_type(world):
+    # 끼어들기는 시험용 버스와만 상호작용한다. 배경 골목 흐름을 끼어들기 vType(앞차 무시)으로 바꾸면 배경 차와 부딪혔다
+    # (busy 측정의 cutin_0 대 배경 차 충돌 11회). 골목 흐름도 보통 배경 차다. 끼어들기 차는 주입기만 시험용 버스가 가까울 때 넣는다
     flows = list(ET.parse(os.path.join(world.out_dir, "routes.rou.xml")).getroot().iter("flow"))
-    merging = [f for f in flows if flow_merges(net, f.attrib, world.alleys)]
-    assert all(f.get("type") == "cutin" for f in merging)
-    assert all(f.get("type") == "carDist" for f in flows if f not in merging)
-    assert world.summary["cutin_flows"] == len(merging) > 0
-    # a8b98cd(되돌리면 안 됨): 고리 골목(G30 G11 G12)을 via로 지나 버스 경로로 합류하는 흐름도 대상이다.
-    # 고리를 나와 서쪽(버스 반대 방향, -R71.55)으로 가는 흐름은 버스와 만나지 않아 대상이 아니다.
-    via_loop = [f for f in flows if "G12" in (f.get("via") or "").split()]
-    assert via_loop
-    assert any(f.get("type") == "cutin" for f in via_loop)
-    assert all((f.get("type") == "cutin") == (f in merging) for f in via_loop)
+    assert flows and all(f.get("type") != "cutin" for f in flows)
+    assert world.summary["cutin_flows"] == 0
+    # 합류 골목은 주입기가 쓰도록 계속 찾아 둔다(고리 골목 G12로 합류하는 X_dongmak6 포함)
+    assert any(a["junction"] == "X_dongmak6" for a in world.summary["cutin_alleys"])
 
 
 def test_s6_pedestrians_get_both_types(world):

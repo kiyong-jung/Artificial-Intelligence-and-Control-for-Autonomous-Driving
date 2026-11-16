@@ -45,6 +45,7 @@ class ScenarioInjector:
         self.dwell_s = dwell_s
         self.stop_ids = set(stop_ids) if stop_ids is not None else {s["id"] for s in stops}
         self._stop_t0, self._left_stop = None, None
+        self._ignore_pending = set()
         self.tc, self.net, self.bus = traci, net, bus_id
         self.stops = {s["id"]: s for s in stops}
         self.alleys = list(alleys)
@@ -147,7 +148,22 @@ class ScenarioInjector:
             self.tc.vehicle.add(vid, rid, typeID=vtype, departLane=lane, departPos=f"{pos:.1f}", departSpeed=speed)
         except Exception:
             return "", "failed"
+        if kind == "s5":
+            self._ignore_pending.add(vid)                # 끼어들기 차는 시험용 버스만 무시한다. 나타난 다음 스텝에 건다
         return vid, "injected"
+
+    def _set_ignore(self):
+        """끼어들기 차가 SUMO 목록에 나타나면 junctionModel.ignoreIDs로 시험용 버스를 무시하게 한다. 배경 차는 무시하지 않는다."""
+        if not self._ignore_pending:
+            return
+        ids = set(self.tc.vehicle.getIDList())
+        for vid in list(self._ignore_pending):
+            if vid in ids:
+                try:
+                    self.tc.vehicle.setParameter(vid, "junctionModel.ignoreIDs", self.bus)
+                except Exception:
+                    pass
+                self._ignore_pending.discard(vid)
 
     def _record(self, kind, t, ok, vid=None):
         self.log.append({"t": round(t, 1), "lap": len(self._laps_done) + 1, "kind": kind, "ok": ok, "id": vid})
@@ -161,6 +177,7 @@ class ScenarioInjector:
             self._lap_no = lap
             self._new_lap(t)
         tc = self.tc
+        self._set_ignore()
         if self.bus not in tc.vehicle.getIDList():
             return
         self._catch_up(t)

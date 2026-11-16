@@ -94,6 +94,9 @@ class _V:
     def setSpeed(self, v, s):
         self.tc.set_speed[v] = s
 
+    def setParameter(self, v, k, val):
+        self.tc.params[(v, k)] = val
+
     def setLaneChangeMode(self, v, m):
         self.tc.lc_mode[v] = m
 
@@ -138,6 +141,7 @@ class _FakeTC:
         self.route = _route()
         self.cars, self.added, self.routes, self.set_speed, self.lc_mode = [], [], {}, {}, {}
         self.stop_state = 0
+        self.params = {}                 # (차 id, 키) -> 값
         self.lanes = {}                  # 다른 차 id -> 차로 번호
         self.vehicle = _V(self)
         self.lane, self.edge, self.person = _L(), _E(), _P()
@@ -155,7 +159,7 @@ class _TC2:
 def _inj(tc, lap=lambda: 1, alleys=None, seed=0, a1_active=None):
     from traffic.test_bus import STOP_AT
     plans = lane_plans(_net(), _route(), _stops())
-    return ScenarioInjector(tc, _net(), "bus0", _stops(), _alleys() if alleys is None else alleys, "cutin_full",
+    return ScenarioInjector(tc, _net(), "bus0", _stops(), _alleys() if alleys is None else alleys, "carDist",
                             lap_fn=lap, plans=plans, rng=random.Random(seed), a1_active=a1_active, stop_ids=STOP_AT)
 
 
@@ -244,7 +248,7 @@ def test_cutter_uses_full_ignore_type_and_ends_at_boundary():
     inj.update(0.0)
     inj._s5(0.1, inj._state())
     cut = [a for a in tc.f.added if a["id"].startswith("inj_s5")]
-    assert cut and cut[0]["type"] == "cutin_full" and cut[0]["route"][0] == "G3"
+    assert cut and cut[0]["type"] == "carDist" and cut[0]["route"][0] == "G3"
     assert ends_at_boundary(_net(), cut[0]["route"][-1])
 
 

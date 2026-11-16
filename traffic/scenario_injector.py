@@ -269,6 +269,8 @@ class ScenarioInjector:
                 self._record(plan.kind, t, False)
                 continue
             k, p = bp
+            if k > 0 and p <= 1.0 and is_signalized(self.net.getEdge(route[k - 1]).getToNode()):
+                p = 10.0                                 # 신호 바로 뒤 도로 시작은 교차로를 빠져나오는 차와 부딪힌다(J42에서 확인)
             lanes = tc.edge.getLaneNumber(route[k])
             target = self._lane_back(route, k, j_end, plan.target_lane)
             if target is None:
@@ -278,8 +280,8 @@ class ScenarioInjector:
             if vid:
                 self._track(plan, vid, t)
                 self._record(plan.kind, t, "injected", vid)
-            elif why == "near_bus" and d_start > 0:
-                continue                                 # 버스가 출발 지점에서 멀어지면 다시 본다
+            elif why == "near_bus" and d_end > plan.eff_length / 2.0:
+                continue                                 # 창 앞 절반 동안은 버스가 출발 지점에서 멀어지면 다시 본다(J82: 신호 뒤 창이 곧 시작)
             else:
                 lap["lane_done"].add(key)
                 self._record(plan.kind, t, why)

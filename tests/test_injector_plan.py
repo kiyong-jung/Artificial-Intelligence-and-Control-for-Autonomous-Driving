@@ -309,6 +309,27 @@ def test_follower_waits_until_bus_has_passed_last_signal_before_window():
     assert lane[0]["departLane"] == "1" and tc.f.lc_mode[lane[0]["id"]] == 0
 
 
+def test_follower_after_signal_starts_10m_into_the_road():
+    # 신호 바로 뒤 도로 1 m에 넣으면 교차로를 막 빠져나오던 차와 부딪혔다(baseline 측정, J42). 10 m 안쪽에서 출발시킨다
+    tc = _TC2(bus_road="R71", bus_pos=62.0)                                   # 65 m 뒤는 J8 너머: 신호 뒤 도로 시작으로 당긴다
+    inj = _inj(tc, alleys=[])
+    inj.update(0.0)
+    lane = [a for a in tc.f.added if a["id"].startswith("inj_lane")]
+    assert lane and lane[0]["route"][0] == "R71" and float(lane[0]["departPos"]) == pytest.approx(10.0)
+
+
+def test_near_bus_is_retried_during_first_half_of_window():
+    # J82 창은 신호(cluster) 뒤 R77 20 m에서 시작한다. 버스가 창에 들어선 직후에는 출발 지점이 버스 반경 안이라
+    # 예전에는 바로 포기했다(매 바퀴 J82 후행차 없음). 창 앞 절반 동안은 다시 본다
+    tc = _TC2(bus_road="R77", bus_pos=25.0)
+    inj = _inj(tc, alleys=[])
+    inj.update(0.0)
+    assert ("S2", "R111b") not in inj._lap["lane_done"]
+    tc.f.bus_pos = 62.0
+    inj._lanes(0.1, inj._state())
+    assert any(a["id"].startswith("inj_lane") and a["route"][0] == "R77" for a in tc.f.added)
+
+
 def test_j1_follower_is_in_the_lane_feeding_the_left_turn_lane():
     # J1 앞은 차로를 3~4칸 옮긴다. 후행차는 마지막 변경(좌회전 차로 R54 5 -> R42 4)의 목표 차로에 있어야 한다.
     # R54a 차로 3 -> R54b 차로 4 -> R54 차로 5 -> R42 차로 4로 이어진다

@@ -136,7 +136,7 @@ class TestBusPilot:
         self._late_noted = False
         self._chain = None              # 방금 변경을 마친 창(같은 창의 다음 변경은 빠르게)
         self._signal_s = self.SIGNAL_S
-        self._blocker, self._blocker_t0, self._fast_t0 = None, 0.0, None
+        self._blocker, self._blocker_t0, self._fast_t0, self._blocker_seen = None, 0.0, None, 0.0
 
     # ---- 노선 ----------------------------------------------------------------------------------
     def _L(self, edge):
@@ -314,9 +314,12 @@ class TestBusPilot:
         if self._blocker is not None:
             b = self._blocker
             gone = b not in tc.vehicle.getIDList()
-            passed = (not gone and tc.vehicle.getRoadID(b) == road
-                      and tc.vehicle.getLanePosition(b) - tc.vehicle.getLength(b) > pos + self.PASS_MARGIN)
-            if gone or passed or t - self._blocker_t0 > self.BLOCKER_WAIT_S or tc.vehicle.getRoadID(b) != road:
+            ahead = None if gone else self._route_ahead(tc, b, pos)
+            if ahead is not None:
+                self._blocker_seen = t
+            passed = ahead is not None and ahead - tc.vehicle.getLength(b) > self.PASS_MARGIN
+            lost = ahead is None and t - self._blocker_seen > 3.0      # 노선 밖(다른 길로 갔다)
+            if gone or passed or lost or t - self._blocker_t0 > self.BLOCKER_WAIT_S:
                 self._blocker = None
                 self._release_speed(tc, t)
                 tc.vehicle.changeLane(BUS, self.target, self.REQUEST_DURATION)
@@ -333,7 +336,7 @@ class TestBusPilot:
         if tc.vehicle.getSpeed(vid) > v + self.BLOCKER_DV:
             self._fast_t0 = t if self._fast_t0 is None else self._fast_t0
             if t - self._fast_t0 >= self.BLOCKER_S:
-                self._blocker, self._blocker_t0, self._fast_t0 = vid, t, None
+                self._blocker, self._blocker_t0, self._fast_t0, self._blocker_seen = vid, t, None, t
                 if self._slow_t0 is None:
                     tc.vehicle.setSpeed(BUS, max(v - 3.0, 2.0))
                     self._slow_t0 = t
@@ -341,6 +344,24 @@ class TestBusPilot:
         else:
             self._fast_t0 = None
         return False
+
+    def _route_ahead(self, tc, vid, pos):
+        """버스 앞끝에서 vid 앞끝까지 버스 노선 거리(앞이면 양수). 노선 위에서 못 찾거나 교차로 안이면 None.
+        도로 이름으로만 비교하면 짧은 다음 도로(R111b 27 m, R54b 38 m)로 넘어간 비양보형을 놓쳤다."""
+        road = tc.vehicle.getRoadID(vid)
+        if road.startswith(":"):
+            return None
+        route, i = tc.vehicle.getRoute(BUS), tc.vehicle.getRouteIndex(BUS)
+        fpos = tc.vehicle.getLanePosition(vid)
+        for j in range(max(0, i - 3), min(len(route), i + 4)):
+            if route[j] != road:
+                continue
+            if j == i:
+                return fpos - pos
+            if j > i:
+                return self._L(route[i]) - pos + sum(self._L(e) for e in route[i + 1:j]) + fpos
+            return -(pos + sum(self._L(e) for e in route[j + 1:i]) + self._L(route[j]) - fpos)
+        return None
 
     def _emergency(self, tc, road, pos):
         """창 밖 예외: 지금 차로가 다음 도로로 이어지지 않는데 도로 끝이 30 m 안이면 옮긴다."""

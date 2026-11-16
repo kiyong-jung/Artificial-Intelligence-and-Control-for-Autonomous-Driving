@@ -276,6 +276,28 @@ def test_bus_slows_and_lets_blocker_pass_then_changes():
     assert tc.set_speed[-1] == -1 and len(tc.change_req) > n and tc.change_req[-1] == 1
 
 
+def test_blocker_on_next_short_road_is_still_tracked():
+    # 비양보형이 다음 짧은 도로(R111b 27 m)로 넘어가도 노선 거리로 따라간다. 도로 이름이 다르다고 놓으면 버스가 그 차 앞으로
+    # 끼어들 수 있었다(리뷰 지적)
+    tc = _FakeTC()
+    pilot = _pilot(tc)
+    pilot.tick(tc, 0.0)
+    L = _net().getEdge("R111").getLength()
+    tc.road, tc.lane, tc.pos, tc.best_offset = "R111", 1, L - 10.0, 1  # J82 창 안, 왼쪽으로 한 칸
+    tc.others["f"] = {"road": "R111", "pos": L - 18.0, "len": 4.5, "speed": 10.0}
+    tc.followers = [("f", 0.5)]
+    _run(pilot, tc, 0.1, 4.4)
+    assert tc.set_speed and tc.set_speed[-1] > 0                       # 비양보형으로 보고 속도를 줄였다
+    n = len(tc.change_req)
+    tc.others["f"].update(road="R111b", pos=2.0)                        # 다음 도로, 앞끝이 버스 앞 5 m(뒤끝은 0.5 m)
+    tc.pos, tc.followers = L - 3.0, []
+    _run(pilot, tc, 4.4, 5.0)
+    assert tc.set_speed[-1] > 0 and len(tc.change_req) == n            # 아직 지나가지 않았다: 계속 기다린다
+    tc.others["f"]["pos"] = 20.0                                        # 뒤끝이 버스 앞끝보다 5 m 넘게 앞섰다
+    _run(pilot, tc, 5.0, 5.2)
+    assert tc.set_speed[-1] == -1 and len(tc.change_req) > n
+
+
 def test_pilot_slows_but_never_waits_for_follower():
     tc = _FakeTC()
     state = {"ready": False}

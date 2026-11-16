@@ -36,10 +36,10 @@ def _lane_ids():
     return _cache["lanes"]
 
 
-def test_no_change_distance_is_20m_with_5m_at_j1():
-    # J1 앞은 10 m로는 빠듯해(짧은 측정에서 창 끝을 놓침) 사용자가 정한 범위(5~10 m)의 5 m로 둔다
+def test_no_change_distance_is_20m_with_10m_at_j1():
+    # J1 앞은 빠듯해 사용자가 정한 범위(5~10 m)의 10 m로 둔다(감속 문제를 고친 뒤 다시 10 m로 시험)
     assert SIGNAL_NO_CHANGE_M == 20.0
-    assert no_change_m("J1") == 5.0 and no_change_m("J82") == 20.0
+    assert no_change_m("J1") == 10.0 and no_change_m("J82") == 20.0
 
 
 def test_is_signalized():
@@ -59,9 +59,9 @@ def test_clip_removes_last_20m_before_j82():
     assert any(x.edge == "R111" and x.end == pytest.approx(91.0, abs=0.5) for x in z)
 
 
-def test_clip_uses_5m_override_at_j1():
+def test_clip_uses_10m_override_at_j1():
     z = clip_zones(_net(), _loop(), [Zone("R42", 0.0, 16.0)])
-    assert any(x.edge == "R42" and x.end == pytest.approx(11.0, abs=0.5) for x in z)      # 16 - 5
+    assert any(x.edge == "R42" and x.end == pytest.approx(6.0, abs=0.5) for x in z)       # 16 - 10
 
 
 def test_clip_crosses_short_edge_backwards():
@@ -86,7 +86,7 @@ def test_scenario_triggers_follow_the_pilot_windows():
     left = next(t for t in trig if t.side == +1).zones
     right = next(t for t in trig if t.side == -1).zones
     assert {"R54b", "R54", "R42", "R111", "R111b"} <= {z.edge for z in left}
-    assert all(not (z.edge == "R42" and z.end > 11.5) for z in left)           # J1 앞 5 m는 뺀다
+    assert all(not (z.edge == "R42" and z.end > 6.5) for z in left)            # J1 앞 10 m는 뺀다
     assert {z.edge for z in right} <= {"R71.206", "R71.135", "R71"}            # S3는 s2 앞 창뿐
 
 

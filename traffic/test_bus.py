@@ -36,6 +36,11 @@ class LanePlan:
     end_pos: float         # 창 끝 위치: 이 지점까지 목표 차로에 있어야 한다
     target_lane: int       # 창 끝 도로에서의 목표 차로
     length: float          # 창 길이(창 끝에서 거슬러)
+    eff_length: float = None   # 감속 판단에 쓰는 길이: 창 안에 정류장이 있으면 정류장 끝부터 창 끝까지(J1 창은 s6 안에서 시작)
+
+    def __post_init__(self):
+        if self.eff_length is None:
+            self.eff_length = self.length
 
 
 def lap_route(net, loop):
@@ -76,7 +81,26 @@ def lane_plans(net, route, stops):
         if end < 0:                                    # 창 끝이 앞 도로로 넘어가면 그 도로 기준(같은 차로 번호로 본다)
             edge, end = _back(net, route, k, ea.getLength(), no_change_m(node.getID()))
         plans.append(LanePlan("S2", edge, end, target, CHANGE_WINDOW_M + EXTRA_PER_LANE_M * max(0, target - 1)))
+    for p in plans:                                    # 창 안에 서는 정류장이 있으면 감속 판단은 정류장 끝부터 센다
+        for s in stops:
+            if s["id"] in STOP_AT and s["edge"] in route and "endPos" in s:
+                d = _route_dist(net, route, s["edge"], s["endPos"], p.edge, p.end_pos)
+                if d is not None and 0 < d < p.length:
+                    p.eff_length = min(p.eff_length, d)
     return plans
+
+
+def _route_dist(net, route, e1, p1, e2, p2):
+    """한 바퀴 노선 위 (e1, p1)에서 앞으로 (e2, p2)까지의 거리. e2가 e1 앞에 없으면 None."""
+    i, j = route.index(e1), route.index(e2)
+    if j < i:
+        return None
+    if i == j:
+        return p2 - p1
+    d = net.getEdge(e1).getLength() - p1
+    for e in route[i + 1:j]:
+        d += net.getEdge(e).getLength()
+    return d + p2
 
 
 class TestBusPilot:
@@ -253,9 +277,10 @@ class TestBusPilot:
             if t - self.t_phase < self._signal_s:
                 return
             ready = self.follower_ready(p) if (self.follower_ready is not None and p is not None) else None
-            if ready is False and d is not None and d > p.length / 2.0:
+            if ready is False and d is not None and d > p.eff_length / 2.0:
                 if self._slow_t0 is None:            # 상대가 따라오도록 속도를 줄여 달린다(서지 않는다)
-                    tc.vehicle.setSpeed(BUS, max(0.6 * tc.vehicle.getSpeed(BUS), MIN_SLOW))
+                    # 기준은 도로 제한 속도다. 지금 속도 기준이면 정류장에서 막 출발한 버스가 3 m/s로 30초 기었다
+                    tc.vehicle.setSpeed(BUS, max(0.6 * tc.vehicle.getAllowedSpeed(BUS), MIN_SLOW))
                     self._slow_t0 = t
                 return
             if ready is False and not self._late_noted:

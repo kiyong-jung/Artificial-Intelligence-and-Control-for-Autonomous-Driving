@@ -33,7 +33,7 @@ def _loop():
 
 def _stops():
     return [{"id": s["id"], "name": s["name"], "edge": s["lane"].rsplit("_", 1)[0], "startPos": s["startPos"],
-             "lane_idx": int(s["lane"].rsplit("_", 1)[1])} for s in _map()["bus_stops"]]
+             "endPos": s["endPos"], "lane_idx": int(s["lane"].rsplit("_", 1)[1])} for s in _map()["bus_stops"]]
 
 
 class _V:
@@ -89,6 +89,9 @@ class _V:
 
     def getSpeed(self, v):
         return self.tc.others[v]["speed"] if v in self.tc.others else self.tc.speed
+
+    def getAllowedSpeed(self, v):
+        return 13.89
 
     def setSpeed(self, v, s):
         self.tc.set_speed.append(s)
@@ -156,8 +159,14 @@ def test_lane_plans_are_s3_then_two_s2_and_end_before_signals():
     assert [x.kind for x in p] == ["S3", "S2", "S2"]
     assert (p[0].edge, p[0].target_lane) == ("R71.206", 1) and p[0].end_pos == pytest.approx(13.31, abs=0.01)
     assert (p[1].edge, p[1].target_lane) == ("R111b", 2) and p[1].end_pos == pytest.approx(7.0, abs=0.5)
-    assert (p[2].edge, p[2].target_lane) == ("R42", 4) and p[2].end_pos == pytest.approx(11.0, abs=0.5)
+    assert (p[2].edge, p[2].target_lane) == ("R42", 4) and p[2].end_pos == pytest.approx(6.0, abs=0.5)
     assert all(x.length >= 120.0 for x in p) and p[2].length > p[1].length     # J1 앞은 차로를 더 많이 옮긴다
+    # J1 창은 합정역(s6, R54a 245.5~270.5 m) 안에서 시작한다. 감속 판단은 정류장 끝부터 센다
+    net = _net()
+    eff = (net.getEdge("R54a").getLength() - 270.5 + net.getEdge("R54b").getLength() + net.getEdge("R54").getLength()
+           + p[2].end_pos)
+    assert p[2].eff_length == pytest.approx(eff, abs=0.5) and p[2].eff_length < p[2].length
+    assert p[0].eff_length == p[0].length and p[1].eff_length == p[1].length
 
 
 def test_pilot_departs_once_from_r68_and_sets_stops():
@@ -208,7 +217,7 @@ def test_pilot_hands_over_to_sumo_when_window_ends_in_wrong_lane():
     tc = _FakeTC()
     pilot = _pilot(tc)
     pilot.tick(tc, 0.0)
-    tc.road, tc.lane, tc.pos = "R42", 2, 11.5
+    tc.road, tc.lane, tc.pos = "R42", 2, 6.5
     pilot.tick(tc, 1.0)
     assert tc.lc_mode[-1] == 1621 and pilot.missed == [(1, "S2", "R42")]
     tc.road, tc.lane, tc.pos = "R68", 2, 1.0
@@ -274,7 +283,8 @@ def test_pilot_slows_but_never_waits_for_follower():
     pilot.tick(tc, 0.0)
     tc.road, tc.lane, tc.pos = "R71", 2, _net().getEdge("R71").getLength() - 20.0   # S3 창 앞 절반(창 끝까지 약 98 m)
     _run(pilot, tc, 0.1, 3.5)
-    assert tc.change_req == [] and tc.set_speed and tc.set_speed[0] == pytest.approx(max(0.6 * 8.0, 3.0))
+    # 감속 속도는 지금 속도가 아니라 도로 제한 속도 기준이다(막 출발한 버스가 3 m/s로 30초 기던 문제)
+    assert tc.change_req == [] and tc.set_speed and tc.set_speed[0] == pytest.approx(max(0.6 * 13.89, 3.0))
     assert tc.signals != 0                                            # 방향지시등은 켠 채로 달린다
     state["ready"] = True
     _run(pilot, tc, 3.5, 4.0)

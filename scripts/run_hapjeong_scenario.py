@@ -34,7 +34,7 @@ YIELD_RGB, NOYIELD_RGB = (0, 190, 0, 255), (255, 0, 0, 255)
 def map_stops(m):
     """지도의 정류장 정의를 시험용 버스 조종이 쓰는 모양으로."""
     return [{"id": s["id"], "name": s["name"], "edge": s["lane"].rsplit("_", 1)[0], "startPos": s["startPos"],
-             "lane_idx": int(s["lane"].rsplit("_", 1)[1])} for s in m["bus_stops"]]
+             "endPos": s["endPos"], "lane_idx": int(s["lane"].rsplit("_", 1)[1])} for s in m["bus_stops"]]
 
 
 class Rings:

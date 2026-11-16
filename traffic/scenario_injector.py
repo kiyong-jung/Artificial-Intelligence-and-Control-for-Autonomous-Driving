@@ -325,13 +325,13 @@ class ScenarioInjector:
                 self._record("S5", t, "late")
                 continue
             feeder_len = self.net.getEdge(a.feeder).getLength()
-            # 골목 안 합류점 s5_lead m 앞에서 출발. 버스와 가까우면 골목 시작 쪽으로 물린다(그만큼 일찍 출발해야 한다)
-            cands = sorted({max(1.0, feeder_len - self.s5_lead), max(1.0, feeder_len - self.s5_lead - 40.0), 1.0},
-                           reverse=True)
-            for spawn_pos in cands:
-                t_cut = (feeder_len - spawn_pos) / 8.0 + 0.5      # 골목 차가 합류점에 닿는 데 걸리는 시간
-                if d / v > t_cut + 3.0:
-                    continue                                  # 이 자리에서 출발하기에는 아직 이르다
+            # 골목 안 합류점 s5_lead m 앞에서 출발한다. 출발 시각은 이 자리 기준으로만 맞춘다(먼 자리 기준으로 맞추면 긴 골목
+            # G16에서 버스가 아직 먼데 골목 시작에서 출발해 버스와 만나지 못했다). 이 자리가 버스 반경 안일 때만 골목 시작
+            # 쪽으로 물린다(조금 늦게 닿는다).
+            main = max(1.0, feeder_len - self.s5_lead)
+            if d / v > (feeder_len - main) / 8.0 + 0.5 + 3.0:
+                continue                                      # 아직 이르다: 버스가 합류점에 닿기 3초 전에 골목 차가 먼저 닿게
+            for spawn_pos in sorted({main, max(1.0, main - 40.0), 1.0}, reverse=True):
                 vid, why = self._add_car("s5", [a.feeder, a.into], "0", spawn_pos, vtype=self.cutin_type)
                 if vid:
                     lap["s5_done"].add(a.junction)

@@ -233,6 +233,26 @@ def test_cutter_uses_full_ignore_type_and_ends_at_boundary():
     assert ends_at_boundary(_net(), cut[0]["route"][-1])
 
 
+def test_long_alley_cutter_waits_for_normal_spawn_point():
+    # G16(X_jandari7)은 280 m가 넘는다. 먼 출발점은 '출발할 때'가 일찍 와서, 예전에는 버스가 아직 먼데 골목 시작에서
+    # 출발해 버스와 만나지 못했다(짧은 실행에서 확인). 합류점 60 m 앞 출발점의 때가 올 때까지 기다린다.
+    from traffic.test_bus import _back
+    a = [x for x in _alleys() if x.junction == "X_jandari7"]
+    route = _route()
+    edge, pos = _back(_net(), route, route.index(a[0].into), 0.0, 200.0)       # 합류점 200 m 앞(8 m/s로 25초)
+    tc = _TC2(bus_road=edge, bus_pos=pos)
+    inj = _inj(tc, alleys=a)
+    inj.update(0.0)
+    inj._s5(0.1, inj._state())
+    assert not any(x["id"].startswith("inj_s5") for x in tc.f.added)
+    edge, pos = _back(_net(), route, route.index(a[0].into), 0.0, 80.0)        # 10초: 60 m 앞 출발점의 때
+    tc.f.bus_road, tc.f.bus_pos = edge, pos
+    inj._s5(0.2, inj._state())
+    cut = [x for x in tc.f.added if x["id"].startswith("inj_s5")]
+    L = _net().getEdge(a[0].feeder).getLength()
+    assert cut and float(cut[0]["departPos"]) == pytest.approx(L - 60.0, abs=0.2)
+
+
 def test_no_spawn_within_radius_of_bus():
     from sumolib.geomhelper import positionAtShapeOffset
     g3 = _net().getEdge("G3")

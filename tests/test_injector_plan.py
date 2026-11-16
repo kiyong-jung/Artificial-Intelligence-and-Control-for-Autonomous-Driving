@@ -283,24 +283,24 @@ def test_cutter_uses_full_ignore_type_and_ends_at_boundary():
     assert ends_at_boundary(_net(), cut[0]["route"][-1])
 
 
-def test_long_alley_cutter_spawns_where_it_reaches_the_merge_4s_before_the_bus():
-    # G16(X_jandari7)은 280 m가 넘는다. 골목 시작에서 출발하면 버스가 아직 먼데 차만 먼저 가 버스와 만나지 못했다(짧은 실행에서
-    # 확인). 버스가 합류점에 닿을 시각보다 4초 먼저 닿도록, 골목 안에서 그만큼 거리를 남긴 자리에서 출발시킨다
+def test_cutter_spawns_where_it_reaches_the_merge_4s_before_the_bus():
+    # S5 후보 골목(X_dongmak6 G12, X_jandari2 G23)에서, 출발 위치를 고정하면 버스와 1초밖에 못 앞섰다. 버스가 합류점에 닿을 시각보다
+    # 4초 먼저 닿도록 골목 안에서 그만큼 거리를 남긴 자리에서 출발시킨다
     from traffic.test_bus import _back
-    a = [x for x in _alleys() if x.junction == "X_jandari7"]
     route = _route()
-    L = _net().getEdge(a[0].feeder).getLength()
-    for back, eta in ((200.0, 25.0), (80.0, 10.0)):                            # 8 m/s로 25초, 10초
+    for junction, back in (("X_jandari2", 80.0), ("X_jandari2", 90.0)):          # 8 m/s로 10초, 11.25초(정류장이 없는 구간)
+        a = [x for x in _alleys() if x.junction == junction]
+        L = _net().getEdge(a[0].feeder).getLength()
         edge, pos = _back(_net(), route, route.index(a[0].into), 0.0, back)
         tc = _TC2(bus_road=edge, bus_pos=pos)
+        tc.f.lane.getMaxSpeed = lambda lane: 5.56 if lane.startswith("G") else 13.89   # 골목 제한 속도
         inj = _inj(tc, alleys=a)
-        inj._signal_ahead = lambda *args: False      # 이 시험은 출발 위치만 본다(신호는 test_cutin_only_for_bus에서 따로 본다)
         inj.update(0.0)
         inj._s5(0.1, inj._state())
         cut = [x for x in tc.f.added if x["id"].startswith("inj_s5")]
-        assert cut
-        arrive = (L - float(cut[0]["departPos"]) - 3.0) / 8.0 + 0.5               # 차 속도 8 m/s(가짜 도로의 제한 속도가 높다)
-        assert arrive == pytest.approx(eta - 4.0, abs=0.7)
+        assert cut, (junction, back)
+        arrive = (L - float(cut[0]["departPos"]) - 3.0) / 5.56 + 0.5
+        assert arrive == pytest.approx(back / 8.0 - 4.0, abs=0.8), (junction, back)
 
 
 def test_cutter_timing_counts_bus_dwell_at_stop_before_merge():

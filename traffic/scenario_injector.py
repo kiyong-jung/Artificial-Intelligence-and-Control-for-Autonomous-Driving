@@ -46,7 +46,8 @@ class ScenarioInjector:
         self.dwell_s = dwell_s
         self.stop_ids = set(stop_ids) if stop_ids is not None else {s["id"] for s in stops}
         self._stop_t0, self._left_stop = None, None
-        self._ignore_pending = set()
+        self._ignore_pending = {}                  # 끼어들기 차 id -> 그 골목
+        self._t_now, self._cur_alley = 0.0, None
         self.tc, self.net, self.bus = traci, net, bus_id
         self.stops = {s["id"]: s for s in stops}
         self.alleys = list(alleys)
@@ -150,21 +151,39 @@ class ScenarioInjector:
         except Exception:
             return "", "failed"
         if kind == "s5":
-            self._ignore_pending.add(vid)                # 끼어들기 차는 시험용 버스만 무시한다. 나타난 다음 스텝에 건다
+            self._ignore_pending[vid] = self._cur_alley  # 끼어들기 차는 시험용 버스보다 먼저 닿을 때만 버스를 무시한다
         return vid, "injected"
 
     def _set_ignore(self):
-        """끼어들기 차가 SUMO 목록에 나타나면 junctionModel.ignoreIDs로 시험용 버스를 무시하게 한다. 배경 차는 무시하지 않는다."""
+        """끼어들기 차가 시험용 버스보다 먼저 합류점에 닿을 때만 junctionModel.ignoreIDs로 버스를 무시하게 한다.
+
+        항상 무시하게 했더니 버스가 먼저 합류점을 지나는데도 차가 비켜 주지 않고 부딪혔다(busy 측정 12 샘플). 차가 1초 넘게 먼저
+        닿을 때만 무시하고, 버스가 먼저 닿으면 보통 차처럼 양보한다. 배경 차는 어느 쪽이든 무시하지 않는다.
+        """
         if not self._ignore_pending:
             return
-        ids = set(self.tc.vehicle.getIDList())
-        for vid in list(self._ignore_pending):
-            if vid in ids:
+        tc = self.tc
+        ids = set(tc.vehicle.getIDList())
+        st = self._state() if self.bus in ids else None
+        for vid, a in list(self._ignore_pending.items()):
+            if vid not in ids:
+                continue                                  # 아직 SUMO 목록에 나타나지 않았다
+            if tc.vehicle.getRoadID(vid) != a.feeder:
+                del self._ignore_pending[vid]             # 골목을 벗어났다(합류 중이거나 지났다): 더는 정하지 않는다
+                continue
+            if st is None:
+                continue
+            d_bus = self._dist_to(st, a.into, 0.0)
+            if d_bus is None:
+                continue
+            remain = self.net.getEdge(a.feeder).getLength() - tc.vehicle.getLanePosition(vid)
+            eta_car = remain / max(tc.vehicle.getSpeed(vid), 2.0)
+            if eta_car + 1.0 < self._bus_eta(self._t_now, st, d_bus, a.into):
                 try:
-                    self.tc.vehicle.setParameter(vid, "junctionModel.ignoreIDs", self.bus)
+                    tc.vehicle.setParameter(vid, "junctionModel.ignoreIDs", self.bus)
                 except Exception:
                     pass
-                self._ignore_pending.discard(vid)
+                del self._ignore_pending[vid]
 
     def _record(self, kind, t, ok, vid=None):
         self.log.append({"t": round(t, 1), "lap": len(self._laps_done) + 1, "kind": kind, "ok": ok, "id": vid})
@@ -178,6 +197,7 @@ class ScenarioInjector:
             self._lap_no = lap
             self._new_lap(t)
         tc = self.tc
+        self._t_now = t
         self._set_ignore()
         if self.bus not in tc.vehicle.getIDList():
             return
@@ -515,6 +535,7 @@ class ScenarioInjector:
             if eta > (feeder_len - main) / v_alley + 0.5 + 3.0:
                 continue                                      # 아직 이르다: 버스가 합류점에 닿기 3초 전에 골목 차가 먼저 닿게
             for spawn_pos in sorted({main, max(1.0, main - 40.0), 1.0}, reverse=True):
+                self._cur_alley = a
                 vid, why = self._add_car("s5", [a.feeder, a.into], "0", spawn_pos, vtype=self.cutin_type)
                 if vid:
                     lap["s5_done"].add(a.junction)

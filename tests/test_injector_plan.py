@@ -58,7 +58,7 @@ class _V:
         return self.tc.bus_speed if v == "bus0" else 8.0
 
     def getRoadID(self, v):
-        return self.tc.bus_road
+        return self.tc.roads.get(v, self.tc.bus_road)
 
     def getRoute(self, v):
         return self.tc.route
@@ -67,7 +67,7 @@ class _V:
         return self.tc.route.index(self.tc.bus_road)
 
     def getLanePosition(self, v):
-        return self.tc.bus_pos
+        return self.tc.lane_pos.get(v, self.tc.bus_pos)
 
     def getLaneIndex(self, v):
         return 2 if v == "bus0" else self.tc.lanes.get(v, 2)
@@ -142,6 +142,7 @@ class _FakeTC:
         self.cars, self.added, self.routes, self.set_speed, self.lc_mode = [], [], {}, {}, {}
         self.stop_state = 0
         self.params = {}                 # (차 id, 키) -> 값
+        self.roads, self.lane_pos = {}, {}   # 다른 차 id -> 도로 / 도로 위 위치(없으면 버스와 같다)
         self.left_followers, self.right_followers = [], []     # 버스 옆 차로의 후행차 [(id, TraCI 간격)]
         self.lanes = {}                  # 다른 차 id -> 차로 번호
         self.vehicle = _V(self)

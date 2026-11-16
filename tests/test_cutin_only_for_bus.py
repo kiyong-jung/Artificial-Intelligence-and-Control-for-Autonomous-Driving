@@ -15,8 +15,25 @@ def test_cutter_ignores_only_the_test_bus():
     cut = [a for a in tc.f.added if a["id"].startswith("inj_s5")]
     assert cut
     assert cut[0]["type"] == "carDist"                             # 앞차를 모두 무시하는 vType(cutin_*)이 아니다
+    vid = cut[0]["id"]
+    tc.f.bus_pos = T._near_merge() - 60.0                          # 버스가 아직 멀다: 차가 먼저 합류점에 닿는다
+    tc.f.roads[vid], tc.f.lane_pos[vid] = "G3", 5.0
     inj.update(0.2)                                                # 나타난 다음 스텝에 무시 대상을 지정한다
-    assert tc.f.params[(cut[0]["id"], "junctionModel.ignoreIDs")] == "bus0"
+    assert tc.f.params[(vid, "junctionModel.ignoreIDs")] == "bus0"
+
+
+def test_cutter_yields_when_the_bus_reaches_the_merge_first():
+    # 끼어들기 차가 시험용 버스를 항상 무시하게 했더니 버스가 먼저 합류점을 지나는데도 비켜 주지 않고 부딪혔다(busy 측정 12 샘플).
+    # 차가 먼저 닿을 때만 무시하고, 버스가 먼저 닿으면 보통 차처럼 양보한다
+    tc = T._TC2(bus_road="R71", bus_pos=T._near_merge())
+    inj = T._inj(tc, alleys=[a for a in T._alleys() if a.junction == "X_dongmak3"])
+    inj.update(0.0)
+    inj._s5(0.1, inj._state())
+    vid = next(a["id"] for a in tc.f.added if a["id"].startswith("inj_s5"))
+    tc.f.roads[vid], tc.f.lane_pos[vid] = "G3", 1.0                # 차는 아직 골목 시작 가까이, 버스는 합류점 40 m 앞
+    tc.f.bus_pos = T._near_merge() + 30.0                          # 버스가 합류점 10 m 앞까지 와 있다
+    inj.update(0.2)
+    assert (vid, "junctionModel.ignoreIDs") not in tc.f.params
 
 
 def test_cutter_waits_until_bus_has_passed_the_signal_before_the_merge():

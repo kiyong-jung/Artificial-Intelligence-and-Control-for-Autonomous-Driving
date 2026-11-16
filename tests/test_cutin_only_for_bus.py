@@ -35,6 +35,21 @@ def test_cutter_waits_until_bus_has_passed_the_signal_before_the_merge():
     assert any(a["id"].startswith("inj_s5") for a in tc.f.added)
 
 
+def test_cutter_timing_uses_the_alley_speed_limit_not_a_fixed_8_mps():
+    # 골목(G23)은 제한 속도가 5.56 m/s라 끼어들기 차가 8 m/s로 달리지 못한다. 8 m/s로 계산하면 차가 3초 늦게 닿아 버스가 먼저
+    # 지나가거나 버스 바로 뒤에 합류했다(quiet·baseline 측정 S5 0). 골목 제한 속도로 계산해 더 일찍 출발시킨다
+    alley = [a for a in T._alleys() if a.junction == "X_jandari2"]
+    route = T._route()
+    from traffic.test_bus import _back
+    edge, pos = _back(T._net(), route, route.index(alley[0].into), 0.0, 90.0)      # J74를 지난 -R96 위, 합류점 90 m 앞(8 m/s로 11.3초)
+    tc = T._TC2(bus_road=edge, bus_pos=pos, bus_speed=8.0)
+    tc.f.lane.getMaxSpeed = lambda lane: 13.89 if not lane.startswith("G") else 5.56
+    inj = T._inj(tc, alleys=alley)
+    inj.update(0.0)
+    inj._s5(0.1, inj._state())
+    assert any(a["id"].startswith("inj_s5") for a in tc.f.added)                    # 5.56 m/s면 이미 출발할 때다
+
+
 def test_no_cutter_when_bus_is_far_from_the_alley():
     tc = T._TC2(bus_road="R69", bus_pos=10.0)                      # 합류점에서 멀다
     inj = T._inj(tc, alleys=[a for a in T._alleys() if a.junction == "X_dongmak3"])

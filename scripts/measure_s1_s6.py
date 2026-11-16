@@ -87,6 +87,7 @@ def main():
         return bus.lap
 
     stop_edges = {s["edge"] for s in stops}
+    timing = {}                                        # 바퀴 -> 시간 구성
     bw = {"cur": 0.0, "long": [], "s3_trace": []}      # 시험용 버스가 정류장 밖에서 15초 넘게 선 곳, S3 시도 중 궤적
 
     def on_step(t):
@@ -97,6 +98,15 @@ def main():
             pos = tc.vehicle.getLanePosition("bus0")
             # 정류장 밖에서 오래 서 있는 곳(한 바퀴가 길어지는 원인 찾기)
             stopstate = tc.vehicle.getStopState("bus0")
+            # 바퀴 시간을 나눠 센다(0.1초 단위): 정류장 정차 / 적색 대기 / 그 밖의 정지 / 주행. 긴 바퀴가 신호 주기 때문인지 본다
+            tm = timing.setdefault(lap(), {"stop": 0.0, "red": 0.0, "other": 0.0, "moving": 0.0})
+            if stopstate & 1 and stopstate & 16:
+                tm["stop"] += 0.1
+            elif tc.vehicle.getSpeed("bus0") < 0.1:
+                tls = tc.vehicle.getNextTLS("bus0")
+                tm["red" if (tls and tls[0][3] in "rRyY" and tls[0][2] < 25.0) else "other"] += 0.1
+            else:
+                tm["moving"] += 0.1
             if tc.vehicle.getSpeed("bus0") < 0.1 and not (stopstate & 1 and stopstate & 16):
                 bw["cur"] += 0.1
                 if bw["cur"] > 15.0 and not bw.get("noted") and len(bw["long"]) < 12:
@@ -341,6 +351,7 @@ def main():
            "ped_x": PED_X, "ped_cfg": "old" if OLD_PED else "new", "variant": TAG, "trace": trace,
            "injector": ({**world.injector.summary(), "log": world.injector.log} if world.injector else None),
            "ped_revoked": world.ped.revoked if world.ped else None,
+           "lap_time_breakdown": {k: {kk: round(v, 1) for kk, v in d.items()} for k, d in timing.items()},
            "bus_long_waits_outside_stops": bw["long"], "s3_trace": bw["s3_trace"],
            "interior": world.interior.summary() if world.interior else None,
            "right_on_red": world.summary.get("right_on_red"),

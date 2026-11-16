@@ -37,6 +37,7 @@ from .presence import VehicleArrivalGuard
 from .scenario_injector import ScenarioInjector
 from .right_turn import apply_right_on_red
 from .signal_areas import clip_zones, unsignalized_alleys, unsignalized_crossings
+from .test_bus import STOP_AT
 from .stop_ahead import StopAheadManager
 from .stop_bypass import StopBypassManager
 from .yield_logic import YieldManager, DEFAULT_TYPES, Trigger, Zone
@@ -404,11 +405,11 @@ class HapjeongTraffic:
             net = read_net(os.path.join(self.out_dir, "network.net.xml"))
             self.injector = ScenarioInjector(
                 traci, net, bus_id,
-                [{"id": s["id"], "edge": s["lane"].rsplit("_", 1)[0]} for s in m["bus_stops"]
-                 if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]],
+                [{"id": s["id"], "edge": s["lane"].rsplit("_", 1)[0], "startPos": s["startPos"], "endPos": s["endPos"]}
+                 for s in m["bus_stops"] if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]],
                 self.alleys, getattr(self, "cutin_full_ignore", "cutin_0"),
                 lap_fn=lambda: pilot.lap, plans=pilot.plans, rng=random.Random(self.seed + 8),
-                a1_active=lambda vid: vid in mgr.inter)
+                a1_active=lambda vid: vid in mgr.inter, dwell_s=pilot.stop_s, stop_ids=STOP_AT)
             pilot.follower_ready = self.injector.follower_ready     # 상대가 늦으면 시험용 버스가 속도를 줄인다
             extras.append(self.injector)
         if getattr(self, "persons", None) is not None:

@@ -32,7 +32,13 @@ class ScenarioInjector:
     def __init__(self, traci, net, bus_id, stops, alleys, cutin_type, lap_fn, plans, rng=None, a1_active=None,
                  back_s1=220.0, back_lane=PRESENCE_RADIUS_M + 15.0, s5_per_lap=(1, 2), follower_gap=(3.0, 12.0),
                  lane_lead=300.0,
-                 s6_edges=("-R112", "R112.112"), s6_edge_before="R112", s5_lead=60.0, follower_check=80.0):
+                 s6_edges=("-R112", "R112.112"), s6_edge_before="R112", s5_lead=60.0, follower_check=80.0,
+                 dwell_s=8.0, stop_ids=None):
+        # dwell_s: 시험용 버스의 정류장 정차 시간. stop_ids: 버스가 실제로 서는 정류장(없으면 stops 전부).
+        # 끼어들기 출발 시점에 버스의 정차 시간을 넣는다(X_dongmak6은 s2 끝 바로 뒤에서 합류해 정차 중에 골목 차가 먼저 지나갔다)
+        self.dwell_s = dwell_s
+        self.stop_ids = set(stop_ids) if stop_ids is not None else {s["id"] for s in stops}
+        self._stop_t0, self._left_stop = None, None
         self.tc, self.net, self.bus = traci, net, bus_id
         self.stops = {s["id"]: s for s in stops}
         self.alleys = list(alleys)
@@ -53,7 +59,7 @@ class ScenarioInjector:
 
     # ---- 바퀴 ---------------------------------------------------------------------------------
     def _new_lap(self, t):
-        stop_ids = sorted(self.stops)
+        stop_ids = sorted(i for i in self.stops if i in self.stop_ids)      # S1은 버스가 실제로 서는 정류장에서만
         k = min(len(self.alleys), self.rng.randint(*self.s5_per_lap)) if self.alleys else 0
         self._lap = {"t0": t, "s1_stop": self.rng.choice(stop_ids) if stop_ids else None, "s1": False,
                      "S3": next((p for p in self.plans if p.kind == "S3"), None),
@@ -164,6 +170,12 @@ class ScenarioInjector:
         tc, lap = self.tc, self._lap
         state = tc.vehicle.getStopState(self.bus)
         stopped = bool(state & 1 and state & 16)
+        if stopped and not self._was_stopped:
+            self._stop_t0 = t                            # 정차를 시작한 시각(끼어들기 출발 시점 계산에 쓴다)
+        elif not stopped:
+            if self._was_stopped:
+                self._left_stop = tc.vehicle.getRoadID(self.bus)     # 방금 떠난 정류장 도로(다시 '앞의 정류장'으로 보지 않는다)
+            self._stop_t0 = None
         if stopped and not self._was_stopped and not lap["s1"]:
             here = tc.vehicle.getRoadID(self.bus)
             at = next((sid for sid, s in self.stops.items() if s["edge"] == here), None)
@@ -334,25 +346,50 @@ class ScenarioInjector:
             tc.vehicle.setSpeed(vid, target)
 
     # ---- S5 ---------------------------------------------------------------------------------
+    def _stop_pending(self, st, edge):
+        """버스가 edge(합류 도로)에 닿기 전에 설 정류장이 남아 있는가."""
+        route, i, pos, _ = st
+        j = self._ahead_index(route, i, edge, span=40)
+        if j is None:
+            return False
+        for s in self.stops.values():
+            if s["id"] not in self.stop_ids or "endPos" not in s:
+                continue
+            k = self._ahead_index(route, i, s["edge"], span=40)
+            if k is None or k > j:
+                continue
+            if k > i or (s["endPos"] >= pos - 1.0 and route[i] != self._left_stop):
+                return True
+        return False
+
+    def _bus_eta(self, t, st, d, edge):
+        """시험용 버스가 d m 앞(edge 시작)에 닿기까지 걸리는 시간. 정류장 정차 시간을 넣는다."""
+        v = max(self.tc.vehicle.getSpeed(self.bus), 5.0)
+        if self._stop_t0 is not None:                    # 지금 정류장에 서 있다: 남은 정차 + 출발해 닿는 시간
+            return max(0.0, self.dwell_s - (t - self._stop_t0)) + d / 5.0 + 2.0
+        if self._stop_pending(st, edge):                 # 합류점 앞에 설 정류장이 남았다: 정차와 감·가속 시간을 더한다
+            return d / v + self.dwell_s + 5.0
+        return d / v
+
     def _s5(self, t, st):
         tc, lap = self.tc, self._lap
-        v = max(tc.vehicle.getSpeed(self.bus), 5.0)
         for a in lap["S5"]:
             if a.junction in lap["s5_done"]:
                 continue
             d = self._dist_to(st, a.into, 0.0)
             if d is None or d < 0:
                 continue                                  # 이번 바퀴에 아직 앞에 없다(또는 지났다)
-            if d < 30.0:
+            if d < 30.0 and self._stop_t0 is None and not self._stop_pending(st, a.into):
                 lap["s5_done"].add(a.junction)
                 self._record("S5", t, "late")
                 continue
+            eta = self._bus_eta(t, st, d, a.into)
             feeder_len = self.net.getEdge(a.feeder).getLength()
             # 골목 안 합류점 s5_lead m 앞에서 출발한다. 출발 시각은 이 자리 기준으로만 맞춘다(먼 자리 기준으로 맞추면 긴 골목
             # G16에서 버스가 아직 먼데 골목 시작에서 출발해 버스와 만나지 못했다). 이 자리가 버스 반경 안일 때만 골목 시작
             # 쪽으로 물린다(조금 늦게 닿는다).
             main = max(1.0, feeder_len - self.s5_lead)
-            if d / v > (feeder_len - main) / 8.0 + 0.5 + 3.0:
+            if eta > (feeder_len - main) / 8.0 + 0.5 + 3.0:
                 continue                                      # 아직 이르다: 버스가 합류점에 닿기 3초 전에 골목 차가 먼저 닿게
             for spawn_pos in sorted({main, max(1.0, main - 40.0), 1.0}, reverse=True):
                 vid, why = self._add_car("s5", [a.feeder, a.into], "0", spawn_pos, vtype=self.cutin_type)

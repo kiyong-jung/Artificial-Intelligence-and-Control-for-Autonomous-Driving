@@ -37,7 +37,7 @@ def _route():
 
 def _stops():
     return [{"id": s["id"], "name": s["name"], "edge": s["lane"].rsplit("_", 1)[0], "startPos": s["startPos"],
-             "lane_idx": int(s["lane"].rsplit("_", 1)[1])} for s in _map()["bus_stops"]]
+             "endPos": s["endPos"], "lane_idx": int(s["lane"].rsplit("_", 1)[1])} for s in _map()["bus_stops"]]
 
 
 def _alleys():
@@ -76,7 +76,7 @@ class _V:
         return 12.0
 
     def getStopState(self, v):
-        return 0
+        return self.tc.stop_state
 
     def getLeftFollowers(self, v):
         return []
@@ -137,6 +137,7 @@ class _FakeTC:
         self.bus_road, self.bus_pos, self.bus_xy, self.bus_speed = bus_road, bus_pos, bus_xy, bus_speed
         self.route = _route()
         self.cars, self.added, self.routes, self.set_speed, self.lc_mode = [], [], {}, {}, {}
+        self.stop_state = 0
         self.vehicle = _V(self)
         self.lane, self.edge, self.person = _L(), _E(), _P()
 
@@ -151,9 +152,10 @@ class _TC2:
 
 
 def _inj(tc, lap=lambda: 1, alleys=None, seed=0, a1_active=None):
+    from traffic.test_bus import STOP_AT
     plans = lane_plans(_net(), _route(), _stops())
     return ScenarioInjector(tc, _net(), "bus0", _stops(), _alleys() if alleys is None else alleys, "cutin_full",
-                            lap_fn=lap, plans=plans, rng=random.Random(seed), a1_active=a1_active)
+                            lap_fn=lap, plans=plans, rng=random.Random(seed), a1_active=a1_active, stop_ids=STOP_AT)
 
 
 def test_lap_plan_has_both_s2_one_s3_and_one_or_two_s5():
@@ -258,6 +260,22 @@ def test_long_alley_cutter_waits_for_normal_spawn_point():
     cut = [x for x in tc.f.added if x["id"].startswith("inj_s5")]
     L = _net().getEdge(a[0].feeder).getLength()
     assert cut and float(cut[0]["departPos"]) == pytest.approx(L - 60.0, abs=0.2)
+
+
+def test_cutter_timing_counts_bus_dwell_at_stop_before_merge():
+    # X_dongmak6(G12 -> R71.256)는 성산중학교(s2) 끝 바로 뒤에서 합류한다. 버스가 s2에 서 있는 동안 남은 정차 시간을 세지
+    # 않으면 골목 차가 너무 일찍(또는 '늦음'으로) 처리되어 3바퀴째 S5가 0이었다
+    a = [x for x in _alleys() if x.junction == "X_dongmak6"]
+    tc = _TC2(bus_road="R71.206", bus_pos=38.0, bus_speed=0.0)
+    inj = _inj(tc, alleys=a)
+    inj.update(0.0)
+    tc.f.stop_state = 1 | 16                                   # 정류장에 섰다
+    inj.update(0.1)                                            # 정차 시작 시각을 기록한다
+    inj._s5(1.0, inj._state())                                 # 남은 정차 7초: 아직 이르다
+    assert not any(x["id"].startswith("inj_s5") for x in tc.f.added)
+    assert "X_dongmak6" not in inj._lap["s5_done"]             # '늦음'으로 끝내지 않는다
+    inj._s5(6.5, inj._state())                                 # 남은 정차 약 1.6초: 골목 차가 먼저 합류점에 닿을 때
+    assert any(x["id"].startswith("inj_s5") for x in tc.f.added)
 
 
 def test_no_spawn_within_radius_of_bus():

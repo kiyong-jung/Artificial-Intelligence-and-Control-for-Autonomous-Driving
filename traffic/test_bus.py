@@ -204,6 +204,10 @@ class TestBusPilot:
                 self._handover = False
             self._last_road = road
         if road.startswith(":"):
+            # 교차로 안에서는 차선을 바꿀 수 없다. 제동 중에 교차로 안으로 밀려 들어간 버스에 강제 정차(속도 0)가 걸려 있으면 풀지 않는 한
+            # 그 자리에 선다(J107 안에서 300초). 지나가게 푼다
+            if self._forced_p is not None:
+                self._end_forced(tc, t)
             return
         self._extend()
         self._pilot(tc, t, road)

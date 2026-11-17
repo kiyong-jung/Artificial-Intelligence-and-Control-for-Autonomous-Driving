@@ -67,7 +67,8 @@ class _V:
         return self.tc.routes[v]
 
     def getRouteIndex(self, v):
-        return self.tc.routes[v].index(self.tc.road)
+        road = self.tc.prev_road if self.tc.road.startswith(":") else self.tc.road
+        return self.tc.routes[v].index(road)
 
     def setRoute(self, v, edges):
         self.tc.routes[v] = list(edges)
@@ -125,6 +126,7 @@ class _E:
 class _FakeTC:
     def __init__(self, road="R68", lane=1, pos=0.0, speed=8.0):
         self.road, self.lane, self.pos, self.speed = road, lane, pos, speed
+        self.prev_road = None            # 교차로 안(내부 도로)이면 방금 지난 경로 도로
         self.alive = False
         self.added, self.bus_stops, self.lc_mode, self.change_req, self.set_speed = [], [], [], [], []
         self.routes, self.route_defs = {}, {}
@@ -390,3 +392,18 @@ def test_pilot_gives_up_slowing_after_half_window():
     tc.road, tc.pos = "R71.135", 40.0                                 # 창 절반을 지났다(창 끝까지 약 38 m)
     _run(pilot, tc, 3.5, 3.7)
     assert tc.set_speed[-1] == -1 and tc.change_req and pilot.late == [(1, "S3")]
+
+
+def test_forced_stop_is_released_when_the_bus_enters_a_junction():
+    # 강제 정차는 차선을 바꾸려고 서는 것인데 교차로 안에서는 차선을 바꿀 수 없다. 제동 중에 교차로 안으로 밀려 들어간 버스를 세워 두었더니
+    # J107 안에서 300초 섰다(quiet 3바퀴째). 교차로 안에서는 정차를 풀어 지나가게 한다
+    tc = _FakeTC(speed=6.0)
+    pilot = _pilot(tc, follower_ready=lambda plan: False)
+    pilot.tick(tc, 0.0)
+    L = _net().getEdge("R111").getLength()
+    tc.road, tc.lane, tc.pos = "R111", 1, L - 3.0
+    _run(pilot, tc, 0.1, 1.0)
+    assert pilot.forced == [(1, "S2")] and tc.set_speed[-1] == 0.0       # 강제 정차가 걸렸다
+    tc.prev_road, tc.road, tc.lane, tc.pos = "R111", ":J107_2", 1, 1.0
+    _run(pilot, tc, 1.0, 2.0)
+    assert tc.set_speed[-1] == -1 and pilot._forced_p is None             # 교차로 안: 풀었다

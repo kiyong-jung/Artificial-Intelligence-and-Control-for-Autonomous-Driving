@@ -321,6 +321,12 @@ def main():
         probe["log"].append({"t": round(t, 1), "lap": getattr(bus, "lap", None), "road": road,
                              "pos": round(tc.vehicle.getLanePosition("bus0"), 1), "still": round(probe["still"], 1),
                              "leader": tc.vehicle.getLeader("bus0"), "next_links": links,
+                             "speed_without_traci": round(tc.vehicle.getSpeedWithoutTraCI("bus0"), 2),
+                             "stop_state": tc.vehicle.getStopState("bus0"), "speed_mode": tc.vehicle.getSpeedMode("bus0"),
+                             "route_idx": tc.vehicle.getRouteIndex("bus0"), "route_tail": tc.vehicle.getRoute("bus0")[max(0, tc.vehicle.getRouteIndex("bus0") - 1):][:4],
+                             "next_stops": [(getattr(s, "stoppingPlaceID", ""), round(float(getattr(s, "endPos", 0.0)), 1))
+                                            for s in tc.vehicle.getStops("bus0")[:2]] if hasattr(tc.vehicle, "getStops") else None,
+                             "pilot_phase": bus.phase, "pilot_forced": bus._forced_p is not None,
                              "tls": {node: [tc.trafficlight.getRedYellowGreenState(node), tc.trafficlight.getPhase(node),
                                             round(tc.trafficlight.getNextSwitch(node) - t, 1)]}
                              if node in tc.trafficlight.getIDList() else None,

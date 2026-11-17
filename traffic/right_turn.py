@@ -6,8 +6,10 @@
 바꾼다. 어느 위상에서 열지는 **신호 프로그램만으로** 정한다(런타임에 링크 상태를 바꾸지 않는다).
 
 우회전 링크를 위상에서 'g'로 여는 조건 (둘 다 만족해야 한다):
-1. 겹치는(`getInternalFoes`) 다른 차량 링크가 모두 적색 또는 황색이다. 이 도로망의 신호 교차로 링크는 서로 양보하도록 만들어져
-   있지 않아, 직진·좌회전 녹색과 겹치게 열면 교차로 안에서 부딪힌다(처음 시도에서 J74·J82 충돌 13건).
+1. 겹치는(`getInternalFoes`) 다른 차량 링크 중 **우회전이 양보하도록 만들어지지 않은** 링크가 모두 적색 또는 황색이다.
+   양보하도록 만들어지지 않은 링크와 녹색이 겹치게 열면 교차로 안에서 부딪힌다(처음 시도에서 J74·J82 충돌 13건). 반대로 우회전이
+   양보하도록 도로망에 만들어진 링크(`yields_to`, request의 response)는 녹색이어도 SUMO가 우회전 차를 양보시키므로 상관없다
+   (사용자 결정: 우회전에는 신호가 없고, 횡단보도가 적색이고 오는 차와 충돌하지 않는 선에서 신호와 무관하게 갈 수 있다).
 2. 우회전 차가 지나는 횡단보도의 보행자 신호가 적색이다. 보행자 신호가 녹색인 위상에는 사람이 건너고 있을 수 있으므로 열지
    않는다. 그래서 "횡단보도에 사람이 없을 때만" 열린다.
 
@@ -29,6 +31,25 @@ def right_turn_links(tls, directions=("r", "R")):
         for c in in_lane.getEdge().getConnections(out_lane.getEdge()):
             if c.getFromLane() == in_lane and c.getToLane() == out_lane and c.getDirection() in directions:
                 out.add(idx)
+    return out
+
+
+def yields_to(tls, links):
+    """우회전 링크 인덱스 -> 그 링크가 양보하도록 도로망에 만들어진(request의 response) 다른 차량 링크 인덱스 집합.
+
+    이런 링크는 상대가 녹색이어도 SUMO가 우회전 차를 양보시킨다. 집합에 없는 겹치는 링크(양보하지 않는 상대)가 녹색이면 우회전 차가
+    그대로 들어가 부딪힌다(처음 시도에서 J74·J82 충돌 13건)."""
+    conns = {}
+    for in_lane, out_lane, idx in tls.getConnections():
+        for c in in_lane.getEdge().getConnections(out_lane.getEdge()):
+            if c.getFromLane() == in_lane and c.getToLane() == out_lane:
+                conns[idx] = c
+    out = {}
+    for i in links:
+        if i not in conns:
+            continue
+        node = conns[i].getFrom().getToNode()
+        out[i] = {j for j, c in conns.items() if j != i and node.forbids(c, conns[i])}
     return out
 
 
@@ -72,6 +93,7 @@ def apply_right_on_red(traci, net, exclude=("J1",), foe_ok="ry"):
         if not links:
             continue
         foes = _foes(traci, tid, links)
+        yields = yields_to(tls, links)
         total = opened = by_ped = 0.0
         for logic in traci.trafficlight.getAllProgramLogics(tid):
             origs = [p.state for p in logic.phases]            # 바꾸기 전 상태(직전 위상 확인용)
@@ -84,8 +106,9 @@ def apply_right_on_red(traci, net, exclude=("J1",), foe_ok="ry"):
                         continue
                     total += phase.duration
                     veh, cross = foes.get(i, (set(), set()))
-                    if not all(orig[j] in foe_ok for j in veh):
-                        continue                                     # 직진·좌회전 녹색과 겹친다
+                    # 이 우회전이 양보하도록 만들어진 상대(yields)는 녹색이어도 SUMO가 양보시키므로 상관없다. 양보하지 않는 상대만 적색·황색이어야 한다
+                    if not all(orig[j] in foe_ok for j in veh - yields.get(i, set())):
+                        continue                                     # 양보하지 않는 직진·좌회전 녹색과 겹친다
                     # 보행자 신호가 이 위상과 직전 위상 모두 적색이어야 한다. 막 적색이 된 직후에는 사람이 아직 건너고 있다.
                     if not all(orig[c] == "r" and prev[c] == "r" for c in cross if c < len(orig)):
                         by_ped += phase.duration

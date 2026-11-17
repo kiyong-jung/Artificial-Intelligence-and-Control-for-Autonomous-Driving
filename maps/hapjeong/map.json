@@ -1,12 +1,12 @@
 {
   "id": "hapjeong",
   "name": "합정역 · 양화로와 독막로",
-  "version": "3.11.0",
+  "version": "3.13.0",
   "description": "합정역 일대 실제 도로. 신호 교차로, 인도·횡단보도·보행자, 중앙버스차로, 연구 경로의 가로변 정류장 6곳과 신호 없는 횡단보도가 있다.",
   "source_status": "osm_generated",
   "network_source": {
     "path": "source/network.net.xml",
-    "sha256": "1cd91920262d2b676a2964316e2209aca2d45e753390ff246a7f4015e38ef08c",
+    "sha256": "7341638b8d303d0a831a3c9eda9803d080b4a5b726b5b61afe67fa0666d8fa82",
     "base_path": "source/network.base.net.xml",
     "base_sha256": "3be54d491627c289497b936102eedfa307c547f4edc04a1e80756ba8f25b11c7",
     "generator": "generator/ (서예인, seogyo-hongdae 066e5b1)",
@@ -245,6 +245,30 @@
         ],
         "removed_persons": 0,
         "script": "scripts/remove_j23_overlapping_crosswalk.py"
+      },
+      "j1_c2_start_on_w2": {
+        "moved_start": [
+          -39.33,
+          -5.824
+        ],
+        "script": "scripts/fix_j1_c2_start.py"
+      },
+      "right_turns_not_with_crosswalk_green": {
+        "tls": {
+          "J96": {
+            "right_turn_links": [
+              0,
+              7,
+              8,
+              14,
+              22,
+              23,
+              24
+            ],
+            "changed_phase_cells": 7
+          }
+        },
+        "script": "scripts/separate_right_turns_from_crosswalks.py"
       }
     },
     "pedestrians": {
@@ -252,7 +276,15 @@
       "min_distance": 150,
       "end": 3600,
       "seed": 42,
-      "s6_walkers_per_hour": 240
+      "s6_walkers_per_hour": 240,
+      "removed_crossing_walkers": {
+        "J1_c1": {
+          "removed": 129,
+          "persons_before": 825,
+          "persons_after": 696,
+          "script": "scripts/remove_crosswalk_pedestrians.py"
+        }
+      }
     }
   },
   "extra_files": {

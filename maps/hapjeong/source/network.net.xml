@@ -125,7 +125,7 @@
         <lane id=":J1_c1_0" index="0" allow="pedestrian" speed="2.780" length="16.000" width="4.000" shape="-12.842,-31.249 0.176,-21.947" outlineShape="-11.680,-32.876 1.339,-23.574 1.420,-23.516 1.339,-23.574 1.005,-23.067 0.740,-22.576 0.544,-22.100 0.417,-21.639 0.358,-21.194 0.368,-20.764 0.447,-20.350 0.594,-19.951 0.810,-19.568 0.945,-19.393 -0.987,-20.320 -14.005,-29.622 -14.413,-29.913 -13.894,-30.327 -12.775,-31.480" />
     </edge>
     <edge id=":J1_c2" function="crossing" crossingEdges="R40 B1 R45">
-        <lane id=":J1_c2_0" index="0" allow="pedestrian" speed="2.780" length="29.074" width="4.000" shape="-35.995,-4.384 -22.863,-30.322" outlineShape="-37.825,-5.198 -24.877,-30.772 -23.674,-29.837 -22.370,-29.049 -21.462,-28.662 -21.078,-29.419 -34.211,-3.480 -39.042,-2.713 -38.925,-3.164 -38.847,-3.766 -38.860,-4.310 -38.966,-4.796 -39.165,-5.225 -39.455,-5.595 -39.838,-5.908 -40.313,-6.163 -40.880,-6.360" />
+        <lane id=":J1_c2_0" index="0" allow="pedestrian" speed="2.780" length="29.518" width="4.000" shape="-39.330,-5.824 -22.863,-30.322" outlineShape="-37.670,-4.708 -21.203,-29.206 -24.523,-31.438 -40.990,-6.939" />
     </edge>
     <edge id=":J1_c3" function="crossing" crossingEdges="R59 -R59">
         <lane id=":J1_c3_0" index="0" allow="pedestrian" speed="2.780" length="22.400" width="4.000" shape="-19.728,9.215 -39.168,-1.913" outlineShape="-20.722,10.951 -40.162,-0.177 -39.714,-1.011 -39.359,-1.786 -39.096,-2.504 -38.925,-3.164 -38.847,-3.766 -38.854,-4.037 -16.824,8.573 -17.185,8.544 -17.709,8.576 -18.210,8.684 -18.687,8.870 -19.141,9.133 -19.571,9.472 -19.978,9.888 -20.362,10.381" />
@@ -1980,10 +1980,10 @@
         <phase duration="3" state="rrrrrryyrrr" />
     </tlLogic>
     <tlLogic id="J96" type="static" programID="0" offset="0">
-        <phase duration="28" state="gGGGGGgrrrrrrrgGGGGGgGrrrrrrrrGrrG" />
+        <phase duration="28" state="rGGGGGgrrrrrrrrGGGGGgGrrrrrrrrGrrG" />
         <phase duration="5" state="gGGGGGgrrrrrrrgGGGGGgGrrrrrrrrrrrr" />
         <phase duration="6" state="yyyyyyyrrrrrrryyyyyyyyrrrrrrrrrrrr" />
-        <phase duration="28" state="rrrrrrrggGGGrrrrrrrrrrgggGrrGGrGGr" />
+        <phase duration="28" state="rrrrrrrrrGGGrrrrrrrrrrrrrGrrGGrGGr" />
         <phase duration="5" state="rrrrrrrggGGGrrrrrrrrrrgggGrrrrrrrr" />
         <phase duration="6" state="rrrrrrryyyyyrrrrrrrrrryyyyrrrrrrrr" />
         <phase duration="6" state="rrrrrrrrrrrrGGrrrrrrrrrrrrGGrrrrrr" />

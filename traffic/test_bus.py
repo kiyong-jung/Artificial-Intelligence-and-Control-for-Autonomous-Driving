@@ -330,7 +330,10 @@ class TestBusPilot:
         if act is None or tc.vehicle.getStopState(BUS) & 1:
             return self._end_forced(tc, t) if self._forced_p is not None else False
         _, p, d = act
-        if idx == p.target_lane:
+        # 차로 번호를 창 끝 도로의 목표 차로와 그대로 견주면 안 된다. 도로마다 차로 번호가 달라서(R54 차로 4 -> R42 차로 3) 이미 맞는
+        # 차로의 버스를 멈춰 세우고 틀린 차로로 옮기라고 했다. 연결을 따라 창 끝에서 목표 차로에 닿는 차로인지 본다
+        good = self._lanes_reaching_target(tc, p)
+        if idx in good or not good:
             return self._end_forced(tc, t) if self._forced_p is not None else False
         v = tc.vehicle.getSpeed(BUS)
         if self._forced_p is None:
@@ -341,12 +344,38 @@ class TestBusPilot:
             self._release_speed(tc, t)
             self._blocker = None
         tc.vehicle.setSpeed(BUS, 0.0)
-        step = 1 if p.target_lane > idx else -1
+        step = 1 if min(good, key=lambda k: (abs(k - idx), -k)) > idx else -1       # 목표에 닿는 가장 가까운 차로 쪽으로
         tc.vehicle.setSignals(BUS, BLINKER_LEFT if step > 0 else BLINKER_RIGHT)
         if int(round((t - self._forced_t0) * 10)) % 10 == 0:          # 1초마다 다시 요청한다(빈틈이 생기면 SUMO가 옮긴다)
             tc.vehicle.changeLane(BUS, idx + step, self.REQUEST_DURATION)
         self.phase, self.t_phase = "cool", t
         return True
+
+    def _lanes_reaching_target(self, tc, p):
+        """지금 도로의 차로 중, 노선의 연결을 따라가 창 끝 도로(p.edge)의 목표 차로(p.target_lane)에 닿는 차로 번호 집합.
+        노선에서 창 끝 도로를 못 찾으면 빈 집합."""
+        route, i = tc.vehicle.getRoute(BUS), tc.vehicle.getRouteIndex(BUS)
+        j = next((m for m in range(i, len(route)) if route[m] == p.edge), None)
+        if j is None or not self.net.hasEdge(route[i]):
+            return set()
+        n = self.net.getEdge(route[i]).getLaneNumber()
+        good = set()
+        for k in range(n):
+            lanes = {k}
+            for m in range(i, j):
+                a, b = self.net.getEdge(route[m]), self.net.getEdge(route[m + 1])
+                lanes = {c.getToLane().getIndex() for c in a.getConnections(b) if c.getFromLane().getIndex() in lanes}
+                if not lanes:
+                    break
+            if p.kind == "S2" and j + 1 < len(route) and self.net.hasEdge(route[j + 1]):
+                # 좌회전 직전 창: 목표 차로 하나만이 아니라 다음 도로로 이어지는 차로면 맞다(J1은 좌회전 차로가 2개)
+                nxt = self.net.getEdge(route[j + 1])
+                ok = any(c.getFromLane().getIndex() in lanes for c in self.net.getEdge(p.edge).getConnections(nxt))
+            else:
+                ok = p.target_lane in lanes
+            if ok:
+                good.add(k)
+        return good
 
     def _end_forced(self, tc, t):
         tc.vehicle.setSpeed(BUS, -1)

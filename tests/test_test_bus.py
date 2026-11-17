@@ -278,6 +278,30 @@ def test_bus_stops_to_guarantee_arrival_in_target_lane_before_window_end():
     assert tc.set_speed[-1] == -1                            # 멈춤을 푼다
 
 
+def test_forced_stop_compares_lanes_through_the_connections_not_by_number():
+    # R54 차로 4는 R42 차로 3(좌회전 차로)으로, 차로 5는 R42 차로 4로 이어진다. 창 끝 도로(R42)의 목표 차로 번호(3)와 지금 차로 번호를
+    # 그대로 비교하면, 이미 맞는 차로(4, 5)에 있는 버스를 멈춰 세우고 틀린 차로(3, R42 차로 2로 직진)로 옮기라고 했다
+    L = _net().getEdge("R54").getLength()
+    for lane in (4, 5):
+        tc = _FakeTC(speed=12.0)
+        pilot = _pilot(tc, follower_ready=lambda plan: False)
+        pilot.tick(tc, 0.0)
+        tc.road, tc.lane, tc.pos = "R54", lane, L - 20.0       # 창 끝(R42 6 m)까지 26 m: 제동 거리(32.8 m) 안
+        _run(pilot, tc, 0.1, 2.0)
+        assert 0.0 not in tc.set_speed and pilot.forced == [], lane
+
+
+def test_forced_stop_moves_toward_the_lane_that_reaches_the_target():
+    # R54 차로 2는 R42 차로 1(직진)로 간다. 멈춰서 옮길 때는 R42 차로 3으로 이어지는 가장 가까운 차로(4)로 간다(위쪽 +1)
+    L = _net().getEdge("R54").getLength()
+    tc = _FakeTC(speed=12.0)
+    pilot = _pilot(tc, follower_ready=lambda plan: False)
+    pilot.tick(tc, 0.0)
+    tc.road, tc.lane, tc.pos = "R54", 3, L - 20.0              # 차로 3은 R42 차로 2(직진)로 간다: 목표(R42 3)에 못 닿는다
+    _run(pilot, tc, 0.1, 1.0)
+    assert tc.set_speed[-1] == 0.0 and tc.change_req and tc.change_req[0] == 4
+
+
 def test_no_forced_stop_when_far_from_window_end_or_already_in_target_lane():
     tc = _FakeTC(speed=10.0)
     pilot = _pilot(tc, follower_ready=lambda plan: False)

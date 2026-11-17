@@ -26,7 +26,6 @@ from env.road_config import ROAD, EGO, TRAFFIC, configure_map
 from .alleys import close_loop, find_merge_alleys, flow_merges, read_net
 from .common import AGGRESSION, Ownership
 from .cutin import STOPPED_KINDS, StoppedSpec, cutin_bins_once, cutin_vtype_xml, stopped_vehicle_xml
-from .crosswalk_hold import CrosswalkHold
 from .ped_defiance import PedDefianceManager
 from .pedestrian import ped_vtypes_xml
 from .runner import run as run_loop
@@ -424,9 +423,6 @@ class HapjeongTraffic:
         if getattr(self, "persons", None) is not None:
             self.persons.bus = bus_id
             extras.insert(0, _TimeAdapter(self.persons))
-        # 시험용 버스가 신호 교차로 가까이 있는 동안 횡단보도로 가는 보행자는 대기 구역에서 3 m 떨어져 기다린다(좌회전하는 버스와 서로 막히지 않게)
-        self.crosswalk_hold = CrosswalkHold(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
-        extras.append(self.crosswalk_hold)
         # 지금 있는 차로에서 갈 수 있는 쪽으로 진로를 바꾼다(좌회전 전용 차로에 들어온 우회전 차는 좌회전한다)
         self.lane_route = LaneRouteAdapter(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
         extras.append(self.lane_route)

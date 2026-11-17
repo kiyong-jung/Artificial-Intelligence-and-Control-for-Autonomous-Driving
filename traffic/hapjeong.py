@@ -427,7 +427,8 @@ class HapjeongTraffic:
         self.lane_route = LaneRouteAdapter(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
         extras.append(self.lane_route)
         # 지도 안쪽에서 끝나는 경로의 차가 시험용 버스 가까이에서 사라지지 않게 목적지를 지도 경계로 늘린다
-        self.arrival_guard = VehicleArrivalGuard(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
+        self.arrival_guard = VehicleArrivalGuard(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id,
+                                                 visible_alleys=tuple(a.feeder for a in self.s5_alleys))
         extras.append(self.arrival_guard)
         if self.interior is None:
             self.interior = self._make_interior(bus_id)

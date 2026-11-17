@@ -44,6 +44,9 @@ class _Vehicle:
     def changeTarget(self, vid, edge):
         self.tc.targets[vid] = edge
 
+    def remove(self, vid, *a):
+        self.tc.removed.append(vid)
+
     def subscribeContext(self, *a, **k):
         self.tc.subscribed = True
 
@@ -91,7 +94,7 @@ class _FakeTC:
         self.vehicles = dict(vehicles or {})       # id -> (road, pos, (x, y))
         self.routes = dict(routes or {})
         self.persons = dict(persons or {})         # id -> (road, (x, y))
-        self.targets = {}
+        self.targets, self.removed = {}, []
         self.departed, self.departed_p, self.arrived, self.arrived_p, self.teleports = [], [], [], [], []
         self.vehicle, self.person, self.simulation = _Vehicle(self), _Person(self), _Sim(self)
 
@@ -161,3 +164,14 @@ def test_radius_has_single_definition():
         except ImportError:
             continue                      # 아직 없는 모듈(이후 태스크에서 생긴다)
         assert getattr(mod, "PRESENCE_RADIUS_M", PRESENCE_RADIUS_M) is PRESENCE_RADIUS_M
+
+
+def test_arrival_guard_removes_flow_car_that_departs_inside_radius():
+    # 골목 입구에서 나오는 배경 흐름 차가 버스 반경 안에서 출발하면 눈앞에 갑자기 나타난 것이다(busy 측정 1건, 41 m). 막는다
+    tc = _FakeTC(vehicles={"f_G31_to_R126.0": ("R71.206", 10.0, (0.4 * R, 0.0)),
+                           "f_far": ("R71.206", 10.0, (3 * R, 0.0)),
+                           "inj_s51": ("R71.206", 10.0, (0.4 * R, 0.0))},
+                 routes={k: ["R71.206"] for k in ("f_G31_to_R126.0", "f_far", "inj_s51")})
+    tc.departed = ["f_G31_to_R126.0", "f_far", "inj_s51"]
+    VehicleArrivalGuard(tc, _net(), "bus0").update(0.0)
+    assert tc.removed == ["f_G31_to_R126.0"]                      # 먼 차, 주입기가 일부러 넣은 차는 그대로

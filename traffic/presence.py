@@ -117,14 +117,33 @@ class VehicleArrivalGuard:
     def __init__(self, tc, net, bus_id, radius=PRESENCE_RADIUS_M, margin=30.0, period=1.0):
         self.tc, self.net, self.bus = tc, net, bus_id
         self.reach = radius + margin
+        self.radius, self.suppressed = radius, 0
         self.period, self._t_next = period, -1e9
         self.extended = {}
 
+    def _suppress_departures(self, ids, bx, by):
+        """버스 반경 안에서 막 출발한 배경 흐름 차(id가 f_로 시작)를 없앤다. 골목 입구에서 나오는 흐름 차는 SUMO가 제 시각에
+        넣어 버스 눈앞에 갑자기 나타나기 때문이다. 아직 보이지 않던 차를 넣지 않는 것이라 사라짐으로 세지 않는다."""
+        tc = self.tc
+        for vid in tc.simulation.getDepartedIDList():
+            if not vid.startswith("f_") or vid not in ids:
+                continue
+            x, y = tc.vehicle.getPosition(vid)
+            if math.hypot(x - bx, y - by) < self.radius and not starts_at_boundary(self.net, tc.vehicle.getRoadID(vid)):
+                try:
+                    tc.vehicle.remove(vid)
+                except Exception:
+                    continue
+                self.suppressed += 1
+
     def update(self, t):
+        tc = self.tc
+        ids = tc.vehicle.getIDList()
+        if self.bus in ids:
+            self._suppress_departures(ids, *tc.vehicle.getPosition(self.bus))
         if t < self._t_next:
             return
         self._t_next = t + self.period
-        tc = self.tc
         ids = tc.vehicle.getIDList()
         if self.bus not in ids:
             return

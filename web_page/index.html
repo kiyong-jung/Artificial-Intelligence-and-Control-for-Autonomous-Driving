@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>합정역 자율주행버스: 가로변 정류장을 오가는 버스와 주변 교통</title>
+<meta name="description" content="서울 합정역 일대 실제 도로를 SUMO로 옮겨, 자율주행버스가 가로변 정류장을 오가며 겪는 여섯 가지 상호작용을 재현하고 학습하는 팀 프로젝트." />
+<meta property="og:title" content="합정역 자율주행버스" />
+<meta property="og:description" content="실제 도로, 실제 골목, 여섯 시나리오. 자율주행버스가 가로변 정류장을 오가며 겪는 상호작용을 SUMO로 재현한다." />
+<meta property="og:type" content="article" />
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<style>
+  :root {
+    --paper: #f3f6f8;
+    --surface: #fff;
+    --ink: #12202e;
+    --body: #1f2d3b;
+    --muted: #556577;
+    --rule: #d4dce4;
+    --rule-soft: #e4e9ee;
+    --rule-strong: #9fb0c0;
+    --tone: #e6ecf2;
+    --tone-deep: #d6dfe8;
+    --accent: #0a58b5;
+    --accent-deep: #08458f;
+    --accent-faint: #0a58b540;
+    --stop: #f5b800;
+    --on-accent: #fff;
+
+    --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px; --s-9: 96px;
+    --r-xs: 4px; --r-sm: 8px; --r-lg: 12px; --r-pill: 999px;
+
+    --sans: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+    --fs-small: .875rem; --fs-ui: .9375rem; --fs-body: 1rem; --fs-lead: 1.0625rem;
+    --fs-stat: 1.625rem; --fs-xl: 1.5rem;
+    --fs-h2: clamp(1.6rem, 2.6vw, 2.1rem);
+    --fs-title: clamp(1.15rem, 2.2vw, 1.5rem);
+    --fs-display: clamp(2.8rem, 7vw, 5.4rem);
+    --w-reg: 400; --w-med: 500; --w-semi: 600; --w-bold: 700; --w-black: 800;
+    --lh-display: 1.15; --lh-head: 1.3; --lh-ui: 1.5; --lh-text: 1.75;
+    --ls-display: -.04em; --ls-head: -.03em; --ls-tight: -.02em;
+
+    --wide: 1200px;
+    --figure: 1000px;
+    --measure: 720px;
+    --toc: 200px;
+    --nav: 64px;
+    --tap: 44px;
+    --mark: 12px;
+    --gutter: var(--s-6);
+
+    --ease: cubic-bezier(.2,.8,.2,1);
+    --ease-enter: cubic-bezier(.22,1,.36,1);
+    --t-fast: 150ms; --t-med: 300ms; --t-slow: 700ms;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: var(--nav); color-scheme: light; scrollbar-color: var(--rule-strong) var(--paper); }
+  body { margin: 0; background: var(--paper); color: var(--body); font: var(--w-reg) var(--fs-body)/var(--lh-text) var(--sans); -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; word-break: keep-all; overflow-wrap: break-word; }
+  ::selection { background: var(--stop); color: var(--ink); }
+  a { touch-action: manipulation; color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+  a:hover { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  img { max-width: 100%; height: auto; display: block; }
+  .skip-link { position: absolute; top: -80px; left: var(--s-5); padding: var(--s-3) var(--s-4); background: var(--surface); color: var(--ink); z-index: 20; }
+  .skip-link:focus { top: var(--s-3); }
+
+  .topbar { border-bottom: 1px solid var(--rule); background: var(--paper); position: sticky; top: 0; z-index: 10; }
+  .topbar-inner { max-width: var(--wide); margin: auto; height: var(--nav); padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: var(--s-5); }
+  .brand { color: var(--ink); font-weight: var(--w-black); letter-spacing: -.01em; text-decoration: none; }
+  .brand::before { content: ""; display: inline-block; width: var(--mark); height: var(--mark); margin-right: var(--s-3); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
+  .navlinks { display: flex; gap: var(--s-6); font-size: var(--fs-ui); font-weight: var(--w-med); }
+  .navlinks a, .toc a { text-decoration: none; }
+  .navlinks a { color: var(--muted); padding: var(--s-2) 0; background: linear-gradient(var(--ink), var(--ink)) 0 calc(100% - 4px) / 0 1px no-repeat; transition: background-size var(--t-fast) var(--ease), color var(--t-fast) var(--ease); white-space: nowrap; }
+  .navlinks a:hover, .navlinks a[aria-current="true"] { color: var(--ink); background-size: 100% 1px; }
+  .navlinks a[aria-current="true"] { background-size: 100% 2px; background-position: 0 100%; }
+
+  .wide, .wrap { margin: auto; padding: 0 var(--gutter); max-width: var(--wide); }
+  header.article-head { padding-top: var(--s-9); padding-bottom: var(--s-5); text-align: center; }
+  h1 { margin: 0; color: var(--ink); }
+  .project-name { display: block; font-size: var(--fs-display); font-weight: var(--w-black); letter-spacing: var(--ls-display); line-height: var(--lh-display); }
+  .project-title { display: block; max-width: var(--measure); margin: var(--s-5) auto 0; font-size: var(--fs-title); font-weight: var(--w-med); letter-spacing: var(--ls-tight); line-height: var(--lh-ui); color: var(--body); text-wrap: balance; }
+  .route-rule { display: flex; align-items: center; gap: var(--s-3); max-width: 360px; margin: var(--s-6) auto 0; }
+  .route-rule::before, .route-rule::after { content: ""; flex: 1; height: 4px; background: var(--accent); }
+  .route-rule i { flex: none; width: var(--mark); height: var(--mark); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
+  .byline { max-width: var(--measure); margin: var(--s-5) auto 0; color: var(--ink); font-weight: var(--w-semi); }
+  .author-row { display: flex; justify-content: center; flex-wrap: wrap; gap: var(--s-1) var(--s-5); }
+  .author-notes { margin: var(--s-2) 0 0; color: var(--muted); font-weight: var(--w-reg); }
+  .lede { max-width: var(--measure); margin: var(--s-5) auto 0; color: var(--ink); font-size: var(--fs-lead); }
+  .hero-links { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s-3); margin-top: var(--s-6); }
+  .button { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 var(--s-5); border-radius: var(--r-pill); background: var(--accent); color: var(--on-accent); text-decoration: none; font-weight: var(--w-bold); transition: background-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
+  .button:hover { background: var(--accent-deep); color: var(--on-accent); }
+  .button.tonal { background: var(--tone); color: var(--ink); }
+  .button.tonal:hover { background: var(--tone-deep); color: var(--ink); }
+  .button:active { transform: translateY(1px) scale(.985); }
+
+  .demo { max-width: var(--figure); margin-top: var(--s-4); margin-bottom: var(--s-8); }
+  .figure-link { display: block; overflow: hidden; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--s-3); text-decoration: none; transition: transform var(--t-med) var(--ease), border-color var(--t-med) var(--ease); }
+  .figure-link img { border-radius: var(--r-sm); transition: transform var(--t-med) var(--ease); }
+  .figure-link:hover { border-color: var(--rule-strong); }
+  .caption { color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); margin-top: var(--s-3); }
+  .caption strong { display: block; margin-bottom: var(--s-1); color: var(--ink); font-weight: var(--w-bold); font-size: var(--fs-body); }
+
+  .paper-abstract { display: grid; grid-template-columns: var(--toc) minmax(0,1fr); column-gap: var(--s-8); align-items: start; margin-bottom: var(--s-8); }
+  .paper-abstract h2 { font-size: var(--fs-xl); margin: 0; }
+  .paper-abstract h2::before { content: none; }
+  .paper-abstract p { margin: 0; max-width: var(--measure); font-size: var(--fs-lead); color: var(--ink); }
+
+  main.wrap { display: grid; grid-template-columns: var(--toc) minmax(0,1fr); column-gap: var(--s-8); align-items: start; border-top: 1px solid var(--rule); padding-top: var(--s-7); }
+  .toc { position: sticky; top: calc(var(--nav) + var(--s-5)); }
+  .toc-title { font-size: var(--fs-small); font-weight: var(--w-med); margin: 0 0 var(--s-3); color: var(--muted); }
+  .toc ol { list-style: none; margin: 0; padding: 0; position: relative; }
+  .toc ol::before { content: ""; position: absolute; left: calc(var(--mark) / 2 - 1.5px); top: var(--s-4); bottom: var(--s-4); width: 3px; background: var(--accent-faint); }
+  .toc li { position: relative; margin: 0; }
+  .toc a { display: block; padding: var(--s-2) 0 var(--s-2) var(--s-6); color: var(--muted); font-size: var(--fs-ui); line-height: var(--lh-ui); transition: color var(--t-fast) var(--ease); }
+  .toc a::before { content: ""; position: absolute; left: 0; top: 50%; width: var(--mark); height: var(--mark); margin-top: calc(var(--mark) / -2); background: var(--paper); border: 2px solid var(--accent); border-radius: 50%; }
+  .toc a:hover { color: var(--ink); }
+  .toc a[aria-current="true"] { color: var(--ink); font-weight: var(--w-bold); }
+  .toc a[aria-current="true"]::before { background: var(--stop); border-color: var(--ink); border-radius: 2px; }
+
+  article { min-width: 0; padding-bottom: var(--s-5); }
+  .article-section { margin: 0 0 var(--s-9); }
+  .article-section:last-child { margin-bottom: 0; }
+  .article-section > p, .article-section > ul { max-width: var(--measure); }
+  h2, h3 { color: var(--ink); text-wrap: balance; }
+  h2 { position: relative; margin: 0 0 var(--s-6); font: var(--w-black) var(--fs-h2)/var(--lh-head) var(--sans); letter-spacing: var(--ls-head); scroll-margin-top: calc(var(--nav) + var(--s-5)); }
+  h2::before { content: ""; position: absolute; left: calc(var(--s-4) * -1 - var(--mark)); top: .5em; width: var(--mark); height: var(--mark); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
+  h3 { margin: var(--s-6) 0 var(--s-2); font-size: var(--fs-body); font-weight: var(--w-bold); }
+  p { margin: var(--s-4) 0; text-wrap: pretty; }
+  ul { padding-left: 1.2em; }
+  li { margin: var(--s-2) 0; }
+  .pull { margin: var(--s-6) 0; max-width: var(--measure); color: var(--ink); font: var(--w-bold) var(--fs-xl)/var(--lh-ui) var(--sans); letter-spacing: var(--ls-tight); text-wrap: balance; }
+  figure { margin: var(--s-6) 0; }
+  .table-scroll { overflow-x: auto; margin: var(--s-5) 0; border: 1px solid var(--rule); border-radius: var(--r-lg); background: var(--surface); }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-body); line-height: var(--lh-ui); font-variant-numeric: tabular-nums; }
+  th, td { padding: var(--s-3) var(--s-4); text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule-soft); color: var(--ink); }
+  thead th { border-bottom: 2px solid var(--ink); font-weight: var(--w-med); font-size: var(--fs-small); color: var(--muted); white-space: nowrap; }
+  tbody td:first-child { font-weight: var(--w-bold); white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  td.num, th.num { text-align: right; }
+  td.num { font-weight: var(--w-bold); white-space: nowrap; }
+  code { font-family: inherit; font-size: .9em; font-weight: var(--w-semi); color: var(--ink); background: var(--tone); padding: 1px var(--s-2); border-radius: var(--r-xs); }
+
+  .shortcut-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--s-4); margin: var(--s-6) 0; }
+  .shortcut { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); overflow: hidden; }
+  .shortcut img { width: 100%; height: 140px; object-fit: cover; }
+  .shortcut-body { padding: var(--s-3) var(--s-4) var(--s-4); border-top: 1px solid var(--rule); }
+  .shortcut h3 { margin: 0 0 var(--s-1); letter-spacing: var(--ls-tight); }
+  .shortcut p { margin: 0; color: var(--body); line-height: var(--lh-ui); }
+  .shortcut p b { display: block; color: var(--ink); font-size: var(--fs-lead); font-weight: var(--w-bold); }
+
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); margin: var(--s-6) 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--rule); }
+  .stat { padding: var(--s-3) var(--s-4) var(--s-3) 0; }
+  .stat + .stat { padding-left: var(--s-4); border-left: 1px solid var(--rule); }
+  .stat b { display: block; color: var(--ink); font: var(--w-bold) var(--fs-stat)/var(--lh-display) var(--sans); letter-spacing: var(--ls-head); white-space: nowrap; }
+  .stat span { color: var(--muted); font-size: var(--fs-ui); }
+
+  footer { border-top: 1px solid var(--rule); color: var(--muted); font-size: var(--fs-small); padding: var(--s-5) 0 var(--s-7); }
+  footer .wide { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--s-3) var(--s-6); }
+
+  .lit-pending { color: var(--muted); transition: color var(--t-slow) var(--ease); }
+  .lit-pending.lit { color: var(--ink); }
+
+  @media (hover: hover) and (pointer: fine) {
+    .button:hover { transform: translateY(-1px); }
+    .figure-link:hover { transform: translateY(-2px); }
+    .figure-link:hover img { transform: scale(1.02); }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes rise { from { transform: translateY(var(--s-3)); } to { transform: none; } }
+    .article-head > *, .demo { animation: rise var(--t-slow) var(--ease-enter) both; }
+    .project-name { animation-delay: 60ms; }
+    .project-title { animation-delay: 160ms; }
+    .route-rule { animation-delay: 240ms; }
+    .byline { animation-delay: 300ms; }
+    .lede { animation-delay: 380ms; }
+    .hero-links { animation-delay: 440ms; }
+    .demo { animation-delay: 520ms; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition-property: color, background-color, border-color !important; transition-duration: var(--t-fast) !important; }
+    .figure-link, .figure-link img, .button { transform: none !important; }
+    .lit-pending { color: var(--ink); }
+  }
+  @media (max-width: 1100px) {
+    h2::before { display: none; }
+  }
+  @media (max-width: 860px) {
+    :root { --gutter: var(--s-4); }
+    main.wrap, .paper-abstract { grid-template-columns: 1fr; }
+    .paper-abstract h2 { margin-bottom: var(--s-4); }
+    .toc { position: static; border-bottom: 1px solid var(--rule); padding-bottom: var(--s-4); margin-bottom: var(--s-6); }
+    .toc ol { display: grid; grid-template-columns: 1fr 1fr; column-gap: var(--s-4); }
+    .toc ol::before { display: none; }
+    .toc a { display: flex; align-items: center; min-height: var(--tap); padding-top: 0; padding-bottom: 0; }
+    .navlinks { display: none; }
+    header.article-head { padding-top: var(--s-7); }
+    .article-section { margin-bottom: var(--s-8); }
+    h2 { margin-bottom: var(--s-5); }
+    .stat-row { grid-template-columns: 1fr 1fr; }
+    .stat:nth-child(3) { padding-left: 0; border-left: 0; }
+    .stat:nth-child(n+3) { border-top: 1px solid var(--rule); }
+    .shortcut-grid { grid-template-columns: 1fr 1fr; gap: var(--s-3); }
+    .shortcut img { height: 110px; }
+    .pull { font-size: 1.25rem; }
+    .hero-links .button { width: 100%; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#overview">본문으로 건너뛰기</a>
+<nav class="topbar" aria-label="상단">
+  <div class="topbar-inner">
+    <a class="brand" href="#top">Hapjeong Autonomous Bus</a>
+    <div class="navlinks">
+      <a href="#overview">개요</a><a href="#road">도로</a><a href="#scenarios">시나리오</a><a href="#shortcuts">골목</a><a href="#validation">검증</a>
+    </div>
+  </div>
+</nav>
+
+<header class="wide article-head" id="top">
+  <h1>
+    <span class="project-name">합정역 자율주행버스</span>
+    <span class="project-title">가로변 정류장을 오가는 버스가 실제 도로에서 겪는 여섯 가지 상호작용</span>
+  </h1>
+  <div class="route-rule" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="byline">
+    <div class="author-row">
+      <span>정기용</span><span>서예인</span><span>주현진</span><span>박신후</span><span>이건호</span>
+    </div>
+    <p class="author-notes">성균관대학교 · 자율주행인공지능및제어 팀 프로젝트</p>
+  </div>
+  <p class="lede">서울 합정역 일대 실제 도로를 SUMO로 옮겼다. 연구 버스가 1.9km 순환 경로를 도는 동안 정류장 재합류, 좌회전 차로 변경, 골목 차량 끼어들기, 횡단보도 보행자를 실제 위치에서 만나도록 도로와 주변 교통을 설계했다.</p>
+  <div class="hero-links">
+    <a class="button" href="https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving">GitHub 저장소 보기</a>
+    <a class="button tonal" href="assets/shortcut_report.pdf">골목 지름길 보고서 읽기 (PDF)</a>
+  </div>
+</header>
+
+<figure class="wide demo">
+  <a class="figure-link" href="assets/hapjeong_map.png"><img src="assets/hapjeong_map.png" width="2400" height="1982" alt="합정역 도로망 3.6.0. 파란 선은 연구 버스 순환 경로, 빨간 선은 골목, 청록 선은 양화로 중앙버스 노선이다." fetchpriority="high" decoding="async" /></a>
+  <figcaption class="caption"><strong>그림 1. 합정역 도로망 3.6.0</strong>파란 선이 연구 버스가 시계 반대 방향으로 도는 경로다. 빨간 선은 골목, 보라 세모는 골목 차가 버스 길로 나오는 합류점, 노란 네모는 가로변 정류장이다.</figcaption>
+</figure>
+
+<section class="wrap paper-abstract" aria-labelledby="abstract">
+  <h2 id="abstract">요약</h2>
+  <p>자율주행버스는 일반 차로의 가로변 정류장에 서고 다시 차로로 들어가야 한다. 이 과정에서 뒤차와의 재합류, 정류장 직후 좌회전을 위한 차로 변경, 정류장 앞에 선 차량, 신호 없는 골목에서 끼어드는 차, 횡단보도 보행자를 만난다. 우리는 합정역 일대 실제 도로(OpenStreetMap)를 SUMO 도로망으로 옮기고, 실제 골목 여덟 묶음을 살려 이 상황들이 정해진 위치에서 반복해 일어나게 했다. 혼잡한 교통에서 버스가 160번 도는 동안 골목 차량 끼어들기가 74번 일어나며, 300번 점검에서 사고·정체가 난 실행은 6번이다.</p>
+</section>
+
+<main class="wrap" id="content">
+  <nav class="toc" aria-label="목차">
+    <p class="toc-title">목차</p>
+    <ol>
+      <li><a href="#overview">개요</a></li>
+      <li><a href="#road">도로</a></li>
+      <li><a href="#scenarios">여섯 시나리오</a></li>
+      <li><a href="#shortcuts">골목 지름길</a></li>
+      <li><a href="#traffic">주변 교통</a></li>
+      <li><a href="#validation">검증</a></li>
+      <li><a href="#data">데이터와 학습</a></li>
+      <li><a href="#limits">한계와 다음 단계</a></li>
+    </ol>
+  </nav>
+
+  <article>
+    <section class="article-section" aria-labelledby="overview">
+      <h2 id="overview">개요</h2>
+      <p>연구 버스는 합정역에서 출발해 독막로를 따라 상수역까지 가고, 와우산로와 잔다리로를 지나 서교동사거리에서 양화로로 좌회전해 합정역으로 돌아온다. 경로 길이는 1,949m이고, 경로 위에 실제 위치의 가로변 정류장 6곳과 신호 없는 횡단보도 1곳이 있다.</p>
+      <p class="pull lit-pending" id="pull">목표는 버스가 한 바퀴를 도는 동안 연구할 상황을 최대한 자주, 실제와 같은 자리에서 만나게 하는 것이다.</p>
+      <figure>
+        <a class="figure-link" href="assets/hapjeong_road.png"><img src="assets/hapjeong_road.png" width="2014" height="743" alt="합정역 일대 지도와 같은 범위에 겹친 SUMO 도로망" loading="lazy" decoding="async" /></a>
+        <figcaption class="caption"><strong>그림 2. 실제 지도와 SUMO 도로망</strong>왼쪽은 합정역 일대 지도, 오른쪽은 같은 범위에 겹친 SUMO 도로망(붉은색)이다.</figcaption>
+      </figure>
+    </section>
+
+    <section class="article-section" aria-labelledby="road">
+      <h2 id="road">도로</h2>
+      <p>원본 도로망은 서예인이 OpenStreetMap을 바탕으로 만들었다. <code>scripts/build_hapjeong.py</code>가 실제 지도와 대조해 고친 내용을 적용해 실행 도로망을 만든다. 같은 입력이면 같은 파일이 나온다.</p>
+      <div class="stat-row">
+        <div class="stat"><b>1,949m</b><span>버스 순환 경로</span></div>
+        <div class="stat"><b>6곳</b><span>가로변 정류장</span></div>
+        <div class="stat"><b>11곳</b><span>신호 교차로</span></div>
+        <div class="stat"><b>8곳</b><span>골목 합류점</span></div>
+      </div>
+      <p>제한속도는 안전속도 5030 기준이다. 간선은 시속 50km, 이름이 ~길인 이면도로는 시속 30km다. 버스는 길이 12m, 폭 2.5m, 가속 1.0m/s², 감속 2.0m/s²다.</p>
+    </section>
+
+    <section class="article-section" aria-labelledby="scenarios">
+      <h2 id="scenarios">여섯 시나리오</h2>
+      <p>버스가 정류장을 오가며 만나는 상황을 여섯 가지로 나누고, 각 상황이 일어났는지 시뮬레이션 기록에서 판정한다.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">번호</th><th scope="col">상황</th><th scope="col">판정 기준</th></tr></thead>
+          <tbody>
+            <tr><td>S1</td><td>정류장 출발 후 재합류</td><td>버스가 정류장 안에서 멈춤</td></tr>
+            <tr><td>S2</td><td>정류장 직후 좌회전 차로 변경</td><td>다음 회전이 좌회전인 구간에서 왼쪽 차로로 옮김</td></tr>
+            <tr><td>S3</td><td>정류장 접근 차로 변경</td><td>정류장 100m 앞에서 오른쪽으로 옮김</td></tr>
+            <tr><td>S4</td><td>정류장 앞 정차 차량</td><td>50m 안에 정차한 택시</td></tr>
+            <tr><td>S5</td><td>골목 차량 끼어들기</td><td>골목 합류점에서 나온 차가 15초 안에 버스 앞 50m 안으로 들어옴</td></tr>
+            <tr><td>S6</td><td>신호 없는 횡단보도</td><td>50m 앞 횡단보도 위에 보행자</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figure>
+        <a class="figure-link" href="assets/scenario_map.png"><img src="assets/scenario_map.png" width="2400" height="1500" alt="여섯 시나리오가 일어나는 위치를 표시한 합정역 도로망" loading="lazy" decoding="async" /></a>
+        <figcaption class="caption"><strong>그림 3. 시나리오가 일어나는 곳</strong>연구 경로 위에서 각 시나리오가 일어나는 위치다.</figcaption>
+      </figure>
+    </section>
+
+    <section class="article-section" aria-labelledby="shortcuts">
+      <h2 id="shortcuts">골목 지름길</h2>
+      <p>골목이 없으면 버스 길로 나오는 골목 차가 거의 없어 끼어들기를 시험할 수 없다. 버스 경로 안쪽의 실제 골목 여덟 묶음을 살렸다. 아래 수치는 혼잡한 교통에서 버스가 160번 돈 결과다.</p>
+      <div class="shortcut-grid">
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari6.png" width="354" height="246" alt="잔다리로6길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로6길</h3><p><b>끼어들기 28번</b>시간당 45대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari3.png" width="528" height="647" alt="독막로3길 북쪽과 잔다리로3길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로3길</h3><p><b>끼어들기 21번</b>시간당 19대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak6.png" width="272" height="240" alt="독막로6길 고리 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로6길 고리</h3><p><b>끼어들기 14번</b>시간당 47대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_wausan11.png" width="485" height="275" alt="와우산로11길과 와우산로13길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>와우산로11길</h3><p><b>끼어들기 3번</b>시간당 50대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari2.png" width="226" height="316" alt="잔다리로2길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로2길</h3><p><b>끼어들기 3번</b>시간당 25대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak3.png" width="168" height="212" alt="독막로3길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로3길</h3><p><b>끼어들기 3번</b>시간당 18대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_eoulmadang.png" width="330" height="609" alt="어울마당로 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>어울마당로</h3><p><b>끼어들기 2번</b>시간당 20대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak7.png" width="692" height="559" alt="양화로6길과 독막로7길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로7길</h3><p><b>끼어들기 0번</b>시간당 25대</p></div></div>
+      </div>
+      <p>끼어들기는 서교동사거리 앞 잔다리로6길, 서교동교회 정류장 앞 잔다리로3길, 성산중학교 정류장 앞 독막로6길 고리에 몰린다.</p>
+    </section>
+
+    <section class="article-section" aria-labelledby="traffic">
+      <h2 id="traffic">주변 교통</h2>
+      <p>버스 주변의 다른 차량과 보행자가 버스를 마주했을 때 어떻게 반응하는지 구현하고, 설정한 대로 나오는지 숫자로 확인한다. 배경 차량의 주행 모델은 Krauss 35%, IDM 30%, EIDM 20%, ACC 15%다.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">이름</th><th scope="col">내용</th></tr></thead>
+          <tbody>
+            <tr><td>A1</td><td>버스가 차로를 바꾸려 하면 뒤차가 양보하거나 하지 않는다. 측정한 양보율은 양보형 0.785, 비양보형 0.155다.</td></tr>
+            <tr><td>S4</td><td>택시가 정류장 앞에 선다.</td></tr>
+            <tr><td>S5</td><td>골목 차량이 신호 없이 끼어든다.</td></tr>
+            <tr><td>S6</td><td>횡단보도 보행자. 버스가 느릴 때만 건너는 유형과 간격이 충분하면 건너는 유형이 있다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="article-section" aria-labelledby="validation">
+      <h2 id="validation">검증</h2>
+      <p>도로를 바꿀 때마다 같은 방법으로 잰다. 300번 점검은 교통량 세 단계와 seed 100개로 배경 교통에 버스를 넣어 충돌, 순간이동, 비상 정지가 난 실행을 센다.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">지표</th><th scope="col" class="num">값</th></tr></thead>
+          <tbody>
+            <tr><td>300번 점검 중 사고·정체가 난 실행</td><td class="num">6</td></tr>
+            <tr><td>버스 한 바퀴 평균 시간</td><td class="num">444초</td></tr>
+            <tr><td>규칙 버스 완주 (80번씩 두 묶음)</td><td class="num">76, 79</td></tr>
+            <tr><td>도로 검증 (seed 3 × 교통량 3)</td><td class="num">9 / 9 완주</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>어울마당로를 독막로까지 이었을 때 버스가 한 바퀴에 17초 늦어졌다. 교차로 신호 주기가 90초에서 100초로 바뀌어 다음 교차로와 엇갈린 탓이었고, 신호를 90초로 고정해 원래 시간으로 돌렸다.</p>
+    </section>
+
+    <section class="article-section" aria-labelledby="data">
+      <h2 id="data">데이터와 학습</h2>
+      <p>ego는 버스다. 수집기는 매 스텝 버스 상태, 주변 차량과 보행자, 경로, 신호를 기록한다. 컬럼은 <code>env/data_schema.py</code>의 표 하나에서 나오고, 수업의 필수 항목 19개에 시각, 감지 보행자, 종료 사유, 승차감 4개를 더했다.</p>
+      <ul>
+        <li>주변 차량과 보행자는 버스에서 150m 안만 적는다.</li>
+        <li>승차감 한계(가속 1.5m/s², jerk 2.0m/s³)를 넘은 스텝을 따로 표시한다.</li>
+      </ul>
+    </section>
+
+    <section class="article-section" aria-labelledby="limits">
+      <h2 id="limits">한계와 다음 단계</h2>
+      <ul>
+        <li>버스는 아직 정류장에 서지 않고 거리만 기록한다.</li>
+        <li>정책 입력은 수업 원본의 31차원이라 보행자와 신호는 기록에만 있다.</li>
+        <li>양화로6길 서쪽은 입구에 횡단보도를 두면 사고 없이 이을 수 있어 확인 시험 뒤 넣는다.</li>
+      </ul>
+    </section>
+  </article>
+</main>
+
+<footer>
+  <div class="wide">
+    <span>자율주행인공지능및제어 팀 프로젝트</span>
+    <span>2026</span>
+    <span>도로 데이터 © OpenStreetMap contributors (ODbL 1.0)</span>
+  </div>
+</footer>
+<script>
+  (function () {
+    var pull = document.getElementById('pull');
+    if (pull && 'IntersectionObserver' in window) {
+      var po = new IntersectionObserver(function (es) {
+        es.forEach(function (e) { if (e.isIntersecting) { pull.classList.add('lit'); po.disconnect(); } });
+      }, { threshold: 0.6 });
+      po.observe(pull);
+    } else if (pull) { pull.className = 'pull'; }
+    var links = document.querySelectorAll('.toc a, .navlinks a');
+    if (!('IntersectionObserver' in window) || !links.length) return;
+    var ids = {};
+    links.forEach(function (a) { var k = a.getAttribute('href').slice(1); (ids[k] = ids[k] || []).push(a); });
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        links.forEach(function (a) { a.removeAttribute('aria-current'); });
+        (ids[e.target.id] || []).forEach(function (a) { a.setAttribute('aria-current', 'true'); });
+      });
+    }, { rootMargin: '-15% 0px -75% 0px' });
+    Object.keys(ids).forEach(function (id) { var h = document.getElementById(id); if (h) io.observe(h); });
+  })();
+</script>
+</body>
+</html>

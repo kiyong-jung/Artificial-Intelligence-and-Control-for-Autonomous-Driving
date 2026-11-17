@@ -57,10 +57,10 @@ def touches_boundary(net, edge_id):
 
 
 # ---- 거리 --------------------------------------------------------------------------------------
-def hidden_in_alley(road, visible_alleys=()):
-    """골목(G…) 안의 도로인가. 건물에 가려 학습 차량이 못 보므로 그 안에서 생기는 차는 나타남으로 보지 않는다.
-    visible_alleys(S5 후보 골목의 도로)는 입구에서 보일 수 있어 가려진 것으로 치지 않는다."""
-    return road.startswith("G") and road not in visible_alleys
+def hidden_in_alley(road):
+    """골목(G…) 안의 도로인가. 건물에 가려 학습 차량이 못 보므로 골목 안에서 생기거나 사라지는 차는 나타남·사라짐으로 보지
+    않는다. 골목 입구(0 m)에 닿아서야 보이는데, 차는 골목 끝에서 출발해 입구로 달려 나오므로 입구 앞에 갑자기 생기지 않는다."""
+    return road.startswith("G")
 
 
 def far_from_bus(tc, bus_id, xy, radius=PRESENCE_RADIUS_M):
@@ -120,9 +120,8 @@ class VehicleArrivalGuard:
     버스에서 `radius + margin` m 안인 차의 목적지를 `nearest_boundary_exit`의 끝으로 바꾼다.
     """
 
-    def __init__(self, tc, net, bus_id, radius=PRESENCE_RADIUS_M, margin=30.0, period=1.0, visible_alleys=()):
+    def __init__(self, tc, net, bus_id, radius=PRESENCE_RADIUS_M, margin=30.0, period=1.0):
         self.tc, self.net, self.bus = tc, net, bus_id
-        self.visible_alleys = tuple(visible_alleys)
         self.reach = radius + margin
         self.radius, self.suppressed = radius, 0
         self.period, self._t_next = period, -1e9
@@ -138,7 +137,7 @@ class VehicleArrivalGuard:
             x, y = tc.vehicle.getPosition(vid)
             road = tc.vehicle.getRoadID(vid)
             if (math.hypot(x - bx, y - by) < self.radius and not starts_at_boundary(self.net, road)
-                    and not hidden_in_alley(road, self.visible_alleys)):
+                    and not hidden_in_alley(road)):
                 try:
                     tc.vehicle.remove(vid)
                 except Exception:
@@ -181,9 +180,8 @@ class VehicleArrivalGuard:
 class PresenceMonitor:
     """시험용 버스 반경 안의 출현·소멸·정체 순간이동을 센다. update(t)는 매 스텝 simulationStep() 앞에서 부른다."""
 
-    def __init__(self, tc, net, bus_id, radius=PRESENCE_RADIUS_M, max_examples=12, visible_alleys=()):
+    def __init__(self, tc, net, bus_id, radius=PRESENCE_RADIUS_M, max_examples=12):
         self.tc, self.net, self.bus, self.radius = tc, net, bus_id, radius
-        self.visible_alleys = tuple(visible_alleys)
         self.max_examples = max_examples
         self.counts = {"appear": 0, "vanish": 0, "teleport": 0}
         self.examples = []
@@ -217,7 +215,7 @@ class PresenceMonitor:
         for vid in sim.getArrivedIDList():
             if vid in self._near:
                 what, road, d = self._near[vid]
-                if not ends_at_boundary(self.net, road):
+                if not ends_at_boundary(self.net, road) and not hidden_in_alley(road):
                     self._note("vanish", t, vid, d, what, road)
         for pid in sim.getArrivedPersonIDList():
             if pid in self._near:
@@ -235,7 +233,7 @@ class PresenceMonitor:
             d = self._dist(tc.vehicle.getPosition(vid), bxy)
             road = tc.vehicle.getRoadID(vid)
             if (d < self.radius and not starts_at_boundary(self.net, road)
-                    and not hidden_in_alley(road, self.visible_alleys)):
+                    and not hidden_in_alley(road)):
                 self._note("appear", t, vid, d, "vehicle", road)
         persons = set(tc.person.getIDList())
         for pid in sim.getDepartedPersonIDList():

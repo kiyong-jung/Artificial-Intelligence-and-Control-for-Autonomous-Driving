@@ -76,7 +76,7 @@ def main():
                                              "S3_a1", "S5", "S6", "other_attempts", "S2_J82_attempts", "S2_J82_a1",
                                              "S2_J1_attempts", "S2_J1_a1")}
     net = read_net(os.path.join(out_dir, "network.net.xml"))
-    presence = PresenceMonitor(tc, net, "bus0", visible_alleys=tuple(a.feeder for a in world.s5_alleys))
+    presence = PresenceMonitor(tc, net, "bus0")
     forbidden = forbidden_intervals(net, bus.lap_edges)
     sig = {"seen": set(), "in_area": [], "stops": collections.defaultdict(list)}
     WIN_JUNCTION = {"R111b": "J82", "R42": "J1"}         # S2 창 끝 도로 -> 좌회전 교차로

@@ -178,12 +178,22 @@ def test_arrival_guard_removes_flow_car_that_departs_inside_radius():
 
 
 def test_departure_inside_a_hidden_alley_is_neither_counted_nor_removed():
-    # 골목 안은 건물에 가려 학습 차량이 못 본다. S5 후보 골목(G12, G23)만 입구에서 보일 수 있다
+    # 골목 안은 건물에 가려 학습 차량이 못 본다. S5 후보 골목(G23)도 같다(입구에 닿아야 보이고, 차는 골목 끝에서 출발한다)
     tc = _FakeTC(vehicles={"f_G31_to_R126.0": ("G31", 5.0, (0.4 * R, 0.0)), "f_G23_to_R1.0": ("G23", 5.0, (0.4 * R, 0.0))},
                  routes={"f_G31_to_R126.0": ["G31"], "f_G23_to_R1.0": ["G23"]})
     tc.departed = ["f_G31_to_R126.0", "f_G23_to_R1.0"]
-    VehicleArrivalGuard(tc, _net(), "bus0", visible_alleys=("G12", "G23")).update(0.0)
-    assert tc.removed == ["f_G23_to_R1.0"]
-    mon = PresenceMonitor(tc, _net(), "bus0", visible_alleys=("G12", "G23"))
+    VehicleArrivalGuard(tc, _net(), "bus0",).update(0.0)
+    assert tc.removed == []
+    mon = PresenceMonitor(tc, _net(), "bus0",)
     mon.update(0.0)
-    assert mon.summary()["appear"] == 1
+    assert mon.summary()["appear"] == 0
+
+
+def test_vanish_inside_a_hidden_alley_is_not_counted():
+    tc = _FakeTC(vehicles={"a": ("G31", 10.0, (0.3 * R, 0.0))})
+    mon = PresenceMonitor(tc, _net(), "bus0")
+    mon.update(0.0)
+    del tc.vehicles["a"]
+    tc.arrived = ["a"]
+    mon.update(0.1)
+    assert mon.summary()["vanish"] == 0

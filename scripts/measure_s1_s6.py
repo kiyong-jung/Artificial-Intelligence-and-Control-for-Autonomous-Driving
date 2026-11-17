@@ -66,6 +66,9 @@ def main():
     world.build()
     if PED_X > 1:
         multiply_s6_persons(os.path.join(out_dir, "persons.json"), PED_X, SEED)
+    if "noped" in TAG:                                  # 꼬리표에 noped가 있으면 배경 보행자를 모두 뺀다(J82 정지 원인 가리기)
+        with open(os.path.join(out_dir, "persons.json"), "w", encoding="utf-8") as f:
+            json.dump([], f)
     tc = world.start(warmup=120)
     m = load_map("hapjeong")
     loop = m["routes"]["bus_loop"]
@@ -288,7 +291,43 @@ def main():
 
     _on_step = on_step
 
+    probe = {"still": 0.0, "log": []}
+
+    def stuck_probe(t):
+        """버스가 교차로 안에서 5초 넘게 서 있으면 10초마다 무엇을 기다리는지 적는다(J82 정지 원인 찾기)."""
+        if "bus0" not in tc.vehicle.getIDList() or not tc.vehicle.getRoadID("bus0").startswith(":") \
+                or tc.vehicle.getSpeed("bus0") > 0.1:
+            probe["still"] = 0.0
+            return
+        probe["still"] += 0.1
+        if probe["still"] < 5.0 or int(round(probe["still"] * 10)) % 100 != 0 or len(probe["log"]) >= 40:
+            return
+        road = tc.vehicle.getRoadID("bus0")
+        node = road[1:].rsplit("_", 1)[0]
+        links = []
+        try:
+            links = [(l[0], l[1], l[2], l[3], l[4], l[5]) for l in tc.vehicle.getNextLinks("bus0")[:2]]
+        except Exception:
+            pass
+        around = []
+        for lane in tc.lane.getIDList():
+            if lane.startswith(f":{node}") and "_c" not in lane and "_w" not in lane:
+                around += [(v, lane, round(tc.vehicle.getSpeed(v), 1)) for v in tc.lane.getLastStepVehicleIDs(lane) if v != "bus0"]
+        peds = [(p, tc.person.getRoadID(p), round(tc.person.getSpeed(p), 2)) for p in tc.person.getIDList()
+                if tc.person.getRoadID(p).startswith(f":{node}")]
+        nxt = []
+        for lk in links[:1]:
+            nxt = [(v, round(tc.vehicle.getSpeed(v), 1)) for v in tc.lane.getLastStepVehicleIDs(lk[0])] if lk[0] else []
+        probe["log"].append({"t": round(t, 1), "lap": getattr(bus, "lap", None), "road": road,
+                             "pos": round(tc.vehicle.getLanePosition("bus0"), 1), "still": round(probe["still"], 1),
+                             "leader": tc.vehicle.getLeader("bus0"), "next_links": links,
+                             "tls": {node: [tc.trafficlight.getRedYellowGreenState(node), tc.trafficlight.getPhase(node),
+                                            round(tc.trafficlight.getNextSwitch(node) - t, 1)]}
+                             if node in tc.trafficlight.getIDList() else None,
+                             "in_junction": around[:12], "persons_in_junction": peds[:12], "on_exit_lane": nxt[:12]})
+
     def on_step(t):                                   # noqa: F811
+        stuck_probe(t)
         if int(round(t * 10)) % 5 == 0:                # 횡단보도 계측은 0.5초마다(속도)
             sample_s6(t)
             sample_trace(t)
@@ -352,7 +391,7 @@ def main():
            "injector": ({**world.injector.summary(), "log": world.injector.log} if world.injector else None),
            "ped_revoked": world.ped.revoked if world.ped else None,
            "lap_time_breakdown": {k: {kk: round(v, 1) for kk, v in d.items()} for k, d in timing.items()},
-           "bus_long_waits_outside_stops": bw["long"], "s3_trace": bw["s3_trace"],
+           "bus_long_waits_outside_stops": bw["long"], "bus_stuck_probe": probe["log"], "s3_trace": bw["s3_trace"],
            "interior": world.interior.summary() if world.interior else None,
            "right_on_red": world.summary.get("right_on_red"),
            "other_lane_change_attempts": per_lap(ev["other_attempts"]),

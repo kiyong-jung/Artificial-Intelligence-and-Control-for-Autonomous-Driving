@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <net xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.20" junctionCornerDetail="12" junctionLinkDetail="12" walkingareas="true" limitTurnSpeed="5.500" avoidOverlap="0" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/net_file.xsd">
 
-    <location netOffset="0.000,0.000" convBoundary="-443.300,-286.200,947.600,753.780" origBoundary="126.906000000,37.543000000,126.922000000,37.556000000" projParameter="+proj=tmerc +lat_0=37.5493558 +lon_0=126.9136561 +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs" />
+    <location netOffset="0.000,0.000" convBoundary="-443.300,-286.200,947.600,753.780" origBoundary="126.906,37.543,126.922,37.556" projParameter="+proj=tmerc +lat_0=37.5493558 +lon_0=126.9136561 +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs" />
 
     <edge id=":C1_0" function="internal">
         <lane id=":C1_0_0" index="0" disallow="pedestrian" speed="8.330" length="5.004" shape="-56.168,2.462 -57.422,-2.382" />
@@ -31,7 +31,7 @@
         <lane id=":C3_0_0" index="0" disallow="pedestrian" speed="8.330" length="5.208" shape="9.520,-21.342 9.468,-20.702 9.417,-20.158 9.373,-19.691 9.342,-19.280 9.330,-18.905 9.345,-18.545 9.393,-18.179 9.479,-17.787 9.610,-17.350 9.793,-16.845 10.034,-16.253" />
     </edge>
     <edge id=":C3_c0" function="crossing" crossingEdges="R66">
-        <lane id=":C3_c0_0" index="0" allow="pedestrian" speed="2.780" length="3.210" width="4.000" shape="7.736,-18.907 10.937,-18.676" outlineShape="7.780,-20.909 11.069,-20.671 11.038,-20.351 11.000,-19.994 10.967,-19.677 10.944,-19.389 10.933,-19.120 10.939,-18.859 10.963,-18.596 11.012,-18.320 11.087,-18.021 11.192,-17.688 11.331,-17.310 11.669,-16.618 7.592,-16.912 7.880,-20.902" />
+        <lane id=":C3_c0_0" index="0" allow="pedestrian" speed="2.780" length="3.210" width="4.000" shape="7.736,-18.907 10.937,-18.676" outlineShape="7.880,-20.902 11.081,-20.671 11.038,-20.351 11.000,-19.994 10.967,-19.677 10.944,-19.389 10.933,-19.120 10.939,-18.859 10.963,-18.596 11.012,-18.320 11.087,-18.021 11.192,-17.688 11.331,-17.310 11.669,-16.618 7.592,-16.912" />
     </edge>
     <edge id=":C3_w0" function="walkingarea">
         <lane id=":C3_w0_0" index="0" allow="pedestrian" speed="2.780" length="3.961" width="4.000" shape="11.974,-15.996 14.510,-17.598 14.174,-21.762 11.200,-22.153 11.081,-20.671 11.078,-20.758 11.038,-20.351 11.000,-19.994 10.967,-19.677 10.944,-19.389 10.933,-19.120 10.939,-18.859 10.963,-18.596 11.012,-18.320 11.087,-18.021 11.192,-17.688 11.331,-17.310" />
@@ -43,7 +43,7 @@
         <lane id=":C4_0_0" index="0" disallow="pedestrian" speed="8.330" length="3.120" shape="-13.846,25.488 -16.933,25.940" />
     </edge>
     <edge id=":C4_c0" function="crossing" crossingEdges="R65.c">
-        <lane id=":C4_c0_0" index="0" allow="pedestrian" speed="2.780" length="3.200" width="4.000" shape="-14.656,27.114 -15.288,23.976" outlineShape="-16.597,27.607 -17.269,24.273 -13.613,23.420 -17.249,24.371 -13.328,23.582 -12.696,26.719 -16.617,27.509 -16.835,27.551 -16.236,30.491 -9.109,29.458 -9.440,26.476 -12.696,26.719" />
+        <lane id=":C4_c0_0" index="0" allow="pedestrian" speed="2.780" length="3.200" width="4.000" shape="-14.656,27.114 -15.288,23.976" outlineShape="-16.597,27.607 -17.269,24.273 -17.249,24.371 -13.328,23.582 -12.696,26.719" />
     </edge>
     <edge id=":C4_w0" function="walkingarea">
         <lane id=":C4_w0_0" index="0" allow="pedestrian" speed="2.780" length="2.027" width="4.000" shape="-12.987,25.320 -13.613,23.420 -17.249,24.371 -13.328,23.582" />
@@ -581,7 +581,7 @@
         <lane id=":J8_3_2" index="2" disallow="pedestrian" speed="13.890" length="3.758" shape="101.432,-78.234 105.198,-79.145" />
     </edge>
     <edge id=":J8_c0" function="crossing" crossingEdges="R71 -R71.175">
-        <lane id=":J8_c0_0" index="0" allow="pedestrian" speed="2.780" length="19.200" width="4.000" shape="101.240,-86.379 106.096,-67.804" outlineShape="103.175,-86.885 108.056,-68.213 104.161,-67.298 99.305,-85.874 103.149,-86.982 102.416,-89.788 99.039,-88.970 99.274,-87.915" />
+        <lane id=":J8_c0_0" index="0" allow="pedestrian" speed="2.780" length="19.200" width="4.000" shape="101.240,-86.379 106.096,-67.804" outlineShape="103.175,-86.885 108.031,-68.310 108.056,-68.213 104.161,-67.298 99.305,-85.874 103.149,-86.982 102.416,-89.788 99.039,-88.970 99.274,-87.915" />
     </edge>
     <edge id=":J8_w0" function="walkingarea">
         <lane id=":J8_w0_0" index="0" allow="pedestrian" speed="2.780" length="3.191" width="4.000" shape="103.869,-67.302 104.521,-64.374 108.790,-65.407 108.031,-68.310 104.161,-67.298" />
@@ -897,7 +897,7 @@
         <lane id=":J96_c3_0" index="0" allow="pedestrian" speed="2.780" length="12.800" width="4.000" shape="688.034,637.092 696.656,627.631" outlineShape="686.556,635.745 695.178,626.284 696.462,627.393 697.707,628.343 698.336,628.757 689.512,638.439 686.489,635.819 689.512,638.439" />
     </edge>
     <edge id=":J96_c4" function="crossing" crossingEdges="R55a">
-        <lane id=":J96_c4_0" index="0" allow="pedestrian" speed="2.780" length="16.000" width="4.000" shape="672.407,654.241 683.184,642.415" outlineShape="670.862,652.968 681.773,640.994 686.556,635.745 689.512,638.439 684.662,643.762 672.526,657.080 672.613,656.763 672.672,656.270 672.654,655.779 672.559,655.291 672.387,654.806 672.138,654.324 671.812,653.844 671.409,653.368" />
+        <lane id=":J96_c4_0" index="0" allow="pedestrian" speed="2.780" length="16.000" width="4.000" shape="672.407,654.241 683.184,642.415" outlineShape="670.862,652.968 681.773,640.994 684.662,643.762 681.706,641.068 684.662,643.762 673.886,655.588 672.531,657.064 672.613,656.763 672.672,656.270 672.654,655.779 672.559,655.291 672.387,654.806 672.138,654.324 671.812,653.844 671.409,653.368" />
     </edge>
     <edge id=":J96_c5" function="crossing" crossingEdges="R126 -R126">
         <lane id=":J96_c5_0" index="0" allow="pedestrian" speed="2.780" length="19.200" width="4.000" shape="686.482,671.021 672.539,657.821" outlineShape="685.107,672.474 671.164,659.274 671.092,659.205 671.608,658.766 671.975,658.261 672.264,657.759 672.477,657.260 672.613,656.763 672.672,656.270 672.654,655.779 672.559,655.291 672.449,654.981 688.346,670.031 687.709,670.343 687.078,670.739 686.435,671.226 685.778,671.804" />
@@ -944,7 +944,7 @@
         <lane id=":S6_wausanro_2_1" index="1" disallow="pedestrian" speed="13.890" length="4.000" shape="830.866,52.602 830.975,56.600" />
     </edge>
     <edge id=":S6_wausanro_c0" function="crossing" crossingEdges="-R112.84 R112.112">
-        <lane id=":S6_wausanro_c0_0" index="0" allow="pedestrian" speed="2.780" length="12.800" width="4.000" shape="822.924,54.819 835.718,54.470" outlineShape="822.869,52.820 835.664,52.471 835.764,52.468 835.664,52.471 835.773,56.469 822.978,56.818" />
+        <lane id=":S6_wausanro_c0_0" index="0" allow="pedestrian" speed="2.780" length="12.800" width="4.000" shape="822.924,54.819 835.718,54.470" outlineShape="822.869,52.820 835.664,52.471 835.764,52.468 835.664,52.471 835.773,56.469 822.978,56.818 822.869,52.820 819.870,52.901 819.979,56.900 822.978,56.818" />
     </edge>
     <edge id=":S6_wausanro_w0" function="walkingarea">
         <lane id=":S6_wausanro_w0_0" index="0" allow="pedestrian" speed="2.780" length="3.000" width="4.000" shape="822.978,56.818 822.869,52.820 819.870,52.901 819.979,56.900 822.978,56.818" />
@@ -1897,16 +1897,18 @@
     </edge>
 
     <tlLogic id="J1" type="static" programID="0" offset="0">
-        <phase duration="16" state="rrrrrrGGGgrrrrrGGGgggGrr" />
-        <phase duration="5" state="rrrrrrGGGgrrrrrGGGgggrrr" />
-        <phase duration="3" state="rrrrrryyygrrrrryyygggrrr" />
-        <phase duration="6" state="rrrrrrrrrGrrrrrrrrGGGrrr" />
-        <phase duration="3" state="rrrrrrrrryrrrrrrrryyyrrr" />
-        <phase duration="16" state="rGGGggrrrrrGGggrrrrrrrGr" />
+        <phase duration="14" state="rrrrrrGGGgrrrrrGGGggrGrr" />
+        <phase duration="5" state="rrrrrrGGGgrrrrrGGGggrrrr" />
+        <phase duration="3" state="rrrrrryyygrrrrryyyggrrrr" />
+        <phase duration="6" state="rrrrrrrrrGrrrrrrrrGGrrrr" />
+        <phase duration="3" state="rrrrrrrrryrrrrrrrryyrrrr" />
+        <phase duration="1" state="rrrrrrrrrrrrrrrrrrrrrrrr" />
+        <phase duration="16" state="rGGGggrrrrrGGggrrrrrGrGr" />
         <phase duration="5" state="rGGGggrrrrrGGggrrrrrrrrr" />
         <phase duration="3" state="ryyyggrrrrryyggrrrrrrrrr" />
         <phase duration="6" state="rrrrGGrrrrrrrGGrrrrrrrrr" />
         <phase duration="3" state="rrrryyrrrrrrryyrrrrrrrrr" />
+        <phase duration="1" state="rrrrrrrrrrrrrrrrrrrrrrrr" />
         <phase duration="16" state="GrrrrrrrrrGrrrrrrrrrrGrG" />
         <phase duration="5" state="GrrrrrrrrrGrrrrrrrrrrrrr" />
         <phase duration="3" state="yrrrrrrrrryrrrrrrrrrrrrr" />

@@ -19,10 +19,10 @@
         <phase duration="22" state="rrrrrrrrrG" />
     <phase duration="8" state="rrrrrrrrrr" /></tlLogic>
     <tlLogic id="J23" type="static" programID="config" offset="0">
-        <phase duration="60" state="GGGGGGrr" />
-        <phase duration="6" state="yyyyyyrr" />
-        <phase duration="20" state="rrrrrrGG" />
-        <phase duration="5" state="rrrrrrrr" />
+        <phase duration="60" state="GGGGGGr" />
+        <phase duration="6" state="yyyyyyr" />
+        <phase duration="20" state="rrrrrrG" />
+        <phase duration="5" state="rrrrrrr" />
     </tlLogic>
     <tlLogic id="J42" type="static" programID="config" offset="9">
         <phase duration="10" state="rrrrrrGrrrrrrrrrrrrrrrrrrr" />

@@ -84,15 +84,11 @@
     <person id="ped27" depart="162.00">
         <walk edges="R43 R66.c W3 W2 R79 R46 R49 R49a" />
     </person>
-    <person id="s6ped11" depart="165.00"><walk edges="R112.112 -R112" /></person><person id="ped28" depart="168.00">
-        <walk edges="R128 R111b R111 R77 -R73" />
-    </person>
+    <person id="s6ped11" depart="165.00"><walk edges="R112.112 -R112" /></person>
     <person id="ped29" depart="174.00">
         <walk edges="R49 R46 R79 W2 R42 W4 R65.c" />
     </person>
-    <person id="ped30" depart="180.00">
-        <walk edges="-R71.55 -R71 -R73 R77 R111 R111b" />
-    </person>
+    
     <person id="s6ped12" depart="180.00"><walk edges="-R112 R112.112" /></person><person id="ped31" depart="186.00">
         <walk edges="W4 R65 R54 R54b" />
     </person>
@@ -225,9 +221,7 @@
     <person id="ped74" depart="444.00">
         <walk edges="R55 R54a R54b R54 R65 W4 R42" />
     </person>
-    <person id="ped75" depart="450.00">
-        <walk edges="R130 R112.221 R112.112 R112 R111b R111 R77 -R73" />
-    </person>
+    
     <person id="s6ped30" depart="450.00"><walk edges="-R112 R112.112" /></person><person id="ped76" depart="456.00">
         <walk edges="R42 W4 R65 R54 R54b R54a R92" />
     </person>
@@ -297,9 +291,7 @@
     <person id="s6ped39" depart="585.00"><walk edges="R112.112 -R112" /></person><person id="ped98" depart="588.00">
         <walk edges="-R61.320 R67 W1 R40" />
     </person>
-    <person id="ped99" depart="594.00">
-        <walk edges="-R73 R77 R111 R111b R112 R112.112" />
-    </person>
+    
     <person id="ped100" depart="600.00">
         <walk edges="R67 W1 W3 R66.c R43 R50 R53 R53b R53c R53d R124" />
     </person>
@@ -369,15 +361,11 @@
     <person id="ped122" depart="732.00">
         <walk edges="-R71.104 -R71.55 -R71 -R73" />
     </person>
-    <person id="s6ped49" depart="735.00"><walk edges="R112.112 -R112" /></person><person id="ped123" depart="738.00">
-        <walk edges="-R71.104 -R71.55 -R71 -R73 -R77 -R111 -R111b" />
-    </person>
+    <person id="s6ped49" depart="735.00"><walk edges="R112.112 -R112" /></person>
     <person id="ped124" depart="744.00">
         <walk edges="W2 R79 R46 R49 R49a" />
     </person>
-    <person id="ped125" depart="750.00">
-        <walk edges="-R71.104 -R71.55 -R71 -R73 R77 R111 R111b R112 R112.112 -R112.84" />
-    </person>
+    
     <person id="s6ped50" depart="750.00"><walk edges="-R112 R112.112" /></person><person id="ped126" depart="756.00">
         <walk edges="R71.135 R71 -R69a -R69 R66 R66.c R43 R50 R53 R53b R53c R53d R126" />
     </person>
@@ -603,9 +591,7 @@
     <person id="ped200" depart="1200.00">
         <walk edges="-R68 W1 R67 -R61.320" />
     </person>
-    <person id="s6ped80" depart="1200.00"><walk edges="-R112 R112.112" /></person><person id="ped201" depart="1206.00">
-        <walk edges="-R71 -R73 R77 R111 R111b R112 R112.112 -R112.84" />
-    </person>
+    <person id="s6ped80" depart="1200.00"><walk edges="-R112 R112.112" /></person>
     <person id="ped202" depart="1212.00">
         <walk edges="R43 R50 R53 R53b R53c R53d R126" />
     </person>
@@ -1218,9 +1204,7 @@
     <person id="ped405" depart="2430.00">
         <walk edges="-R113 -R112 R112.112 R112 -R111b -R111" />
     </person>
-    <person id="s6ped162" depart="2430.00"><walk edges="-R112 R112.112" /></person><person id="ped406" depart="2436.00">
-        <walk edges="-R112.84 R112.112 R112 R111b R111 R77 -R73" />
-    </person>
+    <person id="s6ped162" depart="2430.00"><walk edges="-R112 R112.112" /></person>
     <person id="ped407" depart="2442.00">
         <walk edges="-R127 R127 R53d R53c R53b R53 -R94 R96" />
     </person>
@@ -1251,9 +1235,7 @@
     <person id="s6ped166" depart="2490.00"><walk edges="-R112 R112.112" /></person><person id="ped416" depart="2496.00">
         <walk edges="-R96.119 -R96.201 -R94 R50 R43 R66.c W3 W1 R67 -R61.320" />
     </person>
-    <person id="ped417" depart="2502.00">
-        <walk edges="-R71.104 -R71.55 -R71 -R73 R77 R111 R111b R112 R112.112 R112.221 R130" />
-    </person>
+    
     <person id="s6ped167" depart="2505.00"><walk edges="R112.112 -R112" /></person><person id="ped418" depart="2508.00">
         <walk edges="R49a R49 R46 R79 W2 W3 R66.c R43 R50 R53 R53b R53c R53d R126" />
     </person>
@@ -1281,9 +1263,7 @@
     <person id="s6ped170" depart="2550.00"><walk edges="-R112 R112.112" /></person><person id="ped426" depart="2556.00">
         <walk edges="W2 W1 R67 -R61.320" />
     </person>
-    <person id="ped427" depart="2562.00">
-        <walk edges="-R71.55 -R71 -R73 R77 R111 R111b" />
-    </person>
+    
     <person id="s6ped171" depart="2565.00"><walk edges="R112.112 -R112" /></person><person id="ped428" depart="2568.00">
         <walk edges="-R94 R50 R43 R66.c W3 W1 R67.c R44 R115" />
     </person>
@@ -1365,9 +1345,7 @@
     <person id="ped454" depart="2724.00">
         <walk edges="-R113 -R112 R112.112 R112 -R129" />
     </person>
-    <person id="ped455" depart="2730.00">
-        <walk edges="R77 -R73 -R71 -R71.55 -R71.104" />
-    </person>
+    
     <person id="s6ped182" depart="2730.00"><walk edges="-R112 R112.112" /></person><person id="ped456" depart="2736.00">
         <walk edges="-R96 R113 R112.221 R112.112 R112 R111b R111 R77 R73" />
     </person>
@@ -1440,9 +1418,7 @@
     <person id="ped479" depart="2874.00">
         <walk edges="R114 R49a R49 R46 R79 W2 W3 R66.c R43 R50 R53 R53b R55s R55a -R126" />
     </person>
-    <person id="ped480" depart="2880.00">
-        <walk edges="R128 R111b R111 R77 -R73" />
-    </person>
+    
     <person id="s6ped192" depart="2880.00"><walk edges="-R112 R112.112" /></person><person id="ped481" depart="2886.00">
         <walk edges="-R96.119 -R96.201 -R94 R50 R43 R66.c R66 -R69 -R69a R71 R71.135" />
     </person>
@@ -1623,9 +1599,7 @@
     <person id="ped540" depart="3240.00">
         <walk edges="R45 W3 R66.c R43 R50 R53 R53b R53c R53d R124" />
     </person>
-    <person id="s6ped216" depart="3240.00"><walk edges="-R112 R112.112" /></person><person id="ped541" depart="3246.00">
-        <walk edges="-R71.104 -R71.55 -R71 -R73 R77 R111 R111b R112" />
-    </person>
+    <person id="s6ped216" depart="3240.00"><walk edges="-R112 R112.112" /></person>
     <person id="ped542" depart="3252.00">
         <walk edges="R55 -R94 -R96.201 -R96.119" />
     </person>
@@ -1680,9 +1654,7 @@
     <person id="ped559" depart="3354.00">
         <walk edges="R65.c W4 R42 W2 R79 R46 R49" />
     </person>
-    <person id="ped560" depart="3360.00">
-        <walk edges="-R129 R129 R111b R111 R77 -R73 -R71 -R71.55" />
-    </person>
+    
     <person id="s6ped224" depart="3360.00"><walk edges="-R112 R112.112" /></person><person id="ped561" depart="3366.00">
         <walk edges="-R71.175 -R69a -R69 R66 W3 R59" />
     </person>
@@ -1692,9 +1664,7 @@
     <person id="s6ped225" depart="3375.00"><walk edges="R112.112 -R112" /></person><person id="ped563" depart="3378.00">
         <walk edges="R128 R112 R112.112 R112.221 R113 -R96 -R96.64" />
     </person>
-    <person id="ped564" depart="3384.00">
-        <walk edges="-R71 -R73 R77 R111 R111b R112 R112.112 R112.221 R113 -R96 -R96.64" />
-    </person>
+    
     <person id="ped565" depart="3390.00">
         <walk edges="R44 R67.c W1 R42 W4 R65 R54 R54b R54a R55" />
     </person>

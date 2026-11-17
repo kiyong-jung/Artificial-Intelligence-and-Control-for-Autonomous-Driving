@@ -37,7 +37,7 @@ from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "3.8.0"   # 3.8.0: J42 잔다리로 R94 우회전 제거(scripts/remove_j42_right_turn.py). 3.7.0: J1 양화로 R42 차로 3도 좌회전(scripts/add_j1_left_lane.py로 커밋된 3.6.0에 더했다)
+VERSION = "3.9.0"   # 3.9.0: cluster_J52_J56_J58 횡단보도 두 개와 보행자 신호 제거(scripts/remove_cluster_crosswalks.py, 보행자 15명 제외). 3.8.0: J42 잔다리로 R94 우회전 제거(scripts/remove_j42_right_turn.py). 3.7.0: J1 양화로 R42 차로 3도 좌회전(scripts/add_j1_left_lane.py로 커밋된 3.6.0에 더했다)
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]

@@ -6,7 +6,7 @@
 
 PedSUMO와 다르게 한 점
 - 무시 대상과 개입 조건은 버스로 한정하지 않는다. 가로막는 차량(통과 시간 < 건너는 시간)이 버스든 배경 차량이든
-  같은 확률로 판정한다(`ignore_scope="all"`). 무시해도 차량은 SUMO 기본 안전 규칙으로 보행자에게 반응한다.
+  같은 확률로 판정한다(`ignore_scope="all"`). 무시해도 차량은 SUMO 기본 안전 규칙으로 보행자에게 반응한다. [현재 기본값은 "bus": 시험용 버스가 선두일 때만 판정하고 무시 대상도 그 vType뿐이다(사용자 결정: 배경 차와는 상호작용하지 않는다)]
   `"bus"`로 주면 버스 vType만 무시한다.
 - 판정 주기: PedSUMO는 1초 스텝마다 굴린다. 여기는 스텝이 0.1초라 `period`(기본 1 s)마다 굴려
   같은 빈도를 유지한다.
@@ -135,7 +135,7 @@ class _Ped:
 class PedDefianceManager:
     """update(t)를 매 스텝 simulationStep() 앞에서 호출한다(A1의 YieldManager.update와 같은 자리)."""
 
-    def __init__(self, traci, bus_id, rng=None, cfg=None, ignore_scope="all", crossings=None, age_range=(10, 80)):
+    def __init__(self, traci, bus_id, rng=None, cfg=None, ignore_scope="bus", crossings=None, age_range=(10, 80)):
         self.traci, self.bus = traci, bus_id
         self.rng = rng or random.Random(0)
         self.cfg = cfg or DefianceCfg()
@@ -245,6 +245,8 @@ class PedDefianceManager:
         lead, lowest = self._lead(st.crossing)
         if lead is None or lowest >= t_cross:
             return                       # 막는 차량이 없다: 기본 모델대로 건넌다
+        if self.ignore_scope == "bus" and lead != self.bus:
+            return                       # 선두가 시험용 버스가 아니다: 배경 차와는 기본 안전 규칙대로 서로 양보한다
         if tc.vehicle.getWaitingTime(lead) >= c.veh_wait_hard:
             self.log.append({"t": t, "ped": pid, "crossing": st.crossing, "ttc": lowest, "p": 0.0, "cross": False,
                              "wait": t - st.t_wait0, "factors": {"hard_cap": 1}, "vehicle": lead})
@@ -269,7 +271,7 @@ class PedDefianceManager:
         if cross:
             st.decided = True
             self.watch[lead] = t + c.watch_s
-            types = [tc.vehicle.getTypeID(lead)] if self.ignore_scope == "bus" else list(tc.vehicletype.getIDList())
+            types = [tc.vehicle.getTypeID(self.bus)] if self.ignore_scope == "bus" else list(tc.vehicletype.getIDList())
             tc.person.setParameter(pid, "junctionModel.ignoreTypes", " ".join(types))
 
     def watched(self, t):

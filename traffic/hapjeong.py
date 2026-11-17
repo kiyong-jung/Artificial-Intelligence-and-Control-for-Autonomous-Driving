@@ -44,7 +44,7 @@ from .stop_bypass import StopBypassManager
 from .yield_logic import YieldManager, DEFAULT_TYPES, Trigger, Zone
 
 MAP_ID = "hapjeong"
-S6_EDGES = ("R112", "-R112")           # 와우산로. 이 둘을 모두 걷는 보행자가 횡단보도를 건넌다
+S6_EDGES = ("-R112", "R112.112")       # 와우산로. 이 둘을 모두 걷는 보행자가 S6 횡단보도를 건넌다(R112가 R112.112 등으로 나뉘기 전 이름 R112로는 s6ped가 빠졌다)
 # S5 끼어들기 후보 골목 (교차로, 골목 도로, 합류하는 버스 도로). 둘 다 신호 없는 교차로다
 S5_ALLEYS = {("X_dongmak6", "G12", "R71.256"), ("X_jandari2", "G23", "-R96.119")}
 BUS_VTYPE = ('<vType id="bus_test" vClass="bus" length="12" width="2.5" accel="1.2" decel="4.0" '

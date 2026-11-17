@@ -61,11 +61,25 @@ def prune_persons(net: Path, rou: Path) -> list[str]:
     return gone
 
 
+def has_crossing(net_path: Path, node: str, edges: str) -> bool:
+    """node 교차로에 crossingEdges가 edges인 횡단보도가 있는가."""
+    for e in ET.parse(net_path).getroot().iter("edge"):
+        if e.get("function") == "crossing" and e.get("crossingEdges") == edges and e.get("id").startswith(f":{node}_c"):
+            return True
+    return False
+
+
 def main() -> None:
+    remove_crosswalks(TLS, CROSSINGS, NEW_VERSION, "cluster_no_crosswalks", "scripts/remove_cluster_crosswalks.py")
+
+
+def remove_crosswalks(tls_id: str, crossings: tuple, version: str, patch_key: str, script: str) -> None:
+    """tls_id 교차로의 횡단보도(crossings)를 없애고 신호 프로그램·보행자 경로·map.json을 맞춘다. 다른 스크립트도 쓴다."""
+    TLS = tls_id
     net_path, signals_path = SOURCE / "network.net.xml", SOURCE / "signals.add.xml"
     rou_path = SOURCE / "pedestrians.rou.xml"
     old = tls_links(net_path)
-    if not any(k[0] == "crossing" for k in old[TLS].values()):
+    if not any(has_crossing(net_path, TLS, edges) for edges in crossings):
         gone = prune_persons(net_path, rou_path)         # 횡단보도는 이미 없다: 보행자 정리만 다시 한다
         print(f"횡단보도는 이미 없다. 경로 없는 보행자 {len(gone)}명 제거")
         return
@@ -73,7 +87,7 @@ def main() -> None:
         tmp = Path(name)
         con = tmp / "cluster.con.xml"
         root = ET.Element("connections")
-        for edges in CROSSINGS:
+        for edges in crossings:
             ET.SubElement(root, "crossing", {"node": TLS, "edges": edges, "discard": "true"})
         ET.ElementTree(root).write(con, encoding="utf-8")
         out = tmp / "network.net.xml"
@@ -93,8 +107,8 @@ def main() -> None:
             if new[TLS][i] not in index_of:
                 raise ValueError(f"{TLS}에 원본에 없는 연결이 생겼다: {new[TLS][i]}")
             order.append(index_of[new[TLS][i]])
-        if len(order) != len(old[TLS]) - 2:
-            raise ValueError("연결 수가 둘 줄지 않았다")
+        if len(order) != len(old[TLS]) - len(crossings):
+            raise ValueError("연결 수가 횡단보도 수만큼 줄지 않았다")
         for path in (out, signals_path):
             tree = ET.parse(path)
             for logic in tree.getroot().iter("tlLogic"):
@@ -109,12 +123,12 @@ def main() -> None:
         shutil.copyfile(out, net_path)
         gone = prune_persons(net_path, rou_path)
     definition = json.loads(MAP_JSON.read_text(encoding="utf-8"))
-    definition["version"] = NEW_VERSION
+    definition["version"] = version
     definition["network_source"]["sha256"] = digest(net_path)
-    definition["network_source"]["patches"]["cluster_no_crosswalks"] = {
-        "removed_crossings": list(CROSSINGS), "removed_persons": len(gone), "script": "scripts/remove_cluster_crosswalks.py"}
+    definition["network_source"]["patches"][patch_key] = {
+        "removed_crossings": list(crossings), "removed_persons": len(gone), "script": script}
     MAP_JSON.write_text(json.dumps(definition, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"{TLS} 횡단보도 {len(CROSSINGS)}개 제거, 보행자 {len(gone)}명 제거. map {NEW_VERSION}")
+    print(f"{TLS} 횡단보도 {len(crossings)}개 제거, 보행자 {len(gone)}명 제거. map {version}")
 
 
 if __name__ == "__main__":

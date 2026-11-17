@@ -40,10 +40,10 @@
         <phase duration="6" state="rrrrrrrrrrrrrrrrrryyyyrrrr" />
     <phase duration="5" state="rrrrrrrrrrrrrrrrrrrrrrrrrr" /><phase duration="34" state="rrrrrrrrrrrrrrrrrrrrrrGrGr" /><phase duration="5" state="rrrrrrrrrrrrrrrrrrrrrrrrrr" /></tlLogic>
     <tlLogic id="J8" type="static" programID="config" offset="0">
-        <phase duration="60" state="GGGGGGrr" />
-        <phase duration="6" state="yyyyyyrr" />
-        <phase duration="20" state="rrrrrrGG" />
-        <phase duration="5" state="rrrrrrrr" />
+        <phase duration="60" state="GGGGGGr" />
+        <phase duration="6" state="yyyyyyr" />
+        <phase duration="20" state="rrrrrrG" />
+        <phase duration="5" state="rrrrrrr" />
     </tlLogic>
     <tlLogic id="J82" type="static" programID="config" offset="0">
         <phase duration="35" state="rrrrrrrrrrrrGGGGGrrrr" />

@@ -73,11 +73,11 @@ def test_spawner_never_places_cars_near_the_test_bus(world):
 def test_right_on_red_changes_every_signal_but_the_main_crossing(world):
     tc = world.start(warmup=5)
     ror = world.summary["right_on_red"]
-    assert "J1" not in ror and "J82" not in ror                      # 합정역 사거리, 상수역 사거리는 제외
-    assert set(ror) == {"J42", "J74", "J83", "J96", "cluster_J52_J56_J58"}
+    assert "J1" not in ror and "J82" not in ror and "J83" not in ror                   # 합정역·상수역·삼거리포차 앞은 제외
+    assert set(ror) == {"J42", "J74", "J96", "cluster_J52_J56_J58"}
     assert all(v["links"] > 0 and v["opened_share"] > 0 for v in ror.values())
     # 횡단보도 보행자 신호가 켜져 있는(건너는 사람이 있을 수 있는) 위상에서는 열지 않는다
-    assert ror["J83"]["blocked_by_ped"] > 0.2 and ror["J42"]["blocked_by_ped"] > 0.1
+    assert ror["J42"]["blocked_by_ped"] > 0.1
     assert all(v["opened_share"] + v["blocked_by_ped"] <= 1.0 for v in ror.values())
     # 바꾼 뒤에도 우회전 링크는 모든 위상에서 적색이 아닌 시간이 늘었다
     import sumolib

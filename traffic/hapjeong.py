@@ -111,7 +111,7 @@ class HapjeongTraffic:
 
     def __init__(self, out_dir, scenario="baseline", seed=0, *, yield_mix=None, cutin=True,
                  cutin_bins=None, ped_mix=0.5, ped_v_low=1.5, taxi_depart=None, stopped=None, merge_route=None,
-                 bus_traffic=None, right_on_red=True, right_on_red_exclude=("J1", "J82"),
+                 bus_traffic=None, right_on_red=True, right_on_red_exclude=("J1", "J82", "J83"),
                  interior_share=0.3, interior_min_dist=200.0):
         # interior_share: 입구 배경 차량 흐름 중 이 비율을 노선 위 임의의 지점에서 출발시킨다(0이면 끈다). 시험용 버스에서
         # interior_min_dist m 안에서는 투입하지 않아 눈앞에 갑자기 생기지 않는다.

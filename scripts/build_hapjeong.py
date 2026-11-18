@@ -37,7 +37,7 @@ from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "3.6.0"
+VERSION = "3.13.0"   # 3.13.0: J96 우회전 녹색이 보행자 녹색과 겹치지 않게 신호 수정(scripts/separate_right_turns_from_crosswalks.py). 3.12.0: J1 c2 시작점을 w2 섬에 붙임(scripts/fix_j1_c2_start.py). 3.11.0: J23 겹친 횡단보도(-R71 R71.256) 제거(scripts/remove_j23_overlapping_crosswalk.py). 3.10.0: J8 겹친 횡단보도(-R69a R69a) 제거(scripts/remove_j8_duplicate_crosswalk.py). 3.9.0: cluster_J52_J56_J58 횡단보도 두 개와 보행자 신호 제거(scripts/remove_cluster_crosswalks.py, 보행자 15명 제외). 3.8.0: J42 잔다리로 R94 우회전 제거(scripts/remove_j42_right_turn.py). 3.7.0: J1 양화로 R42 차로 3도 좌회전(scripts/add_j1_left_lane.py로 커밋된 3.6.0에 더했다)
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]
@@ -96,10 +96,13 @@ REPLACED_CONNECTIONS: dict[str, list[tuple[str, str, str]]] = {
     # 삼거리포차 앞과 서교동사거리의 좌회전은 2차로에서만 됐다. 가로변 차로를 달리는 버스가 좌회전 줄에 끼어들지 못하고
     # 300초를 서 있다 순간이동했다(규칙 버스 12회 중 1회). 가로변 차로에서도 좌회전해 가로변 차로로 들어가게 한다.
     "R112.221": [("1", "R130", "1"), ("1", "R113", "1"), ("2", "R113", "2")],
-    "R94": [("1", "R53", "1"), ("1", "R92", "1"), ("1", "R54a", "1"), ("2", "R54a", "2"), ("2", "R54a", "4")]}
+    "R94": [("1", "R92", "1"), ("1", "R54a", "1"), ("2", "R54a", "2"), ("2", "R54a", "4")],   # 우회전(R53) 없음(3.8.0)
+    # 합정역 사거리 J1: 양화로 R42 차로 3도 직진 또는 좌회전(독막로 R68 차로 1). 합정역 정류장에서 출발한 시험용 버스가
+    # 좌회전 차로까지 옮기기 빠듯했다(3.7.0).
+    "R42": [("1", "R40", "1"), ("2", "R40", "2"), ("3", "R40", "3"), ("3", "R68", "1"), ("4", "R68", "2")]}
 MOVED_LINKS: dict[tuple[str, str, str, str], tuple[str, str, str, str]] = {
     ("R111b", "3", "R112", "2"): ("R111b", "2", "R112", "2"), ("R112", "1", "R113", "1"): ("R112", "2", "R113", "1"),
-    ("R94", "1", "R54a", "1"): ("R94", "2", "R54a", "2")}
+    ("R94", "1", "R54a", "1"): ("R94", "2", "R54a", "2"), ("R42", "3", "R68", "1"): ("R42", "4", "R68", "2")}
 # 배경 차량 baseline 합계. 생성기 설정(generator/road_config.py OSM_ROAD traffic)의 값이다.
 BASELINE_VEHS_PER_HOUR = 900
 PEDESTRIANS = {"persons_per_hour": 600, "min_distance": 150, "end": 3600, "seed": 42}

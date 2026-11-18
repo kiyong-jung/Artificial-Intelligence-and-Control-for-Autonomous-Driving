@@ -1,12 +1,12 @@
 {
   "id": "hapjeong",
   "name": "합정역 · 양화로와 독막로",
-  "version": "3.6.0",
+  "version": "3.13.0",
   "description": "합정역 일대 실제 도로. 신호 교차로, 인도·횡단보도·보행자, 중앙버스차로, 연구 경로의 가로변 정류장 6곳과 신호 없는 횡단보도가 있다.",
   "source_status": "osm_generated",
   "network_source": {
     "path": "source/network.net.xml",
-    "sha256": "62f74c764c164a2fa29d9aaea50948615f6188da7a5946542f15ee23975e378c",
+    "sha256": "7341638b8d303d0a831a3c9eda9803d080b4a5b726b5b61afe67fa0666d8fa82",
     "base_path": "source/network.base.net.xml",
     "base_sha256": "3be54d491627c289497b936102eedfa307c547f4edc04a1e80756ba8f25b11c7",
     "generator": "generator/ (서예인, seogyo-hongdae 066e5b1)",
@@ -199,6 +199,76 @@
           "G11",
           "G12"
         ]
+      },
+      "j1_second_left_lane": {
+        "added": [
+          "R42",
+          "3",
+          "R68",
+          "1"
+        ],
+        "signal_from": [
+          "R42",
+          "4",
+          "R68",
+          "2"
+        ],
+        "script": "scripts/add_j1_left_lane.py"
+      },
+      "j42_r94_no_right_turn": {
+        "removed": [
+          "R94",
+          "1",
+          "R53",
+          "1"
+        ],
+        "script": "scripts/remove_j42_right_turn.py"
+      },
+      "cluster_no_crosswalks": {
+        "removed_crossings": [
+          "R77 -R77",
+          "-R73 R73"
+        ],
+        "removed_persons": 15,
+        "script": "scripts/remove_cluster_crosswalks.py"
+      },
+      "j8_duplicate_crosswalk": {
+        "removed_crossings": [
+          "-R69a R69a"
+        ],
+        "removed_persons": 0,
+        "script": "scripts/remove_j8_duplicate_crosswalk.py"
+      },
+      "j23_overlapping_crosswalk": {
+        "removed_crossings": [
+          "-R71 R71.256"
+        ],
+        "removed_persons": 0,
+        "script": "scripts/remove_j23_overlapping_crosswalk.py"
+      },
+      "j1_c2_start_on_w2": {
+        "moved_start": [
+          -39.33,
+          -5.824
+        ],
+        "script": "scripts/fix_j1_c2_start.py"
+      },
+      "right_turns_not_with_crosswalk_green": {
+        "tls": {
+          "J96": {
+            "right_turn_links": [
+              0,
+              7,
+              8,
+              14,
+              22,
+              23,
+              24
+            ],
+            "changed_phase_cells": 7
+          }
+        },
+        "script": "scripts/separate_right_turns_from_crosswalks.py"
       }
     },
     "pedestrians": {
@@ -206,7 +276,15 @@
       "min_distance": 150,
       "end": 3600,
       "seed": 42,
-      "s6_walkers_per_hour": 240
+      "s6_walkers_per_hour": 240,
+      "removed_crossing_walkers": {
+        "J1_c1": {
+          "removed": 129,
+          "persons_before": 825,
+          "persons_after": 696,
+          "script": "scripts/remove_crosswalk_pedestrians.py"
+        }
+      }
     }
   },
   "extra_files": {

@@ -129,6 +129,7 @@
   p { margin: var(--s-4) 0; text-wrap: pretty; }
   ul { padding-left: 1.2em; }
   li { margin: var(--s-2) 0; }
+  .paper-abstract p, .article-section p:not(.pull), .article-section li, .caption { text-align: justify; }
   .pull { margin: var(--s-6) 0; max-width: var(--measure); color: var(--ink); font: var(--w-bold) var(--fs-xl)/var(--lh-ui) var(--sans); letter-spacing: var(--ls-tight); text-wrap: balance; }
   figure { margin: var(--s-6) 0; }
   .table-scroll { overflow-x: auto; margin: var(--s-5) 0; border: 1px solid var(--rule); border-radius: var(--r-lg); background: var(--surface); }
@@ -238,7 +239,7 @@
 </header>
 
 <figure class="wide demo">
-  <a class="figure-link" href="assets/hapjeong_map.png"><img src="assets/hapjeong_map.png" width="2400" height="1982" alt="합정역 도로망 3.6.0. 파란 선은 연구 버스 순환 경로, 빨간 선은 골목, 청록 선은 양화로 중앙버스 노선이다." fetchpriority="high" decoding="async" /></a>
+  <a class="figure-link" href="assets/hapjeong_map.webp"><img src="assets/hapjeong_map.webp" width="2400" height="1982" alt="합정역 도로망 3.6.0. 파란 선은 연구 버스 순환 경로, 빨간 선은 골목, 청록 선은 양화로 중앙버스 노선이다." fetchpriority="high" decoding="async" /></a>
   <figcaption class="caption"><strong>그림 1. 합정역 도로망 3.6.0</strong>파란 선이 연구 버스가 시계 반대 방향으로 도는 경로다. 빨간 선은 골목, 보라 세모는 골목 차가 버스 길로 나오는 합류점, 노란 네모는 가로변 정류장이다.</figcaption>
 </figure>
 
@@ -268,14 +269,14 @@
       <p>연구 버스는 합정역에서 출발해 독막로를 따라 상수역까지 가고, 와우산로와 잔다리로를 지나 서교동사거리에서 양화로로 좌회전해 합정역으로 돌아온다. 경로 길이는 1,949m이고, 경로 위에 실제 위치의 가로변 정류장 6곳과 신호 없는 횡단보도 1곳이 있다.</p>
       <p class="pull lit-pending" id="pull">목표는 버스가 한 바퀴를 도는 동안 연구할 상황을 최대한 자주, 실제와 같은 자리에서 만나게 하는 것이다.</p>
       <figure>
-        <a class="figure-link" href="assets/hapjeong_road.png"><img src="assets/hapjeong_road.png" width="2014" height="743" alt="합정역 일대 지도와 같은 범위에 겹친 SUMO 도로망" loading="lazy" decoding="async" /></a>
+        <a class="figure-link" href="assets/hapjeong_road.webp"><img src="assets/hapjeong_road.webp" width="2014" height="743" alt="합정역 일대 지도와 같은 범위에 겹친 SUMO 도로망" loading="lazy" decoding="async" /></a>
         <figcaption class="caption"><strong>그림 2. 실제 지도와 SUMO 도로망</strong>왼쪽은 합정역 일대 지도, 오른쪽은 같은 범위에 겹친 SUMO 도로망(붉은색)이다.</figcaption>
       </figure>
     </section>
 
     <section class="article-section" aria-labelledby="road">
       <h2 id="road">도로</h2>
-      <p>원본 도로망은 서예인이 OpenStreetMap을 바탕으로 만들었다. <code>scripts/build_hapjeong.py</code>가 실제 지도와 대조해 고친 내용을 적용해 실행 도로망을 만든다. 같은 입력이면 같은 파일이 나온다.</p>
+      <p>원본 도로망은 OpenStreetMap을 바탕으로 만들었다. 빌드 스크립트가 실제 지도와 대조해 고친 내용을 적용해 실행 도로망을 만든다. 같은 입력이면 같은 파일이 나온다.</p>
       <div class="stat-row">
         <div class="stat"><b>1,949m</b><span>버스 순환 경로</span></div>
         <div class="stat"><b>6곳</b><span>가로변 정류장</span></div>
@@ -302,7 +303,7 @@
         </table>
       </div>
       <figure>
-        <a class="figure-link" href="assets/scenario_map.png"><img src="assets/scenario_map.png" width="2400" height="1500" alt="여섯 시나리오가 일어나는 위치를 표시한 합정역 도로망" loading="lazy" decoding="async" /></a>
+        <a class="figure-link" href="assets/scenario_map.webp"><img src="assets/scenario_map.webp" width="2400" height="1500" alt="여섯 시나리오가 일어나는 위치를 표시한 합정역 도로망" loading="lazy" decoding="async" /></a>
         <figcaption class="caption"><strong>그림 3. 시나리오가 일어나는 곳</strong>연구 경로 위에서 각 시나리오가 일어나는 위치다.</figcaption>
       </figure>
     </section>
@@ -311,14 +312,14 @@
       <h2 id="shortcuts">골목 지름길</h2>
       <p>골목이 없으면 버스 길로 나오는 골목 차가 거의 없어 끼어들기를 시험할 수 없다. 버스 경로 안쪽의 실제 골목 여덟 묶음을 살렸다. 아래 수치는 혼잡한 교통에서 버스가 160번 돈 결과다.</p>
       <div class="shortcut-grid">
-        <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari6.png" width="354" height="246" alt="잔다리로6길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로6길</h3><p><b>끼어들기 28번</b>시간당 45대</p></div></div>
-        <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari3.png" width="528" height="647" alt="독막로3길 북쪽과 잔다리로3길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로3길</h3><p><b>끼어들기 21번</b>시간당 19대</p></div></div>
-        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak6.png" width="272" height="240" alt="독막로6길 고리 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로6길 고리</h3><p><b>끼어들기 14번</b>시간당 47대</p></div></div>
-        <div class="shortcut"><img src="assets/shortcuts/shortcut_wausan11.png" width="485" height="275" alt="와우산로11길과 와우산로13길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>와우산로11길</h3><p><b>끼어들기 3번</b>시간당 50대</p></div></div>
-        <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari2.png" width="226" height="316" alt="잔다리로2길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로2길</h3><p><b>끼어들기 3번</b>시간당 25대</p></div></div>
-        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak3.png" width="168" height="212" alt="독막로3길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로3길</h3><p><b>끼어들기 3번</b>시간당 18대</p></div></div>
-        <div class="shortcut"><img src="assets/shortcuts/shortcut_eoulmadang.png" width="330" height="609" alt="어울마당로 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>어울마당로</h3><p><b>끼어들기 2번</b>시간당 20대</p></div></div>
-        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak7.png" width="692" height="559" alt="양화로6길과 독막로7길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로7길</h3><p><b>끼어들기 0번</b>시간당 25대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari6.webp" width="354" height="246" alt="잔다리로6길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로6길</h3><p><b>끼어들기 28번</b>시간당 45대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari3.webp" width="528" height="647" alt="독막로3길 북쪽과 잔다리로3길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로3길</h3><p><b>끼어들기 21번</b>시간당 19대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak6.webp" width="272" height="240" alt="독막로6길 고리 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로6길 고리</h3><p><b>끼어들기 14번</b>시간당 47대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_wausan11.webp" width="485" height="275" alt="와우산로11길과 와우산로13길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>와우산로11길</h3><p><b>끼어들기 3번</b>시간당 50대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari2.webp" width="226" height="316" alt="잔다리로2길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로2길</h3><p><b>끼어들기 3번</b>시간당 25대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak3.webp" width="168" height="212" alt="독막로3길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로3길</h3><p><b>끼어들기 3번</b>시간당 18대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_eoulmadang.webp" width="330" height="609" alt="어울마당로 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>어울마당로</h3><p><b>끼어들기 2번</b>시간당 20대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak7.webp" width="692" height="559" alt="양화로6길과 독막로7길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로7길</h3><p><b>끼어들기 0번</b>시간당 25대</p></div></div>
       </div>
       <p>끼어들기는 서교동사거리 앞 잔다리로6길, 서교동교회 정류장 앞 잔다리로3길, 성산중학교 정류장 앞 독막로6길 고리에 몰린다.</p>
     </section>
@@ -358,7 +359,7 @@
 
     <section class="article-section" aria-labelledby="data">
       <h2 id="data">데이터와 학습</h2>
-      <p>ego는 버스다. 수집기는 매 스텝 버스 상태, 주변 차량과 보행자, 경로, 신호를 기록한다. 컬럼은 <code>env/data_schema.py</code>의 표 하나에서 나오고, 수업의 필수 항목 19개에 시각, 감지 보행자, 종료 사유, 승차감 4개를 더했다.</p>
+      <p>ego는 버스다. 수집기는 매 스텝 버스 상태, 주변 차량과 보행자, 경로, 신호를 기록한다. 컬럼은 표 하나에서 정의하고, 수업의 필수 항목 19개에 시각, 감지 보행자, 종료 사유, 승차감 4개를 더했다.</p>
       <ul>
         <li>주변 차량과 보행자는 버스에서 150m 안만 적는다.</li>
         <li>승차감 한계(가속 1.5m/s², jerk 2.0m/s³)를 넘은 스텝을 따로 표시한다.</li>

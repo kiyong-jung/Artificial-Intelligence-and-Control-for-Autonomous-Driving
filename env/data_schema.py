@@ -10,7 +10,7 @@ COLUMNS = [
     ("episode", "Integer", SCHOOL, "Episode 번호"),
     ("t", "Integer", SCHOOL, "Episode 내부 timestep (판단 한 번 = decision_interval초)"),
     ("sim_time", "Float", TEAM, "관측 시점의 SUMO 시뮬레이션 시각(초). t와 실제 시간을 구분한다"),
-    ("observation", "Vector (31-dim)", SCHOOL, "시점 t에서 AV Policy가 실제로 입력받는 부분 관측 oₜ"),
+    ("observation", "Vector (profile-dependent)", SCHOOL, "시점 t의 정책 입력. 차원·순서는 metadata.observation 참조"),
     ("action_raw", "Vector (2-dim)", SCHOOL, "Policy가 출력한 원본 Action [가감속, 차선변경]"),
     ("action.accel_raw", "Float", SCHOOL, "환경에 적용된 가감속 Action 값"),
     ("action.lane_change_raw", "Float", SCHOOL, "환경에 적용된 차선변경 raw 값"),
@@ -31,7 +31,7 @@ COLUMNS = [
     ("comfort.peak_jerk", "Float", TEAM, "이 step 동안 버스 jerk(가속도 변화율) 크기의 최댓값 (m/s³). 승객 승차감"),
     ("comfort.acceleration_violation", "Boolean", TEAM, "가속도가 승차감 한계를 넘었는지"),
     ("comfort.jerk_violation", "Boolean", TEAM, "jerk가 승차감 한계를 넘었는지"),
-    ("next_observation", "Vector (31-dim)", SCHOOL, "다음 시점의 부분 관측 oₜ₊₁"),
+    ("next_observation", "Vector (profile-dependent)", SCHOOL, "다음 시점의 부분 관측 oₜ₊₁"),
     ("next_state", "Dictionary", SCHOOL, "다음 시점의 privileged simulator state sₜ₊₁"),
 ]
 
@@ -75,14 +75,31 @@ CONVENTIONS = {
 }
 
 
-def metadata() -> dict:
+def observation_features(profile="legacy"):
+    if profile != "bus_service_v1":
+        return list(OBSERVATION_FEATURES)
+    return (["ego_speed"] + [f"{lane}_drivable" for lane in _LANES]
+            + [f"{kind}_{slot}_{field}" for kind, count in [("vehicle",8),("pedestrian",6)]
+               for slot in range(count) for field in ("present","longitudinal","lateral","relative_v_long","relative_v_lat")]
+            + ["nav_left","nav_right","nav_uturn","nav_distance","remaining_route"]
+            + ["tls_present","tls_distance","tls_red","tls_yellow","tls_green","tls_other"]
+            + ["stop_present","stop_longitudinal","stop_lateral","dwell_fraction","serviced_fraction","stop_distance"])
+
+
+def metadata(profile="legacy") -> dict:
     """실행마다 한 번 남기는 데이터 설명."""
-    return {"schema_version": SCHEMA_VERSION,
+    conventions = dict(CONVENTIONS)
+    if profile == "bus_service_v1":
+        conventions["observation"] = ("93D [-1,1]; nearest objects sorted by squared distance then ID. "
+            "Missing object/TLS/stop blocks have present=0. Object/TLS distance divided by visibility; "
+            "speed by vmax; navigation/stop distance by 200m; remaining route by route length. "
+            "No target-lane or prescribed maneuver timing. Ideal sensing without occlusion.")
+    return {"schema_version": SCHEMA_VERSION if profile == "legacy" else "hapjeong_bus_service_v1",
             "columns": [{"name": name, "type": kind, "origin": origin, "meaning": meaning}
                         for name, kind, origin, meaning in COLUMNS],
             "state_keys": STATE_KEYS, "detected_vehicle_keys": DETECTED_VEHICLE_KEYS,
             "detected_pedestrian_keys": DETECTED_PEDESTRIAN_KEYS,
-            "observation_feature_names": OBSERVATION_FEATURES, "conventions": CONVENTIONS}
+            "observation_feature_names": observation_features(profile), "conventions": conventions}
 
 
 def lookup(record: dict, column: str):

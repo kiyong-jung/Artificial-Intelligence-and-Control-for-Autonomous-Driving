@@ -32,6 +32,7 @@ class DrivingMetrics:
     simulation_collision_rate: float = 0.0  # 배경차를 포함해 충돌이 있었던 episode 비율
     teleport_rate: float = 0.0  # 어느 차량이든 순간이동이 발생한 episode 비율
     speed_intervention_rate: float = 0.0  # SUMO 안전보조가 요청 속도를 바꾼 step 비율
+    task_failure_rate: float = 0.0
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -65,6 +66,7 @@ def evaluate_policy(policy, env, n_episodes: int = 5,
     if n_episodes < 1:
         raise ValueError("평가 episode 수는 1 이상이어야 합니다.")
     n_collide, n_arrive, n_timeout, n_error = 0, 0, 0, 0
+    n_task_failure = 0
     n_sim_collision, n_teleport, n_intervened, n_control_steps = 0, 0, 0, 0
     speeds, gaps, returns, lengths, lane_changes = [], [], [], [], []
 
@@ -94,7 +96,10 @@ def evaluate_policy(policy, env, n_episodes: int = 5,
             elif info.get("arrived"):
                 ended_by = "arrival"
             elif done:
-                ended_by = "timeout" if truncated and not terminated else "error"
+                if info.get("termination_reason") in ("red_light", "missed_stop", "incomplete_service"):
+                    ended_by = "task_failure"
+                else:
+                    ended_by = "timeout" if truncated and not terminated else "error"
 
             # 종료 스텝은 None (ego가 이미 제거됨) → 통계에서 제외.
             if info.get("speed") is not None:
@@ -108,6 +113,8 @@ def evaluate_policy(policy, env, n_episodes: int = 5,
             n_arrive += 1
         elif ended_by == "timeout":
             n_timeout += 1
+        elif ended_by == "task_failure":
+            n_task_failure += 1
         else:
             n_error += 1
         n_sim_collision += int(any_collision)
@@ -130,4 +137,5 @@ def evaluate_policy(policy, env, n_episodes: int = 5,
         simulation_collision_rate=n_sim_collision / n_episodes,
         teleport_rate=n_teleport / n_episodes,
         speed_intervention_rate=n_intervened / max(n_control_steps, 1),
+        task_failure_rate=n_task_failure / n_episodes,
     )

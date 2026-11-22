@@ -90,8 +90,29 @@ def prepare(args):
 
     spawn 워커는 모듈을 다시 import해 빈 설정으로 시작하므로 부모와 같은 함수를 부른다.
     """
-    configure_execution(args)
     saved = read_run_config(args.model) if args.model else None
+    if saved:
+        profile = saved["ego"].get("learning_profile", "legacy")
+        if args.learning_profile is not None and args.learning_profile != profile:
+            raise ValueError("Model/collector learning_profile mismatch")
+        args.learning_profile = profile
+        if args.map is None:
+            args.map = saved["road"]["map_id"]
+        if args.ego_route is None:
+            args.ego_route = saved["road"]["ego_route"]
+        if args.scenario is None:
+            args.scenario = saved["road"]["scenario"]
+        if args.max_steps is None:
+            args.max_steps = saved["simulation"]["max_steps"]
+    if args.scenario is None:
+        args.scenario = "baseline"
+    configure_execution(args)
+    if saved and args.learning_profile == "bus_service_v1":
+        EGO["task_rewards"] = dict(saved["ego"]["task_rewards"])
+        if saved["observation"] != OBSERVATION:
+            raise ValueError("Model/collector observation semantics differ")
+    if args.learning_profile == "bus_service_v1" and args.policy == "route-follow":
+        raise ValueError("route-follow helper is not allowed in the policy-only bus profile")
     # BC run의 hparams는 BC 학습 설정이라 PPO 구조와 데이터셋 metadata에 섞지 않는다.
     if saved and saved["kind"] != "bc_training":
         HPARAMS.update(saved.get("hparams") or {})
@@ -221,7 +242,7 @@ def collect(args, sumocfg, episodes, worker_id, jsonl_path, npz_path, tag=""):
         gui=args.gui,
         gui_autostart=True,
     )
-    if env.obs_dim != len(data_schema.OBSERVATION_FEATURES):
+    if env.obs_dim != len(data_schema.observation_features(EGO.get("learning_profile", "legacy"))):
         raise ValueError("관측 차원이 env/data_schema.py의 OBSERVATION_FEATURES와 다릅니다.")
     act = make_policy(args, env, worker_seed)
     # 정책의 샘플링과 환경 seed는 분리한다. 환경은 reset(seed=...)에서 고정된다.
@@ -283,6 +304,8 @@ def collect(args, sumocfg, episodes, worker_id, jsonl_path, npz_path, tag=""):
                         "detected_pedestrians": compact(detected_pedestrians, args.ndigits),
                         "comfort": compact(info["comfort"], args.ndigits),
                         "event": {
+                            "bus_service": info.get("bus_service"),
+                            "red_violation": info.get("red_violation", False),
                             "collided": bool(info["collided"]),
                             "arrived": bool(info["arrived"]),
                             "simulation_collided": bool(info["simulation_collided"]),
@@ -385,6 +408,7 @@ def main():
     parser.add_argument("--device", default="cpu",
                         help="정책 추론 장치 (cpu/cuda). 관측 1개씩 추론이라 cpu로 충분")
     add_run_arguments(parser)
+    parser.set_defaults(scenario=None)
     parser.add_argument("--gui", action="store_true",
                         help="SUMO GUI로 수집. 기본은 headless")
     parser.add_argument("--workers", type=int, default=1,
@@ -432,7 +456,7 @@ def main():
         policy=args.policy, episodes=args.episodes, workers=workers,
         episode_seeds=list(range(args.seed, args.seed + args.episodes)),
         source_model=os.path.abspath(args.model) if args.model else None,
-        data=data_schema.metadata(),
+        data=data_schema.metadata(EGO.get("learning_profile", "legacy")),
     )
     # 부모가 한 번 빌드한 읽기 전용 자산을 모든 워커가 공유한다.
     sumocfg = road_builder.build(ROAD, EGO, TRAFFIC, os.path.join(assets_dir, "sumo"))

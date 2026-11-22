@@ -10,8 +10,8 @@
   (다음 도로로 이어지지 않는 차로에서 도로 끝이 가까울 때만 예외).
 - 신호 교차로 정지선 앞(signal_areas)에서는 차선 변경을 요청하지 않는다. 창 끝까지 목표 차로에 못 가면 SUMO 기본
   차선 변경(1621)으로 넘기고 `missed`에 남긴다. 다음 도로에서 다시 512로 돌린다.
-- 상대를 기다리지 않는다: 창 앞 절반에서 후행차가 아직 가까이 오지 않았으면(follower_ready가 False) 속도를 줄여
-  달리며 기다린다(서지 않는다, 최저 3 m/s). 창 절반을 지나면 그냥 옮기고 `late`에 남긴다.
+- 상대 때문에 속도를 줄이지 않는다: 후행차를 기다리거나 비양보형을 먼저 보내려고 `setSpeed`를 쓰지 않는다. 차선 변경이 늦어도 도착 보장
+  (`_force_arrival`)이 정류장 차로·좌회전 차로 앞에서만 세운다(정류장 진입·좌회전 차로 진입을 위한 감속·정지만 한다).
 """
 from dataclasses import dataclass
 
@@ -27,10 +27,7 @@ STOP_LANE_LEAD_M = 10.0         # 정류장 차로에는 정류장 시작 이만
 EXTRA_PER_LANE_M = 40.0         # 차로를 한 칸 더 옮겨야 하면 창을 이만큼 늘린다
 BLINKER_RIGHT, BLINKER_LEFT = 1, 2
 LC_MANUAL, LC_SUMO = 512, 1621
-MIN_SLOW = 3.0
-SLOW_FRAC = 0.45                # 상대를 기다릴 때 제한 속도의 이 비율로 줄인다
 FORCE_DECEL, FORCE_MARGIN_M = 2.5, 4.0   # 도착 보장: 이 감속도로 멈출 거리 + 여유 안에 창 끝이 들어오면 멈춰서 기다린다
-SLOW_UNTIL_FRAC = 0.30         # 창 끝까지 남은 거리가 창의 이 비율 안이면 더는 기다리지 않는다(그냥 옮긴다)
 
 
 @dataclass
@@ -119,20 +116,17 @@ class TestBusPilot:
     # 같은 창에서 이어지는 변경(J1 앞 3~4칸)은 식힘 없이 방향지시등을 켠 채 이 시간 뒤 요청한다.
     # 한 칸에 6초 남짓 걸리면 14 m/s에서 4칸에 350 m가 필요해 창(240 m)을 넘었다(짧은 실행에서 확인).
     NEXT_SIGNAL_S = 1.0
-    # 비양보형 대응: 목표 차로 후행차가 버스보다 0.5 m/s 넘게 빠른 상태가 1초 이어지면 속도를 줄여 먼저 보낸다
-    BLOCKER_DV, BLOCKER_S, PASS_MARGIN, BLOCKER_WAIT_S = 0.5, 1.0, 5.0, 25.0
 
-    def __init__(self, tc, net, loop, stops, follower_ready=None, stop_s=8.0):
+    def __init__(self, tc, net, loop, stops, stop_s=8.0):
         self.tc, self.net = tc, net
         self.lap_edges = lap_route(net, loop)
         self.stops = {s["id"]: s for s in stops}
         self.stop_s = stop_s
-        self.follower_ready = follower_ready
         self.plans = lane_plans(net, self.lap_edges, stops)
         self.forbidden = forbidden_intervals(net, self.lap_edges)
         self._len = {}
         self.lap, self.lap_times, self.lap_t0 = 0, [], None
-        self.missed, self.late, self.slowed = [], [], []
+        self.missed = []
         self.changes = {}
         self.why = ""
         self.phase, self.t_phase, self.plan, self.target = "idle", 0.0, None, None
@@ -140,12 +134,11 @@ class TestBusPilot:
         self._added = False
         self._last_road = None
         self._handover = False
-        self._slow_t0 = None
-        self._late_noted = False
         self._chain = None              # 방금 변경을 마친 창(같은 창의 다음 변경은 빠르게)
         self._signal_s = self.SIGNAL_S
-        self._blocker, self._blocker_t0, self._fast_t0, self._blocker_seen = None, 0.0, None, 0.0
         self.forced = []                    # 도착 보장으로 멈춘 창 (바퀴, 종류)
+        self.speed_limit = None             # callable() -> 속도 제한(m/s) 또는 None. 골목 끝에서 기다리는 차를 본 버스의 감속(S5)
+        self._limited = False
         self._forced_p, self._forced_t0 = None, 0.0
 
     # ---- 노선 ----------------------------------------------------------------------------------
@@ -211,6 +204,18 @@ class TestBusPilot:
             return
         self._extend()
         self._pilot(tc, t, road)
+        self._apply_speed_limit(tc)
+
+    def _apply_speed_limit(self, tc):
+        """골목 차를 본 감속(`speed_limit`)을 건다. 정류장 정차 중이거나 도착 보장 정지 중이면 건드리지 않는다."""
+        lim = self.speed_limit() if self.speed_limit is not None else None
+        busy = self._forced_p is not None or bool(tc.vehicle.getStopState(BUS) & 1)
+        if lim is not None and not busy:
+            tc.vehicle.setSpeed(BUS, lim)
+            self._limited = True
+        elif self._limited and not busy:
+            tc.vehicle.setSpeed(BUS, -1)
+            self._limited = False
 
     def _dist_to(self, route, i, pos, plan):
         """버스에서 창 끝까지 노선 거리(지났으면 음수). 이번 바퀴 안에서 찾는다. 없으면 None."""
@@ -278,8 +283,6 @@ class TestBusPilot:
             if not 0 <= target < n:
                 return
             self._signal_s = self.NEXT_SIGNAL_S if (self._chain is not None and self._chain is p) else self.SIGNAL_S
-            if self._signal_s == self.SIGNAL_S:
-                self._late_noted = False
             self._chain = None
             self.plan, self.target, self.why = p, target, why
             self.changes[why] = self.changes.get(why, 0) + 1
@@ -292,27 +295,12 @@ class TestBusPilot:
                 return
             if t - self.t_phase < self._signal_s:
                 return
-            ready = self.follower_ready(p) if (self.follower_ready is not None and p is not None) else None
-            if ready is False and d is not None and d > SLOW_UNTIL_FRAC * p.eff_length:
-                if self._slow_t0 is None:            # 상대가 따라오도록 속도를 줄여 달린다(서지 않는다)
-                    # 기준은 도로 제한 속도다. 지금 속도 기준이면 정류장에서 막 출발한 버스가 3 m/s로 30초 기었다.
-                    # 45%·창의 마지막 30%까지: 60%·절반까지일 때는 후행차가 20 m 뒤에서 버스가 옮겨 A1이 켜지지 않았다
-                    tc.vehicle.setSpeed(BUS, max(SLOW_FRAC * tc.vehicle.getAllowedSpeed(BUS), MIN_SLOW))
-                    self._slow_t0 = t
-                return
-            if ready is False and not self._late_noted:
-                self.late.append((self.lap, p.kind))
-                self._late_noted = True
-            self._release_speed(tc, t)
             tc.vehicle.changeLane(BUS, self.target, self.REQUEST_DURATION)
             self.phase, self.t_phase = "request", t
         elif self.phase == "request":
             tc.vehicle.setSignals(BUS, BLINKER_LEFT if self.target > idx else BLINKER_RIGHT)
-            if idx != self.target and not forbidden and self._let_blocker_pass(tc, t, road, pos):
-                return                                   # 비양보형을 먼저 보내는 중
             if idx == self.target and self.plan is not None and not forbidden:
                 # 한 칸 옮겼다. 같은 창에서 더 옮겨야 하면 방향지시등을 켠 채 바로 다음 변경으로 간다
-                self._release_speed(tc, t)
                 self._chain, self.phase, self.t_phase = self.plan, "idle", t
                 self.plan = None
             elif idx == self.target or t - self.t_phase > self.TIMEOUT_S or forbidden \
@@ -345,8 +333,6 @@ class TestBusPilot:
                 return False
             self._forced_p, self._forced_t0 = p, t
             self.forced.append((self.lap, p.kind))
-            self._release_speed(tc, t)
-            self._blocker = None
         tc.vehicle.setSpeed(BUS, 0.0)
         step = 1 if min(good, key=lambda k: (abs(k - idx), -k)) > idx else -1       # 목표에 닿는 가장 가까운 차로 쪽으로
         tc.vehicle.setSignals(BUS, BLINKER_LEFT if step > 0 else BLINKER_RIGHT)
@@ -387,63 +373,6 @@ class TestBusPilot:
         self._forced_p, self.phase, self.t_phase, self.plan, self._chain = None, "cool", t, None, None
         return False
 
-    def _let_blocker_pass(self, tc, t, road, pos):
-        """목표 차로 후행차가 버스보다 `BLOCKER_DV` 넘게 빠른 상태가 `BLOCKER_S` 이어지면 비양보형으로 보고, 속도를 줄여
-        먼저 보낸다. 그 차 뒤끝이 버스 앞끝보다 `PASS_MARGIN` 앞서면 속도를 풀고 다시 요청한다. 진행 중이면 True.
-        버스는 상대의 성격(driver.type)을 읽지 않고 속도만 본다."""
-        v = tc.vehicle.getSpeed(BUS)
-        if self._blocker is not None:
-            b = self._blocker
-            gone = b not in tc.vehicle.getIDList()
-            ahead = None if gone else self._route_ahead(tc, b, pos)
-            if ahead is not None:
-                self._blocker_seen = t
-            passed = ahead is not None and ahead - tc.vehicle.getLength(b) > self.PASS_MARGIN
-            lost = ahead is None and t - self._blocker_seen > 3.0      # 노선 밖(다른 길로 갔다)
-            if gone or passed or lost or t - self._blocker_t0 > self.BLOCKER_WAIT_S:
-                self._blocker = None
-                self._release_speed(tc, t)
-                tc.vehicle.changeLane(BUS, self.target, self.REQUEST_DURATION)
-                self.t_phase = t                          # 다시 요청했으니 시간 초과를 새로 센다
-                return False
-            return True
-        f = tc.vehicle.getLeftFollowers(BUS) if self.target > tc.vehicle.getLaneIndex(BUS) \
-            else tc.vehicle.getRightFollowers(BUS)
-        near = [(d, vid) for vid, d in f if vid and 0 <= d <= 50.0]
-        if not near:
-            self._fast_t0 = None
-            return False
-        vid = min(near)[1]
-        if tc.vehicle.getSpeed(vid) > v + self.BLOCKER_DV:
-            self._fast_t0 = t if self._fast_t0 is None else self._fast_t0
-            if t - self._fast_t0 >= self.BLOCKER_S:
-                self._blocker, self._blocker_t0, self._fast_t0, self._blocker_seen = vid, t, None, t
-                if self._slow_t0 is None:
-                    tc.vehicle.setSpeed(BUS, max(v - 3.0, 2.0))
-                    self._slow_t0 = t
-                return True
-        else:
-            self._fast_t0 = None
-        return False
-
-    def _route_ahead(self, tc, vid, pos):
-        """버스 앞끝에서 vid 앞끝까지 버스 노선 거리(앞이면 양수). 노선 위에서 못 찾거나 교차로 안이면 None.
-        도로 이름으로만 비교하면 짧은 다음 도로(R111b 27 m, R54b 38 m)로 넘어간 비양보형을 놓쳤다."""
-        road = tc.vehicle.getRoadID(vid)
-        if road.startswith(":"):
-            return None
-        route, i = tc.vehicle.getRoute(BUS), tc.vehicle.getRouteIndex(BUS)
-        fpos = tc.vehicle.getLanePosition(vid)
-        for j in range(max(0, i - 3), min(len(route), i + 4)):
-            if route[j] != road:
-                continue
-            if j == i:
-                return fpos - pos
-            if j > i:
-                return self._L(route[i]) - pos + sum(self._L(e) for e in route[i + 1:j]) + fpos
-            return -(pos + sum(self._L(e) for e in route[j + 1:i]) + self._L(route[j]) - fpos)
-        return None
-
     def _emergency(self, tc, road, pos):
         """창 밖 예외: 지금 차로가 다음 도로로 이어지지 않는데 도로 끝이 30 m 안이면 옮긴다."""
         lane = tc.vehicle.getLaneID(BUS)
@@ -454,14 +383,6 @@ class TestBusPilot:
                 return 0
         return 0
 
-    def _release_speed(self, tc, t):
-        if self._slow_t0 is not None:
-            tc.vehicle.setSpeed(BUS, -1)
-            self.slowed.append((self.lap, self.why, round(t - self._slow_t0, 1)))
-            self._slow_t0 = None
-
     def _reset(self, tc, t):
-        self._release_speed(tc, t)
         tc.vehicle.setSignals(BUS, 0)
         self.phase, self.t_phase, self.plan, self._chain = "cool", t, None, None
-        self._blocker, self._fast_t0 = None, None

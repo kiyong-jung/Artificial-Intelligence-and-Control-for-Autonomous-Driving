@@ -2,15 +2,14 @@
 
 | 시나리오 | 바퀴마다 | 무엇을 | 어디에 |
 |---|---|---|---|
-| S1 뒤차 | 무작위 정류장 하나에서 버스가 서고 뒤 200 m 안에 차가 없을 때 | 승용차 한 대 | 버스 뒤 `back_s1`(220 m), 같은 차로 |
+| S1 뒤차 | **기본은 끔**(`inject_s1=False`). 켜면 무작위 정류장 하나에서 버스가 서고 뒤 200 m 안에 차가 없을 때 | 승용차 한 대 | 버스 뒤 `back_s1`(220 m), 같은 차로 |
 | S2·S3 후행차 | 차선 변경 창(test_bus.lane_plans: S3 s2 앞, S2 J82·J1 앞) 시작 `lane_lead`(60 m) 앞에서, 목표 차로 뒤 80 m 안에 차가 없으면 | 승용차 한 대 | 버스 뒤 `back_lane`(버스 반경 + 15 m), 목표 차로. 창이 끝날 때까지 차로를 붙잡는다 |
-| S5 끼어들기 | 신호 없는 합류 골목 1~2곳(무작위) | 앞차 무시 확률 1인 끼어들기 차 | 골목 안 합류점 `s5_lead` m 앞(가까우면 골목 시작 쪽) |
+| S5 끼어들기 | 신호 없는 합류 골목 1~2곳(무작위). 버스가 합류점 90~300 m 앞일 때 차를 골목 끝에 세워 둔다. 버스가 45 m 안이면 시험용 버스가 그 차를 본 것으로 보고 줄인다. 버스가 합류점에 2.5~5초 안으로 닿고 버스와 합류점 사이·들어갈 차로가 비었을 때 풀어 끼어들게 한다(버스를 무시). 버스가 더 빠르면 지나간 뒤에 나온다 | 끼어들기 차 | 골목 끝 정지선(앞부분이 합류점 1.5 m 앞) |
 | S6 보행자 | 신호 없는 횡단보도 앞 | 보행자 한 명 | 횡단보도 바로 옆 인도 |
 
 - 바퀴는 시험용 버스 조종의 바퀴 번호(`lap_fn`)로 나눈다. 버스는 바퀴 사이에 사라지지 않는다.
 - 시험용 버스는 S2·S3 상대를 기다리지 않는다. 후행차가 따라잡는다(`_catch_up`): 버스 뒤 `follower_gap`(3~12 m) 밖이면
   버스보다 빠르게 달려 다가오고, 안에 들어오면 버스와 같은 속도로 나란히 간다. A1 상호작용이 시작되면 손을 뗀다.
-  `follower_ready(plan)`으로 시험용 버스에 상대가 가까이 왔는지 알려 준다(버스는 늦으면 속도를 줄인다).
 - 모든 생성은 시험용 버스 반경(`presence.PRESENCE_RADIUS_M`) 밖에서만 하고, 모든 주입 차량의 경로는 지도 경계에서 끝난다.
 - 투입한 것은 `log`에 따로 기록해 자연 발생과 구분한다. 투입된 차는 `carDist`라 주행 모델 4종과 양보 성격이 그대로 붙는다.
 """
@@ -18,7 +17,7 @@ import random
 
 from sumolib.geomhelper import positionAtShapeOffset
 
-from .presence import PERSON_MARGIN_M, PRESENCE_RADIUS_M, far_from_bus, nearest_boundary_exit, sidewalk_xy
+from .presence import PERSON_MARGIN_M, PRESENCE_RADIUS_M, SPAWN_MARGIN_M, far_from_bus, nearest_boundary_exit, sidewalk_xy
 from .signal_areas import is_signalized
 
 from .yield_logic import A1_TRIGGER_GAP_M
@@ -26,8 +25,12 @@ from .yield_logic import A1_TRIGGER_GAP_M
 CATCH_UP_DV, CATCH_UP_OVER_LIMIT, DROP_BACK_DV = 8.0, 8.0, 3.0   # 후행차 따라잡기: 버스 + 최대 8 m/s, 제한 속도 + 8 m/s까지
 # A1은 TraCI 후행차 간격(최소 간격을 뺀 값)이 3 m 안일 때 시작한다. 노선 거리(앞끝·뒤끝 사이)로는 최소 간격 2.5 m를 더한다
 FOLLOWER_MIN_GAP_M = 2.5
-CUT_LEAD_S = 4.0          # 끼어들기 차가 버스보다 이만큼 먼저 합류점에 닿게 출발시킨다(3초에서는 버스가 가속해 교차로 안에서 겹쳤다)
-IGNORE_MARGIN_S = 2.0     # 차가 이만큼 넘게 먼저 닿을 때만 시험용 버스를 무시한다. 아니면 보통 차처럼 양보한다
+# S5: 골목 끝에 끼어들기 차를 세워 두고, 버스가 합류점에 곧 닿을 때 풀어 준다(버스는 기다리지 않는다)
+S5_PLACE_MIN_M, S5_PLACE_MAX_M = 90.0, 300.0   # 버스가 합류점에서 이 거리 안일 때 골목 끝에 차를 세워 둔다
+S5_HOLD_BACK_M, S5_STOP_BEFORE_END_M = 10.0, 1.5   # 정지선 10 m 뒤에서 출발해 앞부분이 합류점 1.5 m 앞에 선다
+S5_GO_ETA_MIN_S, S5_GO_ETA_MAX_S = 2.5, 5.0    # 버스가 합류점에 닿기까지 이 시간 안일 때만 풀어 끼어들게 한다(더 빠르면 대기)
+S5_CLEAR_AHEAD_M = 30.0                         # 합류 도로에서 이 거리 안의 들어갈 차로에 다른 차가 없어야 한다
+S5_SEE_M, S5_SEE_FRAC, S5_SEE_MIN_SPEED = 45.0, 0.5, 3.0   # 버스가 골목 차를 볼 수 있는 거리, 그때 줄이는 속도 비율(제한 속도 기준)
 LET_GO_AHEAD_M = 10.0      # 후행차가 버스 뒤끝보다 이만큼 앞서 있으면(이미 지나갔으면) 놓는다
 
 BLINKER_RIGHT, BLINKER_LEFT = 1, 2
@@ -41,14 +44,15 @@ class ScenarioInjector:
                  follower_gap=(0.0, A1_TRIGGER_GAP_M + FOLLOWER_MIN_GAP_M),
                  lane_lead=300.0,
                  s6_edges=("-R112", "R112.112"), s6_edge_before="R112", s5_lead=60.0, follower_check=80.0,
-                 dwell_s=8.0, stop_ids=None):
+                 dwell_s=8.0, stop_ids=None, inject_s1=False):
         # dwell_s: 시험용 버스의 정류장 정차 시간. stop_ids: 버스가 실제로 서는 정류장(없으면 stops 전부).
         # 끼어들기 출발 시점에 버스의 정차 시간을 넣는다(X_dongmak6은 s2 끝 바로 뒤에서 합류해 정차 중에 골목 차가 먼저 지나갔다)
+        # inject_s1: False(기본)면 S1(정차 버스 뒤 차 한 대) 주입을 끈다. 정차 시각 기록은 S5 출발 시점에 쓰므로 그대로 한다.
+        self.inject_s1 = inject_s1
         self.platoon_n, self.platoon_gap = 3, 14.0       # 적색 대기 중 넣는 후행차 수와 간격(m)
         self.dwell_s = dwell_s
         self.stop_ids = set(stop_ids) if stop_ids is not None else {s["id"] for s in stops}
         self._stop_t0, self._left_stop = None, None
-        self._ignore_pending = {}                  # 끼어들기 차 id -> 그 골목
         self._t_now, self._cur_alley = 0.0, None
         self.tc, self.net, self.bus = traci, net, bus_id
         self.stops = {s["id"]: s for s in stops}
@@ -76,7 +80,7 @@ class ScenarioInjector:
                      "S3": next((p for p in self.plans if p.kind == "S3"), None),
                      "S2": [p for p in self.plans if p.kind == "S2"],
                      "lane": {}, "lane_done": set(),
-                     "S5": self.rng.sample(self.alleys, k) if k else [], "s5_done": set(),
+                     "S5": self.rng.sample(self.alleys, k) if k else [], "s5_done": set(), "s5": {},
                      "S6": False}
 
     # ---- 경로 위 거리(모두 시험용 버스의 경로 기준) --------------------------------------------
@@ -143,8 +147,8 @@ class ScenarioInjector:
     def _add_car(self, kind, route_edges, lane, pos, vtype="carDist", speed="max"):
         """(차 id, 이유). 버스 반경 안이면 ("", "near_bus"), 넣지 못하면 ("", "failed")."""
         pos = max(1.0, pos)
-        if not far_from_bus(self.tc, self.bus, self._xy(route_edges[0], pos), PRESENCE_RADIUS_M):
-            return "", "near_bus"
+        if not far_from_bus(self.tc, self.bus, self._xy(route_edges[0], pos), PRESENCE_RADIUS_M + SPAWN_MARGIN_M):
+            return "", "near_bus"       # 한 스텝에 버스와 차가 가까워지는 여유(SPAWN_MARGIN_M)를 더한다
         self._seq += 1
         vid, rid = f"inj_{kind}{self._seq}", f"r_inj_{kind}{self._seq}"
         try:
@@ -152,40 +156,7 @@ class ScenarioInjector:
             self.tc.vehicle.add(vid, rid, typeID=vtype, departLane=lane, departPos=f"{pos:.1f}", departSpeed=speed)
         except Exception:
             return "", "failed"
-        if kind == "s5":
-            self._ignore_pending[vid] = self._cur_alley  # 끼어들기 차는 시험용 버스보다 먼저 닿을 때만 버스를 무시한다
         return vid, "injected"
-
-    def _set_ignore(self):
-        """끼어들기 차가 시험용 버스보다 먼저 합류점에 닿을 때만 junctionModel.ignoreIDs로 버스를 무시하게 한다.
-
-        항상 무시하게 했더니 버스가 먼저 합류점을 지나는데도 차가 비켜 주지 않고 부딪혔다(busy 측정 12 샘플). 차가 1초 넘게 먼저
-        닿을 때만 무시하고, 버스가 먼저 닿으면 보통 차처럼 양보한다. 배경 차는 어느 쪽이든 무시하지 않는다.
-        """
-        if not self._ignore_pending:
-            return
-        tc = self.tc
-        ids = set(tc.vehicle.getIDList())
-        st = self._state() if self.bus in ids else None
-        for vid, a in list(self._ignore_pending.items()):
-            if vid not in ids:
-                continue                                  # 아직 SUMO 목록에 나타나지 않았다
-            if tc.vehicle.getRoadID(vid) != a.feeder:
-                del self._ignore_pending[vid]             # 골목을 벗어났다(합류 중이거나 지났다): 더는 정하지 않는다
-                continue
-            if st is None:
-                continue
-            d_bus = self._dist_to(st, a.into, 0.0)
-            if d_bus is None:
-                continue
-            remain = self.net.getEdge(a.feeder).getLength() - tc.vehicle.getLanePosition(vid)
-            eta_car = remain / max(tc.vehicle.getSpeed(vid), 2.0)
-            if eta_car + IGNORE_MARGIN_S < self._bus_eta(self._t_now, st, d_bus, a.into):
-                try:
-                    tc.vehicle.setParameter(vid, "junctionModel.ignoreIDs", self.bus)
-                except Exception:
-                    pass
-                del self._ignore_pending[vid]
 
     def _record(self, kind, t, ok, vid=None):
         self.log.append({"t": round(t, 1), "lap": len(self._laps_done) + 1, "kind": kind, "ok": ok, "id": vid})
@@ -200,7 +171,6 @@ class ScenarioInjector:
             self._new_lap(t)
         tc = self.tc
         self._t_now = t
-        self._set_ignore()
         if self.bus not in tc.vehicle.getIDList():
             return
         self._catch_up(t)
@@ -222,7 +192,7 @@ class ScenarioInjector:
             if self._was_stopped:
                 self._left_stop = tc.vehicle.getRoadID(self.bus)     # 방금 떠난 정류장 도로(다시 '앞의 정류장'으로 보지 않는다)
             self._stop_t0 = None
-        if stopped and not self._was_stopped and not lap["s1"]:
+        if stopped and not self._was_stopped and not lap["s1"] and self.inject_s1:
             here = tc.vehicle.getRoadID(self.bus)
             at = next((sid for sid, s in self.stops.items() if s["edge"] == here), None)
             if at == lap["s1_stop"]:
@@ -428,16 +398,6 @@ class ScenarioInjector:
                 best = (vid, d + FOLLOWER_MIN_GAP_M)
         return best
 
-    def follower_ready(self, plan):
-        """이번 창의 상대(버스에 가장 가까운 목표 차로 후행차)가 버스 뒤 follower_gap 안에 있으면 True, 아직 멀면 False,
-        상대가 없으면 None. 주입한 차가 아니어도 더 가까운 차가 있으면 그 차가 상대다."""
-        if self._lap is None or plan is None:
-            return None
-        p = self._partner(plan, self._lap["lane"].get(self._key(plan)))
-        if p is None:
-            return None
-        return self.follower_gap[0] <= p[1] <= self.follower_gap[1]
-
     def _catch_up(self, t):
         tc = self.tc
         if self._lap is None or not self._lap["lane"]:
@@ -510,39 +470,128 @@ class ScenarioInjector:
         return d / v
 
     def _s5(self, t, st):
-        tc, lap = self.tc, self._lap
+        """S5: 골목 끝(정지선)에 끼어들기 차를 세워 두었다가, 버스가 합류점에 곧 닿을 때 풀어 끼어들게 한다. 버스는 기다리지 않는다."""
+        lap = self._lap
         for a in lap["S5"]:
             if a.junction in lap["s5_done"]:
                 continue
-            d = self._dist_to(st, a.into, 0.0)
-            if d is None or d < 0:
-                continue                                  # 이번 바퀴에 아직 앞에 없다(또는 지났다)
-            j_into = self._ahead_index(st[0], st[1], a.into, span=40)
-            if j_into is not None and self._signal_ahead(st[0], st[1], j_into):
-                continue                                  # 버스와 합류점 사이에 신호가 있다: 지난 뒤에 넣는다(적색 대기 중 넣으면 차만 먼저 지나간다)
-            if d < 30.0 and self._stop_t0 is None and not self._stop_pending(st, a.into):
-                lap["s5_done"].add(a.junction)
-                self._record("S5", t, "late")
-                continue
-            eta = self._bus_eta(t, st, d, a.into)
-            feeder_len = self.net.getEdge(a.feeder).getLength()
-            try:                                              # 골목 제한 속도로 계산한다(G23 5.56 m/s). 8 m/s로 가정하면 3초 늦게 닿았다
-                v_alley = max(2.0, min(8.0, tc.lane.getMaxSpeed(f"{a.feeder}_0")))
+            d = self._dist_to(st, a.into, 0.0) if st is not None else None
+            rec = lap["s5"].get(a.junction)
+            if rec is None:
+                self._s5_place(t, st, a, d)
+            else:
+                self._s5_hold(t, st, a, d, rec)
+
+    def _s5_place(self, t, st, a, d):
+        lap = self._lap
+        if d is None or d < 0:
+            return                                        # 이번 바퀴에 아직 앞에 없다(또는 지났다)
+        j_into = self._ahead_index(st[0], st[1], a.into, span=40)
+        if j_into is not None and self._signal_ahead(st[0], st[1], j_into):
+            return                                        # 버스와 합류점 사이에 신호가 있다: 지난 뒤에 세운다
+        if d < S5_PLACE_MIN_M and self._stop_t0 is None and not self._stop_pending(st, a.into):
+            lap["s5_done"].add(a.junction)
+            self._record("S5", t, "late")                 # 버스가 너무 가까워 골목 끝에 미리 세워 둘 수 없다
+            return
+        if d > S5_PLACE_MAX_M:
+            return
+        feeder_len = self.net.getEdge(a.feeder).getLength()
+        self._cur_alley = a
+        vid, why = self._add_car("s5", [a.feeder, a.into], "0", feeder_len - S5_HOLD_BACK_M, vtype=self.cutin_type,
+                                 speed="0")
+        if vid:
+            lap["s5"][a.junction] = {"vid": vid, "t0": t, "seen": False, "cmd": False, "released": False}
+            self._record("S5", t, "injected", vid)
+
+    def _s5_hold(self, t, st, a, d, rec):
+        tc, lap = self.tc, self._lap
+        vid = rec["vid"]
+        if vid not in tc.vehicle.getIDList():
+            if rec["seen"] or t - rec["t0"] > 10.0:
+                lap["s5_done"].add(a.junction)            # 사라졌거나 끝내 나타나지 않았다
+            return
+        rec["seen"] = True
+        feeder_len = self.net.getEdge(a.feeder).getLength()
+        if not rec["cmd"]:                                # 정지선 앞에서 서 있게 한다(앞부분이 합류점 가까이, 뒷부분은 골목)
+            try:
+                tc.vehicle.setStop(vid, a.feeder, pos=feeder_len - S5_STOP_BEFORE_END_M, laneIndex=0, duration=1e5)
             except Exception:
-                v_alley = 8.0
-            # 버스가 합류점에 닿을 시각보다 CUT_LEAD_S초 먼저 닿도록, 골목 안 어디서 출발할지 계산한다. 출발 위치를 고정하면
-            # 짧은 골목(G23 59 m)에서 신호를 지난 버스가 합류점까지 11초인데 차는 골목 시작에서 10초 걸려 1초밖에 못 앞섰다.
-            travel = eta - CUT_LEAD_S - 0.5                   # 차가 골목에서 달릴 시간
-            if travel * v_alley > feeder_len - 1.0:
-                continue                                      # 아직 이르다: 골목 시작에서 출발해도 너무 일찍 닿는다
-            main = max(1.0, feeder_len - 3.0 - travel * v_alley) if travel > 0 else feeder_len - 3.0
-            for spawn_pos in sorted({main, max(1.0, main - 40.0), 1.0}, reverse=True):
-                self._cur_alley = a
-                vid, why = self._add_car("s5", [a.feeder, a.into], "0", spawn_pos, vtype=self.cutin_type)
-                if vid:
-                    lap["s5_done"].add(a.junction)
-                    self._record("S5", t, "injected", vid)
-                    break
+                lap["s5_done"].add(a.junction)
+                return
+            rec["cmd"] = True
+        if tc.vehicle.getRoadID(vid) != a.feeder:
+            lap["s5_done"].add(a.junction)                # 골목을 벗어났다(합류 중이거나 지났다)
+            return
+        if rec["released"] or st is None:
+            return
+        passed = d is None or d < 0
+        if passed:                                        # 버스가 먼저 지나갔다: 보통 차처럼 나온다(길을 터 준 셈이다)
+            self._s5_release(vid, ignore=False)
+            rec["released"] = True
+            return
+        eta = self._bus_eta(t, st, d, a.into)
+        if S5_GO_ETA_MIN_S <= eta <= S5_GO_ETA_MAX_S and self._merge_clear(st, a, vid):
+            if self._s5_release(vid, ignore=True):
+                rec["released"] = True
+
+    def _s5_release(self, vid, ignore):
+        tc = self.tc
+        try:
+            tc.vehicle.resume(vid)                        # 아직 정지선에 서지 않았으면 실패한다: 다음 스텝에 다시 한다
+        except Exception:
+            return False
+        if ignore:
+            try:
+                tc.vehicle.setParameter(vid, "junctionModel.ignoreIDs", self.bus)
+            except Exception:
+                pass
+        return True
+
+    def _merge_clear(self, st, a, own_vid):
+        """끼어들기 차와 버스 사이, 그리고 차가 들어갈 차로에 다른 차가 없는가.
+
+        버스에서 합류점까지 사이 도로(어느 차로든)와 합류 교차로 안, 합류 도로 앞 `S5_CLEAR_AHEAD_M` m 안의 들어갈 차로를 본다."""
+        tc = self.tc
+        route, i, pos, _ = st
+        j = self._ahead_index(route, i, a.into, span=40)
+        if j is None:
+            return False
+        lanes = {c.getToLane().getIndex() for c in self.net.getEdge(a.feeder).getConnections(self.net.getEdge(a.into))}
+        skip = {self.bus, own_vid}
+        for k in range(i, j):                             # 버스 앞 ~ 합류 도로 직전
+            for v in tc.edge.getLastStepVehicleIDs(route[k]):
+                if v in skip:
+                    continue
+                if k == i and tc.vehicle.getLanePosition(v) <= pos:
+                    continue                              # 버스 뒤
+                return False
+        for v in tc.edge.getLastStepVehicleIDs(a.into):
+            if v in skip:
+                continue
+            if tc.vehicle.getLanePosition(v) <= S5_CLEAR_AHEAD_M and tc.vehicle.getLaneIndex(v) in lanes:
+                return False
+        for v in tc.vehicle.getIDList():                  # 합류 교차로 안
+            if v not in skip and tc.vehicle.getRoadID(v).startswith(f":{a.junction}"):
+                return False
+        return True
+
+    def bus_speed_limit(self):
+        """시험용 버스의 속도 제한(m/s) 또는 None. 골목 끝에 끼어들기 차가 대기 중이고 버스가 합류점 `S5_SEE_M` m 안이면
+        버스가 그 차를 본 것으로 보고 제한 속도의 `S5_SEE_FRAC` 배로 줄인다(의미 있는 상호작용). 차가 골목을 벗어나면 푼다."""
+        lap = self._lap
+        if lap is None or not lap["s5"]:
+            return None
+        st = self._state()
+        if st is None:
+            return None
+        for a in lap["S5"]:
+            rec = lap["s5"].get(a.junction)
+            if not rec or not rec["seen"] or a.junction in lap["s5_done"]:
+                continue
+            d = self._dist_to(st, a.into, 0.0)
+            if d is not None and 0.0 <= d <= S5_SEE_M:
+                return max(S5_SEE_MIN_SPEED, S5_SEE_FRAC * self.tc.vehicle.getAllowedSpeed(self.bus))
+        return None
 
     # ---- S6 ---------------------------------------------------------------------------------
     def _s6(self, t, st):

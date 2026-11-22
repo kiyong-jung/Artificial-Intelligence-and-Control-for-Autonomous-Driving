@@ -106,6 +106,17 @@ class _V:
     def getLaneID(self, v):
         return "R71_2"
 
+    def getAllowedSpeed(self, v):
+        return 13.89
+
+    def setStop(self, vid, edge, pos=1.0, laneIndex=0, duration=-1, **kw):
+        self.tc.stops_set.append((vid, edge, round(pos, 3), laneIndex, duration))
+
+    def resume(self, vid):
+        if self.tc.resume_fail:
+            raise RuntimeError("not stopped")
+        self.tc.resumed.append(vid)
+
 
 class _R:
     def __init__(self, tc):
@@ -124,8 +135,14 @@ class _L:
 
 
 class _E:
+    def __init__(self, tc=None):
+        self.tc = tc
+
     def getLaneNumber(self, e):
         return _net().getEdge(e).getLaneNumber()
+
+    def getLastStepVehicleIDs(self, e):
+        return tuple(self.tc.edge_vehicles.get(e, ()))
 
 
 class _P:
@@ -141,12 +158,14 @@ class _FakeTC:
         self.route = _route()
         self.cars, self.added, self.routes, self.set_speed, self.lc_mode = [], [], {}, {}, {}
         self.stop_state = 0
+        self.stops_set, self.resumed, self.resume_fail = [], [], False
+        self.edge_vehicles = {}          # 도로 id -> 차 id 목록(버스 제외)
         self.params = {}                 # (차 id, 키) -> 값
         self.roads, self.lane_pos = {}, {}   # 다른 차 id -> 도로 / 도로 위 위치(없으면 버스와 같다)
         self.left_followers, self.right_followers = [], []     # 버스 옆 차로의 후행차 [(id, TraCI 간격)]
         self.lanes = {}                  # 다른 차 id -> 차로 번호
         self.vehicle = _V(self)
-        self.lane, self.edge, self.person = _L(), _E(), _P()
+        self.lane, self.edge, self.person = _L(), _E(self), _P()
 
 
 class _TC2:
@@ -183,23 +202,6 @@ def test_new_lap_follows_pilot_lap_not_bus_presence():
     lap["n"] = 2
     inj.update(2.0)
     assert len(inj._laps_done) == 1
-
-
-def test_follower_ready_only_when_close_behind():
-    tc = _TC2(bus_road="R112.221", bus_pos=10.0)                 # J1 창(R42 앞)은 아직 멀다
-    inj = _inj(tc)
-    inj.update(0.0)
-    plan = inj._lap["S2"][1]
-    assert inj.follower_ready(plan) is None                     # 상대가 없다
-    tc.f.cars.append("f")
-    inj._track(plan, "f", 0.0)
-    gaps = {"g": 20.0}
-    inj._follower_gap = lambda vid, p: gaps["g"]
-    assert inj.follower_ready(plan) is False
-    gaps["g"] = 8.0                                             # 예전 기준(3~12 m)으로는 준비됨이었다
-    assert inj.follower_ready(plan) is False
-    gaps["g"] = 4.0                                             # A1 시작 거리(3 m + 최소 간격 2.5 m) 안
-    assert inj.follower_ready(plan) is True
 
 
 def test_catch_up_speeds_follower_toward_bus_then_matches():
@@ -241,9 +243,9 @@ def test_nearest_follower_is_the_partner_whoever_it_is():
     tc.f.cars += ["inj", "nat"]
     inj._track(plan, "inj", 0.0)
     inj._follower_gap = lambda vid, p: 30.0                       # 주입 차는 30 m 뒤
-    assert inj.follower_ready(plan) is False
+    assert inj._partner(plan, inj._lap["lane"].get(inj._key(plan)))[0] == "inj"
     tc.f.left_followers = [("nat", 2.0)]                          # 자연 후행차가 버스 2 m 뒤(왼쪽 차로)
-    assert inj.follower_ready(plan) is True                       # 상대가 바뀌었다
+    assert inj._partner(plan, inj._lap["lane"].get(inj._key(plan)))[0] == "nat"   # 상대가 바뀌었다
     inj._catch_up(0.1)
     assert tc.f.set_speed["inj"] == -1 and inj._lap["lane"][("S2", "R42")]["released"]   # 주입 차는 손을 뗀다
 
@@ -273,64 +275,8 @@ def _near_merge():
     return _net().getEdge("R71").getLength() - 40.0           # 합류점(R71.135 시작) 40 m 앞
 
 
-def test_cutter_uses_full_ignore_type_and_ends_at_boundary():
-    tc = _TC2(bus_road="R71", bus_pos=_near_merge())
-    inj = _inj(tc, alleys=_dongmak3())
-    inj.update(0.0)
-    inj._s5(0.1, inj._state())
-    cut = [a for a in tc.f.added if a["id"].startswith("inj_s5")]
-    assert cut and cut[0]["type"] == "carDist" and cut[0]["route"][0] == "G3"
-    assert ends_at_boundary(_net(), cut[0]["route"][-1])
 
 
-def test_cutter_spawns_where_it_reaches_the_merge_4s_before_the_bus():
-    # S5 후보 골목(X_dongmak6 G12, X_jandari2 G23)에서, 출발 위치를 고정하면 버스와 1초밖에 못 앞섰다. 버스가 합류점에 닿을 시각보다
-    # 4초 먼저 닿도록 골목 안에서 그만큼 거리를 남긴 자리에서 출발시킨다
-    from traffic.test_bus import _back
-    route = _route()
-    for junction, back in (("X_jandari2", 80.0), ("X_jandari2", 90.0)):          # 8 m/s로 10초, 11.25초(정류장이 없는 구간)
-        a = [x for x in _alleys() if x.junction == junction]
-        L = _net().getEdge(a[0].feeder).getLength()
-        edge, pos = _back(_net(), route, route.index(a[0].into), 0.0, back)
-        tc = _TC2(bus_road=edge, bus_pos=pos)
-        tc.f.lane.getMaxSpeed = lambda lane: 5.56 if lane.startswith("G") else 13.89   # 골목 제한 속도
-        inj = _inj(tc, alleys=a)
-        inj.update(0.0)
-        inj._s5(0.1, inj._state())
-        cut = [x for x in tc.f.added if x["id"].startswith("inj_s5")]
-        assert cut, (junction, back)
-        arrive = (L - float(cut[0]["departPos"]) - 3.0) / 5.56 + 0.5
-        assert arrive == pytest.approx(back / 8.0 - 4.0, abs=0.8), (junction, back)
-
-
-def test_cutter_timing_counts_bus_dwell_at_stop_before_merge():
-    # X_dongmak6(G12 -> R71.256)는 성산중학교(s2) 끝 바로 뒤에서 합류한다. 버스가 s2에 서 있는 동안 남은 정차 시간을 세지
-    # 않으면 골목 차가 너무 일찍(또는 '늦음'으로) 처리되어 3바퀴째 S5가 0이었다
-    a = [x for x in _alleys() if x.junction == "X_dongmak6"]
-    tc = _TC2(bus_road="R71.206", bus_pos=38.0, bus_speed=0.0)
-    inj = _inj(tc, alleys=a)
-    inj.update(0.0)
-    tc.f.stop_state = 1 | 16                                   # 정류장에 섰다
-    inj.update(0.1)                                            # 정차 시작 시각을 기록한다
-    inj._s5(1.0, inj._state())                                 # 남은 정차 7초: 아직 이르다
-    assert not any(x["id"].startswith("inj_s5") for x in tc.f.added)
-    assert "X_dongmak6" not in inj._lap["s5_done"]             # '늦음'으로 끝내지 않는다
-    inj._s5(6.5, inj._state())                                 # 남은 정차 약 1.6초: 골목 차가 먼저 합류점에 닿을 때
-    assert any(x["id"].startswith("inj_s5") for x in tc.f.added)
-
-
-def test_stop_after_the_merge_point_does_not_delay_cutter():
-    # X_jandari3(G18 -> -R96.201)은 서교동교회(s5) 정류장 도로 시작에서 합류한다. 정류장은 합류점 뒤라 버스가 서기 전에 합류점을
-    # 지난다. 이 정차 시간을 더하면 출발 조건을 끝내 못 맞춰 세 시나리오 모두 2바퀴째 주입이 없었다
-    from traffic.test_bus import _back
-    a = [x for x in _alleys() if x.junction == "X_jandari3"]
-    route = _route()
-    edge, pos = _back(_net(), route, route.index(a[0].into), 0.0, 80.0)        # 합류점 80 m 앞(8 m/s로 10초)
-    tc = _TC2(bus_road=edge, bus_pos=pos)
-    inj = _inj(tc, alleys=a)
-    inj.update(0.0)
-    inj._s5(0.1, inj._state())
-    assert any(x["id"].startswith("inj_s5") for x in tc.f.added)
 
 
 def test_no_spawn_within_radius_of_bus():
@@ -452,7 +398,8 @@ def test_j1_follower_is_in_the_lane_feeding_the_left_turn_lane():
     # 좌회전 도착 도로(R68)까지 버스와 같은 길로 가야 SUMO가 좌회전 차로(R54b 4 -> R54 5)를 고른다. 예전에는 R42에서
     # 곧장 나가는 경로라 R54b 3 -> R54 4(버스의 중간 목표 차로)로 가 중간 변경에서 A1이 켜지고 마지막 변경 상대가 없었다
     assert lane[0]["route"][:5] == ["R54a", "R54b", "R54", "R42", "R68"]
-    assert inj.follower_ready(inj._lap["S2"][1]) is not None
+    p = inj._lap["S2"][1]
+    assert inj._partner(p, inj._lap["lane"].get(inj._key(p))) is not None
 
 
 def test_released_follower_gets_its_lane_change_mode_back():

@@ -31,10 +31,13 @@ from .pedestrian import ped_vtypes_xml
 from .runner import run as run_loop
 from .sumo_conn import traci, sumo_cmd
 from .bus_traffic import BusTrafficCfg, build_bus_traffic
+from .density_keeper import DEFAULT_DENSITY_PER_100M, DensityKeeper
+from .flow_balance import balance_factors, edges_named, redirect_flows, route_touching, segment_before_node
 from .interior_spawner import InteriorSpawner
+from .near_bus_density import NearBusDensity
 from .person_spawner import PersonSpawner, extract_persons
 from .lane_route import LaneRouteAdapter
-from .presence import VehicleArrivalGuard
+from .presence import PRESENCE_RADIUS_M, SPAWN_MARGIN_M, VehicleArrivalGuard
 from .scenario_injector import ScenarioInjector
 from .right_turn import apply_right_on_red
 from .signal_areas import clip_zones, unsignalized_alleys, unsignalized_crossings
@@ -44,6 +47,8 @@ from .stop_bypass import StopBypassManager
 from .yield_logic import YieldManager, DEFAULT_TYPES, Trigger, Zone
 
 MAP_ID = "hapjeong"
+# S4(정류장 앞 정차) 후보 정류장: s2 성산중학교(독막로)와 s6 합정역(양화로). 와우산로의 s4·잔다리로의 s5는 투입하지 않으려고 뺐다
+STOP_AHEAD_STOPS = (STOP_AT[0], STOP_AT[3])
 S6_EDGES = ("-R112", "R112.112")       # 와우산로. 이 둘을 모두 걷는 보행자가 S6 횡단보도를 건넌다(R112가 R112.112 등으로 나뉘기 전 이름 R112로는 s6ped가 빠졌다)
 # S5 끼어들기 후보 골목 (교차로, 골목 도로, 합류하는 버스 도로). 둘 다 신호 없는 교차로다
 S5_ALLEYS = {("X_dongmak6", "G12", "R71.256"), ("X_jandari2", "G23", "-R96.119")}
@@ -112,9 +117,20 @@ class HapjeongTraffic:
     def __init__(self, out_dir, scenario="baseline", seed=0, *, yield_mix=None, cutin=True,
                  cutin_bins=None, ped_mix=0.5, ped_v_low=1.5, taxi_depart=None, stopped=None, merge_route=None,
                  bus_traffic=None, right_on_red=True, right_on_red_exclude=("J1", "J82", "J83", "J42"),
-                 interior_share=0.3, interior_min_dist=200.0):
+                 interior_share=0.3, interior_min_dist=PRESENCE_RADIUS_M + SPAWN_MARGIN_M, density=DEFAULT_DENSITY_PER_100M, near_bus_density=False, route_flow_boost=1.3,
+                 avoid_roads=("와우산로", "잔다리로"), no_boost_node="J82"):
+        # density: 양화로·독막로·잔다리로·와우산로 구간별 목표 밀도(대/100 m). DensityKeeper가 버스 반경 밖에서 차를 넣고 빼서 맞춘다(None이면 끈다).
+        # near_bus_density: True면 버스 주변 50 m에 차가 모자랄 때 뒤차는 빨리, 앞차는 느리게 달리게 한다(시험용 버스가 있을 때만 쓴다).
+        # **기본은 끈다**(사용자 결정): 켠 측정(D)에서 바퀴 시간 증가·충돌 사건이 나왔고 원인은 확인하지 못했다(VERIFICATION.md).
+        # route_flow_boost: 시험용 버스 노선 구간을 지나는 배경 흐름(전체의 38 %)의 배율. 지나지 않는 흐름을 줄여 전체 대수는 그대로 둔다
+        # (flow_balance.py). 1.0이면 키우지 않는다.
+        self.density, self.near_bus_density, self.route_flow_boost = density, near_bus_density, route_flow_boost
+        # avoid_roads: 이름이 이 도로인 곳에는 차를 투입하지 않고(입구 없앰, 키퍼·내부 투입 제외) 그 도로를 지나거나 가는 흐름은 목적지를
+        # 바꿔 J82·J83 같은 교차로에서 다른 도로로 빠지게 한다. no_boost_node: 이 신호 교차로로 들어가는 구간을 지나는 흐름은 키우지 않는다.
+        self.avoid_roads, self.no_boost_node = tuple(avoid_roads), no_boost_node
+        self.keeper, self.near_density = None, None
         # interior_share: 입구 배경 차량 흐름 중 이 비율을 노선 위 임의의 지점에서 출발시킨다(0이면 끈다). 시험용 버스에서
-        # interior_min_dist m 안에서는 투입하지 않아 눈앞에 갑자기 생기지 않는다.
+        # interior_min_dist m(버스 반경 50 m + 여유 5 m) 안에서는 투입하지 않아 눈앞에 갑자기 생기지 않는다.
         self.interior_share, self.interior_min_dist = interior_share, interior_min_dist
         # right_on_red: True면 신호 교차로의 우회전이 신호와 무관하게 간다. 단 우회전 차가 지나는 횡단보도의 보행자 신호가
         # 적색이고 겹치는 직진·좌회전이 녹색이 아닌 위상에서만 열린다(신호 프로그램만 바꾼다). exclude는 합정역 사거리(J1)와
@@ -158,6 +174,8 @@ class HapjeongTraffic:
         with open(os.path.join(self.out_dir, "persons.json"), "w", encoding="utf-8") as f:
             json.dump(persons, f, ensure_ascii=False)
         self.summary["persons"] = len(persons)
+        if self.route_flow_boost > 1.0 or self.avoid_roads:         # 피할 도로 처리는 boost와 상관없이 한다
+            self.summary["flow_balance"] = self._balance_flows(self.route_flow_boost)
         self.interior_per_h = 0.0
         if self.interior_share > 0:
             self.interior_per_h = self._shift_entry_flows(self.interior_share)
@@ -240,6 +258,41 @@ class HapjeongTraffic:
         return {f"cutin_{i}": (b[4] if len(b) > 4 else min(1.0, max(0.0, AGGRESSION.aggressiveness_from_ignore(b[0]))))
                 for i, b in enumerate(bins)}
 
+    def _balance_flows(self, boost):
+        """배경 입구 흐름(carDist)을 고친다. 1) 피할 도로(와우산로·잔다리로)에서 시작하는 입구는 없애고, 그 도로를 지나거나 가는 흐름은 목적지를
+        바꿔 다른 도로로 빠지게 한다. 2) 노선(양화로·독막로) 구간을 지나는 흐름은 boost배로 키운다. 단 no_boost_node(J82) 접근로를 지나는
+        흐름은 키우지 않는다. 나머지 흐름은 전체 대수가 처음과 같도록 배율을 정한다."""
+        path = os.path.join(self.out_dir, "routes.rou.xml")
+        tree = ET.parse(path)
+        root = tree.getroot()
+        flows = [f for f in root.iter("flow")
+                 if f.get("type") == "carDist" and (f.get("period") or "").startswith("exp(") and f.get("from") and f.get("to")]
+        recs = [{"id": f.get("id"), "from": f.get("from"), "to": f.get("to"), "rate": float(f.get("period")[4:-1]) * 3600.0}
+                for f in flows]
+        total0 = sum(r["rate"] for r in recs)
+        net = read_net(os.path.join(self.out_dir, "network.net.xml"))
+        loop = close_loop(net, load_map(MAP_ID)["routes"]["bus_loop"])
+        avoid = edges_named(net, self.avoid_roads)
+        stats = redirect_flows(net, recs, avoid, random.Random(self.seed + 9)) if avoid else             {"no_insert": 0, "redirected": 0, "dropped": 0, "removed_per_h": 0.0}
+        corridor = set(segment_before_node(net, loop, self.no_boost_node)) if self.no_boost_node else set()
+        boostable = {e for e in loop if net.hasEdge(e) and net.getEdge(e).getName() in ("양화로", "독막로") and e not in corridor}
+        hit = route_touching(net, {(r["from"], r["to"]) for r in recs if r["rate"] > 0}, boostable, forbidden=corridor | avoid)
+        touching = {r["id"] for r in recs if r["rate"] > 0 and (r["from"], r["to"]) in hit}
+        rates = {r["id"]: r["rate"] for r in recs}
+        on_f, off_f = balance_factors(rates, touching, boost, target_total=total0)
+        before = sum(r["rate"] for r in recs if r["id"] in touching)
+        for f, r in zip(flows, recs):
+            if r["rate"] <= 0:
+                root.remove(f)                       # 투입 없음
+                continue
+            f.set("to", r["to"])
+            f.set("period", f"exp({r['rate'] / 3600.0 * (on_f if r['id'] in touching else off_f):.6f})")
+        tree.write(path, encoding="utf-8", xml_declaration=True)
+        return {"boost": boost, "on_factor": round(on_f, 4), "off_factor": round(off_f, 4), "flows": len(recs),
+                "route_flows": len(touching), "on_per_h_before": round(before, 1), "on_per_h_after": round(before * on_f, 1),
+                "total_per_h": round(total0, 1), "avoid_roads": list(self.avoid_roads), "no_boost_edges": sorted(corridor),
+                **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in stats.items()}}
+
     def _shift_entry_flows(self, share):
         """입구에서 들어오는 배경 차량(carDist) 흐름을 share 비율만큼 줄이고, 그 대수(대/시간)를 돌려준다.
         줄인 만큼은 InteriorSpawner가 노선 위 임의의 지점에서 넣어 전체 대수를 지킨다."""
@@ -288,12 +341,15 @@ class HapjeongTraffic:
             net = read_net(os.path.join(self.out_dir, "network.net.xml"))
             self.summary["right_on_red"] = apply_right_on_red(traci, net, exclude=self.right_on_red_exclude)
         self.interior = self._make_interior("bus0")
+        self.keeper = self._make_keeper("bus0")
         self.persons = self._make_person_spawner("bus0")
         for k in range(int(round(warmup / 0.1))):
             if self.persons is not None:
                 self.persons.update(traci.simulation.getTime())
             if self.interior is not None:
                 self.interior.update(k * 0.1)      # 예열 중에도 노선 위에서 출발시켜 시작 때부터 밀도를 맞춘다
+            if self.keeper is not None:
+                self.keeper.update(k * 0.1)        # 버스가 아직 없으므로 구간 목표 대수를 먼저 채운다
             traci.simulationStep()
         return traci
 
@@ -312,7 +368,16 @@ class HapjeongTraffic:
         m = load_map(MAP_ID)
         net = read_net(os.path.join(self.out_dir, "network.net.xml"))
         return InteriorSpawner(traci, net, bus_id, m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}),
-                               self.interior_per_h, rng=random.Random(self.seed + 6), min_dist=self.interior_min_dist)
+                               self.interior_per_h, rng=random.Random(self.seed + 6), min_dist=self.interior_min_dist,
+                               avoid=edges_named(net, self.avoid_roads))
+
+    def _make_keeper(self, bus_id):
+        if self.density is None:
+            return None
+        m = load_map(MAP_ID)
+        net = read_net(os.path.join(self.out_dir, "network.net.xml"))
+        return DensityKeeper(traci, net, bus_id, m["routes"]["bus_loop"], self.density, rng=random.Random(self.seed + 7),
+                             avoid=frozenset(edges_named(net, self.avoid_roads)))
 
     def scenario_triggers(self, approach=120.0, loop=None, plans=None):
         """A1 진입 의사 구간: S2(좌회전 직전, 좌측), S3(정류장 접근, 우측), S4(정차 차량 앞, 양쪽).
@@ -370,12 +435,12 @@ class HapjeongTraffic:
         return out
 
     def run(self, t_end, bus_id="bus0", bus_hook=None, metrics=None, yield_types=None, on_step=None,
-            assign_existing=True, ped_defiance=True, stop_bypass=True, triggers=None, stop_ahead=True,
+            assign_existing=True, ped_defiance=True, stop_bypass=False, triggers=None, stop_ahead=True,
             ped_cfg=None, scenario_inject=False, pilot=None, **mgr_kwargs):
         """warmup 뒤 t_end초 동안 공통 실행 루프(runner.run)로 돌린다. 반환: (YieldManager, 마지막 시각).
 
         triggers: A1 진입 의사 구간. None이면 방향지시등만 본다. "scenario"면 scenario_triggers()를 쓴다.
-        stop_bypass: S1(정차 버스 뒤 차량)을 켠다. 한 차량은 한 순간에 하나의 추가 행동에만 속한다(공유 소유권).
+        stop_bypass: S1(정차 버스 뒤 차량의 기다림·추월 판정)을 켠다. 기본은 끈다: 끄면 정차한 버스 뒤 차량은 SUMO 기본 차선 변경 모델대로 기다리거나 옆 차로로 지나간다. 한 차량은 한 순간에 하나의 추가 행동에만 속한다(공유 소유권).
         """
         self.owner = Ownership()
         if triggers == "scenario":
@@ -405,7 +470,8 @@ class HapjeongTraffic:
                      for s in m["bus_stops"] if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]]
             self.ahead = StopAheadManager(traci, bus_id, read_net(os.path.join(self.out_dir, "network.net.xml")),
                                           pilot.lap_edges, stops, self.alleys, lap_fn=lambda: pilot.lap,
-                                          rng=random.Random(self.seed + 4), owner=self.owner)
+                                          rng=random.Random(self.seed + 4), owner=self.owner,
+                                          stop_ids=STOP_AHEAD_STOPS, direct_stops=(STOP_AT[3],))
         extras = [self.ahead] if self.ahead else []
         self.injector = None
         if scenario_inject and pilot is not None:   # 방법 2: 시나리오 주입기(바퀴마다 S2·S3·S5·S6 상대를 계획해 넣는다)
@@ -418,7 +484,7 @@ class HapjeongTraffic:
                 self.s5_alleys, "carDist",        # 끼어들기 차도 보통 차다. 시험용 버스만 무시한다(주입기가 ignoreIDs를 건다)
                 lap_fn=lambda: pilot.lap, plans=pilot.plans, rng=random.Random(self.seed + 8),
                 a1_active=lambda vid: vid in mgr.inter, dwell_s=pilot.stop_s, stop_ids=STOP_AT)
-            pilot.follower_ready = self.injector.follower_ready     # 상대가 늦으면 시험용 버스가 속도를 줄인다
+            pilot.speed_limit = self.injector.bus_speed_limit      # 골목 끝에서 기다리는 끼어들기 차를 보면 버스가 줄인다(S5)
             extras.append(self.injector)
         if getattr(self, "persons", None) is not None:
             self.persons.bus = bus_id
@@ -434,8 +500,19 @@ class HapjeongTraffic:
         if self.interior is not None:
             self.interior.bus = bus_id
             extras.append(self.interior)
+        if self.keeper is not None:
+            self.keeper.bus = bus_id
+            self.keeper.protected = lambda vid: vid in mgr.inter or self.owner.owner(vid) is not None
+            extras.append(self.keeper)
+        self.near_density = None
+        if self.density is not None and self.near_bus_density and pilot is not None:
+            self.near_density = NearBusDensity(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id,
+                                               self.owner, self.density, dwell_s=pilot.stop_s)
+            extras.append(self.near_density)
         t = run_loop(traci, t_end, bus_id, bus_hook=bus_hook, yield_mgr=mgr, metrics=metrics,
                      on_step=on_step, ped_mgr=self.ped, stop_mgr=self.stop, extras=extras)
+        self.summary["density"] = {"keeper": self.keeper.summary() if self.keeper else None,
+                                   "near_bus": self.near_density.summary() if self.near_density else None}
         return mgr, t
 
     def close(self):

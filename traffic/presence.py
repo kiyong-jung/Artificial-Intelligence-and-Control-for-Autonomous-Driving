@@ -9,6 +9,7 @@ import heapq
 import math
 
 PRESENCE_RADIUS_M = 50.0      # 학습 차량의 관측 거리(env/mdp_config.py visibility 50 m)와 같게 둔다
+SPAWN_MARGIN_M = 5.0          # 차 투입·제거 검사 거리 여유: 한 스텝(0.1 s)에 버스와 차가 합쳐 3 m 가까이 움직여 검사 직후 반경 안에 들 수 있다
 PERSON_MARGIN_M = 5.0         # 보행자 출발 거리 여유: 인도 위치로 재도 버스가 그 스텝에 다가오면 반경 안에서 보였다
 
 
@@ -74,9 +75,10 @@ def far_from_bus(tc, bus_id, xy, radius=PRESENCE_RADIUS_M):
 _exit_cache = {}
 
 
-def nearest_boundary_exit(net, from_edge, vclass="passenger"):
-    """from_edge에서 경계로 끝나는 도로까지 가장 짧은 경로(도로 id 목록, from_edge 포함). 없으면 None."""
-    key = (id(net), from_edge, vclass)
+def nearest_boundary_exit(net, from_edge, vclass="passenger", avoid=frozenset()):
+    """from_edge에서 경계로 끝나는 도로까지 가장 짧은 경로(도로 id 목록, from_edge 포함). 없으면 None.
+    avoid(도로 id의 frozenset)의 도로는 지나지 않는다."""
+    key = (id(net), from_edge, vclass, avoid)
     if key in _exit_cache:
         return _exit_cache[key]
     if not net.hasEdge(from_edge):
@@ -95,7 +97,7 @@ def nearest_boundary_exit(net, from_edge, vclass="passenger"):
             found = eid
             break
         for nxt in e.getOutgoing():
-            if nxt.getFunction() == "internal" or not nxt.allows(vclass):
+            if nxt.getFunction() == "internal" or not nxt.allows(vclass) or nxt.getID() in avoid:
                 continue
             nd = d + nxt.getLength()
             if nd < best.get(nxt.getID(), math.inf):

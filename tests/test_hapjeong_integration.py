@@ -90,3 +90,28 @@ def test_a1_personality_reaches_background_car_on_hapjeong(world):
     assert tc.vehicle.getTypeID("f0").startswith("car_krauss")   # 주행 모델은 그대로(setMaxSpeed가 vType을 복제해 접미사가 붙는다)
     assert tc.vehicle.getParameter("f0", "driver.type") in ("yielder", "nonyielder")
     assert any(r["follower"] == "f0" for r in mgr.log)
+
+
+def test_density_keeper_is_wired_and_can_be_disabled(tmp_path):
+    on = HapjeongTraffic(str(tmp_path / "on"), seed=0)
+    on.build()
+    on.start(warmup=3)
+    try:
+        assert on.keeper is not None and on.keeper.sections
+    finally:
+        on.close()
+    off = HapjeongTraffic(str(tmp_path / "off"), seed=0, density=None, near_bus_density=False)
+    off.build()
+    off.start(warmup=3)
+    try:
+        assert off.keeper is None and off.near_density is None
+    finally:
+        off.close()
+
+
+def test_near_bus_density_is_off_by_default(tmp_path):
+    # 사용자 결정: 버스 주변 밀도 맞추기는 기본으로 끈다(켠 측정에서 바퀴 시간 증가·충돌 사건). 켜려면 near_bus_density=True
+    import inspect
+    assert inspect.signature(HapjeongTraffic.__init__).parameters["near_bus_density"].default is False
+    assert HapjeongTraffic(str(tmp_path / "d"), seed=0).near_bus_density is False
+    assert HapjeongTraffic(str(tmp_path / "e"), seed=0, near_bus_density=True).near_bus_density is True

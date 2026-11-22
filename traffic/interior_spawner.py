@@ -2,7 +2,7 @@
 시험용 버스 노선의 긴 도로 위 임의의 지점에서도 차를 출발시킨다(건물·주차장에서 나오는 차와 같다).
 
 - 입구 흐름 일부를 이쪽으로 옮긴다(`HapjeongTraffic.interior_share`). 그래서 전체 대수는 그대로다.
-- **시험용 버스 가까이에서는 투입하지 않는다.** 버스에서 `min_dist`(기본 200 m, 직선거리) 안의 지점은 건너뛴다. 그래서 버스
+- **시험용 버스 가까이에서는 투입하지 않는다.** 버스에서 `min_dist`(기본 버스 반경 50 m + 여유 5 m, 직선거리) 안의 지점은 건너뛴다. 그래서 버스
   눈앞에 차가 갑자기 생기는 일이 없다. 차는 멀리서 출발해 달려와 버스 주변 구간으로 들어온다(정류장 앞 정차의 미리 투입과 같은 생각).
 - 차는 `carDist`(배경 차량 분포)에서 뽑히므로 주행 모델 4종과 양보 성격이 그대로 붙는다.
 - 가는 곳은 도로망 나가는 곳 중 무작위로 고르고, 경로는 최단 경로다. 노선 위 도로를 둘 이상 지나는 경로만 쓴다.
@@ -11,18 +11,21 @@ import random
 
 from sumolib.geomhelper import positionAtShapeOffset
 
+from .presence import PRESENCE_RADIUS_M, SPAWN_MARGIN_M
+
 
 class InteriorSpawner:
     """update(t)를 매 스텝 simulationStep() 앞에서 호출한다(runner의 extras)."""
 
-    def __init__(self, traci, net, bus_id, route_edges, exit_edges, per_h, rng=None, min_dist=200.0, min_len=60.0,
-                 dt=0.1, tries=6):
+    def __init__(self, traci, net, bus_id, route_edges, exit_edges, per_h, rng=None, min_dist=PRESENCE_RADIUS_M + SPAWN_MARGIN_M, min_len=60.0,
+                 dt=0.1, tries=6, avoid=frozenset()):
         self.tc, self.net, self.bus = traci, net, bus_id
+        self.avoid = set(avoid)                 # 투입하지 않을 도로와 지나지 않을 도로(와우산로·잔다리로)
         self.rng = rng or random.Random(0)
         self.min_dist, self.dt, self.tries = min_dist, dt, tries
         self.p_step = per_h / 3600.0 * dt
         self.route_edges = set(route_edges)
-        self.roads = [e for e in route_edges if net.hasEdge(e) and net.getEdge(e).getLength() >= min_len]
+        self.roads = [e for e in route_edges if net.hasEdge(e) and net.getEdge(e).getLength() >= min_len and e not in self.avoid]
         self.weights = [net.getEdge(e).getLength() for e in self.roads]
         self.exits = [e for e in exit_edges if net.hasEdge(e)]
         self._routes = {}
@@ -34,7 +37,8 @@ class InteriorSpawner:
         if key not in self._routes:
             seg, _ = self.net.getOptimalPath(self.net.getEdge(src), self.net.getEdge(dst), vClass="passenger")
             ids = [e.getID() for e in seg] if seg else []
-            self._routes[key] = ids if sum(1 for e in ids if e in self.route_edges) >= 2 else None
+            self._routes[key] = (ids if sum(1 for e in ids if e in self.route_edges) >= 2 and not any(e in self.avoid for e in ids)
+                                 else None)
         return self._routes[key]
 
     def _xy(self, edge, pos):

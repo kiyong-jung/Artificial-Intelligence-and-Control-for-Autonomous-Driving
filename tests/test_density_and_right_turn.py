@@ -11,6 +11,7 @@ from maps import load_map  # noqa: E402
 from traffic.alleys import read_net  # noqa: E402
 from traffic.hapjeong import HapjeongTraffic  # noqa: E402
 from traffic.interior_spawner import InteriorSpawner  # noqa: E402
+from traffic.presence import PRESENCE_RADIUS_M, SPAWN_MARGIN_M  # noqa: E402
 from traffic.right_turn import right_turn_links  # noqa: E402
 
 
@@ -39,8 +40,10 @@ class _FakeTc:
         @classmethod
         def getIDList(cls): return ["bus0"]
 
+        bus_xy = (250.0, 150.0)
+
         @classmethod
-        def getPosition(cls, v): return (250.0, 150.0)
+        def getPosition(cls, v): return cls.bus_xy
 
         @classmethod
         def add(cls, vid, rid, **kw): cls.added.append((vid, rid, kw))
@@ -59,14 +62,15 @@ def test_spawner_never_places_cars_near_the_test_bus(world):
     tc = _FakeTc()
     tc.vehicle.added.clear()
     sp = InteriorSpawner(tc, net, "bus0", m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}),
-                         per_h=3600.0 * 10, rng=random.Random(1), min_dist=200.0, dt=0.1)
+                         per_h=3600.0 * 10, rng=random.Random(1), dt=0.1)
+    tc.vehicle.bus_xy = bx, by = sp._xy("R71", 60.0)        # 버스를 노선 위에 둔다(근처 지점이 있어야 건너뜀이 센다)
     for k in range(3000):
         sp.update(k * 0.1)
     assert sp.n_spawned > 100 and sp.n_skipped_near > 0
     for vid, rid, kw in tc.vehicle.added:
         edge = tc.route.routes[rid][0]
         x, y = sp._xy(edge, float(kw["departPos"]))
-        assert ((x - 250.0) ** 2 + (y - 150.0) ** 2) ** 0.5 >= 200.0 - 1e-6
+        assert ((x - bx) ** 2 + (y - by) ** 2) ** 0.5 >= PRESENCE_RADIUS_M + SPAWN_MARGIN_M - 1e-6
         assert kw["typeID"] == "carDist"
 
 
@@ -87,3 +91,22 @@ def test_right_on_red_changes_every_signal_but_the_main_crossing(world):
     greens = sum(ph.duration for lg in tc.trafficlight.getAllProgramLogics("J74") for ph in lg.phases
                  for i in links if ph.state[i] in "Gg")
     assert greens > 0
+
+
+def test_spawner_skips_avoid_roads_and_routes_that_cross_them():
+    # 와우산로·잔다리로에는 투입하지 않고, 그 도로를 지나는 경로도 쓰지 않는다
+    from traffic.flow_balance import edges_named, path_ids
+    m = load_map("hapjeong")
+    net = read_net(os.path.join(os.path.dirname(__file__), "..", "maps", "hapjeong", "source", "network.net.xml"))
+    avoid = edges_named(net, ("와우산로", "잔다리로"))
+    tc = _FakeTc()
+    tc.vehicle.added.clear()
+    sp = InteriorSpawner(tc, net, "bus0", m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}), per_h=3600.0 * 10,
+                         rng=random.Random(2), dt=0.1, avoid=avoid)
+    assert sp.roads and not any(e in avoid for e in sp.roads)
+    tc.vehicle.bus_xy = (1e6, 1e6)                                   # 버스가 멀리 있다
+    for k in range(3000):
+        sp.update(k * 0.1)
+    assert sp.n_spawned > 100
+    for vid, rid, kw in tc.vehicle.added:
+        assert not any(e in avoid for e in tc.route.routes[rid])

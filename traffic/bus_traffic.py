@@ -6,8 +6,6 @@
 1. 전용 차로 버스(`bgbus_line*`): 버스 전용 차로를 지나며 정류장에 서서 승객을 태우고(정차) 출발한다.
    - 중앙 정류장 우회 차로(`B1`, `B2`, `B3a`→`B3b`, `B4a`→`B4b`) 노선 4개: 각각 그 차로의 정류장(`stop_0`~`stop_3`)에 선다.
    - 가로변 노선 2개: 가로변 정류장 `stop_4`(`R49a`)와 `stop_5`(`R44`)에 선다.
-   - **시험용 버스가 서는 정류장(지도 `bus_stops` 6곳)에는 배경 버스가 서지 않는다.** 노선이 그 정류장을 쓰게 되면 그 노선은
-     만들지 않는다(`build_bus_traffic`의 `test_bus_stop_ids`).
 2. 택시(`bgtaxi`): 주변 승용차처럼 지나간다.
 3. 정류장 근처 택시 정차(S4, `curb_taxi_stops`): 버스 노선의 정류장마다 가로변 차로의 정류장 바로 앞(안 되면 노선 앞 도로
    끝, 그것도 안 되면 정류장 뒤)에 차로를 막는 정차 구역을 두고, 지도 경계에서 들어와 그곳에 섰다가 경계로 나가는 택시를
@@ -76,7 +74,7 @@ def central_route(net, via, entries, exits):
     return best[1] if best else None
 
 
-def build_bus_traffic(net, flows, bus_loop, test_bus_stop_ids, cfg=None, rng=None):
+def build_bus_traffic(net, flows, bus_loop, cfg=None, rng=None):
     """(vType·경로·흐름 XML 조각 목록, 요약 dict). flows: map.json의 흐름(from/to/vehs_per_hour), 합정역 지도 기준."""
     cfg = cfg or BusTrafficCfg()
     rng = rng or random.Random(0)
@@ -86,11 +84,8 @@ def build_bus_traffic(net, flows, bus_loop, test_bus_stop_ids, cfg=None, rng=Non
     exits = sorted({f["to"] for f in flows if net.hasEdge(f["to"])})
     central_rate = cfg.lane_buses_per_h / len(CENTRAL_GROUPS)
     dwell = lambda: round(rng.uniform(*cfg.dwell), 1)
-    test_stops = set(test_bus_stop_ids)
 
     for name, via, stop in CENTRAL_GROUPS:
-        if stop in test_stops:
-            continue                                  # 시험용 버스가 서는 정류장에는 다른 버스가 서지 않는다
         if not all(net.hasEdge(e) for e in via):
             continue
         route = central_route(net, via, entries, exits)

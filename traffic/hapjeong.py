@@ -148,8 +148,7 @@ class HapjeongTraffic:
         if self.bus_traffic is not None:
             m = load_map(MAP_ID)
             net = read_net(os.path.join(self.out_dir, "network.net.xml"))
-            parts, bsum = build_bus_traffic(net, m["flows"], m["routes"]["bus_loop"],
-                                            [s["id"] for s in m["bus_stops"]], self.bus_traffic,
+            parts, bsum = build_bus_traffic(net, m["flows"], m["routes"]["bus_loop"], self.bus_traffic,
                                             random.Random(self.seed + 5))
             overlay_routes.extend(parts)
             taxi_parts, taxi_add, self.summary["curb_taxis"] = curb_taxi_stops(

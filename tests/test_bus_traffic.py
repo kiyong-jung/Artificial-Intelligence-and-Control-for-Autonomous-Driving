@@ -29,11 +29,6 @@ def test_bus_lines_use_the_dedicated_lanes_and_stop(world):
         l = lines[f"bgbus_line_{name}"]
         assert l["stop"] == stop and all(e in l["edges"] for e in via)      # 중앙 우회 차로를 지나 그 정류장에 선다
     assert len(lines) == len(CENTRAL_GROUPS) == 6                            # 중앙 4 + 가로변 2
-    # 시험용 버스가 서는 정류장(지도 bus_stops 6곳)에는 배경 버스가 서지 않는다
-    test_stops = {s["id"] for s in load_map("hapjeong")["bus_stops"]}
-    rou = ET.parse(os.path.join(world.out_dir, "traffic.rou.xml")).getroot()
-    used = {s.get("busStop") for s in rou.iter("stop")}
-    assert used and not (used & test_stops)
     rou = ET.parse(os.path.join(world.out_dir, "traffic.rou.xml")).getroot()
     flows = {f.get("id"): f for f in rou.iter("flow")}
     assert all(flows[k].find("stop") is not None for k in flows if k.startswith("bgbus_line"))   # 정차 후 출발

@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import run_hapjeong_scenario as RS  # noqa: E402
 from maps import load_map  # noqa: E402
 from traffic.alleys import read_net  # noqa: E402
-from traffic.density_keeper import DEFAULT_DENSITY_PER_100M  # noqa: E402
+from traffic.bus_window_keeper import DEFAULT_LANE_DENSITY  # noqa: E402
 from traffic.hapjeong import HapjeongTraffic  # noqa: E402
 from traffic.presence import PresenceMonitor  # noqa: E402
 from traffic.signal_areas import forbidden_intervals, is_signalized  # noqa: E402
@@ -64,7 +64,7 @@ def main():
     out_dir = os.path.join(tempfile.gettempdir(), f"occ_{SCEN}_{SEED}{'_' + TAG if TAG else ''}")
     world = HapjeongTraffic(out_dir, scenario=SCEN, seed=SEED, bus_traffic=True,
                             right_on_red="noror" not in TAG, interior_share=0.0 if "nointer" in TAG else 0.3,
-                            density=None if "nodensity" in TAG else DEFAULT_DENSITY_PER_100M, near_bus_density="nearbus" in TAG and "nodensity" not in TAG)
+                            lane_density=None if "nodensity" in TAG else DEFAULT_LANE_DENSITY)
     world.build()
     if PED_X > 1:
         multiply_s6_persons(os.path.join(out_dir, "persons.json"), PED_X, SEED)
@@ -356,7 +356,7 @@ def main():
         pass
     # S4, S1 후행차 판정은 관리자 기록에서 센다(바퀴는 시험용 버스 한 바퀴)
     s4 = (world.ahead.summary() if world.ahead is not None else
-          {"blocks_per_lap": [0] * LAPS, "alley": 0, "none": 0})      # noahead 변형도 끝까지 돈다
+          {"blocks_per_lap": [0] * LAPS, "direct": 0, "none": 0})      # noahead 변형도 끝까지 돈다
     laps_done = len(bus.lap_times)
     per_lap = lambda c: [c.get(i, 0) for i in range(1, LAPS + 1)]
     bounds, acc = [], st["t0"] or 0.0
@@ -374,7 +374,7 @@ def main():
            "S2_by_junction": {j: {"attempts": per_lap(ev[f"S2_{j}_attempts"]), "with_a1": per_lap(ev[f"S2_{j}_a1"])}
                               for j in ("J82", "J1")},
            "S4": {"blocks_per_lap": s4["blocks_per_lap"][:LAPS], "total": sum(s4["blocks_per_lap"][:LAPS]),
-                  "alley": s4["alley"], "none": s4["none"],
+                  "direct": s4["direct"], "none": s4["none"], "bus_arrived": s4.get("bus_arrived"),
                   "actually_stopped": s4.get("actually_stopped"), "log": getattr(world.ahead, "log", None)},
            "presence": presence.summary(),
            "a1_in_signal_area": len(sig["in_area"]), "a1_in_signal_area_examples": sig["in_area"][:8],

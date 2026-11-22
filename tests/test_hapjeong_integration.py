@@ -97,21 +97,13 @@ def test_density_keeper_is_wired_and_can_be_disabled(tmp_path):
     on.build()
     on.start(warmup=3)
     try:
-        assert on.keeper is not None and on.keeper.sections
+        assert on.keeper is not None and set(on.keeper.density) == {"양화로", "독막로"}
     finally:
         on.close()
-    off = HapjeongTraffic(str(tmp_path / "off"), seed=0, density=None, near_bus_density=False)
+    off = HapjeongTraffic(str(tmp_path / "off"), seed=0, lane_density=None)
     off.build()
     off.start(warmup=3)
     try:
-        assert off.keeper is None and off.near_density is None
+        assert off.keeper is None
     finally:
         off.close()
-
-
-def test_near_bus_density_is_off_by_default(tmp_path):
-    # 사용자 결정: 버스 주변 밀도 맞추기는 기본으로 끈다(켠 측정에서 바퀴 시간 증가·충돌 사건). 켜려면 near_bus_density=True
-    import inspect
-    assert inspect.signature(HapjeongTraffic.__init__).parameters["near_bus_density"].default is False
-    assert HapjeongTraffic(str(tmp_path / "d"), seed=0).near_bus_density is False
-    assert HapjeongTraffic(str(tmp_path / "e"), seed=0, near_bus_density=True).near_bus_density is True

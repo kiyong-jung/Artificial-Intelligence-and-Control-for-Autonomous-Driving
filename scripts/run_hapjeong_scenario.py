@@ -25,7 +25,7 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from maps import load_map  # noqa: E402
 from traffic.alleys import read_net  # noqa: E402
-from traffic.density_keeper import DEFAULT_DENSITY_PER_100M  # noqa: E402
+from traffic.bus_window_keeper import DEFAULT_LANE_DENSITY  # noqa: E402
 from traffic.hapjeong import HapjeongTraffic, stopped_from_arg  # noqa: E402
 from traffic.sumo_conn import traci  # noqa: E402
 from traffic.test_bus import BUS, TestBusPilot  # noqa: E402
@@ -166,9 +166,7 @@ def main():
     ap.add_argument("--stop-bypass", action="store_true", help="S1 판정(정차 버스 뒤 차량의 기다림·추월)을 켠다. 기본은 꺼져 SUMO 기본 알고리즘이 움직인다")
     ap.add_argument("--no-ped-defiance", action="store_true", help="A3 보강(신호 없는 횡단보도 보행자의 건너기 판정)을 끈다")
     ap.add_argument("--no-density", action="store_true",
-                    help="구간 밀도 유지(DensityKeeper)를 끈다(버스 주변 밀도 맞추기도 같이 꺼진다)")
-    ap.add_argument("--near-bus", action="store_true",
-                    help="버스 주변 밀도 맞추기(뒤차 가속·앞차 감속)를 켠다. 기본은 꺼짐(켠 측정에서 바퀴 시간 증가·충돌 사건이 나왔다)")
+                    help="버스 주변 차량 밀도 유지기(BusWindowKeeper: 버스 앞뒤 50 m 창에서 차로마다 목표 대수 유지)를 끈다")
     ap.add_argument("--route-boost", type=float, default=1.3,
                     help="버스 노선 구간을 지나는 배경 흐름의 배율. 노선을 지나지 않는 흐름을 줄여 전체 대수는 그대로 둔다. 1.0이면 끈다")
     ap.add_argument("--out-dir", default=os.path.join(tempfile.gettempdir(), "hapjeong_scenario"))
@@ -179,8 +177,7 @@ def main():
     bt = (BusTrafficCfg(lane_buses_per_h=a.lane_buses, taxis_per_h=a.taxis)
           if a.lane_buses > 0 else None)
     world = HapjeongTraffic(a.out_dir, scenario=a.scenario, seed=a.seed, stopped=stopped, bus_traffic=bt,
-                            density=None if a.no_density else DEFAULT_DENSITY_PER_100M,
-                            near_bus_density=a.near_bus and not a.no_density, route_flow_boost=a.route_boost)
+                            lane_density=None if a.no_density else DEFAULT_LANE_DENSITY, route_flow_boost=a.route_boost)
     world.build()
     print(f"합정역 {a.scenario} seed {a.seed}: 끼어들기 흐름 {world.summary['cutin_flows']}개"
           f"(합류 골목 {sum(1 for x in world.summary['cutin_alleys'] if x['flows'])}곳), "
@@ -239,7 +236,7 @@ def main():
         if getattr(world, "ahead", None) is not None:
             print("정류장 앞 정차(시험용 버스 진입 시):", world.ahead.summary())
         print("구간 밀도 유지·버스 주변 밀도:", world.keeper.summary() if world.keeper else "꺼짐",
-              world.near_density.summary() if world.near_density else "")
+              "")
         print(f"충돌 {state.get('collisions', 0)}건, 순간이동 {state.get('teleports', 0)}건")
         try:
             world.close()

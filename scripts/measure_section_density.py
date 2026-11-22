@@ -6,7 +6,7 @@
   - 양화로·독막로·잔다리로·와우산로 구간의 100 m당 차량 수(per_road),
   - 신호 교차로로 끝나는 구간의 멈춘 차 수(queue),
 를 모으고, 버스 반경 안 출현·소멸·정체 순간이동(presence), 충돌, 버스 바퀴 시간을 함께 적는다.
---no-density는 DensityKeeper와 NearBusDensity를 끈 기준선이다.
+--no-density는 버스 주변 키퍼(BusWindowKeeper)를 끈 기준선이다. 구간별 밀도(per_road)는 구간 전체 차량 수를 100 m당으로 환산한 값이다(차로 합).
 """
 import argparse
 import collections
@@ -22,7 +22,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 import run_hapjeong_scenario as RS  # noqa: E402
 from maps import load_map  # noqa: E402
 from traffic.alleys import read_net  # noqa: E402
-from traffic.density_keeper import DEFAULT_DENSITY_PER_100M, sections_of  # noqa: E402
+from traffic.bus_window_keeper import DEFAULT_LANE_DENSITY  # noqa: E402
+from traffic.density_keeper import sections_of  # noqa: E402
 from traffic.hapjeong import HapjeongTraffic  # noqa: E402
 from traffic.presence import PresenceMonitor  # noqa: E402
 from traffic.test_bus import TestBusPilot  # noqa: E402
@@ -42,25 +43,20 @@ def main():
     ap.add_argument("--laps", type=int, default=3)
     ap.add_argument("--tmax", type=float, default=2600.0, help="버스가 이 시간(초) 안에 못 끝내면 멈춘다")
     ap.add_argument("--warmup", type=float, default=120.0)
-    ap.add_argument("--no-density", action="store_true", help="DensityKeeper·NearBusDensity를 끈다(기준선)")
-    ap.add_argument("--no-keeper", action="store_true", help="DensityKeeper만 끈다(NearBusDensity는 켜 둔다)")
-    ap.add_argument("--near-bus", action="store_true", help="NearBusDensity(버스 주변 밀도 맞추기)를 켠다. 기본은 꺼짐")
-    ap.add_argument("--scale", type=float, default=1.0, help="목표 밀도에 곱하는 배율")
+    ap.add_argument("--no-density", action="store_true", help="버스 주변 키퍼(BusWindowKeeper)를 끈다(기준선)")
+    ap.add_argument("--scale", type=float, default=1.0, help="목표 밀도(대/100 m/차로)에 곱하는 배율")
     ap.add_argument("--route-boost", type=float, default=1.3, help="노선 구간을 지나는 배경 흐름의 배율(지나지 않는 흐름을 줄여 전체 대수 유지). 1.0이면 끈다")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
-    tag = ("off" if a.no_density else ("on" + ("_nokeep" if a.no_keeper else "") + ("_nearbus" if a.near_bus else "") + (f"_x{a.scale:g}" if a.scale != 1.0 else ""))) + (f"_rb{a.route_boost:g}" if a.route_boost != 1.3 else "")
+    tag = ("off" if a.no_density else ("on" + (f"_x{a.scale:g}" if a.scale != 1.0 else ""))) + (f"_rb{a.route_boost:g}" if a.route_boost != 1.3 else "")
     out = a.out or os.path.join(os.path.dirname(__file__), "..", "results", f"density_{a.scenario}_{a.seed}_{tag}.json")
     out_dir = os.path.join(tempfile.gettempdir(), f"dens_{a.scenario}_{a.seed}_{tag}")
 
-    dens = {k: v * a.scale for k, v in DEFAULT_DENSITY_PER_100M.items()}
+    dens = {k: v * a.scale for k, v in DEFAULT_LANE_DENSITY.items()}
     world = HapjeongTraffic(out_dir, scenario=a.scenario, seed=a.seed, bus_traffic=True,
-                            density=None if a.no_density else dens,
-                            near_bus_density=a.near_bus and not a.no_density, route_flow_boost=a.route_boost)
+                            lane_density=None if a.no_density else dens, route_flow_boost=a.route_boost)
     world.build()
     tc = world.start(warmup=a.warmup)
-    if a.no_keeper:
-        world.keeper = None
     m = load_map("hapjeong")
     loop = m["routes"]["bus_loop"]
     net = read_net(os.path.join(out_dir, "network.net.xml"))
@@ -103,15 +99,14 @@ def main():
         "scenario": a.scenario, "seed": a.seed, "density": not a.no_density,
         "per_road": {n: {"mean_per_100m": round(statistics.fmean(v), 2),
                          "p10_per_100m": round(sorted(v)[len(v) // 10], 2), "samples": len(v),
-                         "target_per_100m": None if a.no_density else dens[n]}
+                         "target_per_lane_per_100m": None if a.no_density else dens.get(n)}
                      for n, v in per_road.items() if v},
         "queue": {e: {"max_halting": max(v), "mean_halting": round(statistics.fmean(v), 2)} for e, v in queue.items() if v},
         "presence": presence.summary(),
         "safety": safety,
         "bus": {"laps_done": len(bus.lap_times), "lap_seconds": [round(x) for x in bus.lap_times],
                 "forced": bus.forced, "missed": bus.missed, "changes": bus.changes},
-        "density_summary": {"keeper": world.keeper.summary() if world.keeper else None,
-                            "near_bus": world.near_density.summary() if world.near_density else None},
+        "density_summary": {"keeper": world.keeper.summary() if world.keeper else None},
     }
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:

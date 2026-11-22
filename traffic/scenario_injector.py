@@ -3,7 +3,7 @@
 | 시나리오 | 바퀴마다 | 무엇을 | 어디에 |
 |---|---|---|---|
 | S1 뒤차 | **기본은 끔**(`inject_s1=False`). 켜면 무작위 정류장 하나에서 버스가 서고 뒤 200 m 안에 차가 없을 때 | 승용차 한 대 | 버스 뒤 `back_s1`(220 m), 같은 차로 |
-| S2·S3 후행차 | 차선 변경 창(test_bus.lane_plans: S3 s2 앞, S2 J82·J1 앞) 시작 `lane_lead`(60 m) 앞에서, 목표 차로 뒤 80 m 안에 차가 없으면 | 승용차 한 대 | 버스 뒤 `back_lane`(버스 반경 + 15 m), 목표 차로. 창이 끝날 때까지 차로를 붙잡는다 |
+| S2·S3 후행차 | 차선 변경 창(test_bus.lane_plans: S3 s2 앞, S2 J82·J1 앞) 시작 `lane_lead`(60 m) 앞에서, **키퍼가 넣은 차 중** 목표 차로 뒤 가장 가까운 차를 상대로 고른다(없으면 키퍼가 한 대 만든다. 주입기는 직접 넣지 않는다) | 키퍼 차 한 대 | 버스 뒤 `back_lane`(버스 반경 + 15 m), 목표 차로. 창이 끝날 때까지 차로를 붙잡는다 |
 | S5 끼어들기 | 신호 없는 합류 골목 1~2곳(무작위). 버스가 합류점 90~300 m 앞일 때 차를 골목 끝에 세워 둔다. 버스가 45 m 안이면 시험용 버스가 그 차를 본 것으로 보고 줄인다. 버스가 합류점에 2.5~5초 안으로 닿고 버스와 합류점 사이·들어갈 차로가 비었을 때 풀어 끼어들게 한다(버스를 무시). 버스가 더 빠르면 지나간 뒤에 나온다 | 끼어들기 차 | 골목 끝 정지선(앞부분이 합류점 1.5 m 앞) |
 | S6 보행자 | 신호 없는 횡단보도 앞 | 보행자 한 명 | 횡단보도 바로 옆 인도 |
 
@@ -44,11 +44,14 @@ class ScenarioInjector:
                  follower_gap=(0.0, A1_TRIGGER_GAP_M + FOLLOWER_MIN_GAP_M),
                  lane_lead=300.0,
                  s6_edges=("-R112", "R112.112"), s6_edge_before="R112", s5_lead=60.0, follower_check=80.0,
-                 dwell_s=8.0, stop_ids=None, inject_s1=False):
+                 dwell_s=8.0, stop_ids=None, inject_s1=False, keeper=None):
         # dwell_s: 시험용 버스의 정류장 정차 시간. stop_ids: 버스가 실제로 서는 정류장(없으면 stops 전부).
         # 끼어들기 출발 시점에 버스의 정차 시간을 넣는다(X_dongmak6은 s2 끝 바로 뒤에서 합류해 정차 중에 골목 차가 먼저 지나갔다)
         # inject_s1: False(기본)면 S1(정차 버스 뒤 차 한 대) 주입을 끈다. 정차 시각 기록은 S5 출발 시점에 쓰므로 그대로 한다.
         self.inject_s1 = inject_s1
+        # keeper: 버스 주변 차량 밀도 유지기(BusWindowKeeper). 있으면 S2·S3는 차를 주입하지 않고 키퍼가 넣은 차 중에서 버스 목표 차로 뒤 가장 가까운 차를
+        # 상대로 고른다(없으면 키퍼에게 한 대를 만들게 한다). 3 m 안으로 붙이는 것(_catch_up)과 A1은 그대로다. 없으면(None) 예전처럼 직접 투입한다.
+        self.keeper = keeper
         self.platoon_n, self.platoon_gap = 3, 14.0       # 적색 대기 중 넣는 후행차 수와 간격(m)
         self.dwell_s = dwell_s
         self.stop_ids = set(stop_ids) if stop_ids is not None else {s["id"] for s in stops}
@@ -263,6 +266,21 @@ class ScenarioInjector:
             lane = max(froms)
         return lane
 
+    def tracked_ids(self):
+        """이번 바퀴에서 S2·S3 상대로 추적 중인(아직 놓지 않은) 차 id. 키퍼가 이 차들은 지우지 않는다."""
+        lap = self._lap
+        return {rec["vid"] for rec in lap["lane"].values() if not rec["released"]} if lap else set()
+
+    def _is_keeper_car(self, vid):
+        return self.keeper is not None and self.keeper.is_keeper_car(vid)
+
+    def _add_lane_car(self, path, lane, p):
+        """S2·S3 상대 한 대를 만든다. 키퍼가 있으면 키퍼가 만든다(키퍼 차로 관리됨). (차 id, 이유)."""
+        if self.keeper is not None:
+            vid = self.keeper.spawn_car(path, int(lane), p)
+            return (vid, "injected") if vid else ("", "near_bus")
+        return self._add_car("lane", path, lane, p)
+
     def _lanes(self, t, st):
         tc, lap = self.tc, self._lap
         route, i, pos, idx = st
@@ -284,12 +302,14 @@ class ScenarioInjector:
             if self._signal_ahead(route, i, j_end):
                 # 버스와 창 사이에 신호가 있다. 지나는 중에 넣으면 후행차가 적색에 걸린다. 버스가 그 신호에서 적색으로 서 있으면
                 # 목표 차로 줄에 여러 대를 50 m 이상 뒤부터 넣어 녹색에 같이 출발하게 한다. 아니면 지난 뒤 넣는다
-                if tc.vehicle.getSpeed(self.bus) < 0.5 and self._queue_platoon(t, st, plan, j_end):
+                if self.keeper is None and tc.vehicle.getSpeed(self.bus) < 0.5 and self._queue_platoon(t, st, plan, j_end):
                     continue
                 continue
             left = plan.kind == "S2"
             f = tc.vehicle.getLeftFollowers(self.bus) if left else tc.vehicle.getRightFollowers(self.bus)
             near = [(d, v) for v, d in f if v and 0 <= d <= self.follower_check]
+            if self.keeper is not None:
+                near = [(d, v) for d, v in near if self._is_keeper_car(v)]      # 키퍼가 넣은 차 중에서만 고른다
             if near:
                 self._track(plan, min(near)[1], t)
                 self._record(plan.kind, t, "natural", min(near)[1])
@@ -309,7 +329,7 @@ class ScenarioInjector:
             if target is None:
                 target = plan.target_lane if plan.kind == "S3" else idx + 1
             lane = str(min(max(1, target), lanes - 1))
-            vid, why = self._add_car("lane", self._window_path(route, k, j_end), lane, p)
+            vid, why = self._add_lane_car(self._window_path(route, k, j_end), lane, p)
             if vid:
                 self._track(plan, vid, t)
                 self._record(plan.kind, t, "injected", vid)

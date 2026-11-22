@@ -5,11 +5,13 @@ numpy만 쓴다. 도로만 다시 만드는 사람에게 torch를 요구하지 �
 - route_following_action: 수업 원본 31차원만 보는 옛 규칙. 늘 같은 가속을 내고 신호와 정류장을 보지 못해
   적색 정지선 앞에서 SUMO 강제 정지(최대 80m/s²)에 기댄다. 비교 기준으로 남긴다.
 - ExpertPolicy: 46차원 관측(env/data_schema.OBSERVATION_FEATURES)만 보는 전문가 규칙(v4). BC가 같은 관측으로
-  따라 할 수 있도록 내부 상태를 두지 않는다. 같은 관측이면 같은 행동이다.
+  따라 할 수 있도록 내부 상태를 두지 않는다. 같은 관측이면 같은 행동이다. BC 데이터와 Residual RL이 이 판으로 학습했다.
+- ExpertPolicyV5: v4의 차선변경 판단과 앞차 추종을 SUMO의 안전 간격에 맞춘 판(--policy expert-v5).
 """
 import numpy as np
 
 from env.data_schema import OBSERVATION_FEATURES
+from env.mdp_config import ACTION
 
 _INDEX = {name: index for index, name in enumerate(OBSERVATION_FEATURES)}
 
@@ -193,9 +195,123 @@ class ExpertPolicy:
         return np.array([np.clip(raw, -1.0, 1.0), self.lateral(obs)], dtype=np.float32)
 
 
-def make_expert(env):
-    """환경(SumoHighwayEnv)의 정규화 값으로 전문가 정책을 만든다."""
+class ExpertPolicyV5(ExpertPolicy):
+    """v4의 차선변경 판단과 앞차 추종을 SUMO가 실제로 지키는 안전 간격에 맞춘 판. 같은 관측만 보고 내부 상태가 없다.
+
+    v4의 간격 기준(_gap_ok, 6m + 0.6v)은 SUMO가 실제로 옮겨 주는 안전 간격과 어긋났다. ego의 차선변경 모드(1536)에서
+    SUMO는 TraCI 요청도 남의 안전 간격을 지킬 때만 실행하고, 버스 제원(tau 1.5초, 감속 2m/s²)으로 앞 간격
+    v·tau + v²/4 - 앞차 제동거리를 요구한다. 13m/s에서는 같은 속도의 앞차와 40m가 넘게 떨어져야 옮긴다.
+    v4는 15m 틈에도 요청하고 속도를 줄이지 않아 옆 차와 나란히 달리다 차로 끝에 섰다. v5는 같은
+    공식(MSCFModel::getSecureGap)으로 판단해, 옮길 수 없으면 줄여서 옆 차를 보내고, 옮길 수 있을 때만 요청한다.
+    틈이 없는데 요청을 걸어 두면 SUMO가 옆 차로 뒤차에게 버스를 따라 줄이라고 알려(informFollower) 그 차가 버스
+    뒤에 붙은 채 끝내 앞질러 가지 않았다.
+    """
+
+    # 환경의 차선변경 안전 게이트(env/mdp_config.ACTION["lane_change_safety"]). 이것을 넘어야 요청이 SUMO에 간다.
+    gate = ACTION["lane_change_safety"]
+    gate_margin = 0.5        # m
+    # SUMO 안전 간격을 어림할 배경차 제원. env/road_config의 추종모델 중 가장 긴 tau와 그 감속이다.
+    car_decel = 4.5          # m/s²
+    car_headway = 1.8        # s
+    merge_floor = 4.0        # m. 옮기는 중이어도 정류장까지 이보다 가까우면 지나친다(옆 차로에 선 채 기다리지 않는다)
+    creep_speed = 3.0        # m/s. 옮길 곳(정류장, 차로 끝)이 가까운데 옮길 수 없으면 이 속도로 기어간다
+    creep_within = 40.0      # m
+    safe_follow_horizon = 1.0  # s. SUMO 안전 속도까지 남은 차이를 이 시간에 걸쳐 맞춘다
+    safe_follow_margin = 1.0   # m
+
+    def _neighbors(self, obs, side):
+        """옆 차로의 (앞차 간격 m, 앞차 속도), (뒤차 간격 m, 뒤차 속도). 차가 없으면 None."""
+        v = self._f(obs, "ego_speed") * self.vmax
+        front, rear = self._f(obs, f"{side}_leader_gap"), self._f(obs, f"{side}_follower_gap")
+        lead = (front * self.visibility, v + self._f(obs, f"{side}_leader_relative_speed") * self.vmax) if front < 1.0 else None
+        follow = (-rear * self.visibility, v + self._f(obs, f"{side}_follower_relative_speed") * self.vmax) if rear > -1.0 else None
+        return lead, follow
+
+    def _gate_ok(self, obs, side):
+        """환경의 안전 게이트(env/sumo_env._lane_change_is_safe)가 요청을 받아 줄 틈인지."""
+        if self._f(obs, f"{side}_route_connectivity") < 0.0:
+            return False
+        v, g, margin = self._f(obs, "ego_speed") * self.vmax, self.gate, self.gate_margin
+        lead, follow = self._neighbors(obs, side)
+        if lead is not None:
+            gap, lv = lead
+            if gap <= g["min_front_gap"] + g["front_tau"] * v + margin or gap <= max(v - lv, 0.0) * g["approach_horizon"] + margin:
+                return False
+        if follow is not None:
+            gap, fv = follow
+            if gap <= g["min_rear_gap"] + g["rear_tau"] * fv + margin or gap <= max(fv - v, 0.0) * g["approach_horizon"] + margin:
+                return False
+        return True
+
+    def _merge_ok(self, obs, side):
+        """SUMO가 협조 없이 옮겨 줄 만큼 앞뒤 안전 간격이 있는지. 버스는 감속이 약해(2m/s²) 빠를수록 앞 간격이 길어야 한다."""
+        if not self._gate_ok(obs, side):
+            return False
+        v, a = self._f(obs, "ego_speed") * self.vmax, self._f(obs, "ego_acceleration") * 2.0
+        lead, follow = self._neighbors(obs, side)
+        if lead is not None:
+            gap, lv = lead
+            leader_brake = lv * lv / (2.0 * max(self.max_decel, self.car_decel))
+            need = v * self.headway + v * v / (2.0 * self.max_decel) - leader_brake
+            if a < 0.0:   # 이미 줄이는 중이면 SUMO는 반응 시간 없이 그 감속으로 본다
+                need = min(need, v * v / (2.0 * min(-a, self.max_decel)) - leader_brake)
+            if gap < need:
+                return False
+        # 버스보다 빠른 뒤차만 기다린다. 느리거나 같은 뒤차는 앞지르지 않으므로(버스 뒤로 들어오려는 차이거나 양보하는
+        # 차) 기다리면 둘 다 차로 끝에 선다. 게이트만 넘으면 요청하고, 그 차의 실제 간격(추종모델마다 tau가 다르다)은 SUMO가 본다.
+        if follow is not None and follow[1] > v:
+            gap, fv = follow
+            need = fv * self.car_headway + fv * fv / (2.0 * self.car_decel) - v * v / (2.0 * max(self.car_decel, self.max_decel))
+            if gap < need:
+                return False
+        return True
+
+    def _safe_speed_candidates(self, obs, v):
+        """SUMO(속도 모드 31)는 버스를 Krauss 안전 속도로 묶는다. 앞차가 4.5m/s²로 서도 버스가 반응 시간 tau 뒤
+        2m/s²로 그 뒤에 설 수 있는 속도다(MSCFModel::maximumSafeFollowSpeed). IDM은 이보다 가깝게 따라가 v4 개입의
+        절반이 여기서 났고, v5가 J82 좌회전 차로에 일찍 들어가 앞차를 따라가면 더 늘었다. 이 속도를 넘지 않게 맞춘다."""
+        gap = self._f(obs, "current_leader_gap")
+        if gap >= 1.0:
+            return []
+        lv = max(v + self._f(obs, "current_leader_relative_speed") * self.vmax, 0.0)
+        b, tau = self.max_decel, self.headway
+        room = max(gap * self.visibility - self.safe_follow_margin, 0.0) + lv * lv / (2.0 * max(b, self.car_decel))
+        v_safe = -b * tau + np.sqrt(b * b * tau * tau + 2.0 * b * room)
+        return [(v_safe - v) / self.safe_follow_horizon]
+
+    def lateral(self, obs):
+        direction, _remaining = self._wanted_lane(obs)
+        if direction and self._f(obs, "stop_dwell_remaining") <= 0.0 and self._merge_ok(obs, _side(direction)):
+            return float(direction)
+        return 0.0
+
+    def _gap_search_candidates(self, obs, v, v0):
+        """옮길 수 없으면 편안한 감속 안에서 줄여 옆 차를 먼저 보낸다. 끝이 가까우면 기어간다. 느릴수록 SUMO가
+        요구하는 간격이 짧아지고, 빠른 뒤차가 버스를 빨리 지나간다."""
+        direction, remaining = self._wanted_lane(obs)
+        if direction and remaining < self.gap_search_within and not self._merge_ok(obs, _side(direction)):
+            v_slow = self.creep_speed if remaining < self.creep_within else self.gap_search_speed * v0
+            if v > v_slow:
+                return [max(self._idm(v, v_slow, None, 0.0, 0.0), -self.comfortable_decel)]
+        return []
+
+    def _stop_candidates(self, obs, v, v0):
+        """옆 차로에 환경이 받아 줄 틈이 있으면(옮기는 중이거나 곧 옮긴다) 15m 안에서도 정류장을 포기하지 않는다."""
+        stop_distance = self._f(obs, "stop_distance") * self.stop_range
+        in_stop_lane = abs(self._f(obs, "stop_lane_offset")) < 0.25
+        direction = 1 if self._f(obs, "stop_lane_offset") > 0 else -1
+        merging = stop_distance > self.merge_floor and self._gate_ok(obs, _side(direction))
+        if stop_distance < self.stop_range and (in_stop_lane or stop_distance > self.stop_give_up or merging):
+            return [self._idm(v, v0, stop_distance + self.target_gap, v, self.target_gap)]
+        return []
+
+
+EXPERT_VERSIONS = {4: ExpertPolicy, 5: ExpertPolicyV5}
+
+
+def make_expert(env, version=4):
+    """환경(SumoHighwayEnv)의 정규화 값으로 전문가 정책을 만든다. 4는 BC 데이터와 Residual RL이 학습한 판이다."""
     from env import sumo_env
-    return ExpertPolicy(env.vmax, env.visibility, env.max_accel, env.max_decel,
-                        sumo_env.TL_RANGE, sumo_env.STOP_RANGE, sumo_env.CONTINUATION_RANGE, sumo_env.CROSSING_RANGE,
-                        sumo_env.LIMIT_RANGE)
+    return EXPERT_VERSIONS[version](env.vmax, env.visibility, env.max_accel, env.max_decel,
+                                    sumo_env.TL_RANGE, sumo_env.STOP_RANGE, sumo_env.CONTINUATION_RANGE,
+                                    sumo_env.CROSSING_RANGE, sumo_env.LIMIT_RANGE)

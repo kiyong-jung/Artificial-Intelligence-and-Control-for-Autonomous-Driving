@@ -18,16 +18,18 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO))
 from env import sumo_env  # noqa: E402
-from env.route_policy import ExpertPolicy  # noqa: E402
+from env.route_policy import EXPERT_VERSIONS  # noqa: E402
 
 PY = sys.executable
 SCENARIO_SEEDS = {"quiet": 2100, "baseline": 2400, "busy": 2700}   # train 집합 안, 전문가 수집 seed와 겹치지 않는다
 
 
 def expert_from_metadata(meta):
-    return ExpertPolicy(meta["road"]["speed_limit"], meta["observation"]["visibility"], meta["ego"]["accel"],
-                        meta["ego"]["decel"], sumo_env.TL_RANGE, sumo_env.STOP_RANGE, sumo_env.CONTINUATION_RANGE,
-                        sumo_env.CROSSING_RANGE, sumo_env.LIMIT_RANGE)
+    """데이터를 모은 판의 전문가. metadata의 policy가 expert-v5면 v5, 아니면 v4다."""
+    expert = EXPERT_VERSIONS[5 if meta.get("policy") == "expert-v5" else 4]
+    return expert(meta["road"]["speed_limit"], meta["observation"]["visibility"], meta["ego"]["accel"],
+                  meta["ego"]["decel"], sumo_env.TL_RANGE, sumo_env.STOP_RANGE, sumo_env.CONTINUATION_RANGE,
+                  sumo_env.CROSSING_RANGE, sumo_env.LIMIT_RANGE)
 
 
 def relabel(npz_path, expert):

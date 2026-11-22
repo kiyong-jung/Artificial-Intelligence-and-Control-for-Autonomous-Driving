@@ -139,6 +139,7 @@ python scripts/run_hapjeong_scenario.py --nogui --stopped kind=bus,edge=R112,lan
 
 - 밀도 분산(`interior_spawner.py`, `interior_share`, 꼬리표 `withinter`)을 지웠다(T2). 시험용 버스 노선 위 임의 지점, 곧 도로 한가운데에 `vehicle.add`로 차를 만들었다. 기본은 꺼져 있었고 켜면 버스 50 m 안 출현이 실행당 7.2대에서 15.6대로 늘었다. 밀도는 입구 수요로 정한다.
 - A3 보강(`ped_defiance.py`의 `PedDefianceManager`, `run(ped_defiance=True)`, `--ped-defiance`, 꼬리표 `pedsumo`·`old`)을 지웠다(T4). 건너기로 한 보행자에게 `junctionModel.ignoreTypes`로 모든 차의 우선권을 무시하게 했다. 기본은 꺼져 있었고, 건너기는 보행자 유형 분포(`pedDist`)가 정한다.
+- 골목 운전자 기본 분포 `cutin.default_bins`를 지웠다(T5). 골목 차가 큰길 차를 0.2~1.0 확률로 무시했고, `cutin_vtype_xml`에 `bins`를 안 주면 이 값이 들어갔다. 이제 `bins`는 반드시 준다(합정역은 `alley_driver_bins`, 무시 확률 0).
 
 **아직 이어지지 않은 것**
 
@@ -191,7 +192,7 @@ python scripts/run_hapjeong_scenario.py --nogui --stopped kind=bus,edge=R112,lan
 
 **값**
 
-- 운전자 성향 분포(`yield_logic.DriverDist`), 골목 운전자 분포(`cutin.alley_driver_bins`), 보행자 분포(`pedestrian.ped_dist_xml`), 정류장 근처 택시 정차 대수·시간은 임의의 초깃값이다. 끼어들기의 SUMO 기본 방식(`default_bins`, 합성 도로 검증용)은 `jmIgnoreFoeProb`를 접근 중 여러 번 뽑아 설정 확률이 곧 진입 확률이 아니다(설정 0.05에서 실측 0.13). 합정역 골목 운전자는 무시 확률을 0으로 둔다.
+- 운전자 성향 분포(`yield_logic.DriverDist`), 골목 운전자 분포(`cutin.alley_driver_bins`), 보행자 분포(`pedestrian.ped_dist_xml`), 정류장 근처 택시 정차 대수·시간은 임의의 초깃값이다. `jmIgnoreFoeProb`는 접근 중 여러 번 뽑혀 설정 확률이 곧 진입 확률이 아니다(합성 도로에서 설정 0.05에 실측 0.13). 합정역 골목 운전자는 무시 확률을 0으로 둔다.
 - 승객 가중 지연의 탑승 인원(승용 1.3, 택시 1.5, 버스 20)은 근거 없는 가정값이다.
 - 배경 차량의 추종 모델 파라미터도 현장 실측값이 아니다.
 

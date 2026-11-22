@@ -7,12 +7,12 @@
 from dataclasses import dataclass
 
 
-def cutin_vtype_xml(dist_id="cutin", bins=None, v_ign=15.0, base_attrs=None):
-    """bins: [(p_ignore, timegap_minor, impatience, weight)] — 구간마다 vType 하나.
+def cutin_vtype_xml(dist_id, bins, v_ign=15.0, base_attrs=None):
+    """bins: [(p_ignore, timegap_minor, impatience, weight)] — 구간마다 vType 하나. 기본값은 없다. 합정역은
+    alley_driver_bins()(p_ignore 0)를, 합성 도로 검증은 확인할 값을 직접 준다.
 
     v_ign은 접근하는 차량 속도 범위(예: 8~14 m/s)보다 커야 한다. 기본값 0이면 멈춘 차량만 무시한다.
     """
-    bins = bins or default_bins()
     attrs = base_attrs or 'length="4.5" accel="2.6" decel="4.5" tau="1.0" sigma="0"'
     out = []
     for i, (p, tg, imp, w, *_) in enumerate(bins):
@@ -22,12 +22,6 @@ def cutin_vtype_xml(dist_id="cutin", bins=None, v_ign=15.0, base_attrs=None):
     probs = " ".join(str(b[3]) for b in bins)
     out.append(f'<vTypeDistribution id="{dist_id}" vTypes="{ids}" probabilities="{probs}"/>')
     return "\n".join(out)
-
-
-def default_bins(n=6):
-    """INTERACTION 합류 간격 분포 자리표시: 공격성이 커지는 n개 구간 (균등 가중)."""
-    return [(round(0.2 + 0.8 * i / (n - 1), 3), round(1.0 - 0.7 * i / (n - 1), 3),
-             round(i / (n - 1), 3), round(1.0 / n, 4)) for i in range(n)]
 
 
 def alley_driver_bins(n=6):

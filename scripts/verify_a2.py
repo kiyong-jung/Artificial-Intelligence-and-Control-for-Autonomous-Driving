@@ -10,7 +10,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from traffic.scenarios_a2 import (build_a2_net, run_cutin_episode, build_s4_net,  # noqa: E402
                                   run_s4, traci)
-from traffic.cutin import default_bins  # noqa: E402
+from traffic.cutin import alley_driver_bins  # noqa: E402
 
 N = int(os.environ.get("A2_N", 60))
 THRESH = 28.0      # 버스가 교차로까지 28 m(약 2.5 s) 이내일 때 진입하면 우선권 위반으로 본다
@@ -34,8 +34,8 @@ def main():
     cfg = build_a2_net(single_bin=(1.0, 0.5, 0.5), v_ign=0.0)
     res["entry_rate_p1_vign0"] = rate([run_cutin_episode(cfg, "cutin_0", s, threshold_m=THRESH)
                                        for s in range(N)])
-    # 2) 분포(6개 구간)
-    cfg = build_a2_net(bins=default_bins(6))
+    # 2) 합정역 골목 운전자 분포(6개 구간, 앞차 무시 없음)
+    cfg = build_a2_net(bins=alley_driver_bins(6))
     rows = [run_cutin_episode(cfg, "cutin", s, threshold_m=THRESH) for s in range(2 * N)]
     res["distribution_entry_rate"] = rate(rows)
     # 3) priority 교차로 충돌 기록 (버스 speedMode 0 = 버스가 회피 안 함, p=1)

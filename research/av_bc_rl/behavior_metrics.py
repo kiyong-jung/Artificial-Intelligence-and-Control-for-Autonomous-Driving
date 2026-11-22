@@ -79,7 +79,12 @@ def episode_metrics(records):
     intervened = sum(1 for a in act if a.get("speed_intervened"))
     accel_cmd_pos = np.array([a["accel_raw"] > 0.05 for a in act])
     mismatch = int(np.sum(accel_cmd_pos & (accel < -0.5)))
-    served = {s["t"] for s in stops if s["reason"] == "bus_stop" and s["duration_s"] >= 5.0}
+    service = [r["event"].get("service_event") for r in records]
+    recorded = any("service_event" in r["event"] for r in records)
+    # 정차 사건이 기록된 데이터(스키마 v2)는 그 사건을 센다. 옛 데이터는 정류장 근처 5초 이상 정지로 어림한다.
+    served = (service.count("served") if recorded
+              else len({s["t"] for s in stops if s["reason"] == "bus_stop" and s["duration_s"] >= 5.0}))
+    missed = service.count("missed") if recorded else None
     nav0, navN = records[0]["state"]["navigation"], records[-1]["state"]["navigation"]
     reasons = defaultdict(float)
     for s in stops:
@@ -106,7 +111,8 @@ def episode_metrics(records):
         "lane_change_pingpong": pingpong,
         "lane_change_requests": requested,
         "lane_change_refused": refused,
-        "bus_stops_served": len(served),
+        "bus_stops_served": served,
+        "bus_stops_missed": missed,
         "stop_events": stops,
     }
 
@@ -120,7 +126,7 @@ def load_episodes(path):
 
 SUMMARY_KEYS = ("arrived", "lap_time_s", "progress", "mean_speed", "hard_brakes", "max_decel", "jerk_violation_rate",
                 "speed_intervened_rate", "label_mismatch_rate", "unexplained_stops", "stuck_events", "lane_changes",
-                "lane_change_pingpong", "lane_change_refused", "bus_stops_served")
+                "lane_change_pingpong", "lane_change_refused", "bus_stops_served", "bus_stops_missed")
 
 
 def summarize(per_episode):
@@ -154,7 +160,7 @@ def main():
         print(f"ep{e['episode']:>3} {e['termination']:<10} t={e['steps'] * DT:6.1f}s v={e['mean_speed']:4.1f} "
               f"hard={e['hard_brakes']:2d} jerk%={e['jerk_violation_rate'] * 100:4.1f} interv%={e['speed_intervened_rate'] * 100:4.1f} "
               f"mismatch%={e['label_mismatch_rate'] * 100:4.1f} unexpl={e['unexplained_stops']} stuck={e['stuck_events']} "
-              f"lc={e['lane_changes']} pp={e['lane_change_pingpong']} refused={e['lane_change_refused']} served={e['bus_stops_served']}")
+              f"lc={e['lane_changes']} pp={e['lane_change_pingpong']} refused={e['lane_change_refused']} served={e['bus_stops_served']} missed={e['bus_stops_missed']}")
     print(json.dumps({k: v for k, v in summary.items()}, ensure_ascii=False, indent=1))
     if args.json:
         with open(args.json, "w", encoding="utf-8") as f:

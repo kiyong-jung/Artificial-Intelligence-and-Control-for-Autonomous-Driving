@@ -25,3 +25,8 @@ ts	phase	decision	why	evidence	result
 2026-11-22T15:12:35Z	diagnose	v3 왕복 원인: J82 좌회전 직전(R111b)에서 다음 정류장(극동방송) 차로 규칙이 경로 차로 규칙과 싸움	차선 명령 순서 추적	dev_expert_v3_busy ep1 t=271-283	경로 차로 우선, 회전 너머 정류장은 차로 맞춤 안 함
 2026-11-22T15:12:35Z	diagnose	v3 순간이동 원인: ego 차선변경 모드 512가 차로 안 재정렬을 막아 버스가 인도 차로에 0.17m 걸치고, SUMO가 인도 보행자를 앞차로 봐 정지	seed 1100 재현에서 lat -0.518, 선행차 없음, getSpeedWithoutTraCI 0	scratchpad/probe/stall_probe.py, SUMO 문서 Change_Vehicle_State.md bit10-11	lane_change_mode 1536(512+bit10)로 고침, 재현에서 lat 0.0 통과
 2026-11-22T15:12:35Z	expert	v4 dev 30회(busy, seed 1100-1129)	루브릭 확인	metrics/dev_expert_v4_busy.json	완주 30/30, 급제동 0, 최대 감속 2.0, 개입 1.3%, 불일치 0.21%, jerk 1.7%, 갇힘 0, 왕복 0, 정류장 118/120
+2026-11-22T15:16:51Z	expert	v5(끝 60m 안에서 좁은 틈 허용, 틈 찾기 감속 0.5) 시험 후 되돌림	정류장 놓침 2/120이 그대로라 이득 없음. 복잡도만 늘어 v4 유지	metrics/dev_expert_v5_busy.json	reverted
+2026-11-22T15:16:51Z	train	PPO 3 seed(2101-2103), busy, 600k 스텝, max_steps 1400 학습 시작	전문가와 무관하고 관측과 보상이 고정됐으므로 먼저 시작	results/research/run_hapjeong_*_ppo_s*	open
+2026-11-22T15:30:54Z	agsci	AI-Scientist-v3 과제 폴더 작성(task.md, evaluate.py, program_0=전문가, rubrics, requirements)	내일 Docker 있는 컴퓨터에서 agsci run으로 이어가기 위함. 평가기 계약: --program_path --results_dir, metrics.json(combined_score), correct.json	research/av_bc_rl/agsci_task/	전문가 96.9 correct, 옛 규칙 -1.5 correct(실측. 처음 추정 40~50은 틀려 고침)
+2026-11-22T15:30:54Z	train	Residual 3 seed(2201-2203), busy, 300k, scale 0.3 학습 시작	전문가 v4 확정 뒤 시작	results/research/*residual_s*	open
+2026-11-22T15:31:34Z	verify	전문가가 관측만 쓰는지 확인: 저장된 관측으로 전문가 행동을 다시 계산	BC와 DAgger가 성립하는 전제. 루브릭 expert_uses_policy_observation_only	research/av_bc_rl/dagger.py relabel, train_expert_quiet.npz 48,176 샘플	최대 차이 0.0. VERIFIED

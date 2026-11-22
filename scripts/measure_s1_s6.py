@@ -1,15 +1,18 @@
 """시험용 버스가 노선을 3바퀴 도는 동안 시나리오 S1~S6이 몇 번 일어나는지 센다(사건 단위, 바퀴별).
 
     python scripts/measure_s1_s6.py baseline 0 route   # 인자: 수요(quiet|baseline|busy) 시드(기본 0) 꼬리표
+    python scripts/summarize_s1_s6.py busy             # 여러 시드 결과를 바퀴당 비율(평균, 표준편차, 범위)로 모은다
 
 시험용 버스는 traffic/test_bus.py(R68 출발, 끊김 없는 바퀴, 정해진 차선 변경 창)로 달린다. 배경 교통은 수요와 SUMO 운전자
 모델만으로 움직인다(버스 위치에 맞춰 넣거나 조종하는 차·사람이 없다). 결과는
 results/traffic_verification/s1_s6_<수요>_<시드>_<꼬리표>.json 에 쓴다.
 
-사건 정의
-  S1  시험용 버스가 정류장에 서서 출발한 횟수(stops) / 그때 정차 버스 바로 뒤 후행차에 대한 S1 판정이 일어난 횟수(rear_events)
-  S2  J82·J1 앞 창에서 왼쪽 차선변경을 시도한 횟수(attempts) / 그중 목표 차로 후행차 A1 상호작용이 있었던 횟수(a1)
-  S3  s2 앞 창에서 오른쪽 차선변경을 시도한 횟수 / 같은 A1 상호작용 횟수
+사건 정의(모두 위치로만 판정한다. 누가 넣은 차인지 보지 않는다)
+  S1  시험용 버스가 정류장에 서서 출발한 횟수(stops) / 그때 같은 차로 버스 뒤 100 m 안에 차가 있던 정차 횟수(rear_events)와
+      그 차가 기다렸는지 추월했는지(rear_outcomes, StopBypassManager 관찰)
+  S2  J82·J1 앞 창에서 왼쪽 차선변경을 시도한 횟수(attempts) / 그중 목표 차로 버스 뒤 30 m 안에 후행차가 있던 횟수
+      (with_a1_follower, YieldManager 관찰)
+  S3  s2 앞 창에서 오른쪽 차선변경을 시도한 횟수 / 같은 후행차가 있던 횟수
   S4  시험용 버스가 서는 정류장 150 m 앞까지 왔을 때, 가로변 차로의 정류장 30 m 앞(정류장이 도로 시작 가까이면 노선 앞 도로
       끝까지)~끝 20 m 뒤에 정차 중(stop)인 차가 있던 정류장 수(바퀴·정류장마다 한 번). 누가 세웠는지 보지 않는다
   S5  골목에서 나온 차가 15초 안에 버스와 같은 도로의 앞 50 m에 들어온 횟수
@@ -33,7 +36,7 @@ from traffic.test_bus import STOP_AT, TestBusPilot  # noqa: E402
 
 SCEN = sys.argv[1] if len(sys.argv) > 1 else "baseline"
 SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 0
-TAG = sys.argv[3] if len(sys.argv) > 3 else ""          # 결과 파일 이름 꼬리표
+TAG = sys.argv[3] if len(sys.argv) > 3 else ""          # 결과 파일 이름 꼬리표(old, hiped, pedsumo, noror, nointer, noped)
 OLD_PED = "old" in TAG                                  # 꼬리표에 old가 있으면 보행자 수정 전 설정으로 잰다
 PED_X = 4 if "hiped" in TAG else 1                      # 꼬리표에 hiped가 있으면 횡단보도 보행자를 4배로 늘린다
 PED_DEFIANCE = "pedsumo" in TAG or OLD_PED              # 꼬리표에 pedsumo가 있으면 PedSUMO 방식 건너기 판정을 켠다

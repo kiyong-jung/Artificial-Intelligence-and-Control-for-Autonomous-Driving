@@ -151,3 +151,4 @@ python train_bc.py --data data/paldalmun/run1.npz --epochs 50
 - PPO의 GAE는 시간 초과에서도 끊는다.
 - SUMO 순간이동을 끈다(`time-to-teleport -1`). ego가 200초 이어서 서 있으면 에피소드는 `stuck`으로 끝난다(`env/mdp_config.py`의 `stuck_timeout`).
 - 배경 차끼리 부딪히면 두 차는 지워지지 않고 그 자리에 120초 섰다가 비켜 간다(`collision.action warn`, `collision.stoptime`). ego가 끼지 않은 충돌은 `info["background_collisions"]`로 센다.
+- SUMO 경고(비상 제동, 충돌)는 콘솔에 찍지 않고 실행 폴더의 `sumo_warnings/<sumo_seed>.log`에 남긴다.

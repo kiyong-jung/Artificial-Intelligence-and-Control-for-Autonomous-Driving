@@ -115,8 +115,8 @@ A, O = "ALLOW", "OPEN:"
 RULES = [
     # ---- 학습 환경: ego만 조종한다 ----
     ("call", "env/sumo_env.py", "*", "vehicle.*", "self.ego_id", A, "ego 버스 자신의 투입·속도·차선 명령"),
-    ("lit", "env/sumo_env.py", "*._start_sumo", "no-warnings", "true", O + "E3",
-     "SUMO 경고(비상 제동, 충돌)를 꺼서 학습·평가 기록에 남지 않는다"),
+    ("lit", "env/sumo_env.py", "*._start_sumo", "no-warnings", "true", A,
+     "콘솔만 끈다. 경고(비상 제동, 충돌)는 --error-log로 실행 폴더의 sumo_warnings/<sumo_seed>.log에 남는다"),
     ("lit", "env/road_builder.py", "build", "collision.stoptime", "*", A,
      "부딪힌 두 차가 그 자리에 road_config의 collision_stop_s(120초) 동안 섰다가 비켜 간다. 지우지 않는다"),
     ("lit", "research/av_bc_rl/s6_priority_trial.py", "background_run", "no-warnings", "true", A,

@@ -234,9 +234,14 @@ class SumoHighwayEnv(gym.Env):
         # gui=True면 화면이 있는 sumo-gui, 아니면 화면 없는 sumo (학습용, 훨씬 빠름)
         binary = checkBinary("sumo-gui" if self.gui else "sumo")
         # 계산 간격과 충돌 처리(warn과 정지, 교차로 포함)는 scenario.sumocfg에 있다.
+        # 경고(비상 제동, 충돌)는 콘솔 대신 실행 폴더의 sumo_warnings/<sumo_seed>.log에 남긴다.
+        # 수집 워커들이 실행 폴더를 함께 쓰므로 에피소드마다 다른 파일이다. reset의 info와 수집 기록에 sumo_seed가 있다.
+        warnings_dir = os.path.join(os.path.dirname(self.cfg_path), "sumo_warnings")
+        os.makedirs(warnings_dir, exist_ok=True)
         cmd = [
             binary, "-c", self.cfg_path,
             "--no-warnings", "true",   # 콘솔 경고 끄기
+            "--error-log", os.path.join(warnings_dir, f"{self.sumo_seed}.log"),
             "--no-step-log", "true",   # 스텝 로그 끄기
             # Gymnasium의 RNG에서 뽑아 reset(seed)의 재현성과
             # reset(None)의 연속적인 새 교통 패턴을 함께 보장한다.

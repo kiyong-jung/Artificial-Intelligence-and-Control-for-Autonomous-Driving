@@ -36,7 +36,7 @@ def test_right_on_red_changes_every_signal_but_the_main_crossing(world):
         assert any(st[i] == "s" for st in now for i in links)
         for st, orig in zip(now, info["orig"]):
             for i in links:
-                assert st[i] == orig[i] or (orig[i] in "ryu" and st[i] == "s"), (tid, i, orig[i], st[i])
+                assert st[i] == orig[i] or (orig[i] in "ru" and st[i] == "s"), (tid, i, orig[i], st[i])
 
 
 def test_right_turn_on_red_stops_before_turning(world):

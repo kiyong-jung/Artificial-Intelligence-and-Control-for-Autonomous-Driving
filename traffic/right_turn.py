@@ -3,7 +3,8 @@
 
 확인 결과(합정역 3.6.0 도로망의 신호 프로그램을 직접 읽음): 신호 교차로의 우회전 링크가 주기의 54~69% 동안 적색(r)이다.
 한국 도로교통법은 적색 우회전 전에 정지선에서 일시정지하게 한다. 그래서 시작할 때 신호 프로그램에서 우회전 링크를
-적색·황색 위상에서 's'로 바꾼다. SUMO의 링크 상태 's'는 "정지 후 진행"이다(netconvert가 traffic_light_right_on_red
+적색 위상에서 's'로 바꾼다. 황색은 그대로 둔다(설 수 있으면 서고, 못 서면 지난다). 황색에서 's'로 열면 황색이 켜지는
+순간 정지선 가까이 온 차가 비상 제동을 했다(busy seed 0~2, J96 `-R126_1` 2번에서 6번). SUMO의 링크 상태 's'는 "정지 후 진행"이다(netconvert가 traffic_light_right_on_red
 교차로에 만드는 상태와 같다). 차는 정지선에서 반드시 멈춘 뒤, 우선하는 상대 흐름이 없을 때 지난다. 예전에는 'g'(양보하며
 진행)로 열어 서지 않고 지났다. 어느 위상에서 열지는 **신호 프로그램만으로** 정한다(런타임에 링크 상태를 바꾸지 않는다).
 
@@ -83,7 +84,7 @@ def apply_right_on_red(traci, net, exclude=("J1",), foe_ok="ry"):
     foe_ok: 겹치는 차량 링크가 이 상태들뿐일 때 연다("r" 적색, "y" 황색). 직진·좌회전 녹색("G", "g")이 겹치면 열지 않는다.
     겹치는 횡단보도의 보행자 신호는 반드시 적색이어야 한다.
 
-    반환: {신호 id: {"links": 우회전 링크 수, "opened_share": 원래 적색·황색이던 시간 중 열린 비율,
+    반환: {신호 id: {"links": 우회전 링크 수, "opened_share": 원래 적색이던 시간 중 열린 비율,
                     "blocked_by_ped": 보행자 신호 때문에 열지 못한 시간 비율}}.
     """
     changed = {}
@@ -104,7 +105,7 @@ def apply_right_on_red(traci, net, exclude=("J1",), foe_ok="ry"):
                 prev = origs[pi - 1]                           # 직전 위상(처음이면 마지막 위상 = 주기가 이어진다)
                 s = list(orig)
                 for i in links:
-                    if i >= len(orig) or orig[i] not in "ryu":
+                    if i >= len(orig) or orig[i] not in "ru":
                         continue
                     total += phase.duration
                     veh, cross = foes.get(i, (set(), set()))

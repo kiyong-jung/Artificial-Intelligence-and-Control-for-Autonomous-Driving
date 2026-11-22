@@ -46,6 +46,7 @@ S6_CROSS, S6_EDGE = ":S6_wausanro_c", "R112.112"      # 횡단보도는 R112.112
 S6_APPROACH = ["-R112_0", "-R112_1", "-R112_2", "R112.112_0", "R112.112_1", "R112.112_2"]   # 횡단보도로 들어오는 차로
 S6_QUEUE_M = 40.0                                       # 횡단보도 앞 이 거리 안에 서 있는 차를 대기 차로 센다
 S4_APPROACH_M, S4_BEFORE_M, S4_AFTER_M = 150.0, 30.0, 20.0
+STILL_GAP_M, STILL_RED_M, STILL_LINE_M = 15.0, 25.0, 3.0
 
 
 class Done(Exception):
@@ -120,6 +121,33 @@ def main():
     stop_edges = {s["edge"] for s in stops}
     timing = {}                                        # 바퀴 -> 시간 구성
     bw = {"cur": 0.0, "long": [], "s3_trace": []}      # 시험용 버스가 정류장 밖에서 15초 넘게 선 곳, S3 시도 중 궤적
+    still = {"cur": None, "events": {"midblock": [], "stopline": [], "junction": []}}
+
+    def still_kind(road, pos, stopstate):
+        """정류장 밖에서 앞차도 적색도 없이 선 곳의 종류. 앞 STILL_GAP_M 안에 차가 있거나 적색·황색 정지선이 STILL_RED_M 안이면
+        줄 서기라 None이다. 녹색 정지선 STILL_GAP_M 안이거나 차로 끝 STILL_LINE_M 안(신호 없는 횡단보도·교차로에서 양보)이면
+        stopline, 교차로 안이면 junction, 나머지는 길 가운데(midblock)다."""
+        if tc.vehicle.getSpeed("bus0") >= 0.1 or stopstate & 1:
+            return None
+        if road.startswith(":"):
+            return "junction"
+        tls = tc.vehicle.getNextTLS("bus0")
+        ld = tc.vehicle.getLeader("bus0", STILL_GAP_M)          # 더 먼 앞차를 돌려줄 수도 있다
+        if (tls and tls[0][3] in "rRyY" and tls[0][2] < STILL_RED_M) or (ld and ld[0] and ld[1] <= STILL_GAP_M):
+            return None
+        at_line = (tls and tls[0][2] <= STILL_GAP_M) or tc.lane.getLength(tc.vehicle.getLaneID("bus0")) - pos <= STILL_LINE_M
+        return "stopline" if at_line else "midblock"
+
+    def track_still(t, kind, road="", idx=0, pos=0.0):
+        cur = still["cur"]
+        if cur and cur["kind"] != kind:
+            cur["s"] = round(t - cur["t0"], 1)
+            if cur["s"] >= 1.0:
+                still["events"][cur.pop("kind")].append(cur)
+            still["cur"] = cur = None
+        if kind and cur is None:
+            still["cur"] = {"kind": kind, "t0": round(t, 1), "lap": lap(), "road": road, "lane": idx, "pos": round(pos, 1),
+                            "phase": bus.phase, "why": bus.why, "handover": bus._handover, "forced": bus._forced_p is not None}
 
     def on_step(t):
         ids = tc.vehicle.getIDList()
@@ -129,6 +157,7 @@ def main():
             pos = tc.vehicle.getLanePosition("bus0")
             # 정류장 밖에서 오래 서 있는 곳(한 바퀴가 길어지는 원인 찾기)
             stopstate = tc.vehicle.getStopState("bus0")
+            track_still(t, still_kind(road, pos, stopstate), road, idx, pos)
             # 바퀴 시간을 나눠 센다(0.1초 단위): 정류장 정차 / 적색 대기 / 그 밖의 정지 / 주행. 긴 바퀴가 신호 주기 때문인지 본다
             tm = timing.setdefault(lap(), {"stop": 0.0, "red": 0.0, "other": 0.0, "moving": 0.0})
             if stopstate & 1 and stopstate & 16:
@@ -384,6 +413,7 @@ def main():
     except Done:
         pass
     # S1 후행차 판정은 관찰 기록에서 센다(바퀴는 시험용 버스 한 바퀴)
+    track_still(tc.simulation.getTime(), None)
     laps_done = len(bus.lap_times)
     per_lap = lambda c: [c.get(i, 0) for i in range(1, LAPS + 1)]
     bounds, acc = [], st["t0"] or 0.0
@@ -420,7 +450,7 @@ def main():
                       "within_100m_examples": safety["popin_100m"][:8]},
            "ped_x": PED_X, "ped_cfg": "old" if OLD_PED else "new", "variant": TAG, "trace": trace,
            "lap_time_breakdown": {k: {kk: round(v, 1) for kk, v in d.items()} for k, d in timing.items()},
-           "bus_long_waits_outside_stops": bw["long"], "bus_stuck_probe": probe["log"], "s3_trace": bw["s3_trace"],
+           "bus_long_waits_outside_stops": bw["long"], "bus_still": still["events"], "bus_stuck_probe": probe["log"], "s3_trace": bw["s3_trace"],
            "interior": world.interior.summary() if world.interior else None,
            "right_on_red": world.summary.get("right_on_red"),
            "other_lane_change_attempts": per_lap(ev["other_attempts"]),

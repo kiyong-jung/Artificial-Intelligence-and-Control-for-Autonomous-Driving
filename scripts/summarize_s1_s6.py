@@ -7,11 +7,13 @@
 """
 import glob
 import json
+import math
 import os
 import statistics
 import sys
 
 DIR = os.path.join(os.path.dirname(__file__), "..", "results", "traffic_verification")
+MIDBLOCK_S = 3.0                # 길 가운데 이만큼 이상 서 있으면 한 번으로 센다
 
 
 def per_lap(d, xs):
@@ -45,7 +47,18 @@ def row(d):
         "S6_max_wait_s": d["S6_vehicle_waiting"]["max_wait_s"],
         "S6_over20s": d["S6_vehicle_waiting"]["vehicles_over_20s"],
         "bus_forced_stops": len(d["bus"]["forced"]),
+        "bus_missed": len(d["bus"]["missed"]),
+        **still_rows(d.get("bus_still")),
     }
+
+
+def still_rows(still):
+    """버스가 정류장 밖에서 앞차도 적색도 없이 선 구간(measure_s1_s6.py의 bus_still). 그 기록이 없는 예전 결과는 nan이다."""
+    if still is None:
+        return dict.fromkeys(("bus_midblock_n", "bus_midblock_s", "bus_midblock_max_s", "bus_stopline_s"), float("nan"))
+    mid = [e["s"] for e in still["midblock"]]
+    return {"bus_midblock_n": sum(x >= MIDBLOCK_S for x in mid), "bus_midblock_s": sum(mid),
+            "bus_midblock_max_s": max(mid, default=0.0), "bus_stopline_s": sum(e["s"] for e in still["stopline"])}
 
 
 def main():
@@ -64,6 +77,9 @@ def main():
     print("metric".ljust(20) + "".join(f"s{s}".rjust(8) for s in seeds) + "     mean      sd    min~max")
     for k in rows[seeds[0]]:
         xs = [rows[s][k] for s in seeds]
+        if any(math.isnan(x) for x in xs):             # 끝난 바퀴가 없거나 그 기록이 없는 예전 결과
+            print(k.ljust(20) + "".join(f"{x:8.2f}" for x in xs))
+            continue
         sd = statistics.stdev(xs) if len(xs) > 1 else 0.0
         print(k.ljust(20) + "".join(f"{x:8.2f}" for x in xs)
               + f"  {statistics.mean(xs):7.2f} {sd:7.2f}   {min(xs):.2f}~{max(xs):.2f}")

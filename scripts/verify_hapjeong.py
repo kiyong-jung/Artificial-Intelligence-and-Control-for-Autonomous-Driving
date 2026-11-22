@@ -21,19 +21,6 @@ D = os.path.join(NET_DIR, "hapjeong")
 BUS = '<vType id="bus_test" vClass="bus" length="12" width="2.5" accel="1.2" decel="4.0" tau="1.0" sigma="0"/>'
 
 
-def nonpriority_s6_net():
-    """실제 도로망의 S6 횡단보도는 priority=true라 P1/P2가 의미 없다. 비우선으로 다시 만든 복사본."""
-    import subprocess
-    from traffic.sumo_conn import checkBinary
-    os.makedirs(D, exist_ok=True)
-    _write(os.path.join(D, "c.con.xml"), '<connections><crossing node="S6_wausanro" '
-           'edges="-R112.88 R112" priority="false"/></connections>')
-    out = os.path.join(D, "np.net.xml")
-    subprocess.run([checkBinary("netconvert"), "-s", NET, "-x", os.path.join(D, "c.con.xml"),
-                    "-o", out, "--no-warnings"], check=True, capture_output=True)
-    return out
-
-
 BG = False            # True면 baseline 배경 교통 속에서 실행(WARM초 예열 뒤 시나리오 시작)
 WARM = 300.0
 

@@ -174,6 +174,7 @@ class SumoHighwayEnv(gym.Env):
         self.state_radius = float(mdp_sim["state_radius"])
         self.ego_insert_timeout = float(mdp_sim["ego_insert_timeout"])
         self.stuck_timeout = float(mdp_sim.get("stuck_timeout", 200.0))
+        self.stuck_progress = float(mdp_sim.get("stuck_progress_m", 5.0))
         self.visibility = float(mdp_obs["visibility"])   # 관측 거리 W
         # 밀도 정규화용 "차량 1대가 점유하는 길이" (차체 + 최소 간격)
         self.density_veh_len = float(mdp_obs.get("density_veh_length", 7.5))
@@ -332,6 +333,7 @@ class SumoHighwayEnv(gym.Env):
         self._service_next, self._dwell_left = 0, None
         self.stops_served, self.stops_missed = 0, 0
         self._speed = float(traci.vehicle.getSpeed(self.ego_id)) if self.ego_id in traci.vehicle.getIDList() else 0.0
+        self._progress_mark = (0, float(traci.vehicle.getDistance(self.ego_id)))
         return self._get_obs(), {"sumo_seed": self.sumo_seed,
                                  "ego_insert_wait_seconds": (1 + _wait) * self.step_length,
                                  "warmup_seconds": warmup_steps * self.step_length,
@@ -1039,7 +1041,7 @@ class SumoHighwayEnv(gym.Env):
             reward = 0.0
             terminated = True
             termination_reason = "missing"
-        elif traci.vehicle.getWaitingTime(self.ego_id) >= self.stuck_timeout:
+        elif self._stalled():
             reward = 0.0
             terminated = True
             termination_reason = "stuck"
@@ -1130,6 +1132,16 @@ class SumoHighwayEnv(gym.Env):
                                           - requested_speed) > 1e-3),
         }
         return obs, float(reward), terminated, truncated, info
+
+    def _stalled(self):
+        """stuck_progress_m를 가는 데 stuck_timeout보다 오래 걸렸는지. 서 있는 것과 기어가는 것을 함께 잡는다.
+
+        SUMO의 대기 시간은 0.1m/s를 넘으면 0으로 돌아가, 기어가는 정책은 시간 제한까지 stuck이 되지 않았다.
+        """
+        distance = float(traci.vehicle.getDistance(self.ego_id))
+        if distance - self._progress_mark[1] >= self.stuck_progress:
+            self._progress_mark = (self.step_count, distance)
+        return (self.step_count - self._progress_mark[0]) * self.decision_interval >= self.stuck_timeout
 
     # ==================================================================
     def close(self):

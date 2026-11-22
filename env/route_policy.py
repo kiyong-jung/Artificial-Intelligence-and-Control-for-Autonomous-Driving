@@ -4,7 +4,7 @@ numpy만 쓴다. 도로만 다시 만드는 사람에게 torch를 요구하지 �
 
 - route_following_action: 수업 원본 31차원만 보는 옛 규칙. 늘 같은 가속을 내고 신호와 정류장을 보지 못해
   적색 정지선 앞에서 SUMO 강제 정지(최대 80m/s²)에 기댄다. 비교 기준으로 남긴다.
-- ExpertPolicy: 44차원 관측(env/data_schema.OBSERVATION_FEATURES)만 보는 전문가 규칙. BC가 같은 관측으로
+- ExpertPolicy: 46차원 관측(env/data_schema.OBSERVATION_FEATURES)만 보는 전문가 규칙(v4). BC가 같은 관측으로
   따라 할 수 있도록 내부 상태를 두지 않는다. 같은 관측이면 같은 행동이다.
 """
 import numpy as np
@@ -12,6 +12,11 @@ import numpy as np
 from env.data_schema import OBSERVATION_FEATURES
 
 _INDEX = {name: index for index, name in enumerate(OBSERVATION_FEATURES)}
+
+
+def _side(direction):
+    """차선변경 방향(+1 왼쪽, -1 오른쪽)의 관측 차로 이름."""
+    return "left1" if direction > 0 else "right1"
 
 
 def route_following_action(observation):
@@ -83,6 +88,7 @@ class ExpertPolicy:
         if leader_gap < 1.0:
             leader_speed = v + self._f(obs, "current_leader_relative_speed") * self.vmax
             candidates.append(self._idm(v, v0, leader_gap * self.visibility, v - leader_speed, self.standstill_gap))
+        candidates += self._safe_speed_candidates(obs, v)
 
         # 적색이면 정지선에 선다. 황색은 최대 감속(버스 제원)으로 정지선 앞에 설 수 있으면 서고, 못 서면 지나간다.
         # 편안한 감속을 기준으로 하면 지나가기로 한 뒤 적색으로 바뀌어 SUMO가 정지선에서 강제로 세웠다.
@@ -99,21 +105,11 @@ class ExpertPolicy:
             if needed > 0.4:
                 candidates.append(-min(needed * 1.1, self.max_decel))
 
-        # 정차할 정류장: 정류장 목표에 세운다. 아직 정류장 차로가 아니면 목표 앞에서 기다렸다가 틈이 나면 옮긴다.
-        # 정차 중이면 남은 시간 동안 선다.
-        stop_distance = self._f(obs, "stop_distance") * self.stop_range
-        dwelling = self._f(obs, "stop_dwell_remaining") > 0.0
-        if dwelling:
+        # 정차 중이면 남은 시간 동안 선다
+        if self._f(obs, "stop_dwell_remaining") > 0.0:
             return -self.max_decel
-        in_stop_lane = abs(self._f(obs, "stop_lane_offset")) < 0.25
-        if stop_distance < self.stop_range and (in_stop_lane or stop_distance > self.stop_give_up):
-            candidates.append(self._idm(v, v0, stop_distance + self.target_gap, v, self.target_gap))
-        # 옮겨야 할 차로에 틈이 없고 남은 거리가 짧으면 속도를 줄여 옆 차를 먼저 보낸다
-        direction, remaining = self._wanted_lane(obs)
-        if direction and remaining < self.gap_search_within and not self._gap_ok(obs, "left1" if direction > 0 else "right1"):
-            v_slow = self.gap_search_speed * v0
-            if v > v_slow:
-                candidates.append(self._idm(v, v_slow, None, 0.0, 0.0))
+        candidates += self._stop_candidates(obs, v, v0)
+        candidates += self._gap_search_candidates(obs, v, v0)
 
         # 사람이 건너거나 기다리는 횡단보도 앞에 선다
         crossing_distance = self._f(obs, "crosswalk_distance") * self.crossing_range
@@ -121,16 +117,41 @@ class ExpertPolicy:
             gap = max(crossing_distance - self.crosswalk_stop_gap, 0.0) + self.target_gap
             candidates.append(self._idm(v, v0, gap, v, self.target_gap))
 
-        # 경로를 이으려면 옮겨야 하는데 못 옮겼으면 차로 끝 앞에 선다
-        continuation = self._f(obs, "route_lane_continuation") * self.continuation_range
-        if abs(self._f(obs, "route_lane_offset")) > 0.25 and continuation < 80.0:
-            candidates.append(self._idm(v, v0, max(continuation - 8.0, 0.0) + self.target_gap, v, self.target_gap))
+        candidates += self._lane_end_candidates(obs, v, v0)
 
         target = min(candidates)
         # 가속도 변화 제한(승차감). 급한 감속이 필요하면 제한을 두 배로 푼다.
         current = self._f(obs, "ego_acceleration") * 2.0
         step = self.jerk_step * (2.0 if target < current - self.jerk_step and target < -self.comfortable_decel else 1.0)
         return float(np.clip(target, current - step, current + step))
+
+    def _safe_speed_candidates(self, obs, v):
+        """v4는 앞차 추종을 IDM 하나로만 정한다."""
+        return []
+
+    def _stop_candidates(self, obs, v, v0):
+        """정차할 정류장: 정류장 목표에 세운다. 아직 정류장 차로가 아니면 목표 앞에서 기다렸다가 틈이 나면 옮긴다."""
+        stop_distance = self._f(obs, "stop_distance") * self.stop_range
+        in_stop_lane = abs(self._f(obs, "stop_lane_offset")) < 0.25
+        if stop_distance < self.stop_range and (in_stop_lane or stop_distance > self.stop_give_up):
+            return [self._idm(v, v0, stop_distance + self.target_gap, v, self.target_gap)]
+        return []
+
+    def _gap_search_candidates(self, obs, v, v0):
+        """옮겨야 할 차로에 틈이 없고 남은 거리가 짧으면 속도를 줄여 옆 차를 먼저 보낸다."""
+        direction, remaining = self._wanted_lane(obs)
+        if direction and remaining < self.gap_search_within and not self._gap_ok(obs, _side(direction)):
+            v_slow = self.gap_search_speed * v0
+            if v > v_slow:
+                return [self._idm(v, v_slow, None, 0.0, 0.0)]
+        return []
+
+    def _lane_end_candidates(self, obs, v, v0):
+        """경로를 이으려면 옮겨야 하는데 못 옮겼으면 차로 끝 앞에 선다."""
+        continuation = self._f(obs, "route_lane_continuation") * self.continuation_range
+        if abs(self._f(obs, "route_lane_offset")) > 0.25 and continuation < 80.0:
+            return [self._idm(v, v0, max(continuation - 8.0, 0.0) + self.target_gap, v, self.target_gap)]
+        return []
 
     def _gap_ok(self, obs, side):
         """side='left1' 또는 'right1' 차로로 옮길 앞뒤 간격이 충분한지."""
@@ -162,8 +183,7 @@ class ExpertPolicy:
     def lateral(self, obs):
         direction, _remaining = self._wanted_lane(obs)
         if direction and self._f(obs, "stop_dwell_remaining") <= 0.0:
-            side = "left1" if direction > 0 else "right1"
-            if self._gap_ok(obs, side):
+            if self._gap_ok(obs, _side(direction)):
                 return float(direction)
         return 0.0
 

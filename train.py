@@ -27,6 +27,7 @@ from env.sumo_env import SumoHighwayEnv
 from env.experiment import add_run_arguments, configure_execution, write_run_config
 
 from algorithms.ppo import PPO
+from algorithms.residual import ResidualActionEnv
 from utils.buffer import RolloutBuffer
 from utils.logger import RunLogger
 
@@ -55,7 +56,14 @@ REWARD_OVERRIDES = dict(
     blocked_speed_frac=0.7,    #   그리고 내 속도 < vmax × 이 값
     lane_change_penalty=0.0,   # 변경 실행당 감점 (커리큘럼: 초기 0,
     invalid_action_penalty=0.0,#  추월 학습 후 지그재그 과하면 0.02~0.05)
+    # 버스 운행(research/av_bc_rl). 정류장 정차 8초는 속도 보상을 1.6까지 잃으므로 지나치기 벌점이 그보다 커야 선다.
+    # SUMO 안전 보조의 개입(적색 강제 정지, 회전 전 강제 감속)과 승차감 위반은 정책의 잘못으로 본다.
+    stop_served_bonus=1.0,
+    stop_missed_penalty=3.0,
+    intervention_penalty=0.05,
+    comfort_penalty=0.02,
 )
+RESIDUAL_SCALE = 0.0   # 0보다 크면 Residual RL: 행동 = 전문가 가감속 + 이 배율 × 정책 가감속 (algorithms/residual.py)
 REWARD = {**REWARD_DEFAULTS, **REWARD_OVERRIDES}
 
 
@@ -134,7 +142,9 @@ def snapshot_configs(run_dir: str):
     이 파일 안에 있으므로, 나중에 "이 결과가 어떤 설정이었나"를
     정확히 되짚을 수 있다.
     """
-    write_run_config(run_dir, hparams=HPARAMS, reward=REWARD, kind="ppo_training",
+    write_run_config(run_dir, hparams=HPARAMS, reward=REWARD,
+                     kind="residual_training" if RESIDUAL_SCALE > 0 else "ppo_training",
+                     residual_scale=RESIDUAL_SCALE,
                      total_timesteps=TOTAL_TIMESTEPS, eval_interval=EVAL_INTERVAL,
                      eval_episodes=EVAL_EPISODES)
     for src in [os.path.join(BASE, "env", "road_config.py"),
@@ -166,6 +176,8 @@ def main():
         action=ACTION, reward=REWARD,
         gui=False,   # 학습은 화면 없이 (수십 배 빠름)
     )
+    if RESIDUAL_SCALE > 0:
+        env = ResidualActionEnv(env, RESIDUAL_SCALE)
 
     # 4) 경험 버퍼 + 에이전트
     #    버퍼는 메인에서 만들어 에이전트에 "주입"한다 (utils/buffer.py).
@@ -223,6 +235,8 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=None, help="이번 실행의 학습률")
     parser.add_argument("--run-label", default=None, help="실제 시작 시각 뒤에 붙일 실험 이름")
     parser.add_argument("--results-dir", default=None, help="이번 실행의 결과 저장 폴더")
+    parser.add_argument("--residual-scale", type=float, default=RESIDUAL_SCALE,
+                        help="0보다 크면 Residual RL(전문가 가감속 + 배율 × 정책 가감속)")
     args = parser.parse_args()
     try:
         configure_execution(args)
@@ -231,6 +245,9 @@ if __name__ == "__main__":
     if args.timesteps < 1 or args.n_steps < 2 or args.eval_interval < 0:
         parser.error("timesteps >= 1, n-steps >= 2, eval-interval >= 0이어야 합니다.")
     TOTAL_TIMESTEPS, EVAL_INTERVAL = args.timesteps, args.eval_interval
+    if args.residual_scale < 0:
+        parser.error("--residual-scale은 0 이상이어야 합니다.")
+    RESIDUAL_SCALE = args.residual_scale
     HPARAMS.update(n_steps=args.n_steps, seed=args.seed, device=args.device)
     if args.lr is not None:
         if not 0 < args.lr < float("inf"):

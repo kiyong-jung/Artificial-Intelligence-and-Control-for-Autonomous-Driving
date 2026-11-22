@@ -69,7 +69,9 @@ python scripts/fill_column_slide.py 00조_칼럼설명.pptx data/submission/00�
 - 버스 승차감은 `state.ego.acceleration`, `state.ego.jerk`와 `comfort.peak_acceleration`, `comfort.peak_jerk`로 남는다. 한계(가속 1.5m/s², jerk 2.0m/s³)를 넘은 스텝은 `comfort.*_violation`이 참이다.
 - `export_csv.py`는 모든 행에 표의 컬럼이 있는지, 가속도가 제원의 한계 안인지 검사한 뒤에만 CSV를 쓴다.
 
-아직 없는 것은 다음과 같다. 버스는 정류장에 서지 않는다(`state.navigation.distance_to_stop`으로 거리만 적는다). 관측은 수업 원본의 31차원 그대로라 보행자, 신호, 방향지시등은 정책 입력에 없고 `state`와 감지 목록에만 있다. 3.5.0 도로망의 busy 80에피소드(seed 500)에서 골목 차량이 버스 앞에 끼어든 것은 42번이고, 그중 12번은 버스와 같은 차로다(seed 600으로 다시 재면 33번, 7번)(3.0.0에서는 버스가 다른 차와 거의 마주치지 않았다). 구간별 수치는 `python3 scripts/scenario_sections.py <jsonl.gz>`로 본다. 규칙 버스는 80에피소드 중 78회를 완주한다(seed 600에서는 79회). 나머지는 마지막 도로 `R42`에서 제한 시간 600초를 넘기거나 상수역 사거리에서 충돌로 끝난다([maps/hapjeong/README.md](maps/hapjeong/README.md)의 알려진 현상). 시나리오별 발생은 `python3 scripts/scenario_occurrence.py <jsonl.gz>`로 세고, 시나리오의 재료가 도로에 얼마나 공급되는지는 `python scripts/scenario_supply.py`로 센다. 학습 쪽 사용법은 [부록 B](#부록-b-학습-평가-데이터-수집)에 있다.
+버스는 경로 위 정류장 네 곳(s2, s4, s5, s6)에 8초씩 선다. 환경이 정차 성공과 놓침을 세고 `event.service_event`에 적는다. 관측은 수업 원본 31차원에 버스가 실제로 알 수 있는 경로 정보 15개(신호, 정류장, 경로 차로, 횡단보도, 제한속도)를 붙인 46차원이다. 컬럼 이름은 `env/data_schema.py`의 `ROUTE_FEATURES`에 있다. 규칙 정책은 두 가지다. `--policy route-follow`는 예전 규칙이고, `--policy expert`는 관측만 보고 행동을 정하는 전문가(`env/route_policy.ExpertPolicy`)다. BC 데이터는 전문가로 모은다. 전문가, BC, PPO, Residual RL 연구는 [research/av_bc_rl/HANDOFF.md](research/av_bc_rl/HANDOFF.md)에 있다.
+
+아래는 이전 규칙 버스와 3.5.0 도로망에서 잰 값이다. 3.5.0 도로망의 busy 80에피소드(seed 500)에서 골목 차량이 버스 앞에 끼어든 것은 42번이고, 그중 12번은 버스와 같은 차로다(seed 600으로 다시 재면 33번, 7번)(3.0.0에서는 버스가 다른 차와 거의 마주치지 않았다). 구간별 수치는 `python3 scripts/scenario_sections.py <jsonl.gz>`로 본다. 규칙 버스는 80에피소드 중 78회를 완주한다(seed 600에서는 79회). 나머지는 마지막 도로 `R42`에서 제한 시간 600초를 넘기거나 상수역 사거리에서 충돌로 끝난다([maps/hapjeong/README.md](maps/hapjeong/README.md)의 알려진 현상). 시나리오별 발생은 `python3 scripts/scenario_occurrence.py <jsonl.gz>`로 세고, 시나리오의 재료가 도로에 얼마나 공급되는지는 `python scripts/scenario_supply.py`로 센다. 학습 쪽 사용법은 [부록 B](#부록-b-학습-평가-데이터-수집)에 있다.
 
 ## 주변 교통(Traffic)
 
@@ -86,7 +88,7 @@ python scripts/fill_column_slide.py 00조_칼럼설명.pptx data/submission/00�
 - [ ] 정류장 형태 확정 후 S1·S2 구현
 - [ ] 도로 수정 후 합정역 검증 재실행
 - [ ] `SumoHighwayEnv`에 주변 교통 연결
-- [ ] 버스 ego의 정류장 정차, 관측에 보행자·신호 추가
+- [x] 버스 ego의 정류장 정차, 관측에 신호·정류장·횡단보도 추가(`research/av-bc-rl` 브랜치)
 - [ ] 실제 버스 정책과 `bus_hook` 연결
 
 ## 함께 작업하기
@@ -139,11 +141,12 @@ python train_bc.py --data data/paldalmun/run1.npz --epochs 50
 수업 원본 코드와 다르게 동작하는 부분은 다음과 같다.
 
 - SUMO 계산 간격 0.1초. 0.5초로 계산하면 교차로와 합류부의 대기열이 달라진다.
-- ego 안전 보조가 켜져 있다(`speed_mode=31`, `lane_change_mode=512`). 끌지는 팀이 정한다. 값은 `env/road_config.py`의 `_EGO`에 있다.
+- ego 안전 보조가 켜져 있다(`speed_mode=31`, `lane_change_mode=1536`). 1536은 512에 차로 가운데 다시 맞추기(bit 10)를 더한 값이다. 512에서는 버스가 차선변경 도중 멈추면 인도에 걸친 채 서 있다가 순간이동했다. 끌지는 팀이 정한다. 값은 `env/road_config.py`의 `_EGO`에 있다.
 - ego를 넣기 전에 배경 교통을 180초 흘린다.
 - `blocked_penalty`가 0이다. 교차로에서 양보하며 기다리는 것까지 벌점을 받지 않게 했다.
 - ego 투입 시각을 에피소드마다 0~180초 흩뜨린다. 배경 차량이 일정한 간격으로 나와, 투입 시각이 같으면 ego가 매번 같은 차를 같은 자리에서 만난다.
-- 가감속 행동은 결정 구간(0.5초) 내내 같은 가속도로 적용한다. 목표 속도를 한 번에 주면 첫 계산에서 최대 가속으로 따라붙어 jerk가 행동과 무관하게 튄다.
+- 가감속 행동은 결정 구간(0.5초) 동안 구동계처럼 직전 가속도에서 목표 가속도로 곧게 바뀐다. 목표 속도를 한 번에 주면 첫 계산에서 최대 가속으로 따라붙어 jerk가 행동과 무관하게 튄다.
 - 차로 유지 행동은 SUMO에 명령을 보내지 않는다. 차선 변경 벌점과 `lane_changes`는 실제 차선 이동을 센다.
 - 관측의 차로 연결성은 ego 경로 방향으로 이어지는 거리만 센다.
-- PPO의 GAE는 시간 초과에서도 끊는다. ego가 300초 서 있다 순간이동하면 에피소드는 `teleport`로 끝난다.
+- PPO의 GAE는 시간 초과에서도 끊는다.
+- SUMO 순간이동을 끈다(`time-to-teleport -1`). ego가 200초 이어서 서 있으면 에피소드는 `stuck`으로 끝난다(`env/mdp_config.py`의 `stuck_timeout`).

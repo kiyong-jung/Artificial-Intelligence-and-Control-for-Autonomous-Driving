@@ -168,8 +168,6 @@ def main():
             print("버스 차로 변경 때 목표 차로 뒤차가 한 일(주행 모델별):\n" + state["rings"].summary())
         if getattr(world, "stop", None) is not None:
             print("S1 정차 버스 뒤 차량:", world.stop.summary())
-        if getattr(world, "ped", None) is not None:
-            print("A3 보행자 건너기 판정:", world.ped.summary())
         print("정차 차량(S4):", world.summary["stopped"])
         print(f"충돌 {state.get('collisions', 0)}건, 순간이동 {state.get('teleports', 0)}건")
         try:

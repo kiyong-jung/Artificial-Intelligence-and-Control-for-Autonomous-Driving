@@ -61,4 +61,3 @@ def test_no_control_command_reaches_a_background_vehicle_or_person(run):
 def test_observers_still_record_partners(run):
     w, _ = run
     assert w.mgr.log or w.mgr.inter or w.stop.log                  # 관찰 기록은 남는다(조종 없이)
-    assert w.ped is None                                           # PedSUMO 판정은 기본으로 끈다

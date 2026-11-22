@@ -150,7 +150,10 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
         ET.SubElement(inputs, name, value=value)
     processing = ET.SubElement(configuration, "processing")
     for name, value in (("lateral-resolution", traffic["lateral_resolution"]),
-                        ("collision.check-junctions", True), ("collision.action", "remove"),
+                        ("collision.check-junctions", True),
+                        # 부딪힌 두 차는 그 자리에 섰다가 비켜 간다. 지우면 사고가 '사라짐'으로 보인다.
+                        # ego 충돌은 환경이 getCollidingVehiclesIDList로 읽어 에피소드를 끝낸다.
+                        ("collision.action", "warn"), ("collision.stoptime", traffic["collision_stop_s"]),
                         # 순간이동을 끈다. ego가 막히면 환경이 stuck으로 끝낸다(SIMULATION["stuck_timeout"]).
                         ("time-to-teleport", -1),
                         ("collision.mingap-factor", traffic["collision_min_gap_factor"])):

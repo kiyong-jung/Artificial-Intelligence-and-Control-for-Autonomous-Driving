@@ -233,7 +233,7 @@ class SumoHighwayEnv(gym.Env):
     def _start_sumo(self):
         # gui=True면 화면이 있는 sumo-gui, 아니면 화면 없는 sumo (학습용, 훨씬 빠름)
         binary = checkBinary("sumo-gui" if self.gui else "sumo")
-        # 계산 간격과 충돌 처리(remove, 교차로 포함)는 scenario.sumocfg에 있다.
+        # 계산 간격과 충돌 처리(warn과 정지, 교차로 포함)는 scenario.sumocfg에 있다.
         cmd = [
             binary, "-c", self.cfg_path,
             "--no-warnings", "true",   # 콘솔 경고 끄기
@@ -971,6 +971,7 @@ class SumoHighwayEnv(gym.Env):
         # ----- (2) 행동을 decision_interval 동안 유지: SUMO를 substeps번 계산 -----
         # 사건은 계산마다 모은다. ego 사건이 나면 남은 계산을 하지 않는다.
         collision_ids, teleporting_ids = (), ()
+        background_collisions = 0
         peak_acceleration = peak_jerk = 0.0
         for substep in range(self.substeps):
             if requested_speed is not None:
@@ -989,6 +990,8 @@ class SumoHighwayEnv(gym.Env):
                 peak_acceleration = max(peak_acceleration, abs(acceleration))
                 peak_jerk = max(peak_jerk, abs(self._jerk))
             collision_ids += tuple(traci.simulation.getCollidingVehiclesIDList())
+            background_collisions += sum(1 for c in traci.simulation.getCollisions()
+                                         if self.ego_id not in (c.collider, c.victim))
             teleporting_ids += tuple(traci.simulation.getStartingTeleportIDList())
             arrived = self.ego_id in traci.simulation.getArrivedIDList()
             alive = self.ego_id in traci.vehicle.getIDList()
@@ -1000,8 +1003,6 @@ class SumoHighwayEnv(gym.Env):
         # ----- (3) 이벤트/관측 (결정 끝에서 한 번) -----
         collided = self.ego_id in collision_ids
         teleported = self.ego_id in teleporting_ids
-        # SUMO는 충돌로 지운 차량도 도착 목록에 넣는다. arrived는 목적지 도착만 뜻한다.
-        arrived = arrived and not collided
         lane_after = int(traci.vehicle.getLaneIndex(self.ego_id)) if alive else None
         edge_after = traci.vehicle.getRoadID(self.ego_id) if alive else None
         # edge 전환은 차선 번호 자체가 바뀔 수 있어 변경 횟수로 세면 안 된다.
@@ -1097,6 +1098,8 @@ class SumoHighwayEnv(gym.Env):
             "comfort": comfort,
             "collided": collided,
             "simulation_collided": bool(collision_ids),
+            # ego가 끼지 않은 새 충돌 쌍(차·보행자 포함). 부딪힌 차는 지워지지 않고 그 자리에 선다.
+            "background_collisions": background_collisions,
             "collision_ids": collision_ids,
             "teleported": teleported,
             "teleporting_ids": teleporting_ids,

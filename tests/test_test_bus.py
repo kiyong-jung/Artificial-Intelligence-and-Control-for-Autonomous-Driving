@@ -281,7 +281,7 @@ def test_follow_on_change_in_same_window_is_quick():
 
 def test_bus_hands_over_to_sumo_near_window_end_instead_of_stopping():
     # 창 끝이 제동 거리 안인데 목표 차로에 못 갔으면 달리는 차로에 멈춰 서지 않는다(예전에는 속도 0으로 서서 300초까지 기다렸다).
-    # SUMO 기본 차선 변경(1621)에 넘겨 SUMO가 빈틈을 찾고 이웃 차가 협조하게 한다. 창 끝 도로를 지나야 512로 돌린다
+    # SUMO 기본 차선 변경(1621)에 넘겨 SUMO가 빈틈을 찾고 이웃 차가 협조하게 한다. 창 끝 도로를 지나야 LC_MANUAL(1536)로 돌린다
     tc = _FakeTC(speed=10.0)
     pilot = _pilot(tc)
     pilot.tick(tc, 0.0)
@@ -294,7 +294,7 @@ def test_bus_hands_over_to_sumo_near_window_end_instead_of_stopping():
     assert tc.lc_mode[-1] == 1621 and tc.change_req == []
     tc.lane, tc.road, tc.pos = 1, "R71.256", 1.0             # 창 끝 도로를 지났다
     _run(pilot, tc, 1.5, 2.0)
-    assert tc.lc_mode[-1] == 512
+    assert tc.lc_mode[-1] == LC_MANUAL
 
 
 @pytest.mark.parametrize("lane, hands_over", [(3, True), (4, False), (5, False)])

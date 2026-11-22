@@ -82,7 +82,10 @@ $PY research/av_bc_rl/compare.py --split final --groups expert=expert bc=bc_s0,.
 - `traffic/` 억지 코드 정리 브랜치의 결과 검토와 병합(진행 상황은 decisions.tsv).
 - PR #8(3.7.0~3.13.0 패치 흡수)은 아직 리뷰 대기다. 이 연구는 main의 도로망(3.13.0)을 그대로 쓴다.
 - S6 횡단보도는 망에서 차량 우선(보행자 비우선)이다. 한국 법규(보행자 우선)와 맞출지는 팀이 정한다.
-- 전문가가 busy에서 120번 중 2번 정류장을 놓친다. 정류장 차로에 빠른 차가 계속 지나가 틈이 없을 때다.
+- 전문가 v4는 busy에서 120번 중 2번 정류장을 놓치고, quiet train 60회 중 1회 R111b 끝에서 옆 차와 함께 멈춘다.
+  `ExpertPolicyV5`(`--policy expert-v5`)가 둘을 고쳤다(busy 120/120, quiet train 60/60, 개입 0.89%). 차선변경과
+  앞차 추종을 SUMO가 실제로 지키는 안전 간격에 맞춘 판이다(decisions.tsv). BC 데이터와 Residual RL은 v4로
+  학습했으므로 `make_expert`의 기본은 4다. v5로 다시 모아 학습할지는 정해야 한다.
 
 ## 파일
 

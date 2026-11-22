@@ -37,7 +37,7 @@ from traffic.test_bus import STOP_AT, TestBusPilot  # noqa: E402
 
 SCEN = sys.argv[1] if len(sys.argv) > 1 else "baseline"
 SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 0
-TAG = sys.argv[3] if len(sys.argv) > 3 else ""          # 결과 파일 이름 꼬리표(old, hiped, pedsumo, noror, nointer, noped, nolr)
+TAG = sys.argv[3] if len(sys.argv) > 3 else ""          # 결과 파일 이름 꼬리표(old, hiped, pedsumo, noror, noped, nolr)
 OLD_PED = "old" in TAG                                  # 꼬리표에 old가 있으면 보행자 수정 전 설정으로 잰다
 PED_X = 4 if "hiped" in TAG else 1                      # 꼬리표에 hiped가 있으면 횡단보도 보행자를 4배로 늘린다
 PED_DEFIANCE = "pedsumo" in TAG or OLD_PED              # 꼬리표에 pedsumo가 있으면 PedSUMO 방식 건너기 판정을 켠다
@@ -108,7 +108,7 @@ def wrong_lane_waits(tc, net, near_m=5.0):
 def main():
     out_dir = os.path.join(tempfile.gettempdir(), f"occ_{SCEN}_{SEED}{'_' + TAG if TAG else ''}")
     world = HapjeongTraffic(out_dir, scenario=SCEN, seed=SEED, bus_traffic=True,
-                            right_on_red="noror" not in TAG, interior_share=0.3 if "withinter" in TAG else 0.0)
+                            right_on_red="noror" not in TAG)
     world.build()
     if PED_X > 1 or "noped" in TAG:                     # 꼬리표에 noped가 있으면 배경 보행자를 모두 뺀다(J82 정지 원인 가리기)
         rewrite_persons(os.path.join(out_dir, "pedestrians.rou.xml"), 0 if "noped" in TAG else PED_X, SEED)
@@ -468,7 +468,6 @@ def main():
            "ped_x": PED_X, "ped_cfg": "old" if OLD_PED else "new", "variant": TAG, "trace": trace,
            "lap_time_breakdown": {k: {kk: round(v, 1) for kk, v in d.items()} for k, d in timing.items()},
            "bus_long_waits_outside_stops": bw["long"], "bus_still": still["events"], "bus_stuck_probe": probe["log"], "s3_trace": bw["s3_trace"],
-           "interior": world.interior.summary() if world.interior else None,
            "right_on_red": world.summary.get("right_on_red"),
            "other_lane_change_attempts": per_lap(ev["other_attempts"]),
            "a1_interactions_total": len(world.mgr.log),

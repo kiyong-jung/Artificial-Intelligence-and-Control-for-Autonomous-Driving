@@ -13,7 +13,6 @@
 | S5 | 버스 경로에 합류하는 **신호 없는 골목 전부**를 지도에서 자동으로 찾아, 그 골목으로 나오는 흐름을 골목 운전자 분포(`cutin`)로 바꾼다. 앞차를 무시하지 않고(`jmIgnoreFoeProb=0`) impatience 0~1과 `jmTimegapMinor` 1.0~0.3 s만 구간마다 다르다. 끼어들기는 시험용 버스와 배경 차에게 같은 규칙으로 일어난다 | [alleys.py](alleys.py), [cutin.py](cutin.py) |
 | S4 | 정류장 근처 택시 정차(기본): 노선 정류장 6곳마다 가로변 차로에 차로를 막는 정차 구역을 두고, 지도 경계에서 들어와 섰다가 나가는 택시를 정류장마다 시간당 12대(포아송) 흘린다. 정차 시간은 정류장마다 U(15, 40)초. 버스 위치·시각과 무관하다. 그 밖에 위치·시각·정차 시간·확률을 정한 정차 차량(`StoppedSpec`, `--stopped`)도 넣을 수 있다 | [bus_traffic.py](bus_traffic.py) `curb_taxi_stops`, [cutin.py](cutin.py) |
 | 배경 버스·택시 | 전용 차로 버스(중앙 우회 차로 노선 4개 + 가로변 정류장 노선 2개)는 정류장에 서고 출발한다. 시험용 버스가 서는 정류장 6곳에는 배경 버스가 서지 않는다. 배경 버스는 이 전용 차로 노선뿐이고, 정류장에 서지 않는 통과 버스는 투입하지 않는다. 택시는 주변 차량으로 지나가고, 일부는 정류장 근처에 선다(S4). 대수는 자리표시(전용 차로 버스 30, 택시 40, 정류장 근처 정차 택시 정류장마다 12 대/시간) | [bus_traffic.py](bus_traffic.py) |
-| 밀도 분산 | 입구 흐름의 30%를 시험용 버스 노선 위 임의의 지점에서 출발시킨다(신호 앞에만 차가 몰리는 것을 푼다). 지점과 시각은 버스와 무관하다(포아송 도착, 도로 길이에 비례) | [interior_spawner.py](interior_spawner.py) |
 | 시험용 버스 조종 | R68에서 한 번 출발해 노선을 이어 붙이며 끊김 없이 돈다(바퀴 사이 순간이동 없음). s2·s4·s5·s6에 서고 s1·s3은 지나간다. 차선 변경은 정해진 창(S3 s2 앞 160 m, S2 J82 앞 160 m, J1 앞 200 m)에서만 하고 신호 정지선 앞(기본 20 m, J1 10 m)에서는 하지 않는다. 상대를 기다리며 속도를 줄이지 않는다. 목표 차로 후행차가 버스보다 빠르면 속도를 줄여 먼저 보낸 뒤 옮긴다. 창 끝이 제동 거리 안인데 목표 차로에 닿지 못하는 차로면 달리는 차로에 서지 않고 SUMO 기본 차선 변경(1621)에 넘긴다(`handed`). 창 끝까지 못 가면 정류장 창(S3)은 그 정류장을 건너뛰고, 좌회전 창(S2)은 SUMO에 맡겨 정지선에서 기다린다(`missed`) | [test_bus.py](test_bus.py) |
 | 반경 안 출현·소멸 측정 | 시험용 버스 반경 `PRESENCE_RADIUS_M`(50 m, 학습 차량 관측 거리) 안에서 차·버스·택시·보행자가 새로 생기거나 사라진 횟수와 정체 순간이동을 센다(지도 경계와 골목 안은 빼고). **측정만 한다.** 버스 근처에서 출발을 미루거나, 차·사람을 지우거나, 목적지를 바꾸지 않는다 | [presence.py](presence.py) `PresenceMonitor` |
 | 신호 교차로 영역 | 신호가 순서를 정해 눈치 싸움이 없는 곳(교차로 안과 정지선 앞 금지 거리). 여기서는 A1 관찰 구간을 빼고, A3 건너기 판정을 하지 않고(신호 없는 횡단보도만), S5 골목에서 신호 교차로 합류(cluster_J52_J56_J58, J74, J48)를 빼고, S4 택시 정차 구역을 두지 않는다 | [signal_areas.py](signal_areas.py) |
@@ -84,7 +83,7 @@ python scripts/run_hapjeong_scenario.py --nogui --stopped kind=bus,edge=R112,lan
 
 **시험용 버스(`traffic/test_bus.py`의 `TestBusPilot`)**: 노선은 R68 → 성산중학교(s2, 그 앞 S3) → J82 앞 좌회전 차로(S2) → 극동방송(s4) → 서교동교회(s5) → J42 좌회전 → 합정역(s6) → J1 앞 좌회전 차로(S2) → R68. 같은 창에서 차로를 여러 칸 옮기면(J1 앞) 이어지는 변경은 방향지시등 1초 뒤 바로 요청한다. 창 끝이 제동 거리 안인데 지금 차로가 목표 차로에 닿지 못하면 SUMO 기본 차선 변경(전략·협조, 1621)에 넘긴다(`handed`). SUMO가 차로 끝까지 빈틈을 찾고 이웃 차는 제 협조 성향만큼 자리를 내준다. 창 끝까지 못 가면 `missed`로 남긴다. 정류장 창(S3)이면 그 정류장을 이번 바퀴만 건너뛰고(달리는 차로에 서서 정류장 차로를 기다리지 않는다), 좌회전 창(S2)이면 SUMO에 맡긴 채 정지선에서 기다릴 수 있다. 창 끝 도로를 지나면 다시 512로 돌린다. 예전에는 창 끝 앞 달리는 차로에서 속도 0으로 멈춰 빈틈을 기다렸다(`forced`).
 
-**측정**: `scripts/measure_s1_s6.py <수요> <seed> [꼬리표]`가 시험용 버스 3바퀴 동안 S1~S6 횟수(S2는 J82·J1 따로), 횡단보도 앞 차량 대기, 충돌·순간이동, 버스 반경 안 출현·소멸(`presence`), 신호 영역에서 시작한 A1 관찰 수, 바퀴별로 선 정류장, `missed`·`handed`·`slowed`, 버스가 정류장 밖에서 앞차도 적색도 없이 선 구간(`bus_still`: 길 가운데 `midblock`, 정지선·차로 끝 `stopline`, 교차로 안 `junction`)을 센다. S1~S6는 모두 위치로만 판정한다(누가 넣은 차인지 보지 않는다). 꼬리표: `old`(보행자 수정 전 PedSUMO 설정), `pedsumo`(PedSUMO 판정 켬), `hiped`(횡단보도 보행자 4배), `noror`(우회전 끔), `nointer`(밀도 분산 끔), `noped`(보행자 뺌), `nolr`(정지선 포기 끔). 결과의 `lane_route`는 진로를 바꾼 차 수, `wrong_lane_waits_at_end`는 끝난 시각에 잘못 든 차로의 정지선에 서 있던 차들의 대기 시간이다. 한 번에 4~10분 걸린다. `scripts/summarize_s1_s6.py <수요>`가 여러 시드를 바퀴당 비율(평균, 표준편차, 범위)로 모은다.
+**측정**: `scripts/measure_s1_s6.py <수요> <seed> [꼬리표]`가 시험용 버스 3바퀴 동안 S1~S6 횟수(S2는 J82·J1 따로), 횡단보도 앞 차량 대기, 충돌·순간이동, 버스 반경 안 출현·소멸(`presence`), 신호 영역에서 시작한 A1 관찰 수, 바퀴별로 선 정류장, `missed`·`handed`·`slowed`, 버스가 정류장 밖에서 앞차도 적색도 없이 선 구간(`bus_still`: 길 가운데 `midblock`, 정지선·차로 끝 `stopline`, 교차로 안 `junction`)을 센다. S1~S6는 모두 위치로만 판정한다(누가 넣은 차인지 보지 않는다). 꼬리표: `old`(보행자 수정 전 PedSUMO 설정), `pedsumo`(PedSUMO 판정 켬), `hiped`(횡단보도 보행자 4배), `noror`(우회전 끔), `noped`(보행자 뺌), `nolr`(정지선 포기 끔). 결과의 `lane_route`는 진로를 바꾼 차 수, `wrong_lane_waits_at_end`는 끝난 시각에 잘못 든 차로의 정지선에 서 있던 차들의 대기 시간이다. 한 번에 4~10분 걸린다. `scripts/summarize_s1_s6.py <수요>`가 여러 시드를 바퀴당 비율(평균, 표준편차, 범위)로 모은다.
 
 알고리즘별 상세 검증은 `scripts/verify_a2.py`, `verify_a3.py`, `verify_hapjeong.py`, `verify_additional.py`이고 결과는 `results/traffic_verification/`에 쓴다. 양보율을 설정대로 맞추던 A1 검증(`verify_a1.py`, `verify_a1_modes.py`)은 A1이 관찰만 하게 되어 지웠다.
 
@@ -136,6 +135,10 @@ python scripts/run_hapjeong_scenario.py --nogui --stopped kind=bus,edge=R112,lan
   이전 seed 1에도 같은 횡단보도에서 버스-보행자 충돌이 났다.
 
 ## 이슈와 한계
+
+**지운 것**(자연스러움 감사 1회차, [naturalness_audit_round1.md](../research/av_bc_rl/naturalness_audit_round1.md))
+
+- 밀도 분산(`interior_spawner.py`, `interior_share`, 꼬리표 `withinter`)을 지웠다(T2). 시험용 버스 노선 위 임의 지점, 곧 도로 한가운데에 `vehicle.add`로 차를 만들었다. 기본은 꺼져 있었고 켜면 버스 50 m 안 출현이 실행당 7.2대에서 15.6대로 늘었다. 밀도는 입구 수요로 정한다.
 
 **아직 이어지지 않은 것**
 

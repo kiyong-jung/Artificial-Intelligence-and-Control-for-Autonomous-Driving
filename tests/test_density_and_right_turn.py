@@ -1,73 +1,20 @@
-"""밀도 분산(InteriorSpawner)과 신호 교차로 우회전(right_turn)."""
+"""신호 교차로 우회전(right_turn)."""
 import os
-import random
 import sys
-import xml.etree.ElementTree as ET
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from maps import load_map  # noqa: E402
-from traffic.alleys import read_net  # noqa: E402
 from traffic.hapjeong import HapjeongTraffic  # noqa: E402
-from traffic.interior_spawner import InteriorSpawner  # noqa: E402
 from traffic.right_turn import right_turn_links  # noqa: E402
 
 
 @pytest.fixture(scope="module")
 def world(tmp_path_factory):
-    w = HapjeongTraffic(str(tmp_path_factory.mktemp("dens")), seed=0, interior_share=0.3)
+    w = HapjeongTraffic(str(tmp_path_factory.mktemp("dens")), seed=0)
     w.build()
     yield w
     w.close()
-
-
-def test_interior_spawner_is_off_by_default(tmp_path):
-    """기본값에서는 노선 위 임의 지점 출발이 없다(차가 도로 한가운데서 생기지 않는다)."""
-    w = HapjeongTraffic(str(tmp_path), seed=0)
-    assert w.interior_share == 0.0
-
-
-def test_entry_flows_are_reduced_by_the_interior_share(world):
-    """입구 흐름을 30% 줄이고 그만큼을 노선 위 출발로 옮기므로 전체 대수는 같다."""
-    rou = ET.parse(os.path.join(world.out_dir, "routes.rou.xml")).getroot()
-    after = sum(float(f.get("period")[4:-1]) * 3600 for f in rou.iter("flow")
-                if f.get("type") == "carDist" and (f.get("period") or "").startswith("exp("))
-    moved = world.interior_per_h
-    assert moved > 0 and world.summary["interior"]["share"] == 0.3
-    assert moved / (after + moved) == pytest.approx(0.3, abs=1e-3)
-
-
-class _FakeTc:
-    class vehicle:
-        added = []
-
-        @classmethod
-        def add(cls, vid, rid, **kw): cls.added.append((vid, rid, kw))
-
-    class route:
-        routes = {}
-
-        @classmethod
-        def add(cls, rid, edges): cls.routes[rid] = edges
-
-
-def test_spawner_places_cars_on_the_loop_without_looking_at_the_test_bus(world):
-    """출발 지점은 노선의 긴 도로 위 임의의 지점이고, 시험용 버스 위치를 읽지 않는다(가짜 traci에 버스 조회가 없다)."""
-    m = load_map("hapjeong")
-    net = read_net(os.path.join(world.out_dir, "network.net.xml"))
-    tc = _FakeTc()
-    tc.vehicle.added.clear()
-    sp = InteriorSpawner(tc, net, m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}),
-                         per_h=3600.0 * 10, rng=random.Random(1), dt=0.1)
-    for k in range(3000):
-        sp.update(k * 0.1)
-    assert sp.n_spawned > 100
-    loop = set(m["routes"]["bus_loop"])
-    for vid, rid, kw in tc.vehicle.added:
-        edge = tc.route.routes[rid][0]
-        assert edge in loop and 0.0 < float(kw["departPos"]) < net.getEdge(edge).getLength()
-        assert kw["typeID"] == "carDist"
 
 
 def test_right_on_red_changes_every_signal_but_the_main_crossing(world):

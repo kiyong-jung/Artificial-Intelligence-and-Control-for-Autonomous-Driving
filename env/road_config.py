@@ -121,7 +121,10 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
         # 횡방향 속도뿐 아니라 가속도도 제한하는 SL2015를 사용한다.
         # 원형 도로의 순간 횡점프와 저속에서 옆으로 미끄러지는 현상을 줄인다.
         lateral_resolution=0.8,
-        lateral_model={"accel": 0.8, "max_speed": 1.0, "standing_speed": 0.0,
+        # standing_speed: 선 채로 옆으로 움직이는 속도(m/s). 기어가며 핸들을 돌려 옆 차로로 머리를 넣는 정도다. 0이면
+        # 차로 끝에 선 차가 옆으로 전혀 못 움직여, 짧은 갈림 도로(R111b 27m)에서 버스가 왼쪽 차로로 못 옮기고 200초 넘게
+        # 섰다(final busy 전문가 v5 1회, BC 1회). 0.3이면 그 셋이 완주했고 배경 충돌·순간이동은 같고 비상 제동은 33 -> 32건이다.
+        lateral_model={"accel": 0.8, "max_speed": 1.0, "standing_speed": 0.3,
                        "speed_factor": 0.2, "roundabout_cooperation": 0.2},
         # -1은 SUMO의 모델별 기본값(Krauss=1, IDM/EIDM/ACC=0.1)이다.
         # minGap 전체를 강제하면 몸체가 2.49m 떨어진 정지 차량도 삭제된다.

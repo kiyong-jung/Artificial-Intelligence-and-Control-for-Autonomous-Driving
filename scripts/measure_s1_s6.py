@@ -37,10 +37,8 @@ from traffic.test_bus import STOP_AT, TestBusPilot  # noqa: E402
 
 SCEN = sys.argv[1] if len(sys.argv) > 1 else "baseline"
 SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 0
-TAG = sys.argv[3] if len(sys.argv) > 3 else ""          # 결과 파일 이름 꼬리표(old, hiped, pedsumo, noror, noped, nolr)
-OLD_PED = "old" in TAG                                  # 꼬리표에 old가 있으면 보행자 수정 전 설정으로 잰다
+TAG = sys.argv[3] if len(sys.argv) > 3 else ""          # 결과 파일 이름 꼬리표(hiped, noror, noped, nolr)
 PED_X = 4 if "hiped" in TAG else 1                      # 꼬리표에 hiped가 있으면 횡단보도 보행자를 4배로 늘린다
-PED_DEFIANCE = "pedsumo" in TAG or OLD_PED              # 꼬리표에 pedsumo가 있으면 PedSUMO 방식 건너기 판정을 켠다
 LAPS, T_MAX = int(os.environ.get("MEASURE_LAPS", "3")), float(os.environ.get("MEASURE_TMAX", "2600"))
 CUT_WINDOW, NEAR = 15.0, 50.0
 S6_CROSS, S6_EDGE = ":S6_wausanro_c", "R112.112"      # 횡단보도는 R112.112의 끝(116 m)에 있다. 예전 값 R112는 횡단보도 116 m 전이라 건너는 사람을 놓쳤다
@@ -418,14 +416,9 @@ def main():
         presence.update(t)                             # 시험용 버스 반경 안 출현·소멸·순간이동
         _on_step(t)
 
-    ped_cfg = None
-    if OLD_PED:                                       # 보행자 수정 전 설정: 서 있는 차 = 10초, 차량 대기 계수 없음
-        from traffic.ped_defiance import DefianceCfg
-        ped_cfg = DefianceCfg(standing_speed=1e9, standing_ttc=10.0,
-                              use=("ttc", "wait", "group", "width", "size", "momentum", "age", "distract"))
     try:
         world.run(tc.simulation.getTime() + T_MAX + 10, bus_id="bus0", bus_hook=bus.tick, on_step=on_step,
-                  ped_cfg=ped_cfg, ped_defiance=PED_DEFIANCE, pilot=bus, triggers="scenario",
+                  pilot=bus, triggers="scenario",
                   lane_route="nolr" not in TAG)       # 꼬리표에 nolr가 있으면 정지선에서 포기하는 운전자(lane_route.py)를 끈다
     except Done:
         pass
@@ -453,7 +446,7 @@ def main():
            "stops_by_lap": {k: v for k, v in sig["stops"].items()},
            "bus": {"missed": bus.missed, "handed": bus.handed, "slowed": bus.slowed, "changes": bus.changes},
            "S5": {"per_lap": per_lap(ev["S5"])},
-           "S6": {"per_lap": per_lap(ev["S6"]), "ped_decisions": world.ped.summary() if world.ped else None},
+           "S6": {"per_lap": per_lap(ev["S6"])},
            "S6_vehicle_waiting": {"max_wait_s": round(wait["max_wait"], 1), "vehicles_over_20s": len(wait["over20"]),
                                   "vehicles_over_30s": len(wait["over30"]), "max_queue": wait["max_queue"],
                                   "crossing_occupied_share": round(wait["occ_steps"] / max(1, wait["steps"]), 3),
@@ -465,7 +458,7 @@ def main():
                       "new_vehicles_within_200m_of_bus": safety["popin_200m"],
                       "new_vehicles_within_100m_of_bus": len(safety["popin_100m"]),
                       "within_100m_examples": safety["popin_100m"][:8]},
-           "ped_x": PED_X, "ped_cfg": "old" if OLD_PED else "new", "variant": TAG, "trace": trace,
+           "ped_x": PED_X, "variant": TAG, "trace": trace,
            "lap_time_breakdown": {k: {kk: round(v, 1) for kk, v in d.items()} for k, d in timing.items()},
            "bus_long_waits_outside_stops": bw["long"], "bus_still": still["events"], "bus_stuck_probe": probe["log"], "s3_trace": bw["s3_trace"],
            "right_on_red": world.summary.get("right_on_red"),

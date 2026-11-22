@@ -1,12 +1,12 @@
 """공통 실행 루프.
 
-한 스텝(0.1 s)의 순서: 1 관측 수집 -> 2 버스 훅 -> 3 주변 교통 갱신(A1, S1, A3) -> 4 simulationStep -> 5 지표 기록.
+한 스텝(0.1 s)의 순서: 1 관측 수집 -> 2 버스 훅 -> 3 주변 교통 갱신(A1, S1) -> 4 simulationStep -> 5 지표 기록.
 환경은 버스 차량에 명령을 내리지 않는다. 버스 제어 측은 bus_hook(traci, t)로만 끼어든다.
 """
 
 
 def run(traci, t_end, bus_id, bus_hook=None, yield_mgr=None, metrics=None, dt=0.1,
-        on_step=None, ped_mgr=None, stop_mgr=None, extras=()):
+        on_step=None, stop_mgr=None, extras=()):
     """bus_hook: callable(traci, t) 또는 None. 반환: 마지막 시각."""
     t, step = 0.0, 0
     order = []
@@ -23,8 +23,6 @@ def run(traci, t_end, bus_id, bus_hook=None, yield_mgr=None, metrics=None, dt=0.
             stop_mgr.update(t)                                             # 3 S1 정차 버스 뒤 차량
         for extra in extras:
             extra.update(t)                                                # 3 그 밖의 추가 행동(정류장 앞 정차 등)
-        if ped_mgr is not None:
-            ped_mgr.update(t)                                             # 3 A3 보행자 건너기 판정
         traci.simulationStep()                                             # 4
         step += 1
         t = round(step * dt, 6)

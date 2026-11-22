@@ -15,13 +15,12 @@
 | 배경 버스·택시 | 전용 차로 버스(중앙 우회 차로 노선 4개 + 가로변 정류장 노선 2개)는 정류장에 서고 출발한다. 시험용 버스가 서는 정류장 6곳에는 배경 버스가 서지 않는다. 배경 버스는 이 전용 차로 노선뿐이고, 정류장에 서지 않는 통과 버스는 투입하지 않는다. 택시는 주변 차량으로 지나가고, 일부는 정류장 근처에 선다(S4). 대수는 자리표시(전용 차로 버스 30, 택시 40, 정류장 근처 정차 택시 정류장마다 12 대/시간) | [bus_traffic.py](bus_traffic.py) |
 | 시험용 버스 조종 | R68에서 한 번 출발해 노선을 이어 붙이며 끊김 없이 돈다(바퀴 사이 순간이동 없음). s2·s4·s5·s6에 서고 s1·s3은 지나간다. 차선 변경은 정해진 창(S3 s2 앞 160 m, S2 J82 앞 160 m, J1 앞 200 m)에서만 하고 신호 정지선 앞(기본 20 m, J1 10 m)에서는 하지 않는다. 상대를 기다리며 속도를 줄이지 않는다. 목표 차로 후행차가 버스보다 빠르면 속도를 줄여 먼저 보낸 뒤 옮긴다. 창 끝이 제동 거리 안인데 목표 차로에 닿지 못하는 차로면 달리는 차로에 서지 않고 SUMO 기본 차선 변경(1621)에 넘긴다(`handed`). 창 끝까지 못 가면 정류장 창(S3)은 그 정류장을 건너뛰고, 좌회전 창(S2)은 SUMO에 맡겨 정지선에서 기다린다(`missed`) | [test_bus.py](test_bus.py) |
 | 반경 안 출현·소멸 측정 | 시험용 버스 반경 `PRESENCE_RADIUS_M`(50 m, 학습 차량 관측 거리) 안에서 차·버스·택시·보행자가 새로 생기거나 사라진 횟수와 정체 순간이동을 센다(지도 경계와 골목 안은 빼고). **측정만 한다.** 버스 근처에서 출발을 미루거나, 차·사람을 지우거나, 목적지를 바꾸지 않는다 | [presence.py](presence.py) `PresenceMonitor` |
-| 신호 교차로 영역 | 신호가 순서를 정해 눈치 싸움이 없는 곳(교차로 안과 정지선 앞 금지 거리). 여기서는 A1 관찰 구간을 빼고, A3 건너기 판정을 하지 않고(신호 없는 횡단보도만), S5 골목에서 신호 교차로 합류(cluster_J52_J56_J58, J74, J48)를 빼고, S4 택시 정차 구역을 두지 않는다 | [signal_areas.py](signal_areas.py) |
+| 신호 교차로 영역 | 신호가 순서를 정해 눈치 싸움이 없는 곳(교차로 안과 정지선 앞 금지 거리). 여기서는 A1 관찰 구간을 빼고, S5 골목에서 신호 교차로 합류(cluster_J52_J56_J58, J74, J48)를 빼고, S4 택시 정차 구역을 두지 않는다 | [signal_areas.py](signal_areas.py) |
 | 우회전 | 신호 교차로에서 직진·좌회전은 신호를 따르고, 우회전은 신호와 무관하게 간다. 단 겹치는 직진·좌회전이 녹색이 아니고, 우회전 차가 지나는 횡단보도의 보행자 신호가 이 위상과 직전 위상 모두 적색일 때만 열린다(신호 프로그램만 바꿈). 합정역 사거리 `J1`은 제외 | [right_turn.py](right_turn.py) |
 | 정지선 포기 | 다음 도로로 가는 연결이 없는 차로의 정지선 맨 앞에 200초(가장 긴 신호 주기, J42 182초보다 길다) 넘게 선 배경 차는 지금 차로가 가는 쪽으로 가고 길을 다시 찾는다. 원래 목적지까지 500 m 넘게 돌아야 하면 가장 가까운 지도 경계로 나간다. 달리는 차와 신호를 기다리는 차는 건드리지 않고, 회차로 보내지 않는다. 시험용 버스는 빼고, 버스 위치를 보지 않는다 | [lane_route.py](lane_route.py) |
 | A3 / S6 | 모든 보행자가 보행자 분포(`pedDist`)를 쓴다. P1 구간(impatience 0, 0.25)은 v_low(1.5 m/s) 이하 서행 차 앞으로만 건너고, P2 구간(impatience 0.5, 0.75, 1)은 차가 감속해야 하는 간격도 받아들인다. 걷는 속도는 사람마다 다르다. 보행자는 경로 파일대로 SUMO가 넣고 지운다 | [pedestrian.py](pedestrian.py) |
-| A3 보강(선택) | 신호 없는 횡단보도 앞 보행자가 1초마다 건널지 확률로 판정하고, 건너기로 하면 모든 차량의 우선권을 무시한다(PedSUMO 방식). 선두가 시험용 버스든 배경 차든 같다. 대기 상한(첫 차가 5초 기다렸으면 새 보행자는 무시하고 건너지 않는다)이 있다. 합정역 실행에서는 기본으로 끈다(`run(ped_defiance=True)`, `--ped-defiance`) | [ped_defiance.py](ped_defiance.py) |
-| 지표 | 유발 급제동, 충돌, 보행자 PET, 승객 가중 지연, 보행자가 무시하고 건널 때의 급감속·비상 감속 횟수 | [metrics.py](metrics.py) |
-| 실행 루프 | 한 스텝(0.1초)의 순서: 투입 차량에 운전자 성향 주기, 버스 훅, A1 관찰, S1 관찰, (선택) A3 판정, `simulationStep`, 지표 | [runner.py](runner.py) |
+| 지표 | 유발 급제동, 충돌, 보행자 PET, 승객 가중 지연 | [metrics.py](metrics.py) |
+| 실행 루프 | 한 스텝(0.1초)의 순서: 투입 차량에 운전자 성향 주기, 버스 훅, A1 관찰, S1 관찰, `simulationStep`, 지표 | [runner.py](runner.py) |
 | 합정역 연결 | 공식 지도와 `env/road_builder.py`로 만든 실행 폴더에 위 규칙을 얹는다 | [hapjeong.py](hapjeong.py) |
 | 합성 도로 | 2차로 직선, 합류 교차로, 횡단보도 T자로와 시험용 버스. 알고리즘을 도로와 떼어 검증할 때 쓴다 | [scenarios.py](scenarios.py), [scenarios_a2.py](scenarios_a2.py) |
 
@@ -45,7 +44,7 @@
 | A1 | 배경 차량 `car_*`·`cutin_*`에 운전자 성향을 투입 시 붙이고, 버스의 차선 변경 때 목표 차로 후행차를 관찰한다 |
 | S1 | `run(stop_bypass=True)`(기본). 버스가 정류장에 서면 바로 뒤 차량이 기다렸는지 추월했는지 기록한다 |
 | S5 | 버스 경로(`bus_loop`)에 합류하는 골목을 도로망에서 **자동 탐지**(`traffic/alleys.py`)해, 그 골목으로 나오는 흐름을 모두 골목 운전자 분포(`cutin`)로 바꾼다(busy 기준 흐름 36개). 흐름이 있는 합류점은 8곳이지만 신호 교차로(`J74`, `J48`)는 빼서 6곳(`X_dongmak3`, `X_dongmak6`(우회전 합류 G12 → R71.256), `X_wausan11`, `X_jandari7`, `X_jandari2`, `X_jandari3`)이다. 골목에서 출발하는 흐름과 고리 골목을 `via`로 지나 합류하는 흐름이 모두 대상이다. 고리를 나와 반대 방향(`-R71.55`)으로 가는 흐름은 버스와 만나지 않아 대상이 아니다 |
-| S6 | 모든 보행자에게 보행자 분포(`pedDist`)를 준다(`ped_types=True`, 기본). PedSUMO 방식 판정은 `run(ped_defiance=True)`일 때만 쓴다 |
+| S6 | 모든 보행자에게 보행자 분포(`pedDist`)를 준다(`ped_types=True`, 기본) |
 | S4 | `bus_traffic`을 주면 정류장 근처 택시 정차가 함께 들어간다(`BusTrafficCfg.curb_taxis_per_h`). 그 밖에 `HapjeongTraffic(stopped=[StoppedSpec(...)])` 또는 `taxi_depart`(예전 방식)로 정한 정차 차량을 넣는다. 스크립트에서는 `--stopped`로 켠다 |
 
 `start()`가 배경 교통을 180초 흘리고, `run()`이 공통 실행 루프를 돌린다. 버스는 만들지 않는다. 버스 제어 쪽이 `bus_hook`으로 넣고 몬다. `run(triggers="scenario")`는 A1이 버스의 의사를 읽는 구간을 S2(좌회전 직전), S3(정류장 접근), S4(정차 차량 앞)로 한정한다. 기본(`None`)은 방향지시등만 본다.
@@ -68,7 +67,7 @@ python scripts/run_hapjeong_scenario.py --nogui --stopped kind=taxi,stop=합정�
 python scripts/run_hapjeong_scenario.py --nogui --stopped kind=bus,edge=R112,lane=1,pos=60,depart=100,duration=40,prob=0.5
 ```
 
-`kind`는 `taxi`, `bus`, `car`(일반 승용차)이다. `depart`는 warmup이 끝난 시점부터 센 초다. `--triggers scenario`, `--no-stop-bypass`, `--ped-defiance`도 있다.
+`kind`는 `taxi`, `bus`, `car`(일반 승용차)이다. `depart`는 warmup이 끝난 시점부터 센 초다. `--triggers scenario`, `--no-stop-bypass`도 있다.
 
 시나리오 화면에서 보이는 것:
 
@@ -83,7 +82,7 @@ python scripts/run_hapjeong_scenario.py --nogui --stopped kind=bus,edge=R112,lan
 
 **시험용 버스(`traffic/test_bus.py`의 `TestBusPilot`)**: 노선은 R68 → 성산중학교(s2, 그 앞 S3) → J82 앞 좌회전 차로(S2) → 극동방송(s4) → 서교동교회(s5) → J42 좌회전 → 합정역(s6) → J1 앞 좌회전 차로(S2) → R68. 같은 창에서 차로를 여러 칸 옮기면(J1 앞) 이어지는 변경은 방향지시등 1초 뒤 바로 요청한다. 창 끝이 제동 거리 안인데 지금 차로가 목표 차로에 닿지 못하면 SUMO 기본 차선 변경(전략·협조, 1621)에 넘긴다(`handed`). SUMO가 차로 끝까지 빈틈을 찾고 이웃 차는 제 협조 성향만큼 자리를 내준다. 창 끝까지 못 가면 `missed`로 남긴다. 정류장 창(S3)이면 그 정류장을 이번 바퀴만 건너뛰고(달리는 차로에 서서 정류장 차로를 기다리지 않는다), 좌회전 창(S2)이면 SUMO에 맡긴 채 정지선에서 기다릴 수 있다. 창 끝 도로를 지나면 다시 512로 돌린다. 예전에는 창 끝 앞 달리는 차로에서 속도 0으로 멈춰 빈틈을 기다렸다(`forced`).
 
-**측정**: `scripts/measure_s1_s6.py <수요> <seed> [꼬리표]`가 시험용 버스 3바퀴 동안 S1~S6 횟수(S2는 J82·J1 따로), 횡단보도 앞 차량 대기, 충돌·순간이동, 버스 반경 안 출현·소멸(`presence`), 신호 영역에서 시작한 A1 관찰 수, 바퀴별로 선 정류장, `missed`·`handed`·`slowed`, 버스가 정류장 밖에서 앞차도 적색도 없이 선 구간(`bus_still`: 길 가운데 `midblock`, 정지선·차로 끝 `stopline`, 교차로 안 `junction`)을 센다. S1~S6는 모두 위치로만 판정한다(누가 넣은 차인지 보지 않는다). 꼬리표: `old`(보행자 수정 전 PedSUMO 설정), `pedsumo`(PedSUMO 판정 켬), `hiped`(횡단보도 보행자 4배), `noror`(우회전 끔), `noped`(보행자 뺌), `nolr`(정지선 포기 끔). 결과의 `lane_route`는 진로를 바꾼 차 수, `wrong_lane_waits_at_end`는 끝난 시각에 잘못 든 차로의 정지선에 서 있던 차들의 대기 시간이다. 한 번에 4~10분 걸린다. `scripts/summarize_s1_s6.py <수요>`가 여러 시드를 바퀴당 비율(평균, 표준편차, 범위)로 모은다.
+**측정**: `scripts/measure_s1_s6.py <수요> <seed> [꼬리표]`가 시험용 버스 3바퀴 동안 S1~S6 횟수(S2는 J82·J1 따로), 횡단보도 앞 차량 대기, 충돌·순간이동, 버스 반경 안 출현·소멸(`presence`), 신호 영역에서 시작한 A1 관찰 수, 바퀴별로 선 정류장, `missed`·`handed`·`slowed`, 버스가 정류장 밖에서 앞차도 적색도 없이 선 구간(`bus_still`: 길 가운데 `midblock`, 정지선·차로 끝 `stopline`, 교차로 안 `junction`)을 센다. S1~S6는 모두 위치로만 판정한다(누가 넣은 차인지 보지 않는다). 꼬리표: `hiped`(횡단보도 보행자 4배), `noror`(우회전 끔), `noped`(보행자 뺌), `nolr`(정지선 포기 끔). 결과의 `lane_route`는 진로를 바꾼 차 수, `wrong_lane_waits_at_end`는 끝난 시각에 잘못 든 차로의 정지선에 서 있던 차들의 대기 시간이다. 한 번에 4~10분 걸린다. `scripts/summarize_s1_s6.py <수요>`가 여러 시드를 바퀴당 비율(평균, 표준편차, 범위)로 모은다.
 
 알고리즘별 상세 검증은 `scripts/verify_a2.py`, `verify_a3.py`, `verify_hapjeong.py`, `verify_additional.py`이고 결과는 `results/traffic_verification/`에 쓴다. 양보율을 설정대로 맞추던 A1 검증(`verify_a1.py`, `verify_a1_modes.py`)은 A1이 관찰만 하게 되어 지웠다.
 
@@ -139,6 +138,7 @@ python scripts/run_hapjeong_scenario.py --nogui --stopped kind=bus,edge=R112,lan
 **지운 것**(자연스러움 감사 1회차, [naturalness_audit_round1.md](../research/av_bc_rl/naturalness_audit_round1.md))
 
 - 밀도 분산(`interior_spawner.py`, `interior_share`, 꼬리표 `withinter`)을 지웠다(T2). 시험용 버스 노선 위 임의 지점, 곧 도로 한가운데에 `vehicle.add`로 차를 만들었다. 기본은 꺼져 있었고 켜면 버스 50 m 안 출현이 실행당 7.2대에서 15.6대로 늘었다. 밀도는 입구 수요로 정한다.
+- A3 보강(`ped_defiance.py`의 `PedDefianceManager`, `run(ped_defiance=True)`, `--ped-defiance`, 꼬리표 `pedsumo`·`old`)을 지웠다(T4). 건너기로 한 보행자에게 `junctionModel.ignoreTypes`로 모든 차의 우선권을 무시하게 했다. 기본은 꺼져 있었고, 건너기는 보행자 유형 분포(`pedDist`)가 정한다.
 
 **아직 이어지지 않은 것**
 
@@ -192,7 +192,6 @@ python scripts/run_hapjeong_scenario.py --nogui --stopped kind=bus,edge=R112,lan
 **값**
 
 - 운전자 성향 분포(`yield_logic.DriverDist`), 골목 운전자 분포(`cutin.alley_driver_bins`), 보행자 분포(`pedestrian.ped_dist_xml`), 정류장 근처 택시 정차 대수·시간은 임의의 초깃값이다. 끼어들기의 SUMO 기본 방식(`default_bins`, 합성 도로 검증용)은 `jmIgnoreFoeProb`를 접근 중 여러 번 뽑아 설정 확률이 곧 진입 확률이 아니다(설정 0.05에서 실측 0.13). 합정역 골목 운전자는 무시 확률을 0으로 둔다.
-- A3 보강(`PedDefianceManager`)의 기본 건너기 확률 0.4, 통과 시간·대기 시간·그룹·폭·차량 크기·걷는 중 계수 곡선, 나이 계수, 스마트폰 주의 분산 확률은 모두 PedSUMO(독일 자료)의 값을 옮긴 초깃값이다. **한국 현장 자료로 바꿔야 한다.**
 - 승객 가중 지연의 탑승 인원(승용 1.3, 택시 1.5, 버스 20)은 근거 없는 가정값이다.
 - 배경 차량의 추종 모델 파라미터도 현장 실측값이 아니다.
 
@@ -200,7 +199,7 @@ python scripts/run_hapjeong_scenario.py --nogui --stopped kind=bus,edge=R112,lan
 
 - [x] 시나리오 발생을 측정하는 계측을 넣는다(`measure_s1_s6.py`, `summarize_s1_s6.py`). 버스 접근 시점에 맞춰 넣던 주입기는 만들었다가 지웠다
 - [ ] S1 정류장 앞 대기열(바로 뒤 한 대 이후)로 확장할지 정한다
-- [ ] 운전자 성향·골목 운전자·보행자 분포와 A3 보강의 독일 초깃값을 현장 자료로 바꾼다
+- [ ] 운전자 성향·골목 운전자·보행자 분포를 현장 자료로 바꾼다
 - [ ] 도로 수정이 끝나면 합정역 검증을 다시 돌린다
 - [ ] `SumoHighwayEnv`에 주변 교통을 연결하고, 합정역에서 학습이 돌도록 환경의 차로 번호 관측을 고친다
 - [ ] 실제 버스 정책과 `bus_hook`을 연결한다

@@ -11,7 +11,7 @@ env.road_config.configure_map이 읽고, env.road_builder.build가 실행 폴더
       분포(cutin, impatience·jmTimegapMinor 구간, 앞차 무시 없음)로 바꾼다. 골목에서 출발하는 흐름과, 고리 골목을
       거쳐(via) 나오는 흐름이 둘 다 대상이다.
   S6  모든 보행자에게 보행자 분포(pedDist: P1·P2를 impatience 구간으로 넓힌 것)를 준다. 보행자는 경로 파일대로 SUMO가
-      넣고 지운다. PedSUMO 방식 건너기 판정(PedDefianceManager)은 run(ped_defiance=True)로 켤 때만 쓴다.
+      넣고 지운다.
   S4  bus_traffic을 주면 정류장 근처 가로변 차로에 서는 포아송 택시(bus_traffic.curb_taxi_stops)가 들어간다. 그 밖에
       (선택) 위치·시각·정차 시간·확률을 정한 정차 차량(택시·버스·일반 차량)을 StoppedSpec으로 받는다.
 
@@ -27,14 +27,13 @@ from env.road_config import ROAD, EGO, TRAFFIC, configure_map
 
 from .alleys import close_loop, find_merge_alleys, flow_merges, read_net
 from .cutin import STOPPED_KINDS, StoppedSpec, alley_driver_bins, cutin_vtype_xml, stopped_vehicle_xml
-from .ped_defiance import PedDefianceManager
 from .pedestrian import PED_DIST, ped_dist_xml
 from .runner import run as run_loop
 from .sumo_conn import traci, sumo_cmd
 from .bus_traffic import BusTrafficCfg, build_bus_traffic, curb_taxi_stops
 from .lane_route import LaneRouteAdapter
 from .right_turn import apply_right_on_red
-from .signal_areas import clip_zones, unsignalized_alleys, unsignalized_crossings
+from .signal_areas import clip_zones, unsignalized_alleys
 from .stop_bypass import StopBypassManager
 from .yield_logic import YieldManager, Trigger, Zone
 
@@ -296,14 +295,12 @@ class HapjeongTraffic:
         return out
 
     def run(self, t_end, bus_id="bus0", bus_hook=None, metrics=None, on_step=None,
-            assign_existing=True, ped_defiance=False, stop_bypass=True, triggers=None,
-            ped_cfg=None, pilot=None, lane_route=True, **mgr_kwargs):
+            assign_existing=True, stop_bypass=True, triggers=None, pilot=None, lane_route=True, **mgr_kwargs):
         """warmup 뒤 t_end초 동안 공통 실행 루프(runner.run)로 돌린다. 반환: (YieldManager, 마지막 시각).
 
         triggers: A1 진입 의사 구간. None이면 방향지시등만 본다. "scenario"면 scenario_triggers()를 쓴다.
         stop_bypass: S1(정차 버스 뒤 차량) 관찰을 켠다.
         lane_route: 정지선에서 옆 차로로 끝내 못 옮긴 배경 차가 지금 차로가 가는 쪽으로 가게 한다(lane_route.py).
-        ped_defiance: PedSUMO 방식 보행자 건너기 판정을 켠다(기본은 끔. 보행자 vType 분포가 건너기를 정한다).
         """
         if triggers == "scenario":
             triggers = self.scenario_triggers(plans=pilot.plans if pilot is not None else None)
@@ -312,20 +309,12 @@ class HapjeongTraffic:
         self.mgr = mgr
         if assign_existing:        # warmup 중에 투입된 차량에도 운전자 성향을 준다
             mgr.on_departed(traci.vehicle.getIDList())
-        # A3는 신호 없는 횡단보도에서만 판정한다(신호 횡단보도는 보행자 신호가 순서를 정한다)
-        crossings = (unsignalized_crossings(read_net(os.path.join(self.out_dir, "network.net.xml")),
-                                            traci.lane.getIDList()) if ped_defiance else None)
-        self.ped = (PedDefianceManager(traci, bus_id, rng=random.Random(self.seed + 2), cfg=ped_cfg,
-                                       crossings=crossings)
-                    if ped_defiance else None)
-        if metrics is not None and self.ped is not None and getattr(metrics, "ped_mgr", None) is None:
-            metrics.ped_mgr = self.ped        # 보행자가 무시하고 건널 때의 급감속·비상 감속을 센다
         self.stop = StopBypassManager(traci, bus_id) if stop_bypass else None
         self.lane_route = (LaneRouteAdapter(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
                            if lane_route else None)
         extras = [self.lane_route] if self.lane_route is not None else []
         t = run_loop(traci, t_end, bus_id, bus_hook=bus_hook, yield_mgr=mgr, metrics=metrics,
-                     on_step=on_step, ped_mgr=self.ped, stop_mgr=self.stop, extras=extras)
+                     on_step=on_step, stop_mgr=self.stop, extras=extras)
         return mgr, t
 
     def close(self):

@@ -1,16 +1,15 @@
-"""신호 교차로 영역에서는 A1·A2(S5)·A3를 켜지 않는다(traffic/signal_areas.py)."""
+"""신호 교차로 영역에서는 A1·A2(S5)를 켜지 않는다(traffic/signal_areas.py)."""
 import json
 import os
 import sys
 
 import pytest
-import sumolib
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from traffic.alleys import close_loop, find_merge_alleys, read_net  # noqa: E402
 from traffic.signal_areas import (SIGNAL_NO_CHANGE_M, clip_zones, is_signalized, no_change_m,  # noqa: E402
-                                  unsignalized_alleys, unsignalized_crossings)
+                                  unsignalized_alleys)
 from traffic.yield_logic import Zone  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "maps", "hapjeong")
@@ -27,13 +26,6 @@ def _net():
 def _loop():
     with open(os.path.join(ROOT, "map.json"), encoding="utf-8") as f:
         return close_loop(_net(), json.load(f)["routes"]["bus_loop"])
-
-
-def _lane_ids():
-    if "lanes" not in _cache:
-        full = sumolib.net.readNet(NET, withInternal=True)
-        _cache["lanes"] = [ln.getID() for e in full.getEdges(withInternal=True) for ln in e.getLanes()]
-    return _cache["lanes"]
 
 
 def test_no_change_distance_is_20m_with_10m_at_j1():
@@ -88,9 +80,3 @@ def test_scenario_triggers_follow_the_pilot_windows():
     assert {"R54b", "R54", "R42", "R111", "R111b"} <= {z.edge for z in left}
     assert all(not (z.edge == "R42" and z.end > 6.5) for z in left)            # J1 앞 10 m는 뺀다
     assert {z.edge for z in right} <= {"R71.206", "R71.135", "R71"}            # S3는 s2 앞 창뿐
-
-
-def test_crossings_at_signals_are_excluded():
-    c = unsignalized_crossings(_net(), _lane_ids())
-    assert any(x.startswith(":S6_wausanro_c") for x in c)
-    assert not any(x.startswith(":J1_c") or x.startswith(":J82_c") for x in c)

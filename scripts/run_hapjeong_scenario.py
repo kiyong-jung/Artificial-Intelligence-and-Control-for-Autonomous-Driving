@@ -112,8 +112,6 @@ def main():
                     help="배경 버스(전용 차로 노선, 정류장에 서고 출발) 시간당 대수. 0이면 배경 버스·택시를 넣지 않는다")
     ap.add_argument("--taxis", type=float, default=40.0, help="택시 시간당 대수")
     ap.add_argument("--no-stop-bypass", action="store_true", help="S1(정차 버스 뒤 차량의 기다림·추월)을 끈다")
-    ap.add_argument("--ped-defiance", action="store_true",
-                    help="PedSUMO 방식 보행자 건너기 판정을 켠다(기본은 끔. 보행자 vType 분포가 건너기를 정한다)")
     ap.add_argument("--out-dir", default=os.path.join(tempfile.gettempdir(), "hapjeong_scenario"))
     a = ap.parse_args()
 
@@ -155,7 +153,7 @@ def main():
 
     try:
         world.run(tc.simulation.getTime() + a.seconds, bus_id=BUS, bus_hook=bus.tick, on_step=on_step,
-                  stop_bypass=not a.no_stop_bypass, ped_defiance=a.ped_defiance,
+                  stop_bypass=not a.no_stop_bypass,
                   pilot=bus,
                   triggers="scenario" if a.triggers == "scenario" else None)
     except (traci.exceptions.FatalTraCIError, ConnectionError):

@@ -82,7 +82,7 @@ python scripts/fill_column_slide.py 00조_칼럼설명.pptx data/submission/00�
 
 ### Todo
 
-- [ ] 시나리오 발생 계측, S5·S6·S4 주입기
+- [x] 시나리오 발생 계측(`scripts/measure_s1_s6.py`). S5·S6·S4 주입기는 만들었다가 지웠다(시나리오는 수요와 운전자 모델로 생긴다)
 - [ ] 정류장 형태 확정 후 S1·S2 구현
 - [ ] 도로 수정 후 합정역 검증 재실행
 - [ ] `SumoHighwayEnv`에 주변 교통 연결

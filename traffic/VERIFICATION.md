@@ -1,5 +1,7 @@
 # 주변 교통 알고리즘 구현·검증 결과
 
+> 2026-11-23부터 A1·S1은 배경 차량을 조종하지 않고 관찰만 한다(`traffic/README.md`). 아래 A1 양보율과 `lcCooperative=-1`, S1 차로 고정 결과는 그 전 조종 방식의 기록이다.
+
 SUMO 1.27.1, Python 3.9 (conda `sumo`), TraCI. 모든 수치는 `scripts/verify_a1.py`, `verify_a2.py`, `verify_a3.py`를 실제로 돌려 얻었고 원본은 `results/traffic_verification/*.json`(git 제외)에 있다. 빠른 회귀 검증은 `pytest tests/test_traffic.py`.
 
 검증 도로는 합성 도로다(2차로 직선, 우선 교차로 합류, 횡단보도 있는 T자로). 합정역 지도에서의 검증은 하지 않았다.

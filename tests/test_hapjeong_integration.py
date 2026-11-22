@@ -30,27 +30,27 @@ def test_overlay_is_registered_before_other_route_files(world):
     assert "traffic.add.xml" in inputs.find("additional-files").get("value")
 
 
-def test_merge_alleys_are_found_from_the_map(world):
-    """합류 골목은 지도(도로망 + 버스 경로)에서 자동으로 찾는다. 합정역 3.6.0은 흐름이 있는 합류점이 8곳이고,
-    그중 신호 교차로(J74, J48)는 신호가 순서를 정해 끼어들기가 없으므로 뺀다. 남는 곳은 6곳이다."""
-    alleys = world.summary["cutin_alleys"]
-    active = {a["junction"] for a in alleys if a["flows"] > 0}
-    assert active == {"X_dongmak3", "X_dongmak6", "X_wausan11", "X_jandari7", "X_jandari2", "X_jandari3"}
-    assert not any(a["junction"] in {"J74", "J48", "cluster_J52_J56_J58"} for a in alleys)
-    assert all(a["minor"] and a["regulated"] for a in alleys)        # 골목이 비우선이고 충돌이 기록되는 교차로
+def test_merge_alleys_on_the_bus_route_are_found_from_the_map(world):
+    """S5 측정의 합류 골목은 지도(도로망 + 버스 경로)에서 자동으로 찾는다. 신호 교차로(J74, J48)는 뺀다. 6곳이다."""
+    assert {a.junction for a in world.alleys} == {"X_dongmak3", "X_dongmak6", "X_wausan11", "X_jandari7",
+                                                  "X_jandari2", "X_jandari3"}
+    assert all(a.minor and a.regulated for a in world.alleys)        # 골목이 비우선이고 충돌이 기록되는 교차로
 
 
-def test_every_unsignalized_merge_alley_flow_uses_the_alley_driver_distribution(world):
-    # 두 골목만 고르지 않는다. 신호 없는 합류 골목으로 나오는 흐름은 모두 골목 운전자 분포(cutin)이고, 그 밖의 흐름은 그대로다
-    from traffic.alleys import flow_merges, read_net
+def test_every_unsignalized_alley_exit_flow_uses_the_alley_driver_distribution(world):
+    # 골목 운전자는 도로 종류로 정한다. 신호 없는 골목 출구로 나오는 흐름은 버스 경로와 무관하게 모두 골목 운전자 분포(cutin)다
+    from traffic.alleys import flow_merges, is_alley, read_net
     net = read_net(os.path.join(world.out_dir, "network.net.xml"))
     flows = list(ET.parse(os.path.join(world.out_dir, "routes.rou.xml")).getroot().iter("flow"))
-    merging = [f for f in flows if flow_merges(net, f.attrib, world.alleys)]
-    assert {a.junction for a in world.alleys} >= {"X_dongmak3", "X_dongmak6", "X_wausan11", "X_jandari7",
-                                                  "X_jandari2", "X_jandari3"}
-    assert merging and all(f.get("type") == "cutin" for f in merging)
-    assert all(f.get("type") == "carDist" for f in flows if f not in merging)
-    assert world.summary["cutin_flows"] == len(merging)
+    exits = world.summary["cutin_alleys"]
+    assert not any(a["junction"] in {"J74", "J48", "cluster_J52_J56_J58"} for a in exits)
+    assert all(is_alley(net.getEdge(a["feeder"])) and not is_alley(net.getEdge(a["into"])) for a in exits)
+    assert not any(a["feeder"].startswith(("R65", "R66", "R67")) for a in exits)     # 연결로(primary_link)는 골목이 아니다
+    cutin = [f for f in flows if f.get("type") == "cutin"]
+    assert all(f.get("type") == "carDist" for f in flows if f not in cutin)
+    assert world.summary["cutin_flows"] == len(cutin)
+    off_route = [f for f in cutin if not flow_merges(net, f.attrib, world.alleys)]
+    assert off_route                       # 버스 경로로 합류하지 않는 골목 차도 같은 운전자 분포를 쓴다
     rou = ET.parse(os.path.join(world.out_dir, "traffic.rou.xml")).getroot()
     cutin_types = [v for v in rou.iter("vType") if v.get("id").startswith("cutin_")]
     assert cutin_types and all(float(v.get("jmIgnoreFoeProb")) == 0.0 for v in cutin_types)

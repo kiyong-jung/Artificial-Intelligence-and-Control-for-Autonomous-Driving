@@ -7,9 +7,9 @@ env.road_config.configure_map이 읽고, env.road_builder.build가 실행 폴더
   A1  배경 차량(vType `car_*`, 추종 모델 4종)이 투입될 때 운전자 성향(차선 변경 파라미터, speedFactor)을 연속 분포에서
       뽑아 준다. 버스가 차로를 바꾸려 할 때 목표 차로 후행차가 한 일을 기록한다(YieldManager, 조종하지 않는다).
   S1  차로 정차형 정류장에 선 버스 바로 뒤 차량이 기다렸는지 추월했는지 기록한다(StopBypassManager, 조종하지 않는다).
-  S5  버스 경로에 합류하는 신호 없는 골목을 지도에서 모두 찾아(traffic.alleys), 그 골목으로 나오는 흐름을 골목 운전자
-      분포(cutin, impatience·jmTimegapMinor 구간, 앞차 무시 없음)로 바꾼다. 골목에서 출발하는 흐름과, 고리 골목을
-      거쳐(via) 나오는 흐름이 둘 다 대상이다.
+  S5  도로망의 신호 없는 골목 출구를 도로 종류로 모두 찾아(traffic.alleys), 그 출구로 나오는 흐름을 골목 운전자
+      분포(cutin, impatience·jmTimegapMinor 구간, 앞차 무시 없음)로 바꾼다. 버스 경로는 보지 않는다. 골목에서 출발하는
+      흐름과, 고리 골목을 거쳐(via) 나오는 흐름이 둘 다 대상이다.
   S6  모든 보행자에게 보행자 분포(pedDist: P1·P2를 impatience 구간으로 넓힌 것)를 준다. 보행자는 경로 파일대로 SUMO가
       넣고 지운다.
   S4  bus_traffic을 주면 정류장 근처 가로변 차로에 서는 포아송 택시(bus_traffic.curb_taxi_stops)가 들어간다. 그 밖에
@@ -25,7 +25,7 @@ from env import road_builder
 from maps import load_map
 from env.road_config import ROAD, EGO, TRAFFIC, configure_map
 
-from .alleys import close_loop, find_merge_alleys, flow_merges, read_net
+from .alleys import close_loop, find_alley_exits, find_merge_alleys, flow_merges, read_net
 from .cutin import STOPPED_KINDS, StoppedSpec, alley_driver_bins, cutin_vtype_xml, stopped_vehicle_xml
 from .pedestrian import PED_DIST, ped_dist_xml
 from .runner import run as run_loop
@@ -85,12 +85,12 @@ def stopped_from_arg(arg, warmup=0.0, index=0):
 class HapjeongTraffic:
     """합정역 실행 폴더를 만들고, 주변 교통 규칙을 붙여 시뮬레이션을 돌린다.
 
-    cutin: True면 신호 없는 합류 골목 흐름을 골목 운전자 분포(cutin)로 바꾼다. cutin_bins를 안 주면
+    cutin: True면 신호 없는 골목 출구로 나오는 흐름을 골목 운전자 분포(cutin)로 바꾼다. cutin_bins를 안 주면
            cutin.alley_driver_bins()(앞차 무시 없음, impatience·jmTimegapMinor 구간)를 쓴다.
     ped_types: True면 모든 보행자가 보행자 분포(pedDist)를 쓴다. ped_v_low는 P1 구간이 무시하는 차의 최고 속도[m/s].
     stopped: [StoppedSpec] S4 정차 차량 목록(택시·버스·일반 차량). None이면 없다.
     taxi_depart: 예전 방식. 숫자면 그 시각(초)에 R69 안쪽 차로 정류장 앞에 택시 한 대가 선다(StoppedSpec 하나와 같다).
-    merge_route: S5에서 '합류'의 기준이 되는 버스 경로(도로 id 목록). None이면 지도의 bus_loop.
+    merge_route: S5 측정에서 '버스 경로 합류'의 기준이 되는 경로(도로 id 목록). None이면 지도의 bus_loop.
     """
 
     def __init__(self, out_dir, scenario="baseline", seed=0, *, cutin=True,
@@ -179,13 +179,14 @@ class HapjeongTraffic:
 
     def _find_alleys(self):
         """버스 경로에 합류하는 신호 없는 골목 전부(지도에서 자동 탐지). 신호 교차로로 합류하는 골목(cluster_J52_J56_J58,
-        J74, J48)은 신호가 순서를 정해 끼어들기가 없으므로 뺀다. S5 흐름 바꾸기와 측정(골목에서 나온 차)이 쓴다."""
+        J74, J48)은 신호가 순서를 정해 끼어들기가 없으므로 뺀다. S5 측정(골목에서 나온 차가 버스 앞에 들어왔나)만 쓴다."""
         net = read_net(os.path.join(self.out_dir, "network.net.xml"))
         route = close_loop(net, self.merge_route or load_map(MAP_ID)["routes"]["bus_loop"])
         return unsignalized_alleys(find_merge_alleys(net, route))
 
     def _retype_alley_flows(self):
-        """신호 없는 합류 골목으로 나오는 배경 흐름(carDist)을 모두 골목 운전자 분포(cutin)로 바꾸고 그 수를 돌려준다.
+        """도로망의 신호 없는 골목 출구로 나오는 배경 흐름(carDist)을 모두 골목 운전자 분포(cutin)로 바꾸고 그 수를 돌려준다.
+        골목은 도로 종류로 정하고(alleys.is_alley) 버스 경로는 보지 않는다.
 
         골목 차는 큰길 차를 무시하지 않는다. 얼마나 좁은 간격에 합류하는지만 운전자마다 다르다(impatience, jmTimegapMinor).
         끼어들기는 시험용 버스와 배경 차 모두에게 같은 규칙으로 일어난다.
@@ -193,19 +194,20 @@ class HapjeongTraffic:
         net = read_net(os.path.join(self.out_dir, "network.net.xml"))
         path = os.path.join(self.out_dir, "routes.rou.xml")
         tree = ET.parse(path)
-        per_alley = {a.junction: 0 for a in self.alleys}
+        exits = unsignalized_alleys(find_alley_exits(net))
+        per_exit = {(a.feeder, a.into): 0 for a in exits}
         n = 0
         for flow in tree.getroot().iter("flow"):
-            merged = [a for a in self.alleys if flow_merges(net, flow.attrib, [a])]
+            merged = [a for a in exits if flow_merges(net, flow.attrib, [a])]
             for a in merged:
-                per_alley[a.junction] += 1
+                per_exit[(a.feeder, a.into)] += 1
             if merged and flow.get("type") == "carDist":
                 flow.set("type", "cutin")
                 n += 1
         tree.write(path, encoding="utf-8", xml_declaration=True)
         self.summary["cutin_alleys"] = [
             {"junction": a.junction, "feeder": a.feeder, "into": a.into, "junction_type": a.junction_type,
-             "minor": a.minor, "regulated": a.regulated, "flows": per_alley[a.junction]} for a in self.alleys]
+             "minor": a.minor, "regulated": a.regulated, "flows": per_exit[(a.feeder, a.into)]} for a in exits]
         return n
 
     def _type_persons(self):

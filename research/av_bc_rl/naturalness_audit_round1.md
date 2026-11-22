@@ -149,3 +149,58 @@ traffic 경로는 `scripts/measure_s1_s6.py`로 시험용 버스 3바퀴다.
 - 팔달문 지도, `scripts/view_scenarios.py`의 실행 결과, 지도 빌드 배율을 뺀 발생률.
 - 검사기는 TraCI 호출이 없는 '버스 기준 논리'(T9, T10처럼 수요를 만들 때 버스 경로를 보는 코드)를 잡지 못한다.
   이 둘은 읽어서 찾았다.
+
+## 1회차 고친 것(환경)
+
+2026-11-23, `ec62495` 위. 학습 환경(`env/`)과 도로 점검 도구(`scripts/audit_road.py`, `scripts/validate_road.py`)만
+고쳤다. ego의 관측과 행동의 뜻은 그대로다. 정적 검사는 192건(ALLOW 124, OPEN 68)에서 189건(ALLOW 127, OPEN 62,
+표에 없음 0)이 됐다. 자기 점검은 20건을 모두 잡는다.
+
+| 번호 | 원인 | 고친 곳 | 전 | 후 | 판정 |
+|---|---|---|---|---|---|
+| E1 | `collision.action remove`가 부딪힌 두 차를 지웠다 | `env/road_builder.py` `warn`과 `collision.stoptime`, 값은 `env/road_config.py` `collision_stop_s=120`. `env/sumo_env.py`의 `info["background_collisions"]` | quiet seed 1000에서 배경 차 한 쌍을 일부러 부딪히게 하면(t=297.5, `R54a_2`) 다음 스텝에 두 차가 없다 | 두 차가 그 자리에 122.5초, 119.0초 섰다가 비켜 간다. 다시 부딪히지 않는다. `background_collisions` 1. ego를 앞차에 부딪히게 하면 `collision`으로 끝나고(보상 -5) ego는 지워지지 않는다 | 고침 |
+| E3 | `--no-warnings`가 경고를 어디에도 남기지 않았다 | `env/sumo_env.py` `_start_sumo`에 `--error-log 실행폴더/sumo_warnings/<sumo_seed>.log` | 기록 없음 | 콘솔은 그대로 조용하다(강제 충돌 실행의 stderr 0바이트). busy 1600 에피소드 기록에 비상 제동 3줄, 검사기 수와 같다. 수집 기록의 `sumo_seed`로 에피소드와 잇는다 | 고침(env). `traffic/sumo_conn.py`는 열림 |
+| E5 | 대기 시간은 0.1m/s를 넘으면 0으로 돌아간다 | `env/sumo_env.py` `_stalled`, `env/mdp_config.py` `stuck_progress_m=5` | 20초마다 0.2m/s로 한 번 움직이는 정책이 700초 동안 1.57m 가고 `time_limit` | 200초에 0.45m로 `stuck` | 고침 |
+| V1 | 점검 도구만 `time-to-teleport 300` | 두 스크립트 `-1`. 1초 간격 fcd로 300초 넘게 이어서 선 차를 차로와 함께 센다(`validate_road.long_stands`). s_* 결과의 `teleport`를 `stuck`으로 | 커밋된 `maps/hapjeong/references/stability_validation.json`은 순간이동을 켠 옛 도로망의 값(충돌 0, 순간이동 0) | 3.13.0에서 9회: 300초 넘게 선 차 0, 버스 9/9 완주(401~430초), 배경 충돌 2회(quiet·baseline seed 7, `R50_3` 측면) | 고침. 두 충돌은 옛 설정(순간이동 300, remove)으로 돌려도 같은 시각(764.3초, 498.4초)에 난다 |
+| E4 | 아래 | 고치지 않음 | | | 원인 확인 |
+| E2 | | 고치지 않음 | | | 그대로 둔다 |
+
+같은 명령으로 전후를 쟀다. `audit_naturalness.py --dynamic --seeds 3 --traffic-scenarios`(env만 9회)는 전후가 같다.
+9회 모두 완주, 순간이동 0, 충돌 0, 비상 제동 23번(모두 배경 차, ego 0), 비상 정지 0, 182초 넘게 선 차 0, 정류장
+36/36. 전문가 busy dev seed 1600 10회(`collect_pomdp_data.py`)도 전환 8,022개의 관측, 행동, 보상, 끝 시각이
+모두 같다. 이번 실행에는 배경 충돌과 stuck이 없어 바뀐 코드가 결과를 바꿀 자리가 없었다. 전문가가 5m를 가는 데
+가장 오래 걸린 시간은 73초다(신호 대기 포함, stuck 기준 200초).
+
+E5에서 기준을 5m로 둔 이유. 대기열에서 앞차 한 대가 빠지면 버스는 차 한 대 길이(약 7.5m)를 나아간다. 신호 한
+주기(최장 182초) 안에 한 대도 빠지지 않는 대기열은 지금 기준으로도 stuck이었다. 5m를 200초에 가려면 평균
+0.025m/s 미만이어야 하므로 정상 주행과 정류장 정차(8초)는 걸리지 않는다.
+
+E4의 원인은 신호가 아니라 배경 차의 추종 모델이다. 근거는 다음과 같다.
+
+- 배경만 1,800초 돌린 baseline·busy seed 0에서 비상 제동 35번 가운데 IDM이 29번, EIDM 4번, ACC 2번, Krauss 0번이다.
+  Krauss는 차의 37%다. `-R126_1`(J96 우회전, 황색 6초)은 모두 t mod 90 = 72.0, `R55_4`(J42 좌회전, 황색 3초)는
+  모두 (t-9) mod 182 = 28.0이다. 둘 다 황색이 켜지는 순간이다.
+- SUMO는 황색이 켜질 때 `decel`(4.5m/s²)로 정지선 앞에 설 수 있으면 서고, 못 서면 지나간다(`MSVehicle.cpp`
+  3767-3773, `brakeGap(v, decel)`). 13.9m/s에서 이 거리는 약 21m다.
+- IDM의 정지 속도는 `a(1 - (v/v0)^4 - (s*/s)^2)`이고 `s* = vT + v·v/(2√(ab))`다(`MSCFModel_IDM.cpp` 179, 225).
+  T=1.8초, a=1.8, b=4.5, v=13.9m/s면 s*는 약 59m다. 정지선이 21~26m 앞일 때 IDM이 원하는 감속은 9m/s²를 넘고
+  비상 감속(9)에서 잘린다. 같은 자리에 오는 Krauss는 비상 제동이 0번이다. 황색이 짧은 탓이라면 황색이 6초인 J96에서는
+  이 일이 나지 않아야 한다.
+- 모수만 바꿔 봤다. IDM·EIDM `decel` 3.0은 35번에서 28번, `tau` 1.2초는 14번이다. 어느 쪽도 없애지 못하고, 모든
+  배경 교통이 바뀌어 학습한 모델의 평가를 다시 해야 한다. 그래서 넣지 않았다. 팀이 고를 길은 IDM 계열의 T를
+  줄이거나(추돌 검사와 함께), 혼합에서 IDM 비율을 줄이는 것이다. 신호는 바꿀 이유가 없다.
+
+E2는 그대로 둔다. 순환 노선의 한 바퀴가 같은 자리(`R69` 시작점, 정지 출발)에서 시작해 `R42` 끝에서 끝난다.
+시작은 빈틈이 날 때만 들어가고(삽입 대기 0.1~2.8초), `R68`·`R69`·`R42`의 비상 제동은 0이다. 버스가 사라지는 것은
+에피소드가 끝나는 스텝이고, 환경은 다음 `reset`에서 SUMO를 새로 띄운다. 정책이 보는 장면에는 들어가지 않는다.
+
+바뀐 것 가운데 다른 곳에 닿는 것.
+
+- traffic 경로도 같은 `scenario.sumocfg`를 읽어 `collision.stoptime` 120초를 받는다(정적 검사의
+  `gen:traffic/scenario.sumocfg`). traffic은 명령행으로 `--collision.action warn`을 주므로, 전에는 부딪힌 차가 서로를
+  지나쳐 갔고 이제는 120초 선다. 차끼리 부딪히는 실행(busy seed 3의 J82 막힘)에서 traffic 측정값이 달라질 수 있다.
+- ego가 부딪힌 스텝에서 ego가 지워지지 않으므로 그 스텝의 `next_observation`은 0 벡터가 아니라 실제 관측이고
+  `lane_after`가 숫자다. PPO는 끝난 스텝에서 가치를 이어 받지 않으므로 학습에는 영향이 없다.
+- `evaluate.py`는 고칠 필요가 없다. `behavior_metrics.py`의 `stuck_events`는 정지 시간으로 따로 세고, 종료 사유
+  `stuck`은 이제 기어가는 경우도 포함한다. 배경 충돌은 수집 기록의 `event.simulation_collided`가 `collided` 없이 참인
+  스텝으로 셀 수 있다. 수 자체(`background_collisions`)를 기록에 넣으려면 `collect_pomdp_data.py`의 기록 형식이 바뀐다.

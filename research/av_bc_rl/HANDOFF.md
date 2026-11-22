@@ -92,7 +92,16 @@ $PY research/av_bc_rl/compare.py --split final --groups expert=expert bc=bc_s0,.
   BC, DAgger, Residual을 다시 학습하는 것이 다음 순서다(`--policy expert-v5`, `dagger.py`는 metadata로 판을 고른다).
 - PPO는 60만 걸음에서 멈췄다. 처음부터 배우는 PPO가 전문가 수준에 닿는지는 더 긴 학습이 필요하다.
 - 검사 도구 `scripts/audit_naturalness.py`를 바꿀 때마다 돌린다(정적 검사는 pytest에 들어 있다). 남은 OPEN 줄과 팀
-  결정은 `naturalness_audit_round2.md`에 있다.
+  결정은 `naturalness_audit_round2.md`, `naturalness_audit_round3.md`에 있다.
+- `metrics/*_dev.json`은 환경을 여러 번 바꾸는 동안 잰 것이라 판이 섞여 있다(예: `bc_s0_dev`에는 순간이동이 있다).
+  비교는 final만 쓴다. `evaluate.py`는 이제 정책, 모델 해시, 에피소드 수, 주행 코드 트리가 다르면 다시 돌리므로 dev를
+  다시 돌리면 지금 환경으로 새로 잰다.
+- 독립 검토가 찾은 작은 것 넷은 final 평가 도중이라 고치지 않았다. 재학습 전에 고친다.
+  - `env/sumo_env.py` 가속 램프가 측정 가속도를 자르지 않고 시작한다. SUMO 비상 제동(-9) 다음 스텝에 전진 명령을 줘도
+    감속한다. `np.clip(self._acceleration, -self.max_decel, self.max_accel)`로 시작한다. 전문가에게는 0회, 규칙 정책 busy에서 41회.
+  - `env/route_policy.py` v5 `_neighbors`의 이웃 속도가 0 아래로 갈 수 있다(`max(..., 0.0)`).
+  - 정류장 차로 차이(`stop_lane_offset`)는 정류장이 그 도로의 가장 오른쪽 버스 차로라고 가정한다. 합정역에서는 맞다.
+  - `ExpertPolicyV5.gate`는 import할 때 `mdp_config.ACTION`에서 읽는다. 다른 행동 설정의 환경이면 `make_expert`로 넘긴다.
 
 팀이 정할 일이다(근거 문서를 같이 적는다).
 

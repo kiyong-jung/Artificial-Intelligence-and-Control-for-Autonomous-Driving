@@ -7,10 +7,10 @@
   빨간 버스      : 시험용 버스(traffic/test_bus.py). R68에서 한 번 출발해 끊김 없이 노선을 돈다. 정해진 곳(s2 앞 S3, J82·J1 앞 S2)
                    에서만 방향지시등을 켜고 차선 변경을 요청한다(주행 정책이 아니라 규칙).
   주변 차량 색   : 주행 모델. 노랑 Krauss, 청록 IDM, 주황 EIDM, 자홍 ACC, 회색 끼어들기(골목 합류) 차량.
-  버스를 마주한 차: 버스가 차로 변경 의사를 보이면 뒤차 주위에 고리가 생긴다.
-                    초록 고리 = 양보형(버스보다 느려져 길을 터 줌), 빨간 고리 = 비양보형(버스보다 빨라져 막음).
-                    고리는 상호작용이 끝난 뒤 4초 더 남는다. 같은 내용을 터미널에도 한 줄씩 적는다.
-  차량을 더블클릭하면 파라미터에서 driver.type, driver.pYield(설정 양보 확률)를 볼 수 있다.
+  버스를 마주한 차: 버스가 차로 변경 의사를 보이면 목표 차로 뒤차 주위에 흰 고리가 생긴다(관찰만 하고 조종하지 않는다).
+                    끝나면 초록 = 버스가 먼저 들어감, 빨강 = 뒤차가 먼저 지나감, 회색 = 그 밖. 4초 더 남는다.
+                    같은 내용을 터미널에도 한 줄씩 적는다.
+  차량을 더블클릭하면 파라미터에서 driver.aggressiveness(운전자 성향 0~1)를 볼 수 있다.
 """
 import argparse
 import collections
@@ -28,7 +28,9 @@ from traffic.sumo_conn import traci  # noqa: E402
 from traffic.test_bus import BUS, TestBusPilot  # noqa: E402
 
 MODEL_NAME = {"car_krauss": "Krauss", "car_idm": "IDM", "car_eidm": "EIDM", "car_acc": "ACC"}
-YIELD_RGB, NOYIELD_RGB = (0, 190, 0, 255), (255, 0, 0, 255)
+WATCH_RGB = (255, 255, 255, 255)
+OUTCOME_RGB = {"bus_first": (0, 190, 0, 255), "follower_first": (255, 0, 0, 255)}
+OTHER_RGB = (150, 150, 150, 255)
 
 
 def map_stops(m):
@@ -38,7 +40,7 @@ def map_stops(m):
 
 
 class Rings:
-    """버스를 마주해 양보/비양보가 정해진 차량 주위에 고리를 그리고 터미널에 기록한다."""
+    """버스가 차로를 바꾸려 할 때 관찰 중인 목표 차로 뒤차 주위에 고리를 그리고, 끝난 결과를 터미널에 기록한다."""
     HOLD_S, RADIUS = 4.0, 4.0
 
     def __init__(self, tc, mgr):
@@ -55,24 +57,26 @@ class Rings:
     def step(self, t):
         tc = self.tc
         ids = set(tc.vehicle.getIDList())
-        for vid, it in self.mgr.inter.items():
+        for vid in self.mgr.inter:
             if vid in self.rings or vid not in ids:
                 continue
-            model = MODEL_NAME.get(tc.vehicle.getTypeID(vid).split("@")[0], tc.vehicle.getTypeID(vid))
             self.seq += 1
             pid = f"ring{self.seq}"
-            tc.polygon.add(pid, self._shape(vid), YIELD_RGB if it.yields else NOYIELD_RGB,
-                           fill=False, layer=200, lineWidth=0.7)
+            tc.polygon.add(pid, self._shape(vid), WATCH_RGB, fill=False, layer=200, lineWidth=0.7)
             self.rings[vid] = [pid, None]
-            self.counts[(model, it.yields)] += 1
-            p = float(tc.vehicle.getParameter(vid, "driver.pYield"))
-            kind = "양보형" if tc.vehicle.getParameter(vid, "driver.type") == "yielder" else "비양보형"
-            print(f"[{t:7.1f}s] {vid:<14} {model:<6} {kind}(설정 양보 확률 {p:.2f}) → 이번 판정: "
-                  f"{'양보' if it.yields else '비양보'}")
+        done = {r["follower"]: r for r in self.mgr.log[-5:]}
         for vid in list(self.rings):
             pid, expire = self.rings[vid]
             if expire is None and vid not in self.mgr.inter:
                 expire = self.rings[vid][1] = t + self.HOLD_S
+                r = done.get(vid)
+                if r is not None:
+                    tc.polygon.setColor(pid, OUTCOME_RGB.get(r["outcome"], OTHER_RGB))
+                    model = (MODEL_NAME.get(tc.vehicle.getTypeID(vid).split("@")[0], tc.vehicle.getTypeID(vid))
+                             if vid in ids else "?")
+                    self.counts[(model, r["outcome"])] += 1
+                    a = r["aggressiveness"]
+                    print(f"[{t:7.1f}s] {vid:<14} {model:<6} 성향 {'-' if a is None else f'{a:.2f}'} → {r['outcome']}")
             if vid not in ids or (expire is not None and t >= expire):
                 tc.polygon.remove(pid)
                 del self.rings[vid]
@@ -81,10 +85,9 @@ class Rings:
 
     def summary(self):
         rows = []
-        for model in ("Krauss", "IDM", "EIDM", "ACC"):
-            y, n = self.counts[(model, True)], self.counts[(model, False)]
-            if y + n:
-                rows.append(f"  {model:<6} 양보 {y:3d}  비양보 {n:3d}")
+        for model in sorted({m for m, _ in self.counts}):
+            parts = [f"{o} {c}" for (m, o), c in sorted(self.counts.items()) if m == model]
+            rows.append(f"  {model:<6} " + ", ".join(parts))
         return "\n".join(rows) or "  (상호작용 없음)"
 
 
@@ -123,7 +126,7 @@ def main():
           f"(합류 골목 {sum(1 for x in world.summary['cutin_alleys'] if x['flows'])}곳), "
           f"S6 보행자 {world.summary['s6_persons']}명, 정차 차량 {len(world.summary['stopped'])}대. 실행 폴더 {a.out_dir}")
     print("범례: 버스=빨강 | 노랑 Krauss, 청록 IDM, 주황 EIDM, 자홍 ACC, 회색 끼어들기 | "
-          "고리 초록=양보 빨강=비양보")
+          "고리 흰색=관찰 중, 초록=버스가 먼저, 빨강=뒤차가 먼저")
     tc = world.start(warmup=a.warmup, gui=not a.nogui)
 
     m = load_map("hapjeong")
@@ -162,7 +165,7 @@ def main():
         print("버스 차로 변경 요청: " + (", ".join(f"{k} {v}회" for k, v in bus.changes.items()) or "없음"))
         print(f"창 끝까지 못 옮김(missed): {bus.missed}, 속도 줄임: {bus.slowed}")
         if state["rings"]:
-            print("버스를 마주친 차량의 판정(주행 모델별):\n" + state["rings"].summary())
+            print("버스 차로 변경 때 목표 차로 뒤차가 한 일(주행 모델별):\n" + state["rings"].summary())
         if getattr(world, "stop", None) is not None:
             print("S1 정차 버스 뒤 차량:", world.stop.summary())
         if getattr(world, "ped", None) is not None:

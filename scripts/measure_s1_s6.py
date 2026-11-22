@@ -263,8 +263,7 @@ def main():
             tf = mgr._target_follower(side)
             trace["a1"].append((round(t, 1), lap(), busr, side, bus.phase,
                                 [(i, round(d)) for i, d in f if i][:3], tf,
-                                tc.vehicle.getParameter(tf, "driver.type") if tf else None,
-                                mgr.owner.owner(tf) if tf else None,
+                                tc.vehicle.getParameter(tf, "driver.aggressiveness") if tf else None,
                                 any(tr.matches(side, busr[0], busr[1]) for tr in (mgr.triggers or [])),
                                 len(mgr.inter)))
 

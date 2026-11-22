@@ -346,7 +346,7 @@ class TestBusPilot:
     def _let_blocker_pass(self, tc, t, road, pos):
         """목표 차로 후행차가 버스보다 `BLOCKER_DV` 넘게 빠른 상태가 `BLOCKER_S` 이어지면 비양보형으로 보고, 속도를 줄여
         먼저 보낸다. 그 차 뒤끝이 버스 앞끝보다 `PASS_MARGIN` 앞서면 속도를 풀고 다시 요청한다. 진행 중이면 True.
-        버스는 상대의 성격(driver.type)을 읽지 않고 속도만 본다."""
+        버스는 상대의 운전자 성향을 읽지 않고 속도만 본다."""
         v = tc.vehicle.getSpeed(BUS)
         if self._blocker is not None:
             b = self._blocker

@@ -4,8 +4,9 @@
 env.road_config.configure_map이 읽고, env.road_builder.build가 실행 폴더(배경 교통 포함)를 만든다.
 이 모듈은 그 실행 폴더에 다음을 더한다. 도로망과 maps/는 건드리지 않는다.
 
-  A1  배경 차량(vType `car_*`, 추종 모델 4종)에 양보 성격을 투입 시 독립으로 붙인다(YieldManager type_mix).
-  S1  차로 정차형 정류장에 선 버스 바로 뒤 차량이 기다리거나 추월한다(StopBypassManager).
+  A1  배경 차량(vType `car_*`, 추종 모델 4종)이 투입될 때 운전자 성향(차선 변경 파라미터, speedFactor)을 연속 분포에서
+      뽑아 준다. 버스가 차로를 바꾸려 할 때 목표 차로 후행차가 한 일을 기록한다(YieldManager, 조종하지 않는다).
+  S1  차로 정차형 정류장에 선 버스 바로 뒤 차량이 기다렸는지 추월했는지 기록한다(StopBypassManager, 조종하지 않는다).
   S5  버스 경로에 합류하는 골목을 지도에서 자동으로 찾아(traffic.alleys), 그 골목으로 나오는 흐름을 끼어들기형 vType으로
       바꾼다. 골목에서 출발하는 흐름과, 고리 골목을 거쳐(via) 나오는 흐름이 둘 다 대상이다.
   S6  와우산로 횡단보도를 건너는 보행자를 P1(대기형)/P2(진입형)로 나눈다. 신호 없는 횡단보도 앞 보행자의 건너기 판정은
@@ -24,7 +25,7 @@ from maps import load_map
 from env.road_config import ROAD, EGO, TRAFFIC, configure_map
 
 from .alleys import close_loop, find_merge_alleys, flow_merges, read_net
-from .common import AGGRESSION, Ownership
+from .common import AGGRESSION
 from .cutin import STOPPED_KINDS, StoppedSpec, cutin_bins_once, cutin_vtype_xml, stopped_vehicle_xml
 from .ped_defiance import PedDefianceManager
 from .pedestrian import ped_vtypes_xml
@@ -38,7 +39,7 @@ from .presence import VehicleArrivalGuard
 from .right_turn import apply_right_on_red
 from .signal_areas import clip_zones, unsignalized_alleys, unsignalized_crossings
 from .stop_bypass import StopBypassManager
-from .yield_logic import YieldManager, DEFAULT_TYPES, Trigger, Zone
+from .yield_logic import YieldManager, Trigger, Zone
 
 MAP_ID = "hapjeong"
 S6_EDGES = ("-R112", "R112.112")       # 와우산로. 이 둘을 모두 걷는 보행자가 S6 횡단보도를 건넌다(R112가 R112.112 등으로 나뉘기 전 이름 R112로는 s6ped가 빠졌다)
@@ -97,7 +98,6 @@ def stopped_from_arg(arg, warmup=0.0, index=0):
 class HapjeongTraffic:
     """합정역 실행 폴더를 만들고, 주변 교통 규칙을 붙여 시뮬레이션을 돌린다.
 
-    yield_mix: A1 양보 성격 가중치. None이면 A1을 쓰지 않는다.
     cutin: True면 S5 끼어들기. cutin_bins를 안 주면 cutin.cutin_bins_once()(진입 판정이 차량당 한 번)를 쓴다.
            cutin.default_bins()를 주면 SUMO 기본 방식(접근 중 여러 번 뽑음)이다.
     ped_mix: S6 보행자 P1 비율(0~1). None이면 보행자를 그대로 둔다.
@@ -106,7 +106,7 @@ class HapjeongTraffic:
     merge_route: S5에서 '합류'의 기준이 되는 버스 경로(도로 id 목록). None이면 지도의 bus_loop.
     """
 
-    def __init__(self, out_dir, scenario="baseline", seed=0, *, yield_mix=None, cutin=True,
+    def __init__(self, out_dir, scenario="baseline", seed=0, *, cutin=True,
                  cutin_bins=None, ped_mix=0.5, ped_v_low=1.5, taxi_depart=None, stopped=None, merge_route=None,
                  bus_traffic=None, right_on_red=True, right_on_red_exclude=("J1", "J82", "J83", "J42"),
                  interior_share=0.3, interior_min_dist=200.0):
@@ -122,7 +122,6 @@ class HapjeongTraffic:
         self.bus_traffic = BusTrafficCfg() if bus_traffic is True else bus_traffic
         self.out_dir = os.path.abspath(out_dir)
         self.scenario, self.seed = scenario, seed
-        self.yield_mix = yield_mix if yield_mix is not None else {"yielder": 0.5, "nonyielder": 0.5}
         self.cutin, self.cutin_bins = cutin, cutin_bins
         self.ped_mix, self.ped_v_low, self.taxi_depart = ped_mix, ped_v_low, taxi_depart
         self.stopped = list(stopped or [])
@@ -366,23 +365,19 @@ class HapjeongTraffic:
                 out += [Trigger(+1, zs), Trigger(-1, zs)]
         return out
 
-    def run(self, t_end, bus_id="bus0", bus_hook=None, metrics=None, yield_types=None, on_step=None,
+    def run(self, t_end, bus_id="bus0", bus_hook=None, metrics=None, on_step=None,
             assign_existing=True, ped_defiance=True, stop_bypass=True, triggers=None,
             ped_cfg=None, pilot=None, **mgr_kwargs):
         """warmup 뒤 t_end초 동안 공통 실행 루프(runner.run)로 돌린다. 반환: (YieldManager, 마지막 시각).
 
         triggers: A1 진입 의사 구간. None이면 방향지시등만 본다. "scenario"면 scenario_triggers()를 쓴다.
-        stop_bypass: S1(정차 버스 뒤 차량)을 켠다. 한 차량은 한 순간에 하나의 추가 행동에만 속한다(공유 소유권).
+        stop_bypass: S1(정차 버스 뒤 차량) 관찰을 켠다.
         """
-        self.owner = Ownership()
         if triggers == "scenario":
             triggers = self.scenario_triggers(plans=pilot.plans if pilot is not None else None)
-        mgr = YieldManager(traci, bus_id, rng=random.Random(self.seed), types=yield_types or DEFAULT_TYPES,
-                           type_mix=self.yield_mix, mix_vtype_prefixes=("car_",), owner=self.owner, triggers=triggers,
-                           vtype_aggr=getattr(self, "cutin_aggr", None),
-                           **mgr_kwargs)                  # A1은 후행차가 버스 3 m 안일 때 시작(yield_logic.A1_TRIGGER_GAP_M)
+        mgr = YieldManager(traci, bus_id, rng=random.Random(self.seed), triggers=triggers, **mgr_kwargs)
         self.mgr = mgr
-        if assign_existing:        # warmup 중에 투입된 차량에도 성격을 준다
+        if assign_existing:        # warmup 중에 투입된 차량에도 운전자 성향을 준다
             mgr.on_departed(traci.vehicle.getIDList())
         # A3는 신호 없는 횡단보도에서만 판정한다(신호 횡단보도는 보행자 신호가 순서를 정한다)
         crossings = (unsignalized_crossings(read_net(os.path.join(self.out_dir, "network.net.xml")),
@@ -392,8 +387,7 @@ class HapjeongTraffic:
                     if ped_defiance else None)
         if metrics is not None and self.ped is not None and getattr(metrics, "ped_mgr", None) is None:
             metrics.ped_mgr = self.ped        # 보행자가 무시하고 건널 때의 급감속·비상 감속을 센다
-        self.stop = (StopBypassManager(traci, bus_id, rng=random.Random(self.seed + 3), owner=self.owner)
-                     if stop_bypass else None)
+        self.stop = StopBypassManager(traci, bus_id) if stop_bypass else None
         extras = []
         if getattr(self, "persons", None) is not None:
             self.persons.bus = bus_id

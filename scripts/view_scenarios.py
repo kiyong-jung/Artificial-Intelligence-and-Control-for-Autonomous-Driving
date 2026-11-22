@@ -4,7 +4,7 @@
     python scripts/view_scenarios.py S5 --episodes 4 --delay 80
     python scripts/view_scenarios.py all --headless   # 창 없이 로그만(점검용)
 
-색: 빨강=버스(시험용, 판단 없음), 초록=양보형, 주황=비양보형, 파랑=끼어드는 골목 차량, 노랑=택시.
+색: 빨강=버스(시험용, 판단 없음), 초록·주황=후행차(운전자 성향은 투입 때 연속 분포에서 뽑는다), 파랑=끼어드는 골목 차량, 노랑=택시.
 버스 정책은 범위 밖이므로 버스는 정해진 시각·위치에서 차선 변경을 요청하는 시험용이다.
 """
 import argparse
@@ -18,8 +18,7 @@ from traffic.cutin import cutin_vtype_xml, parking_area_xml  # noqa: E402
 from traffic.pedestrian import ped_vtypes_xml  # noqa: E402
 from traffic.scenarios import NET_DIR, _write  # noqa: E402
 from traffic.sumo_conn import traci, sumo_cmd  # noqa: E402
-from traffic.yield_logic import (YieldManager, DEFAULT_TYPES, BLINKER_LEFT,  # noqa: E402
-                                 BLINKER_RIGHT)
+from traffic.yield_logic import YieldManager, BLINKER_LEFT, BLINKER_RIGHT  # noqa: E402
 
 NET = os.path.abspath(os.path.join(ROOT, "maps", "hapjeong", "source", "network.net.xml"))
 STOPS = os.path.abspath(os.path.join(ROOT, "maps", "hapjeong", "source", "stops.add.xml"))
@@ -177,7 +176,7 @@ def a1_scene(R, name, route_bus, route_f, bus, bus_start, followers, ftypes, see
     tc.vehicle.setSpeed("BUS", bus.v0)
     if stop:
         tc.vehicle.setBusStop("BUS", stop, duration=10)
-    mgr = YieldManager(tc, "BUS", rng=rng, types=DEFAULT_TYPES, stop_exit_pos=None, follower_range=60.0)
+    mgr = YieldManager(tc, "BUS", rng=rng, follower_range=60.0, driver_prefixes=("yielder", "nonyielder"))
     pending = [dict(f, type=t) for f, t in zip(followers, ftypes)]
     t = 0.0
     while t < t_end:
@@ -204,7 +203,7 @@ def a1_scene(R, name, route_bus, route_f, bus, bus_start, followers, ftypes, see
         t = round(t + 0.1, 6)
         if "BUS" not in tc.vehicle.getIDList():
             break
-    rows = list(mgr.log) + [{"follower": k, "yield": v.yields, "t_open": v.t_open, "max_decel": v.max_decel}
+    rows = list(mgr.log) + [{"follower": k, "outcome": "observing", "max_decel": v.max_decel}
                             for k, v in mgr.inter.items()]
     return rows, bus.done_at
 
@@ -212,8 +211,7 @@ def a1_scene(R, name, route_bus, route_f, bus, bus_start, followers, ftypes, see
 def report_a1(name, seed, types, rows, done):
     say(f"[{name}] seed={seed} 후행차 유형={types}")
     for r in rows:
-        say(f"   {r['follower']}: 양보 결정={'양보' if r['yield'] else '비양보'}, "
-              f"openGap 시각={r['t_open']}, 최대 감속={r['max_decel']:.2f} m/s²")
+        say(f"   {r['follower']}: 결과={r['outcome']}, 최대 감속={r['max_decel']:.2f} m/s²")
     say(f"   버스 차로 변경 완료: {done if done else '못 함(비양보 후행차에 막힘)'}")
 
 

@@ -19,38 +19,26 @@ def a1():
     return build_a1_net()
 
 
-def _realized(r):
-    """양보형이면 버스가 후행차 앞으로 들어간다. 비양보형이면 버스 앞으로 들어가지 못한다(옮겼다면 후행차가 먼저 지나간 뒤)."""
-    if r["decision"]:
+def _consistent(r):
+    """관찰 기록이 실제 일과 맞는가: bus_first면 버스가 후행차 앞으로 옮겼고, follower_first면 후행차가 먼저 지나갔다."""
+    if r["outcome"] == "bus_first":
         return r["changed"] and not r["f_ahead_at_change"]
-    return (not r["changed"]) or bool(r["f_ahead_at_change"])
+    if r["outcome"] == "follower_first":
+        return (not r["changed"]) or bool(r["f_ahead_at_change"])
+    return True
 
 
-def test_a1_outcome_follows_decision(a1):
-    rows = [run_a1_episode(a1, t, s) for t in ("yielder", "nonyielder") for s in range(15)]
-    assert all(_realized(r) for r in rows)
-    assert any(r["decision"] for r in rows) and any(not r["decision"] for r in rows)
-
-
-def test_a1_no_leak_when_p_zero(a1):
-    # 양보하지 않는 차 앞으로 버스가 들어가는 일(누출)이 없다
-    for t in ("yielder", "nonyielder"):
-        rows = [run_a1_episode(a1, t, 500 + s, p_override=0.0) for s in range(10)]
-        assert not any(r["changed"] and not r["f_ahead_at_change"] for r in rows)
+def test_a1_observation_matches_what_happened(a1):
+    rows = [run_a1_episode(a1, t, s) for t in ("yielder", "nonyielder") for s in range(10)]
+    assert all(_consistent(r) for r in rows)
+    assert sum(r["outcome"] in ("bus_first", "follower_first") for r in rows) >= 10   # 대부분 상호작용이 끝난다
+    assert len({round(r["aggressiveness"], 3) for r in rows if r["aggressiveness"] is not None}) >= 10
 
 
 def test_a1_same_seed_same_result(a1):
     a = run_a1_episode(a1, "yielder", 3, record=True)
     b = run_a1_episode(a1, "yielder", 3, record=True)
     assert a == b
-
-
-def test_a1_opengap_reaches_target_within_duration(a1):
-    # 이 시험은 먼 후행차(50 m)의 상호작용을 본다. A1 시작 거리 기본값(3 m)이 아니라 50 m로 둔다
-    r = run_a1_episode(a1, "yielder", 1, record=True, bus_kwargs={"t_request": 1e9}, mgr_kwargs={"follower_range": 50.0})
-    target = r["new_tau"] * 9.0
-    reach = next(s["t"] for s in r["series"] if s["t"] >= r["t_open"] and s["gap"] >= target - 0.5)
-    assert reach - r["t_open"] <= 12.0
 
 
 def test_lane_collision_is_recorded():
@@ -147,12 +135,12 @@ def test_metrics_in_crossing_episodes():
     assert bad["metrics"]["collisions"] >= 1
 
 
-def test_runner_realizes_decision_and_calls_hook_before_update(a1):
-    """공통 루프에 버스 훅(시험용 버스)을 끼워도 A1 결과가 같고, 훅이 갱신보다 먼저 불린다."""
+def test_runner_calls_hook_before_observer_update(a1):
+    """공통 루프에 버스 훅(시험용 버스)을 끼우면 훅이 관찰 갱신보다 먼저 불리고, 관찰 기록은 실제 차로 변경과 맞는다."""
     import random
     from traffic.runner import run
     from traffic.scenarios import ScriptedBus
-    from traffic.yield_logic import YieldManager, DEFAULT_TYPES
+    from traffic.yield_logic import YieldManager
     from traffic.metrics import MetricsRecorder
     from traffic.sumo_conn import sumo_cmd as _cmd
     cmd = _cmd(a1, seed=4)
@@ -160,8 +148,8 @@ def test_runner_realizes_decision_and_calls_hook_before_update(a1):
     bus = ScriptedBus("bus0")
     bus.add(traci)
     traci.vehicle.add("f0", "r0", typeID="yielder", departPos="21.5", departLane="1", departSpeed="9")
-    mgr = YieldManager(traci, "bus0", rng=random.Random(4), types=DEFAULT_TYPES,
-                       stop_exit_pos=("E0", 100.0), exit_max_dist=60.0)
+    mgr = YieldManager(traci, "bus0", rng=random.Random(4), stop_exit_pos=("E0", 100.0), exit_max_dist=60.0,
+                       follower_range=50.0, driver_prefixes=("yielder",))
     seen, lanes = [], set()
     mgr_update = mgr.update
     mgr.update = lambda t: (seen.append(("update", t)), mgr_update(t))[1]
@@ -170,9 +158,9 @@ def test_runner_realizes_decision_and_calls_hook_before_update(a1):
         yield_mgr=mgr, metrics=rec,
         on_step=lambda t: lanes.add(traci.vehicle.getLaneIndex("bus0")))
     assert seen[0][0] == "hook" and seen[1][0] == "update"
-    inter = list(mgr.inter.values()) + [type("L", (), {"yields": x["yield"]}) for x in mgr.log]
-    assert len(inter) == 1
-    assert (1 in lanes) == bool(inter[0].yields)   # 결정대로 실현
+    assert len(mgr.log) == 1 and not mgr.inter
+    if mgr.log[0]["outcome"] == "bus_first":
+        assert 1 in lanes
     s = rec.summary()
     assert s["weighted_delay_person_s"] > 0 and s["collisions"] == 0
 
@@ -195,24 +183,8 @@ def a1_mixed_models(a1):
     return os.path.join(dst, "a1.sumocfg")
 
 
-MIX = dict(type_mix={"yielder": 0.5, "nonyielder": 0.5}, mix_vtype_prefixes=("car_",))
-
-
 @pytest.mark.parametrize("model", ["krauss", "idm", "eidm", "acc"])
-def test_a1_personality_attaches_to_any_driving_model(a1_mixed_models, model):
-    rows = [run_a1_episode(a1_mixed_models, f"car_{model}", s, mgr_kwargs=MIX) for s in range(12)]
-    assert {r["assigned_type"] for r in rows} == {"yielder", "nonyielder"}
-    assert all(_realized(r) for r in rows)
-
-
-def test_a1_mix_off_leaves_unnamed_vehicles_alone(a1_mixed_models):
-    r = run_a1_episode(a1_mixed_models, "car_idm", 0)
-    assert r["assigned_type"] == "" and r["decision"] is None and r["p_yield"] is None
-
-
-def test_a1_mix_rejects_bad_config():
-    from traffic.yield_logic import YieldManager, DEFAULT_TYPES
-    with pytest.raises(ValueError):
-        YieldManager(None, "bus0", types=DEFAULT_TYPES, type_mix={"nobody": 1.0}, mix_vtype_prefixes=("car_",))
-    with pytest.raises(ValueError):
-        YieldManager(None, "bus0", types=DEFAULT_TYPES, type_mix={"yielder": 1.0})
+def test_driver_parameters_attach_to_any_driving_model(a1_mixed_models, model):
+    rows = [run_a1_episode(a1_mixed_models, f"car_{model}", s) for s in range(4)]
+    assert all(r["aggressiveness"] is not None and 0.0 <= r["lcCooperative"] <= 1.0 for r in rows)
+    assert all(_consistent(r) for r in rows)

@@ -70,7 +70,7 @@ def test_s6_pedestrians_get_both_types(world):
     assert set(typed) == {"ped_p1", "ped_p2"}
 
 
-def test_a1_personality_reaches_background_car_on_hapjeong(world):
+def test_driver_parameters_reach_background_car_on_hapjeong(world):
     tc = world.start(warmup=30)
     tc.route.add("rb", ["R43"])
     bus = ScriptedBus("bus0", route="rb", bus_lane=1, target_lane=2)
@@ -88,5 +88,6 @@ def test_a1_personality_reaches_background_car_on_hapjeong(world):
 
     mgr, _ = world.run(25, bus_hook=hook, stop_exit_pos=("R43", 100.0), exit_max_dist=60.0)
     assert tc.vehicle.getTypeID("f0").startswith("car_krauss")   # 주행 모델은 그대로(setMaxSpeed가 vType을 복제해 접미사가 붙는다)
-    assert tc.vehicle.getParameter("f0", "driver.type") in ("yielder", "nonyielder")
+    assert 0.0 <= float(tc.vehicle.getParameter("f0", "driver.aggressiveness")) <= 1.0
+    assert 0.0 <= float(tc.vehicle.getParameter("f0", "laneChangeModel.lcCooperative")) <= 1.0
     assert any(r["follower"] == "f0" for r in mgr.log)

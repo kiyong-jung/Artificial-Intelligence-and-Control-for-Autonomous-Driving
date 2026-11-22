@@ -1,4 +1,4 @@
-"""추가 행동(R1 일반화, S1 정차 버스 뒤 차량, S4 정차 차량, S5 골목 자동 탐지, 소유권)의 빠른 검증."""
+"""추가 행동(R1 진입 의사·대상, S1 정차 버스 뒤 차량 관찰, S4 정차 차량, S5 골목 자동 탐지)의 빠른 검증."""
 import os
 import random
 import sys
@@ -6,11 +6,11 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from traffic.common import AGGRESSION, LaneLock, Ownership  # noqa: E402
+from traffic.common import AGGRESSION  # noqa: E402
 from traffic.cutin import StoppedSpec, cutin_bins_once, stopped_vehicle_xml  # noqa: E402
 from traffic.scenarios_a2 import build_a2_net, build_s4_kind_net, run_s4  # noqa: E402
 from traffic.scenarios_s1 import build_s1_net, run_s1_episode  # noqa: E402
-from traffic.yield_logic import DEFAULT_TYPES, Trigger, YieldManager, Zone  # noqa: E402
+from traffic.yield_logic import FOLLOWER_RANGE_M, Trigger, YieldManager, Zone  # noqa: E402
 
 
 class _Veh:
@@ -32,7 +32,7 @@ class _Tc:
 
 
 def _mgr(veh, **kw):
-    return YieldManager(_Tc(veh), "bus0", types=DEFAULT_TYPES, **kw)
+    return YieldManager(_Tc(veh), "bus0", **kw)
 
 
 def _advance(m, veh, t0=0.0):
@@ -67,24 +67,12 @@ def test_target_is_only_the_nearest_follower_in_range():
     assert _mgr(veh, follower_range=50.0)._target_follower(+1) == "near"
     veh = _Veh(1, "A", 0.0, right=[("r1", 9.0)], left=[("l1", 5.0)])
     assert _mgr(veh, follower_range=50.0)._target_follower(-1) == "r1"  # 우측 차로로 들어갈 때는 우측 차로의 후행차
-    assert _mgr(veh)._target_follower(-1) is None                       # 기본은 3 m 안일 때만(A1_TRIGGER_GAP_M)
+    assert FOLLOWER_RANGE_M < 40.0 and _mgr(_Veh(1, "A", 0.0, right=[("r2", 40.0)]))._target_follower(-1) is None
     assert _mgr(_Veh(2, "A", 0.0, left=[("x", 99.0)]), follower_range=50.0)._target_follower(+1) is None
-
-
-def test_ownership_is_exclusive():
-    o = Ownership()
-    assert o.claim("v", "A1") and o.claim("v", "A1")
-    assert not o.claim("v", "S1") and o.owner("v") == "A1"
-    o.release("v", "S1")
-    assert o.owner("v") == "A1"                                        # 남이 놓을 수 없다
-    o.release("v", "A1")
-    assert o.owner("v") is None and o.claim("v", "S1")
 
 
 def test_aggressiveness_maps_to_scenario_probabilities():
     a = AGGRESSION
-    assert a.p_yield(0.0) == 1.0 and a.p_yield(1.0) == 0.0
-    assert a.p_overtake(0.0) < a.p_overtake(0.5) < a.p_overtake(1.0)
     assert a.p_ignore(0.0) == pytest.approx(0.2) and a.p_ignore(1.0) == pytest.approx(1.0)
     assert a.aggressiveness_from_ignore(a.p_ignore(0.3)) == pytest.approx(0.3)
 
@@ -129,36 +117,13 @@ def test_merge_alley_is_found_wherever_it_joins():
         assert not flow_merges(net, {"from": "main_in", "to": "main_out"}, found)
 
 
-def test_s1_wait_is_held_by_lane_lock_and_overtake_follows_decision():
+def test_s1_observer_reports_what_the_follower_did():
+    # 기다릴지 추월할지는 SUMO 차선 변경 모델이 정한다. 관찰 기록은 실제로 옆 차로로 옮겼는지와 맞아야 한다
     cfg = build_s1_net()
     for model in ("krauss", "idm"):
-        locked = [run_s1_episode(cfg, model, s, p_overtake=0.0)["event"] for s in range(2)]
-        free = [run_s1_episode(cfg, model, s, p_overtake=0.0, lock_wait=False)["event"] for s in range(2)]
-        over = [run_s1_episode(cfg, model, s, p_overtake=1.0)["event"] for s in range(2)]
-        assert all(e["outcome"] == "waited" for e in locked)           # 고정하면 기다린다
-        assert all(e["outcome"] == "leaked" for e in free)             # 고정하지 않으면 SUMO가 스스로 추월시킨다(누출)
-        assert all(e["outcome"] == "overtook" for e in over)           # 추월 판정은 실제로 옆 차로로 옮겨 간다
-
-
-def test_s1_and_a1_never_own_the_same_vehicle():
-    r = run_s1_episode(build_s1_net(), "krauss", 0, p_overtake=0.0)
-    assert r["owner_left"] is None                                     # 끝나면 소유권이 풀린다
-    own = Ownership()
-    assert own.claim("f0", "A1") and not own.claim("f0", "S1")
-
-
-def test_lane_lock_release_clears_state():
-    class V:
-        calls = []
-
-        def changeLane(self, v, i, d): self.calls.append((v, i, d))
-        def getLaneIndex(self, v): return 1
-
-    class T:
-        vehicle = V()
-    lk = LaneLock(T())
-    lk.hold("v", 0.0)
-    lk.hold("v", 0.2)                                                  # 갱신 주기 안에서는 다시 내지 않는다
-    assert T.vehicle.calls == [("v", 1, 1.0)] and lk.held("v")
-    lk.release("v")
-    assert T.vehicle.calls[-1] == ("v", 1, 0.0) and not lk.held("v")
+        for s in range(2):
+            r = run_s1_episode(cfg, model, s)
+            ev = r["event"]
+            assert ev is not None and ev["outcome"] in ("waited", "overtook")
+            assert (ev["outcome"] == "overtook") == r["changed_lane"]
+            assert ev["aggressiveness"] is not None

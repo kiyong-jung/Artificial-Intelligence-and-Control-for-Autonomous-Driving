@@ -340,11 +340,12 @@ class HapjeongTraffic:
 
     def run(self, t_end, bus_id="bus0", bus_hook=None, metrics=None, on_step=None,
             assign_existing=True, ped_defiance=False, stop_bypass=True, triggers=None,
-            ped_cfg=None, pilot=None, **mgr_kwargs):
+            ped_cfg=None, pilot=None, lane_route=True, **mgr_kwargs):
         """warmup 뒤 t_end초 동안 공통 실행 루프(runner.run)로 돌린다. 반환: (YieldManager, 마지막 시각).
 
         triggers: A1 진입 의사 구간. None이면 방향지시등만 본다. "scenario"면 scenario_triggers()를 쓴다.
         stop_bypass: S1(정차 버스 뒤 차량) 관찰을 켠다.
+        lane_route: 정지선에서 옆 차로로 끝내 못 옮긴 배경 차가 지금 차로가 가는 쪽으로 가게 한다(lane_route.py).
         ped_defiance: PedSUMO 방식 보행자 건너기 판정을 켠다(기본은 끔. 보행자 vType 분포가 건너기를 정한다).
         """
         if triggers == "scenario":
@@ -363,9 +364,9 @@ class HapjeongTraffic:
         if metrics is not None and self.ped is not None and getattr(metrics, "ped_mgr", None) is None:
             metrics.ped_mgr = self.ped        # 보행자가 무시하고 건널 때의 급감속·비상 감속을 센다
         self.stop = StopBypassManager(traci, bus_id) if stop_bypass else None
-        # 지금 있는 차로에서 갈 수 있는 쪽으로 진로를 바꾼다(좌회전 전용 차로에 들어온 우회전 차는 좌회전한다)
-        self.lane_route = LaneRouteAdapter(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
-        extras = [self.lane_route]
+        self.lane_route = (LaneRouteAdapter(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
+                           if lane_route else None)
+        extras = [self.lane_route] if self.lane_route is not None else []
         if self.interior is None:
             self.interior = self._make_interior()
         if self.interior is not None:

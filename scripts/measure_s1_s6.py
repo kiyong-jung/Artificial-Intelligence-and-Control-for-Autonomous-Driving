@@ -30,13 +30,14 @@ import run_hapjeong_scenario as RS  # noqa: E402
 from maps import load_map  # noqa: E402
 from traffic.alleys import read_net  # noqa: E402
 from traffic.hapjeong import HapjeongTraffic  # noqa: E402
+from traffic.lane_route import reachable_next  # noqa: E402
 from traffic.presence import PresenceMonitor  # noqa: E402
 from traffic.signal_areas import forbidden_intervals, is_signalized  # noqa: E402
 from traffic.test_bus import STOP_AT, TestBusPilot  # noqa: E402
 
 SCEN = sys.argv[1] if len(sys.argv) > 1 else "baseline"
 SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 0
-TAG = sys.argv[3] if len(sys.argv) > 3 else ""          # 결과 파일 이름 꼬리표(old, hiped, pedsumo, noror, nointer, noped)
+TAG = sys.argv[3] if len(sys.argv) > 3 else ""          # 결과 파일 이름 꼬리표(old, hiped, pedsumo, noror, nointer, noped, nolr)
 OLD_PED = "old" in TAG                                  # 꼬리표에 old가 있으면 보행자 수정 전 설정으로 잰다
 PED_X = 4 if "hiped" in TAG else 1                      # 꼬리표에 hiped가 있으면 횡단보도 보행자를 4배로 늘린다
 PED_DEFIANCE = "pedsumo" in TAG or OLD_PED              # 꼬리표에 pedsumo가 있으면 PedSUMO 방식 건너기 판정을 켠다
@@ -87,6 +88,21 @@ def rewrite_persons(path, k, seed):
             persons.append(c)
     root.extend(sorted(persons, key=lambda p: float(p.get("depart"))))
     tree.write(path, encoding="utf-8", xml_declaration=True)
+
+
+def wrong_lane_waits(tc, net, near_m=5.0):
+    """끝난 시각에 다음 도로로 못 가는 차로의 정지선에 서 있는 배경 차들의 대기 시간(초, 큰 순)."""
+    out = []
+    for v in tc.vehicle.getIDList():
+        road = tc.vehicle.getRoadID(v)
+        route, i = tc.vehicle.getRoute(v), tc.vehicle.getRouteIndex(v)
+        if v == "bus0" or road.startswith(":") or not net.hasEdge(road) or i + 1 >= len(route):
+            continue
+        if net.getEdge(road).getLength() - tc.vehicle.getLanePosition(v) > near_m:
+            continue
+        if route[i + 1] not in reachable_next(net, road, tc.vehicle.getLaneIndex(v)):
+            out.append(round(tc.vehicle.getWaitingTime(v)))
+    return sorted(out, reverse=True)
 
 
 def main():
@@ -409,7 +425,8 @@ def main():
                               use=("ttc", "wait", "group", "width", "size", "momentum", "age", "distract"))
     try:
         world.run(tc.simulation.getTime() + T_MAX + 10, bus_id="bus0", bus_hook=bus.tick, on_step=on_step,
-                  ped_cfg=ped_cfg, ped_defiance=PED_DEFIANCE, pilot=bus, triggers="scenario")
+                  ped_cfg=ped_cfg, ped_defiance=PED_DEFIANCE, pilot=bus, triggers="scenario",
+                  lane_route="nolr" not in TAG)       # 꼬리표에 nolr가 있으면 정지선에서 포기하는 운전자(lane_route.py)를 끈다
     except Done:
         pass
     # S1 후행차 판정은 관찰 기록에서 센다(바퀴는 시험용 버스 한 바퀴)
@@ -454,7 +471,10 @@ def main():
            "interior": world.interior.summary() if world.interior else None,
            "right_on_red": world.summary.get("right_on_red"),
            "other_lane_change_attempts": per_lap(ev["other_attempts"]),
-           "a1_interactions_total": len(world.mgr.log)}
+           "a1_interactions_total": len(world.mgr.log),
+           "lane_route": {"changed": world.lane_route.changed, "errors": len(world.lane_route.errors)}
+           if world.lane_route else None,
+           "wrong_lane_waits_at_end": wrong_lane_waits(tc, net)}
     path = os.path.join(os.path.dirname(__file__), "..", "results", "traffic_verification", f"s1_s6_{SCEN}_{SEED}{'_' + TAG if TAG else ''}.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     json.dump(res, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)

@@ -14,7 +14,7 @@ from traffic.hapjeong import HapjeongTraffic  # noqa: E402
 from traffic.test_bus import BUS, TestBusPilot  # noqa: E402
 
 # 배경 차의 움직임이나 존재를 바꾸는 TraCI 명령. 운전자 성향(setParameter, setSpeedFactor), 출발(add),
-# 차로가 갈 수 있는 길로 진로 바꾸기(setRoute, LaneRouteAdapter)는 버스와 무관해 허용한다.
+# 정지선에서 옆 차로로 끝내 못 옮긴 차의 진로 바꾸기(setRoute, LaneRouteAdapter)는 버스와 무관해 허용한다.
 VEHICLE_CONTROL = ("setSpeed", "slowDown", "changeLane", "changeSublane", "changeTarget", "remove", "moveTo",
                    "moveToXY", "setStop", "resume", "setLaneChangeMode", "setSpeedMode", "openGap", "setAcceleration",
                    "setMaxSpeed", "replaceStop")

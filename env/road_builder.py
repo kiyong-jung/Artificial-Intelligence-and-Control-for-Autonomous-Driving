@@ -151,9 +151,11 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
     processing = ET.SubElement(configuration, "processing")
     for name, value in (("lateral-resolution", traffic["lateral_resolution"]),
                         ("collision.check-junctions", True),
-                        # 부딪힌 두 차는 그 자리에 섰다가 비켜 간다. 지우면 사고가 '사라짐'으로 보인다.
-                        # ego 충돌은 환경이 getCollidingVehiclesIDList로 읽어 에피소드를 끝낸다.
-                        ("collision.action", "warn"), ("collision.stoptime", traffic["collision_stop_s"]),
+                        # 부딪힌 두 차는 collision_stop_s 동안 그 자리에 섰다가 치워진다(견인). 바로 지우면 사고가 '사라짐'으로
+                        # 보이고, warn으로 다시 달리게 하면 겹친 두 차가 교차로에서 또 부딪혀 245초 넘게 막았다(검사 2회차 R2-1).
+                        # 충돌은 info의 background_collisions와 경고 기록에 남는다. ego 충돌은 getCollidingVehiclesIDList로 읽어
+                        # 에피소드를 끝낸다(치워지기 전이다).
+                        ("collision.action", "remove"), ("collision.stoptime", traffic["collision_stop_s"]),
                         # 순간이동을 끈다. ego가 막히면 환경이 stuck으로 끝낸다(SIMULATION["stuck_timeout"]).
                         ("time-to-teleport", -1),
                         ("collision.mingap-factor", traffic["collision_min_gap_factor"])):

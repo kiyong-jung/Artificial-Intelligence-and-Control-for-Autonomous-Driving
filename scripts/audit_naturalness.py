@@ -117,6 +117,8 @@ RULES = [
     ("call", "env/sumo_env.py", "*", "vehicle.*", "self.ego_id", A, "ego 버스 자신의 투입·속도·차선 명령"),
     ("lit", "env/sumo_env.py", "*._start_sumo", "no-warnings", "true", A,
      "콘솔만 끈다. 경고(비상 제동, 충돌)는 --error-log로 실행 폴더의 sumo_warnings/<sumo_seed>.log에 남는다"),
+    ("lit", "env/road_builder.py", "build", "collision.action", "remove", A,
+     "collision.stoptime(120초) 정지가 끝난 뒤에만 치운다(견인). 충돌은 background_collisions와 경고 기록에 남는다(R2-1)"),
     ("lit", "env/road_builder.py", "build", "collision.stoptime", "*", A,
      "부딪힌 두 차가 그 자리에 road_config의 collision_stop_s(120초) 동안 섰다가 비켜 간다. 지우지 않는다"),
     ("lit", "research/av_bc_rl/s6_priority_trial.py", "background_run", "no-warnings", "true", A,
@@ -124,6 +126,9 @@ RULES = [
     ("lit", "env/road_builder.py", "build", "collision.mingap-factor", "*", A,
      "값은 road_config의 -1(SUMO 모델별 기본값)이다"),
     ("lit", "env/road_builder.py", "build", "time-to-teleport", "*", A, "-1: 순간이동 끔"),
+    ("xml", "gen:env/*/scenario.sumocfg", "collision.action", "value", "*", A, "위와 같다(만들어진 설정)"),
+    ("xml", "gen:traffic/scenario.sumocfg", "collision.action", "value", "*", A,
+     "traffic 경로는 명령행 --collision.action warn이 덮어쓴다(traffic/sumo_conn.py)"),
     ("xml", "gen:*/scenario.sumocfg", "collision.stoptime", "value", "*", A,
      "위와 같다(만들어진 설정). traffic 경로도 같은 설정 파일을 읽는다"),
     # ---- 주변 교통 경로: 시험용 버스 ----

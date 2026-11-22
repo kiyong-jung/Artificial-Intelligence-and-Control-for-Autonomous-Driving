@@ -126,8 +126,8 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
         # -1은 SUMO의 모델별 기본값(Krauss=1, IDM/EIDM/ACC=0.1)이다.
         # minGap 전체를 강제하면 몸체가 2.49m 떨어진 정지 차량도 삭제된다.
         collision_min_gap_factor=-1.0,
-        # 부딪힌 차가 서 있는 시간(초). 경미한 사고처럼 사진을 찍고 비켜 가는 몇 분이다. stuck_timeout(200초)보다
-        # 짧아, 뒤에 선 ego가 배경 사고 하나만으로 stuck이 되지는 않는다.
+        # 부딪힌 차가 서 있다가 치워지기까지의 시간(초). stuck_timeout(200초)보다 짧아, 뒤에 선 ego가 배경 사고
+        # 하나만으로 stuck이 되지는 않는다.
         collision_stop_s=120.0,
         demand_scale=SCENARIOS[scenario],
         vehs_per_hour=sum(float(f["vehs_per_hour"]) for f in network["flows"]) * SCENARIOS[scenario],

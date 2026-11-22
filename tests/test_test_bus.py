@@ -1,6 +1,7 @@
 """시험용 버스 조종(traffic/test_bus.py): R68 출발, 끊김 없는 바퀴, 정해진 차선 변경 창."""
 import json
 import os
+import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -9,7 +10,9 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from traffic.alleys import read_net  # noqa: E402
-from traffic.test_bus import BUS, STOP_AT, TestBusPilot, lane_plans, lap_route  # noqa: E402
+from traffic.scenarios import NET_DIR, _write  # noqa: E402
+from traffic.sumo_conn import checkBinary, sumo_cmd, traci  # noqa: E402
+from traffic.test_bus import BUS, LC_MANUAL, STOP_AT, TestBusPilot, lane_plans, lap_route  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "maps", "hapjeong")
 _cache = {}
@@ -378,3 +381,39 @@ def test_blocker_on_next_short_road_is_still_tracked():
     tc.others["f"]["pos"] = 20.0                                        # 뒤끝이 버스 앞끝보다 5 m 넘게 앞섰다
     _run(pilot, tc, 5.0, 5.2)
     assert tc.set_speed[-1] == -1 and len(tc.change_req) > n
+
+
+def _sidewalk_left_turn_net():
+    """좌회전해 나가는 도로의 가장 오른쪽 차로가 인도인 교차로(합정 R111b -> J82 -> R112와 같은 모양)."""
+    d = os.path.join(NET_DIR, "offcenter")
+    _write(os.path.join(d, "n.nod.xml"), '<nodes><node id="W" x="-200" y="0"/><node id="C" x="0" y="0" type="priority"/>'
+                                         '<node id="N" x="0" y="200"/></nodes>')
+    lanes = ('<lane index="0" allow="pedestrian" width="3"/><lane index="1" disallow="pedestrian"/>'
+             '<lane index="2" disallow="pedestrian"/>')
+    _write(os.path.join(d, "e.edg.xml"), f'<edges><edge id="in" from="W" to="C" numLanes="3" speed="13.9">{lanes}</edge>'
+                                         f'<edge id="out" from="C" to="N" numLanes="3" speed="13.9">{lanes}</edge></edges>')
+    _write(os.path.join(d, "c.con.xml"), '<connections><connection from="in" to="out" fromLane="2" toLane="1"/></connections>')
+    subprocess.run([checkBinary("netconvert"), "-n", os.path.join(d, "n.nod.xml"), "-e", os.path.join(d, "e.edg.xml"),
+                    "-x", os.path.join(d, "c.con.xml"), "-o", os.path.join(d, "net.net.xml"), "--no-warnings"],
+                   check=True, capture_output=True)
+    _write(os.path.join(d, "r.rou.xml"), '<routes><vType id="bus_test" vClass="bus" length="12" width="2.5" accel="1.2" '
+                                         'decel="4.0" sigma="0"/><route id="r" edges="in out"/></routes>')
+    _write(os.path.join(d, "c.sumocfg"), '<configuration><input><net-file value="net.net.xml"/><route-files value="r.rou.xml"/>'
+                                         '</input><processing><lateral-resolution value="0.8"/></processing></configuration>')
+    return os.path.join(d, "c.sumocfg")
+
+
+def test_bus_left_off_center_by_a_lane_change_still_leaves_the_junction():
+    # busy seed 3: J82 앞 S2 차선 변경이 도로 경계에서 끊겨 버스가 차로 가운데에서 오른쪽으로 0.97 m 밀린 채 남았다. 나가는 도로
+    # R112의 오른쪽 차로는 인도라 SUMO가 교차로 출구에서 버스를 세웠고(MSVehicle::brakeForOverlap) 교차로가 막혔다
+    cmd = sumo_cmd(_sidewalk_left_turn_net())
+    traci.load(cmd[1:]) if traci.isLoaded() else traci.start(cmd)
+    traci.vehicle.add(BUS, "r", typeID="bus_test", departLane="2", departPos="20", departSpeed="10")
+    traci.vehicle.setLaneChangeMode(BUS, LC_MANUAL)
+    traci.simulationStep()
+    traci.vehicle.changeSublane(BUS, -0.97)
+    for _ in range(400):
+        traci.simulationStep()
+        if traci.vehicle.getRoadID(BUS) == "out":
+            break
+    assert traci.vehicle.getRoadID(BUS) == "out", (traci.vehicle.getLaneID(BUS), traci.vehicle.getLateralLanePosition(BUS))

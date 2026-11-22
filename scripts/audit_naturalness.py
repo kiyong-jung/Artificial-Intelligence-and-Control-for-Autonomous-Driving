@@ -738,9 +738,14 @@ class SumoProbe:
         end = d["sim_end"] or 0.0
         stuck = sorted(d["stuck"].values(), key=lambda r: -r["max_wait"])
         pairs = {tuple(sorted((c["collider"], c["victim"]))) for c in d["collisions"]}
-        first = {}
+        first, last, repeats = {}, {}, []
         for c in d["collisions"]:
-            first.setdefault(tuple(sorted((c["collider"], c["victim"]))), c)
+            pair = tuple(sorted((c["collider"], c["victim"])))
+            first.setdefault(pair, c)
+            # 같은 두 차가 collision.stoptime 정지가 끝난 뒤 다시 부딪힌 것(교차로가 그만큼 더 막힌다)
+            if pair in last and c["t"] - last[pair] > 10.0:
+                repeats.append(dict(c, gap_s=round(c["t"] - last[pair], 1)))
+            last[pair] = c["t"]
         places = collections.Counter(n["place"] for n in d["near_departures"])
         short = {}
         for edge_id in self.short:
@@ -753,6 +758,7 @@ class SumoProbe:
             sim_seconds=end, ego_first_seen=d["ego_first_seen"], departed=d["departed"],
             teleports=len(d["teleports"]), teleport_examples=d["teleports"][:5],
             collision_events=len(pairs), collision_examples=list(first.values())[:8],
+            repeat_collisions=len(repeats), repeat_collision_examples=repeats[:5],
             collisions_ego=sum(1 for p in pairs if self.ego in p),
             emergency_stops=len({e["id"] for e in d["emergency_stops"]}), emergency_stop_examples=d["emergency_stops"][:5],
             emergency_braking=len(braking), emergency_braking_ego=sum(1 for b in braking if b[0] == self.ego),
@@ -863,7 +869,8 @@ def run_dynamic(args):
 COLUMNS = (("경로", lambda r: r["path"]), ("교통량", lambda r: r["scenario"]), ("seed", lambda r: r["seed"]),
            ("끝난 사유", lambda r: r.get("termination") or f"{r.get('laps_done')}바퀴"),
            ("시뮬 초", lambda r: f"{r['sim_seconds']:.0f}"), ("순간이동", lambda r: r["teleports"]),
-           ("충돌(쌍)", lambda r: r["collision_events"]), ("버스 충돌", lambda r: r["collisions_ego"]),
+           ("충돌(쌍)", lambda r: r["collision_events"]), ("같은 쌍 다시 충돌", lambda r: r.get("repeat_collisions", 0)),
+           ("버스 충돌", lambda r: r["collisions_ego"]),
            ("비상 제동", lambda r: r["emergency_braking"]), ("버스 비상 제동", lambda r: r["emergency_braking_ego"]),
            ("비상 정지", lambda r: r["emergency_stops"]), ("120초 넘게 선 차", lambda r: r["stuck_over_120s"]),
            ("182초 넘게", lambda r: r["stuck_over_cycle"]), ("끝까지 서 있음", lambda r: r["stuck_at_end"]),

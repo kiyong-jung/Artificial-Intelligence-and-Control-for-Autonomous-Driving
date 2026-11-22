@@ -6,7 +6,7 @@
 1. 전용 차로 버스(`bgbus_line*`): 버스 전용 차로를 지나며 정류장에 서서 승객을 태우고(정차) 출발한다.
    - 중앙 정류장 우회 차로(`B1`, `B2`, `B3a`→`B3b`, `B4a`→`B4b`) 노선 4개: 각각 그 차로의 정류장(`stop_0`~`stop_3`)에 선다.
    - 가로변 노선 2개: 가로변 정류장 `stop_4`(`R49a`)와 `stop_5`(`R44`)에 선다.
-2. 택시(`bgtaxi`): 주변 승용차처럼 지나간다.
+2. 택시(`bgtaxi`): 주변 승용차와 같은 출발·도착 짝을 같은 비율로 쓰며 지나간다.
 3. 정류장 근처 택시 정차(S4, `curb_taxi_stops`): 버스 노선의 정류장마다 가로변 차로의 정류장 바로 앞(안 되면 노선 앞 도로
    끝, 그것도 안 되면 정류장 뒤)에 차로를 막는 정차 구역을 두고, 지도 경계에서 들어와 그곳에 섰다가 경계로 나가는 택시를
    포아송 도착으로 흘린다. 시험용 버스의 위치·시각과 무관하다. 신호 정지선 앞 금지 구간에는 두지 않는다.
@@ -30,7 +30,6 @@ class BusTrafficCfg:
     lane_buses_per_h: float = 30.0     # 전용 차로 버스(정류장에 서고 출발) 시간당 대수. 노선 6개에 같게 나눈다
     taxis_per_h: float = 40.0          # 택시. 버스는 전용 차로 노선만 투입하고 배경 버스(통과 버스)는 넣지 않는다
     dwell: tuple = (12.0, 25.0)        # 정류장 정차 시간 U(lo, hi) [s] (흐름마다 하나)
-    n_taxi_od: int = 10
     curb_taxis_per_h: float = 12.0     # 정류장 한 곳 근처에 서는 택시 시간당 대수(포아송). 0이면 없다
     curb_dwell: tuple = (15.0, 40.0)   # 그 택시의 정차 시간 U(lo, hi) [s] (정류장마다 하나)
 
@@ -74,7 +73,7 @@ def central_route(net, via, entries, exits):
     return best[1] if best else None
 
 
-def build_bus_traffic(net, flows, bus_loop, cfg=None, rng=None):
+def build_bus_traffic(net, flows, cfg=None, rng=None):
     """(vType·경로·흐름 XML 조각 목록, 요약 dict). flows: map.json의 흐름(from/to/vehs_per_hour), 합정역 지도 기준."""
     cfg = cfg or BusTrafficCfg()
     rng = rng or random.Random(0)
@@ -99,33 +98,17 @@ def build_bus_traffic(net, flows, bus_loop, cfg=None, rng=None):
         summary["lines"].append({"id": f"bgbus_line_{name}", "stop": stop, "per_h": round(central_rate, 1),
                                  "edges": route})
 
-    def spread(kind, per_h, n_od, vtype):
-        """주변 승용차 흐름의 (문→나가는 곳) 짝 중 많이 쓰이는 것을 골라 대수를 나눠 넣는다."""
-        # 시험용 버스 노선(bus_loop)을 많이 지나는 (문→나가는 곳) 짝을 먼저 고른다.
-        loop = set(bus_loop or [])
-
-        def uses_loop(f):
-            p = _chain(net, [f["from"], f["to"]], vclass="passenger")
-            return sum(1 for e in (p or []) if e in loop)
-        top = sorted((f for f in flows if not f.get("via") and net.hasEdge(f["from"]) and net.hasEdge(f["to"])),
-                     key=lambda f: (-uses_loop(f), -f["vehs_per_hour"]))
-        chosen, seen = [], set()
-        for f in top:
-            if (f["from"], f["to"]) in seen:
-                continue
-            seen.add((f["from"], f["to"]))
-            chosen.append(f)
-            if len(chosen) == n_od:
-                break
-        w = sum(f["vehs_per_hour"] for f in chosen)
-        for i, f in enumerate(chosen):
-            rate = per_h * f["vehs_per_hour"] / w
-            parts.append(f'<flow id="{kind}_{i}" type="{vtype}" from="{f["from"]}" to="{f["to"]}" begin="0" '
-                         f'end="100000" period="exp({rate / 3600:.6f})" departLane="best" departSpeed="max"/>')
-            summary["taxi_od"].append(
-                {"from": f["from"], "to": f["to"], "per_h": round(rate, 1)})
-
-    spread("bgtaxi", cfg.taxis_per_h, cfg.n_taxi_od, "bgtaxi")
+    # 택시는 주변 승용차와 같은 (문 -> 나가는 곳) 짝을 같은 비율로 쓴다(지도 흐름의 대수 비율).
+    od = {}
+    for f in flows:
+        if net.hasEdge(f["from"]) and net.hasEdge(f["to"]):
+            od[(f["from"], f["to"])] = od.get((f["from"], f["to"]), 0.0) + f["vehs_per_hour"]
+    total = sum(od.values())
+    for i, ((src, dst), vph) in enumerate(sorted(od.items())):
+        rate = cfg.taxis_per_h * vph / total
+        parts.append(f'<flow id="bgtaxi_{i}" type="bgtaxi" from="{src}" to="{dst}" begin="0" end="100000" '
+                     f'period="exp({rate / 3600:.6f})" departLane="best" departSpeed="max"/>')
+        summary["taxi_od"].append({"from": src, "to": dst, "per_h": round(rate, 2)})
     return parts, summary
 
 

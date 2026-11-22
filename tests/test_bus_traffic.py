@@ -70,10 +70,19 @@ def test_curb_taxis_stop_near_bus_stops_on_their_own_schedule(world):
     assert {p.get("id") for p in add.iter("parkingArea")} >= {f.find("stop").get("parkingArea") for f in flows}
 
 
-def test_taxis_are_flowing(world):
+def test_taxis_share_the_demand_of_ordinary_cars(world):
+    # 택시의 출발·도착 짝과 비율은 지도 흐름과 같다(시험용 버스 노선을 보고 고르지 않는다)
     s = world.summary["bus_traffic"]
     assert "pass_od" not in s
-    assert sum(o["per_h"] for o in s["taxi_od"]) > 0
+    flows = load_map("hapjeong")["flows"]
+    car = {}
+    for f in flows:
+        car[(f["from"], f["to"])] = car.get((f["from"], f["to"]), 0.0) + f["vehs_per_hour"]
+    taxi = {(o["from"], o["to"]): o["per_h"] for o in s["taxi_od"]}
+    assert set(taxi) == set(car)
+    k = sum(taxi.values()) / sum(car.values())
+    assert sum(taxi.values()) == pytest.approx(BusTrafficCfg().taxis_per_h, rel=1e-2)
+    assert all(taxi[od] == pytest.approx(k * car[od], abs=0.01) for od in car)
 
 
 def test_world_loads_with_bus_traffic(world):

@@ -63,7 +63,8 @@ def main():
         rollouts = []
         for scenario, base in SCENARIO_SEEDS.items():
             name = f"dagger_s{args.seed}_it{iteration}_{scenario}"
-            seed = base + 100 * args.seed + 10 * iteration
+            # 반복마다 rollout seed가 겹치지 않게 episodes만큼 띄운다. 학습 seed(args.seed)는 100씩 띄운다.
+            seed = base + 100 * args.seed + args.episodes * (iteration - 1)
             if not (out / f"{name}.npz").exists():
                 subprocess.run([PY, str(REPO / "collect_pomdp_data.py"), "--map", "hapjeong", "--scenario", scenario,
                                 "--seed", str(seed), "--policy", "bc", "--model", str(model), "--episodes",
@@ -73,9 +74,11 @@ def main():
         merged = {}
         with np.load(data_path, allow_pickle=False) as data:
             base_arrays = {key: data[key] for key in data.files}
+        # 반복 2부터는 base가 앞 반복의 합본이라 이미 100000·200000·300000번대 에피소드가 있다. 새 rollout 번호가 겹치지 않게
+        # 반복마다 교통량 수만큼 칸을 더 띄운다.
         parts = [base_arrays] + [relabel(path, expert) for path in rollouts]
-        for index, part in enumerate(parts):
-            part["episode"] = part["episode"].astype(np.int64) + 100000 * index
+        for index, part in enumerate(parts[1:], start=1):
+            part["episode"] = part["episode"].astype(np.int64) + 100000 * (len(SCENARIO_SEEDS) * (iteration - 1) + index)
         for key in base_arrays:
             merged[key] = np.concatenate([part[key] for part in parts if key in part])
         data_path = out / f"dagger_s{args.seed}_it{iteration}.npz"

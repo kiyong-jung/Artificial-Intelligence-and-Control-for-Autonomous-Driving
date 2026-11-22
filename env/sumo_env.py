@@ -705,13 +705,15 @@ class SumoHighwayEnv(gym.Env):
 
     def _update_service(self):
         """정류장 정차를 진행한다. 버스 몸 전체가 정류장 차로의 정류장 안에서 멈춰 dwell_s초를 채우면 'served',
-        채우기 전에 떠나거나 정류장을 지나치면 'missed'다."""
+        채우기 전에 떠나거나 정류장을 지나치면 'missed'다. 정류장이 있는 도로를 벗어나도 지나친 것이다.
+        s6처럼 정류장 끝이 도로 끝에 붙어 있으면 교차로 안의 위치가 정류장 끝 + 1m를 넘지 않는다."""
         if self._service_next >= len(self.service_stops):
             return None
         start, end, _stop_id, stop_lane = self.service_stops[self._service_next]
         position = self._route_position()
-        in_zone = (traci.vehicle.getLaneID(self.ego_id) == stop_lane
-                   and start + self.ego_length - 1.0 <= position <= end + 1.0)
+        lane_id = traci.vehicle.getLaneID(self.ego_id)
+        in_zone = lane_id == stop_lane and start + self.ego_length - 1.0 <= position <= end + 1.0
+        left_stop_road = position > start and traci.vehicle.getRoadID(self.ego_id) != stop_lane.rsplit("_", 1)[0]
         stopped = self._speed < 0.1
         event = None
         if self._dwell_left is not None:
@@ -723,7 +725,7 @@ class SumoHighwayEnv(gym.Env):
                 event = "missed"
         elif in_zone and stopped:
             self._dwell_left = self.dwell_s
-        elif position > end + 1.0:
+        elif position > end + 1.0 or left_stop_road:
             event = "missed"
         if event:
             self._service_next += 1

@@ -88,6 +88,20 @@ python scripts/run_hapjeong_scenario.py --nogui --stopped kind=bus,edge=R112,lan
 
 ## 측정 결과 (자연 교통)
 
+**이 발생률은 학습 환경의 값이 아니다.** 아래 S1~S6 비율은 이 `traffic/` 경로에서 잰 값이다. BC·PPO·Residual은
+`env/`(`SumoHighwayEnv`)에서 학습하고 평가하며, 두 경로는 다른 세상이다(감사 1회차 X1~X5).
+
+| 번호 | `traffic/` 경로 | 학습 환경 `env/` |
+|---|---|---|
+| X1 | ballistic 적분(`sumo_conn.py`의 `--step-method.ballistic`) | SUMO 기본 Euler 적분 |
+| X2 | 충돌은 경고만 하고 차가 남는다(`--collision.action warn`) | 부딪힌 차를 지운다(`collision.action remove`) |
+| X3 | 적색 우회전을 일시정지 후 진행(`s`)으로 연다(`right_turn.py`, J1·J82·J83·J42 제외) | 지도 신호 그대로 |
+| X4 | 모든 보행자가 impatience 0~1 보행자 분포(`pedDist`)를 쓴다 | SUMO 기본 보행자 유형 |
+| X5 | 운전자 성향(`yield_logic.DriverDist`), 골목 운전자(`cutin`), 배경 버스·택시, 정류장 앞 택시 정차가 있다 | 없다 |
+
+그래서 여기서 잰 발생률을 학습 환경에서 버스가 시나리오를 만나는 빈도로 쓰면 안 된다. 학습 환경의 빈도는 학습 환경에서
+따로 재야 한다(`scripts/audit_naturalness.py --dynamic`의 env 실행). 두 경로를 한쪽으로 합치는 일은 아래 Todo에 있다.
+
 `scripts/measure_s1_s6.py busy <seed>`를 seed 0~9로 돌리고 `scripts/summarize_s1_s6.py busy`로 모았다(시험용 버스 3바퀴,
 2026-11-23). 값은 평균 ± 표준편차(최소~최대)다. `/lap`은 끝난 바퀴 수로 나눈 바퀴당 비율이고, 나머지는 실행당 횟수다.
 이전은 주입기와 조종이 있던 `5ec7e79`, 지금은 이 문서와 같은 커밋이다.

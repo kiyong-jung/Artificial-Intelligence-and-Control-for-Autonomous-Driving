@@ -49,6 +49,25 @@ def test_central_routes_run_boundary_to_boundary(world):
         assert all(v in r for v in via)
 
 
+def test_bus_lines_have_room_to_reach_the_lane_for_the_next_road(world):
+    # 도로마다 앞 도로에서 들어오는 차로와 다음 도로로 가는 차로 사이를 옮길 거리가 있다. 차로를 보지 않고 고르면
+    # B1(R114 R49a B1)은 22.9 m에서 세 칸, B4(B4b R55 R92)는 102.7 m에서 네 칸을 옮겨야 해 R55에 320초 넘게 섰다.
+    from traffic.alleys import read_net
+    net = read_net(os.path.join(world.out_dir, "network.net.xml"))
+    for line in world.summary["bus_traffic"]["lines"]:
+        r = line["edges"]
+        for prev, edge, nxt in zip(r, r[1:], r[2:]):
+            e = net.getEdge(edge)
+            arrive = {c.getToLane().getIndex() for ln in net.getEdge(prev).getLanes() if ln.allows("bus")
+                      for c in ln.getOutgoing() if c.getTo() == e and c.getToLane().allows("bus")}
+            leave = {ln.getIndex() for ln in e.getLanes() if ln.allows("bus")
+                     for c in ln.getOutgoing() if c.getTo().getID() == nxt}
+            need = min(abs(a - b) for a in arrive for b in leave)
+            assert e.getLength() >= need * e.getSpeed() * 10.0, (line["id"], edge, need, round(e.getLength(), 1))
+    lines = {l["id"]: " ".join(l["edges"]) for l in world.summary["bus_traffic"]["lines"]}
+    assert "R114 R49a B1" not in lines["bgbus_line_B1"] and "B4b R55 R92" not in lines["bgbus_line_B4"]
+
+
 def test_curb_taxis_stop_near_every_curbside_bus_stop_on_their_own_schedule(world):
     # S4: 도로망의 가로변 정류장마다 근처에 서는 택시 포아송 흐름이 있다(시험용 버스 노선·위치와 무관하다)
     from traffic.alleys import read_net

@@ -46,11 +46,38 @@ def _chain(net, edges, vclass="bus"):
     return path
 
 
+def lane_changes(net, path, vclass="bus"):
+    """path의 가운데 도로마다 (도로 id, 옮겨야 할 차로 수). 앞 도로에서 들어올 수 있는 차로와 다음 도로로 가는 차로 사이의
+    가장 적은 칸 수다. 0인 도로는 뺀다."""
+    out = []
+    for prev, edge, nxt in zip(path, path[1:], path[2:]):
+        arrive = {c.getToLane().getIndex() for lane in net.getEdge(prev).getLanes() if lane.allows(vclass)
+                  for c in lane.getOutgoing() if c.getTo().getID() == edge and c.getToLane().allows(vclass)}
+        leave = {lane.getIndex() for lane in net.getEdge(edge).getLanes() if lane.allows(vclass)
+                 for c in lane.getOutgoing() if c.getTo().getID() == nxt}
+        need = min((abs(a - b) for a in arrive for b in leave), default=0)
+        if need:
+            out.append((edge, need))
+    return out
+
+
+# SUMO 차선 변경 모델(SL2015)은 한 칸 옮길 거리를 미리 '속도 x 10초'(MSLCM_SL2015.cpp LOOK_FORWARD)로 잡는다. 이보다 짧은 도로에서
+# 여러 칸을 옮겨야 하는 노선은 버스가 정지선 앞 틀린 차로에 서서 그 차로를 막는다(B4가 R55에서 320초 넘게 섰다).
+LANE_CHANGE_S = 10.0
+
+
+def lane_feasible(net, path, vclass="bus"):
+    return all(net.getEdge(e).getLength() >= need * net.getEdge(e).getSpeed() * LANE_CHANGE_S
+               for e, need in lane_changes(net, path, vclass))
+
+
 def central_route(net, via, entries, exits):
-    """via(중앙 우회 차로 도로들)를 지나는 가장 짧은 버스 경로. (지도 경계 입구 → via → 지도 경계 출구).
+    """via(중앙 우회 차로 도로들)를 지나는 가장 짧은 버스 경로 가운데 차로를 옮길 거리가 있는 것.
+    (지도 경계 입구 → via → 지도 경계 출구).
 
     배경 버스는 도로가 끊긴 곳(양화로 양 끝)에서 생기고 사라진다. 예전에는 우회 차로 바로 다음 도로(J1 뒤 R41 등)에서 끝나
-    시험용 버스가 지나는 J1 근처에서 버스가 사라졌다(순간이동으로 보였다).
+    시험용 버스가 지나는 J1 근처에서 버스가 사라졌다(순간이동으로 보였다). 도로 단위로 가장 짧은 길만 고르면 B1은 R49a 22.9 m에서
+    세 칸, B4는 R55 102.7 m에서 네 칸을 옮겨야 했다.
     """
     from .presence import ends_at_boundary, starts_at_boundary
     heads = [a for a in entries if starts_at_boundary(net, a)]
@@ -69,7 +96,7 @@ def central_route(net, via, entries, exits):
                 continue
             path = head + mid[1:] + tail[1:]
             length = sum(net.getEdge(e).getLength() for e in path)
-            if best is None or length < best[0]:
+            if (best is None or length < best[0]) and lane_feasible(net, path):
                 best = (length, path)
     return best[1] if best else None
 

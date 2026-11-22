@@ -2,7 +2,7 @@
 
 한 행은 판단 한 번의 전이다: 현재 관측·실제 상태 → 행동 → 보상·사건·종료 → 다음 관측·실제 상태.
 """
-SCHEMA_VERSION = "hapjeong_bus_v1"
+SCHEMA_VERSION = "hapjeong_bus_v2"
 
 SCHOOL, TEAM = "학교 기본", "팀 추가"
 # (컬럼, 형태, 구분, 의미). 점(.)은 JSONL에서 한 단계 안쪽 키다.
@@ -10,7 +10,7 @@ COLUMNS = [
     ("episode", "Integer", SCHOOL, "Episode 번호"),
     ("t", "Integer", SCHOOL, "Episode 내부 timestep (판단 한 번 = decision_interval초)"),
     ("sim_time", "Float", TEAM, "관측 시점의 SUMO 시뮬레이션 시각(초). t와 실제 시간을 구분한다"),
-    ("observation", "Vector (31-dim)", SCHOOL, "시점 t에서 AV Policy가 실제로 입력받는 부분 관측 oₜ"),
+    ("observation", "Vector (46-dim)", SCHOOL, "시점 t에서 AV Policy가 실제로 입력받는 부분 관측 oₜ. 수업 원본 31개 뒤에 경로 정보 15개"),
     ("action_raw", "Vector (2-dim)", SCHOOL, "Policy가 출력한 원본 Action [가감속, 차선변경]"),
     ("action.accel_raw", "Float", SCHOOL, "환경에 적용된 가감속 Action 값"),
     ("action.lane_change_raw", "Float", SCHOOL, "환경에 적용된 차선변경 raw 값"),
@@ -27,11 +27,14 @@ COLUMNS = [
     ("event.lane_before", "Integer / String", SCHOOL, "Action 적용 전 AV 차선"),
     ("event.lane_after", "Integer / String", SCHOOL, "Action 적용 후 AV 차선"),
     ("event.termination_reason", "String", TEAM, "종료 원인 (arrived, collision, time_limit, teleport, missing). 종료가 아니면 빈 값"),
+    ("event.service_event", "String", TEAM, "이 step에 정차할 정류장을 마쳤으면 served, 서지 않고 지나쳤으면 missed, 아니면 빈 값"),
+    ("event.stops_served", "Integer", TEAM, "에피소드에서 지금까지 정차를 마친 정류장 수"),
+    ("event.stops_missed", "Integer", TEAM, "에피소드에서 지금까지 서지 않고 지나친 정차 정류장 수"),
     ("comfort.peak_acceleration", "Float", TEAM, "이 step 동안 버스 가속도 크기의 최댓값 (m/s²). 승객 승차감"),
     ("comfort.peak_jerk", "Float", TEAM, "이 step 동안 버스 jerk(가속도 변화율) 크기의 최댓값 (m/s³). 승객 승차감"),
     ("comfort.acceleration_violation", "Boolean", TEAM, "가속도가 승차감 한계를 넘었는지"),
     ("comfort.jerk_violation", "Boolean", TEAM, "jerk가 승차감 한계를 넘었는지"),
-    ("next_observation", "Vector (31-dim)", SCHOOL, "다음 시점의 부분 관측 oₜ₊₁"),
+    ("next_observation", "Vector (46-dim)", SCHOOL, "다음 시점의 부분 관측 oₜ₊₁"),
     ("next_state", "Dictionary", SCHOOL, "다음 시점의 privileged simulator state sₜ₊₁"),
 ]
 
@@ -60,6 +63,20 @@ OBSERVATION_FEATURES = (
        ("leader_gap", "leader_relative_speed", "follower_gap", "follower_relative_speed")]
     + [f"{lane}_route_connectivity" for lane in _LANES]
     + [f"{lane}_density" for lane in _LANES])
+# 수업 원본 31개 뒤에 붙이는 경로 정보(env/sumo_env.py _route_observation). 실제 버스가 알 수 있는 값이다.
+#   tl_*: 경로 위 다음 신호(100m 안). 거리/100, 적색(r, R, u), 황색(y, Y), 비보호 녹색(g, s)
+#   stop_*: 정차해야 할 다음 정류장. 거리/300(앞범퍼를 정류장 끝 1m 앞에), 남은 정차 시간 비율, 정류장 차로까지 차로 수/2(+는 왼쪽, 300m 안에서만)
+#   route_lane_*: 경로를 이어 가려면 옮겨야 할 차로 수/2(+는 왼쪽), 지금 차로로 경로를 따라 더 갈 수 있는 거리/300
+#   crosswalk_*: 경로 위 다음 횡단보도 거리/50, 보행자가 건너는 중이거나(신호 없는 횡단보도는) 기다리는지
+#   speed_limit: 지금 차로의 허용 속도/경로 제한속도
+#   next_speed_limit*: 경로를 따라 100m 안에서 가장 낮은 허용 속도(교차로 안 회전 차로 포함)/경로 제한속도와 그 거리/100
+#   ego_acceleration: 지금 가속도/2
+ROUTE_FEATURES = ("tl_distance", "tl_red", "tl_yellow", "tl_yield",
+                  "stop_distance", "stop_dwell_remaining", "stop_lane_offset",
+                  "route_lane_offset", "route_lane_continuation",
+                  "crosswalk_distance", "crosswalk_occupied", "speed_limit",
+                  "next_speed_limit", "next_speed_limit_distance", "ego_acceleration")
+OBSERVATION_FEATURES = OBSERVATION_FEATURES + list(ROUTE_FEATURES)
 
 CONVENTIONS = {
     "coordinate": "x, y는 SUMO 도로망 좌표(m). heading은 북쪽 0도에서 시계 방향(도). "

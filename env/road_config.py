@@ -22,7 +22,11 @@ _EGO_COMMON = {
     "depart_speed": 0.0,   # 정지 출발. 혼잡한 진입부에서 빈틈이 작아도 투입된다.
     # 신호 없는 도로에서 교차로 우선권과 안전 차간은 SUMO 보조(31)가 지킨다.
     # 512는 자율 차선변경을 끄고 TraCI 명령의 안전 간격만 검사한다.
-    "speed_mode": 31, "lane_change_mode": 512,
+    # 1536 = 512 + bit10. bit10은 TraCI 명령과 충돌하지 않는 차로 안 횡이동(가운데 정렬)을 허용한다.
+    # 512만 쓰면 차선변경이 차로 가운데에서 끝나지 않을 때 다시 정렬하지 않아, 버스(폭 2.5m)가 3.2m 차로에서
+    # 오른쪽으로 0.5m 넘게 밀려 인도 차로에 걸쳤다. 그러면 SUMO가 인도를 걷는 보행자를 앞차로 보고 버스를 세워
+    # 300초 뒤 순간이동했다(research/av_bc_rl/decisions.tsv).
+    "speed_mode": 31, "lane_change_mode": 1536,
 }
 _EGO_VEHICLES = {
     # 수업 원본의 승용차.
@@ -36,6 +40,12 @@ _EGO_VEHICLES = {
             "accel": 1.0, "decel": 2.0, "emergency_decel": 9.0, "min_gap": 3.0, "tau": 1.5,
             "person_capacity": 40, "boarding_duration": 2.0, "max_speed": 33.33,
             "comfort": {"acceleration_limit": 1.5, "jerk_limit": 2.0, "hard_braking": 3.0}},
+}
+# 지도별 버스 운행 설정. 정차할 정류장(map.json의 bus_stops id)과 한 번 서는 시간(초).
+# 합정역은 팀이 정한 s2 성산중학교, s4 극동방송, s5 서교동교회, s6 합정역에 8초씩 선다(traffic/test_bus.py와 같다).
+_SERVICE = {
+    "hapjeong": {"stops": ("osm_stop_357920024", "osm_stop_5930628870",
+                           "osm_stop_3446267493", "osm_stop_3424857165"), "dwell_s": 8.0},
 }
 _VTYPE_ATTRIBUTES = (("vclass", "vClass"), ("gui_shape", "guiShape"), ("length", "length"), ("width", "width"),
                      ("accel", "accel"), ("decel", "decel"), ("emergency_decel", "emergencyDecel"),
@@ -102,6 +112,7 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
     vehicle = network.get("ego_vehicle", "car")
     EGO.update({**deepcopy(_EGO_COMMON), **deepcopy(_EGO_VEHICLES[vehicle])}, vehicle=vehicle, route_id=route_id)
     EGO["max_speed"] = min(facts["max_speed_mps"], EGO["max_speed"])
+    EGO["service"] = deepcopy(_SERVICE.get(network["id"], {"stops": (), "dwell_s": 0.0}))
     TRAFFIC.clear()
     TRAFFIC.update(
         # 배경차의 물리적 최고속도. 차로 제한속도는 SUMO가 따로 지킨다.

@@ -59,9 +59,19 @@ import traci
 from sumolib import checkBinary
 
 from env.route_map import RouteMap
+from env.data_schema import ROUTE_FEATURES
 
 SIGNAL_RIGHT, SIGNAL_LEFT = 1, 2   # traci.vehicle.getSignals의 방향지시등 비트
 LANE_RELATIONS = {2: "left2", 1: "left", 0: "same", -1: "right", -2: "right2", None: "other"}
+
+
+# 경로 정보 관측(ROUTE_FEATURES)의 정규화 거리(m)
+TL_RANGE = 100.0           # 이보다 먼 신호는 없는 것으로 본다
+STOP_RANGE = 300.0         # 정차할 정류장까지 거리. 정류장 차로로 미리 옮길 수 있게 멀리 본다
+STOP_MARGIN = 1.0          # 버스 앞범퍼를 정류장 끝 이만큼 앞에 세운다
+CONTINUATION_RANGE = 300.0 # 지금 차로로 경로를 따라 더 갈 수 있는 거리
+CROSSING_RANGE = 50.0      # 경로 위 다음 횡단보도까지 거리
+LIMIT_RANGE = 100.0        # 앞쪽 허용 속도를 보는 거리
 
 
 def _unit(angle_deg):
@@ -198,6 +208,21 @@ class SumoHighwayEnv(gym.Env):
         self.obs_offsets = (+2, +1, 0, -1, -2)
         n_lanes_view = len(self.obs_offsets)
         self.obs_dim = 1 + n_lanes_view * 4 + n_lanes_view + n_lanes_view
+        # 실제 버스가 알 수 있는 경로 정보(신호, 정류장, 경로 차로, 횡단보도, 제한속도, 가속도)를 뒤에 붙인다.
+        # 31차원만으로는 적색 신호와 정류장을 볼 수 없어, 정책이 신호 앞에서 SUMO 강제 정지에 기댔다.
+        self.route_features = bool(mdp_obs.get("route_features", True))
+        if self.route_features:
+            self.obs_dim += len(ROUTE_FEATURES)
+        service = ego.get("service") or {}
+        wanted = set(service.get("stops", ()))
+        self.service_stops = [stop for stop in self.route_map.stops if stop[2] in wanted]
+        self.dwell_s = float(service.get("dwell_s", 0.0))
+        self.ego_length = float(ego.get("length", 5.0))
+        self._crossing_ends = {}
+        self._lane_lengths = {}
+        # 행동의 가속도는 결정 구간 동안 지금 가속도에서 명령 가속도로 곧게 바뀐다(구동계의 반응).
+        # 결정마다 가속도가 계단처럼 뛰면 0.1초 사이 변화가 jerk 한계(2m/s³)를 늘 넘는다.
+        self.accel_ramp = bool(action.get("accel_ramp", True))
         self.observation_space = spaces.Box(-1.0, 1.0, shape=(self.obs_dim,),
                                             dtype=np.float32)
 
@@ -253,10 +278,12 @@ class SumoHighwayEnv(gym.Env):
             traci.simulationStep()
 
         # ego 차량 투입 — 반드시 "도로 시작점(0m)"에서 출발
+        # 순환 노선이라 경로 끝에서 멈추지 않는다. 기본값이면 SUMO가 마지막 도로에서 정지하려고 감속한다.
         traci.vehicle.add(self.ego_id, self.ego_route, typeID="ego_type",
                           departLane=self.ego_depart_lane,
                           departPos="0",
-                          departSpeed=self.ego_depart_speed)
+                          departSpeed=self.ego_depart_speed,
+                          arrivalSpeed="current")
 
         # 도시 맵에서는 우선권·차간거리 보조를 기본으로 사용한다.
         # 보조 없는 자율주행 성능으로 해석하면 안 된다.
@@ -296,6 +323,8 @@ class SumoHighwayEnv(gym.Env):
 
         self.step_count = 0
         self._acceleration, self._jerk = 0.0, 0.0
+        self._service_next, self._dwell_left = 0, None
+        self.stops_served, self.stops_missed = 0, 0
         self._speed = float(traci.vehicle.getSpeed(self.ego_id)) if self.ego_id in traci.vehicle.getIDList() else 0.0
         return self._get_obs(), {"sumo_seed": self.sumo_seed,
                                  "ego_insert_wait_seconds": (1 + _wait) * self.step_length,
@@ -573,7 +602,136 @@ class SumoHighwayEnv(gym.Env):
         for offset in self.obs_offsets:
             obs.append(self._lane_density(offset))
 
+        if self.route_features:
+            obs += self._route_observation()
         return np.clip(np.array(obs, dtype=np.float32), -1.0, 1.0)
+
+    # ==================================================================
+    # 경로 정보: 신호, 정류장, 경로 차로, 횡단보도 (ROUTE_FEATURES 순서)
+    # ==================================================================
+    def _route_position(self):
+        """경로 거리(m). 버스 앞범퍼 기준이다."""
+        return self.route_map.position(int(traci.vehicle.getRouteIndex(self.ego_id)),
+                                       traci.vehicle.getLaneID(self.ego_id),
+                                       float(traci.vehicle.getLanePosition(self.ego_id)))
+
+    def _crossing_occupied(self, crossing_edge):
+        """횡단보도 위에 사람이 있으면 참이다. 신호 없는 횡단보도는 양 끝 2.5m 안에서 멈춰 기다리는 사람도 센다.
+        신호 있는 횡단보도에서 기다리는 사람은 보행 신호를 기다리는 것이라 차의 진행과 무관하다."""
+        if traci.edge.getLastStepPersonIDs(crossing_edge):
+            return True
+        node = crossing_edge[1:].rsplit("_c", 1)[0]
+        if node in self.route_map.signalized_nodes or crossing_edge not in self.route_map.pedestrian_priority:
+            return False
+        ends = self._crossing_ends.get(crossing_edge)
+        if ends is None:
+            shape = traci.lane.getShape(crossing_edge + "_0")
+            ends = self._crossing_ends[crossing_edge] = (shape[0], shape[-1])
+        for pid in traci.person.getIDList():
+            if traci.person.getSpeed(pid) > 0.5:
+                continue
+            px, py = traci.person.getPosition(pid)
+            if any((px - ex) ** 2 + (py - ey) ** 2 < 2.5 ** 2 for ex, ey in ends):
+                return True
+        return False
+
+    def _route_observation(self):
+        ego = self.ego_id
+        road_id = traci.vehicle.getRoadID(ego)
+        lane_id = traci.vehicle.getLaneID(ego)
+        inside = road_id.startswith(":")
+        position = self._route_position()
+
+        tl = [1.0, 0.0, 0.0, 0.0]
+        signals = traci.vehicle.getNextTLS(ego)
+        if signals and signals[0][2] <= TL_RANGE:
+            light = signals[0][3]
+            tl = [signals[0][2] / TL_RANGE, float(light in "rRu"), float(light in "yY"), float(light in "gs")]
+
+        stop = [1.0, 0.0, 0.0]
+        if self._service_next < len(self.service_stops):
+            _start, end, _stop_id, _lane = self.service_stops[self._service_next]
+            distance = end - STOP_MARGIN - position
+            stop[0] = float(np.clip(distance / STOP_RANGE, 0.0, 1.0))
+            if self._dwell_left is not None:
+                stop[1] = self._dwell_left / self.dwell_s
+            # 정류장 앞에 회전이 있으면 아직 정류장 차로를 맞출 때가 아니다(회전 차로를 먼저 맞춘다).
+            turn_between = any(position < at < _start for at, _name in self.route_map.turns)
+            if distance < STOP_RANGE and not inside and not turn_between:
+                usable = [int(l.rsplit("_", 1)[1]) for l in
+                          self.route_map.drivable_lane_ids[int(traci.vehicle.getRouteIndex(ego))]]
+                stop[2] = float(np.clip((min(usable) - int(traci.vehicle.getLaneIndex(ego))) / 2.0, -1.0, 1.0))
+
+        lane = [0.0, 1.0]
+        if not inside:
+            for best_id, length, _occupation, offset, _allows, _sequence in traci.vehicle.getBestLanes(ego):
+                if best_id == lane_id:
+                    left = length - float(traci.vehicle.getLanePosition(ego))
+                    lane = [float(np.clip(offset / 2.0, -1.0, 1.0)), float(np.clip(left / CONTINUATION_RANGE, 0.0, 1.0))]
+                    break
+
+        crossing = [1.0, 0.0]
+        ahead = next(((at, edge) for at, edge in self.route_map.crossings if at >= position), None)
+        if ahead and ahead[0] - position <= CROSSING_RANGE:
+            crossing = [(ahead[0] - position) / CROSSING_RANGE, float(self._crossing_occupied(ahead[1]))]
+
+        allowed = min(traci.lane.getMaxSpeed(lane_id), traci.vehicle.getAllowedSpeed(ego))
+        limit, limit_distance = self._next_speed_limit(lane_id, allowed)
+        return tl + stop + lane + crossing + [allowed / self.vmax, limit / self.vmax, limit_distance / LIMIT_RANGE,
+                                              float(np.clip(self._acceleration / 2.0, -1.0, 1.0))]
+
+    def _lane_length(self, lane_id):
+        length = self._lane_lengths.get(lane_id)
+        if length is None:
+            length = self._lane_lengths[lane_id] = float(traci.lane.getLength(lane_id))
+        return length
+
+    def _next_speed_limit(self, lane_id, allowed):
+        """경로를 따라 LIMIT_RANGE 안에서 가장 낮은 허용 속도와 그 거리. 회전하는 교차로 안 차로의 속도가 여기서 보인다."""
+        best, best_distance = allowed, LIMIT_RANGE
+        distance = self._lane_length(lane_id) - float(traci.vehicle.getLanePosition(self.ego_id))
+        for next_lane, _prio, _open, _foe, via, _state, _direction, via_length in traci.vehicle.getNextLinks(self.ego_id):
+            if distance > LIMIT_RANGE:
+                break
+            for lane, length in ((via, via_length), (next_lane, None)):
+                if not lane:
+                    continue
+                speed = float(traci.lane.getMaxSpeed(lane))
+                if speed < best - 1e-6 and distance <= LIMIT_RANGE:
+                    best, best_distance = speed, max(distance, 0.0)
+                distance += via_length if length is not None else self._lane_length(lane)
+        return best, best_distance
+
+    def _update_service(self):
+        """정류장 정차를 진행한다. 버스 몸 전체가 정류장 차로의 정류장 안에서 멈춰 dwell_s초를 채우면 'served',
+        채우기 전에 떠나거나 정류장을 지나치면 'missed'다."""
+        if self._service_next >= len(self.service_stops):
+            return None
+        start, end, _stop_id, stop_lane = self.service_stops[self._service_next]
+        position = self._route_position()
+        in_zone = (traci.vehicle.getLaneID(self.ego_id) == stop_lane
+                   and start + self.ego_length - 1.0 <= position <= end + 1.0)
+        stopped = self._speed < 0.1
+        event = None
+        if self._dwell_left is not None:
+            if in_zone and stopped:
+                self._dwell_left -= self.decision_interval
+                if self._dwell_left <= 1e-9:
+                    event = "served"
+            else:
+                event = "missed"
+        elif in_zone and stopped:
+            self._dwell_left = self.dwell_s
+        elif position > end + 1.0:
+            event = "missed"
+        if event:
+            self._service_next += 1
+            self._dwell_left = None
+            if event == "served":
+                self.stops_served += 1
+            else:
+                self.stops_missed += 1
+        return event
 
     # ==================================================================
     # 1 스텝 진행: 행동 적용 → SUMO를 decision_interval만큼 계산 → 보상/종료 판정
@@ -797,12 +955,14 @@ class SumoHighwayEnv(gym.Env):
 
             accel_cmd = (accel_raw * self.max_accel
                          if accel_raw >= 0.0 else accel_raw * self.max_decel)
-            dv = accel_cmd * self.decision_interval
+            start = self._acceleration if self.accel_ramp else accel_cmd
+            ramp = [start + (accel_cmd - start) * (k + 1) / self.substeps for k in range(self.substeps)]
+            targets = np.cumsum(ramp) * self.step_length + v
             # 맵의 정규화 vmax와 현재 차선 제한속도는 다를 수 있다.
             # 교차로 내부의 낮은 허용속도도 존중하며 SUMO 안전보조를 유지한다.
             lane_limit = traci.lane.getMaxSpeed(traci.vehicle.getLaneID(self.ego_id))
             allowed = min(self.vmax, lane_limit, traci.vehicle.getAllowedSpeed(self.ego_id))
-            requested_speed = float(np.clip(v + dv, 0.0, allowed))
+            requested_speed = float(np.clip(targets[-1], 0.0, allowed))
             lane_change_applied = self._apply_lane_change(lane_change)
 
         # ----- (2) 행동을 decision_interval 동안 유지: SUMO를 substeps번 계산 -----
@@ -813,8 +973,7 @@ class SumoHighwayEnv(gym.Env):
             if requested_speed is not None:
                 # 가감속 행동은 결정 구간 내내 같은 가속도다. 목표 속도를 한 번에 주면 SUMO가 첫 계산에서
                 # 최대 가속으로 따라붙고 나머지는 등속이라, 가속도가 톱니처럼 튀어 jerk가 행동과 무관해진다.
-                traci.vehicle.setSpeed(self.ego_id, float(np.clip(
-                    v + accel_cmd * self.step_length * (substep + 1), 0.0, allowed)))
+                traci.vehicle.setSpeed(self.ego_id, float(np.clip(targets[substep], 0.0, allowed)))
             traci.simulationStep()
             if self.ego_id in traci.vehicle.getIDList():
                 # 가속도는 속도 변화로 잰다. SUMO가 적색 정지선 앞에서 속도를 한 계산 만에 0으로 만들면
@@ -848,6 +1007,7 @@ class SumoHighwayEnv(gym.Env):
                                       and not edge_after.startswith(":"))
         actual_lane_change = ((lane_after - lane_before) if lane_change_observable else 0)
 
+        service_event = self._update_service() if alive and not collided and self.route_features else None
         obs = self._get_obs()
         terminated, truncated = False, False
         ego_speed, ego_gap = None, None
@@ -904,6 +1064,17 @@ class SumoHighwayEnv(gym.Env):
                 # → 의미 없는 행동 출력을 줄이는 정칙화 (rl_action_penalty 대응)
                 reward -= float(self.rw.get("invalid_action_penalty", 0.0))
 
+            # ---- 버스 운행 항(기본값 0) ----
+            if service_event == "served":
+                reward += float(self.rw.get("stop_served_bonus", 0.0))
+            elif service_event == "missed":
+                reward -= float(self.rw.get("stop_missed_penalty", 0.0))
+            if abs(traci.vehicle.getSpeed(self.ego_id) - requested_speed) > 1e-3:
+                reward -= float(self.rw.get("intervention_penalty", 0.0))
+            limits = self.comfort_limits
+            if limits and (peak_acceleration > limits["acceleration_limit"] or peak_jerk > limits["jerk_limit"]):
+                reward -= float(self.rw.get("comfort_penalty", 0.0))
+
         if self.step_count >= self.max_steps and not terminated:
             truncated = True
             termination_reason = "time_limit"
@@ -936,6 +1107,9 @@ class SumoHighwayEnv(gym.Env):
             "lane_before": lane_before,
             "lane_after": lane_after,
             "requested_speed": requested_speed,
+            "service_event": service_event,
+            "stops_served": self.stops_served,
+            "stops_missed": self.stops_missed,
             "speed_intervened": bool(alive and requested_speed is not None and
                                       abs(traci.vehicle.getSpeed(self.ego_id)
                                           - requested_speed) > 1e-3),

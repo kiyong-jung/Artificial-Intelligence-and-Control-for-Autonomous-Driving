@@ -16,6 +16,7 @@ class RouteMap:
     def __init__(self, net_path: str, route_id: str, edge_ids: list[str], bus_stops: list[dict], vclass: str):
         net = readNet(net_path, withInternal=True)
         self.route_id = route_id
+        self.signalized_nodes = {node.getID() for node in net.getNodes() if node.getType().startswith("traffic_light")}
         self.edge_ids = list(edge_ids)
         edges = [net.getEdge(edge_id) for edge_id in edge_ids]
         usable = [[lane for lane in edge.getLanes() if lane.allows(vclass)] for edge in edges]
@@ -60,6 +61,12 @@ class RouteMap:
             if after and index:
                 crossings.append((self.start[index], after))
         self.crossings = sorted(crossings)
+        # 보행자가 우선인 횡단보도: 보도(walkingarea)에서 횡단보도로 가는 연결이 신호 없이 우선(M)이다.
+        self.pedestrian_priority = {
+            connection.get("to") for connection in ET.parse(net_path).getroot().iter("connection")
+            if connection.get("to", "").startswith(":") and "_c" in connection.get("to")
+            and connection.get("from", "").startswith(":") and "_w" in connection.get("from")
+            and connection.get("state") == "M" and connection.get("tl") is None}
 
         order = {edge_id: index for index, edge_id in enumerate(edge_ids)}
         stops = []

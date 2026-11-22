@@ -163,6 +163,11 @@ REWARD = {
                                    #   속도 보상(스텝당 최대 0.1)의 절반 수준이라,
                                    #   "변경해서 더 빨라질 때만 변경"하도록 유도.
                                    #   0으로 두면 자유롭게 바꾸는 정책이 나온다.
+    # 버스 운행 항(기본 0, train.py에서 켠다). env/sumo_env.py step() 참고.
+    "stop_served_bonus": 0.0,     # 정차할 정류장에서 dwell_s초를 채우면 +
+    "stop_missed_penalty": 0.0,   # 정차할 정류장을 서지 않고 지나치면 -
+    "intervention_penalty": 0.0,  # SUMO 안전 보조가 요청 속도를 바꾼 스텝마다 -
+    "comfort_penalty": 0.0,       # 가속도나 jerk가 승차감 한계를 넘은 스텝마다 -
     "invalid_action_penalty": 0.0,  # 실행 불가능한 차선변경을 "명령"하면 감점.
                                      #   (맨 왼쪽에서 또 왼쪽, 교차로 내부 등)
                                      #   목적: 의미 없는 행동 출력 자체를 줄여

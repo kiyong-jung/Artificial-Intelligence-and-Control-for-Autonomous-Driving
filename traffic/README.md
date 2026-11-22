@@ -54,8 +54,8 @@
 ```bash
 python scripts/run_hapjeong_scenario.py                         # sumo-gui가 열리고 버스를 따라간다
 python scripts/run_hapjeong_scenario.py --nogui --seconds 900   # 화면 없이 요약만
-pytest tests                                                    # 113개, 1분 남짓
-python scripts/verify_additional.py                             # 추가 행동 검증 전체(s4 s5 ped det hap). 인자로 골라서 돌린다
+pytest tests                                                    # 109개, 1분 남짓
+python scripts/verify_additional.py                             # 추가 행동 검증 전체(s4 s5 det hap). 인자로 골라서 돌린다
 ```
 
 정차 차량(S4)을 스크립트에서 켜는 예. 쉼표로 이은 `key=value`이고 `--stopped`는 여러 번 줄 수 있다.

@@ -167,8 +167,6 @@ RULES = [
     ("lit", "tests/*.py", "*", "*", "*", A, "pytest 장면"),
     ("call", "scripts/verify_*.py", "*", "*", "*", A, "검증 스크립트의 각본 장면(결과는 학습·측정에 쓰이지 않는다)"),
     ("lit", "scripts/verify_*.py", "*", "*", "*", A, "검증 스크립트"),
-    ("call", "scripts/view_scenarios.py", "*", "*", "*", O + "S1",
-     "합정역 지도 위에 버스와 상대 차를 각본 위치·속도로 올려 S1~S6을 보여 주는 시연(적색 무시 speedMode 15, 후행차 차로 고정)"),
     ("lit", "scripts/audit_naturalness.py", "*", "*", "*", A, "이 검사기 자신의 표"),
     ("call", "traffic/presence.py", "PresenceMonitor.update", "simulation.<alias>", "sim", A,
      "측정용 읽기(출발·도착·순간이동 목록)만 한다"),

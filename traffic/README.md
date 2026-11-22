@@ -140,6 +140,7 @@ python scripts/run_hapjeong_scenario.py --nogui --stopped kind=bus,edge=R112,lan
 - 밀도 분산(`interior_spawner.py`, `interior_share`, 꼬리표 `withinter`)을 지웠다(T2). 시험용 버스 노선 위 임의 지점, 곧 도로 한가운데에 `vehicle.add`로 차를 만들었다. 기본은 꺼져 있었고 켜면 버스 50 m 안 출현이 실행당 7.2대에서 15.6대로 늘었다. 밀도는 입구 수요로 정한다.
 - A3 보강(`ped_defiance.py`의 `PedDefianceManager`, `run(ped_defiance=True)`, `--ped-defiance`, 꼬리표 `pedsumo`·`old`)을 지웠다(T4). 건너기로 한 보행자에게 `junctionModel.ignoreTypes`로 모든 차의 우선권을 무시하게 했다. 기본은 꺼져 있었고, 건너기는 보행자 유형 분포(`pedDist`)가 정한다.
 - 골목 운전자 기본 분포 `cutin.default_bins`를 지웠다(T5). 골목 차가 큰길 차를 0.2~1.0 확률로 무시했고, `cutin_vtype_xml`에 `bins`를 안 주면 이 값이 들어갔다. 이제 `bins`는 반드시 준다(합정역은 `alley_driver_bins`, 무시 확률 0).
+- 각본 시연 `scripts/view_scenarios.py`와 그 장면을 GIF로 그리던 `scripts/render_grid_gif.py`를 지웠다(감사 S1). 합정역 지도 위에 버스와 상대 차를 정한 위치·속도로 올렸고, 버스는 적색을 무시했고(`setSpeedMode 15`), 후행차는 차로에 묶였다(`setLaneChangeMode 0`). 발표나 영상에 쓰면 자연 교통으로 보인다. 시나리오 화면은 `scripts/run_hapjeong_scenario.py`(자연 교통 위 시험용 버스)로 본다.
 
 **아직 이어지지 않은 것**
 

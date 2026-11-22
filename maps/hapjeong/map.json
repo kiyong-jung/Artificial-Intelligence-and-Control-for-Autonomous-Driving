@@ -284,7 +284,8 @@
           "persons_after": 696,
           "script": "scripts/remove_crosswalk_pedestrians.py"
         }
-      }
+      },
+      "arrivals": "poisson"
     }
   },
   "extra_files": {

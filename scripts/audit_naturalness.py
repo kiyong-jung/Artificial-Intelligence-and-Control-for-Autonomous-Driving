@@ -191,10 +191,8 @@ RULES = [
     ("xml", "maps/paldalmun/source/network.full.net.xml", "*", "*", "*", A, "자르기 전 원본(실행에 쓰지 않는다)"),
     ("data", "hapjeong", "crossing-vehicle-priority", "S6_wausanro", "*", O + "M1",
      "신호 없는 횡단보도에서 차가 우선(보행자가 양보). 한국 법규와 반대"),
-    ("data", "hapjeong", "persons-fixed-schedule", "*", "*", O + "M2",
-     "보행자 출발 시각이 파일에 박혀 있어 seed가 달라도 같은 사람이 같은 시각에 나온다"),
-    ("data", "hapjeong", "persons-single-crossing", "s6ped", "*", O + "M2",
-     "S6 횡단보도만 건너는 보행자를 15초마다 한 명씩 따로 넣는다"),
+    ("data", "hapjeong", "persons-single-crossing", "s6ped", "*", A,
+     "S6 횡단보도만 건너는 보행 수요. 도착은 포아송이다. 양(시간당 240명)은 팀 밀도 설정이다(지도 README 3.14.0의 결정 표)"),
     ("data", "hapjeong", "service-stop-at-edge-end", "*", "*", O + "M4",
      "정차할 정류장이 도로 끝·시작에 붙어 있다(s6 놓침 버그의 조건)"),
     ("data", "hapjeong", "short-split-edge", "*", "*", O + "M5",
@@ -433,21 +431,21 @@ def scan_map(map_id="hapjeong"):
         if "_c" in (conn.get("to") or "") and conn.get("from", "").startswith(":") and conn.get("tl") is None \
                 and conn.get("state") == "m":
             add("crossing-vehicle-priority", conn.get("to").lstrip(":").rsplit("_c", 1)[0], "보행자 링크 state=m")
-    # 보행자: 파일에 박힌 출발 시각, 횡단보도 하나만 건너는 사람들
+    # 보행자: 파일에 박힌 출발 시각(person, 또는 고정 간격 personFlow), 횡단보도 하나만 건너는 사람들
     route = set(m["routes"][m["ego_route"]])
     for path in m.get("extra_route_paths", []):
-        persons = list(ET.parse(path).getroot().iter("person"))
         groups = collections.defaultdict(list)
-        for person in persons:
-            groups[re.sub(r"\d+$", "", person.get("id"))].append(person)
+        for person in ET.parse(path).getroot():
+            if person.tag in ("person", "personFlow"):
+                groups[re.sub(r"\d+$", "", person.get("id"))].append(person)
         for prefix, people in sorted(groups.items()):
-            departs = sorted(float(p.get("depart")) for p in people)
-            gaps = collections.Counter(round(b - a, 2) for a, b in zip(departs, departs[1:]))
-            add("persons-fixed-schedule", prefix, f"{len(people)}명, 출발 간격 {gaps.most_common(1)[0][0]}초가 "
-                f"{gaps.most_common(1)[0][1]}번, 마지막 출발 {departs[-1]:.0f}초")
+            fixed = [p for p in people if p.tag == "person" or not (p.get("period") or "").startswith("exp(")]
+            if fixed:
+                last = max(float(p.get("depart") or p.get("begin") or 0) for p in fixed)
+                add("persons-fixed-schedule", prefix, f"{len(fixed)}개(사람 또는 고정 간격 흐름), 마지막 출발 {last:.0f}초")
             walks = collections.Counter(p.find("walk").get("edges") for p in people if p.find("walk") is not None)
             if len(walks) <= 2 and all(len(w.split()) <= 2 for w in walks):
-                add("persons-single-crossing", prefix, f"{len(people)}명이 {sorted(walks)}만 걷는다"
+                add("persons-single-crossing", prefix, f"{len(people)}개가 {sorted(walks)}만 걷는다"
                     + (" (버스 경로 위)" if any(e in route for w in walks for e in w.split()) else ""))
     # 정차할 정류장이 도로 끝이나 시작에 붙어 있는가(정류장을 넘으면 곧바로 교차로 안)
     from env.road_config import _SERVICE

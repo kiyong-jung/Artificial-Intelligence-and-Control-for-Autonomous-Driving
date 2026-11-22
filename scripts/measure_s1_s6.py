@@ -64,27 +64,17 @@ def s4_zones(net, lap_edges, s):
     return zones
 
 
-def rewrite_persons(path, k, seed):
-    """보행자 경로 파일을 고친다. k=0이면 보행자를 모두 빼고, k>1이면 신호 없는 횡단보도를 건너는 보행자(s6ped*)를 k배로
-    늘린다(사본은 출발 시각을 0~40초 흩뜨린다). 출발 시각 순으로 다시 쓴다."""
-    import copy
-    import random
+def rewrite_persons(path, k):
+    """보행자 경로 파일을 고친다. k=0이면 보행자를 모두 빼고, k>1이면 신호 없는 횡단보도를 건너는 흐름(s6ped*)의 도착률을
+    k배로 늘린다. 보행자는 personFlow(period="exp(초당 인원)")로 적혀 있다."""
     import xml.etree.ElementTree as ET
-    rng = random.Random(seed + 77)
     tree = ET.parse(path)
     root = tree.getroot()
-    persons = list(root.iter("person"))
-    for p in persons:
-        root.remove(p)
-    if k == 0:
-        persons = []
-    for p in [p for p in persons if p.get("id").startswith("s6ped")]:
-        for j in range(1, k):
-            c = copy.deepcopy(p)
-            c.set("id", f"{p.get('id')}x{j}")
-            c.set("depart", f"{float(p.get('depart')) + rng.uniform(0, 40):.2f}")
-            persons.append(c)
-    root.extend(sorted(persons, key=lambda p: float(p.get("depart"))))
+    for flow in list(root.iter("personFlow")):
+        if k == 0:
+            root.remove(flow)
+        elif flow.get("id").startswith("s6ped"):
+            flow.set("period", f"exp({float(flow.get('period')[4:-1]) * k:.8f})")
     tree.write(path, encoding="utf-8", xml_declaration=True)
 
 
@@ -109,7 +99,7 @@ def main():
                             right_on_red="noror" not in TAG)
     world.build()
     if PED_X > 1 or "noped" in TAG:                     # 꼬리표에 noped가 있으면 배경 보행자를 모두 뺀다(J82 정지 원인 가리기)
-        rewrite_persons(os.path.join(out_dir, "pedestrians.rou.xml"), 0 if "noped" in TAG else PED_X, SEED)
+        rewrite_persons(os.path.join(out_dir, "pedestrians.rou.xml"), 0 if "noped" in TAG else PED_X)
     tc = world.start(warmup=120)
     m = load_map("hapjeong")
     loop = m["routes"]["bus_loop"]

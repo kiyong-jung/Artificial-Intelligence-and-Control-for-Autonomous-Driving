@@ -33,6 +33,7 @@ if str(BASE) not in sys.path:
 from scripts.build_road import ALLEY, ARTERIAL_PER_LANE, publish, shortest_route
 from scripts.patch_network import digest
 from scripts.prune_network import OPTIONS
+from scripts.randomize_pedestrians import randomize
 from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
@@ -657,6 +658,7 @@ def build_pedestrians(net_path: Path, output: Path, temporary: Path) -> None:
     for person in root.findall("person"):
         root.remove(person)
     root.extend(people)
+    randomize(root, PEDESTRIANS["end"])   # 고정 출발 시각을 seed를 따르는 포아송 도착(personFlow)으로 바꾼다
     ET.ElementTree(root).write(output, encoding="utf-8", xml_declaration=True)
 
 
@@ -769,7 +771,7 @@ def build() -> dict:
                                                     for node, (outward, inward, distance, _) in CUTS.items()},
                                            "removed_connections": [list(item) for item in REMOVED_CONNECTIONS],
                                            "through_alleys": THROUGH_ALLEYS},
-                               "pedestrians": {**PEDESTRIANS, "s6_walkers_per_hour": S6_WALKERS_PER_HOUR}},
+                               "pedestrians": {**PEDESTRIANS, "s6_walkers_per_hour": S6_WALKERS_PER_HOUR, "arrivals": "poisson"}},
             "extra_files": EXTRA_FILES,
             "ego_vehicle": "bus",
             "focus_bbox": [round(west, 7), round(south, 7), round(east, 7), round(north, 7)],

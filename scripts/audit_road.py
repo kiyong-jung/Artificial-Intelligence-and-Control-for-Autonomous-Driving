@@ -2,10 +2,10 @@
 
     python scripts/audit_road.py --map hapjeong --out results/road_audit/hapjeong.json
 
-validate_road.py는 충돌과 순간이동의 횟수만 센다. 이 스크립트는 어디서 났는지를 적는다.
+validate_road.py는 충돌과 막힘의 횟수만 센다. 이 스크립트는 어디서 났는지를 적는다. 둘 다 순간이동을 끄고 돈다.
 - 구조: 차가 다니는 차로인데 다음 도로로 가는 연결이 없는 차로, 좌회전이 가장 왼쪽 차로가 아닌 곳에서
   시작하는 연결, 버스 경로에서 다음 도로로 이어지는 차로.
-- 실행: 배경 교통에 SUMO가 모는 버스를 일정 간격으로 넣고(정류장 정차 포함) 충돌, 순간이동, 비상 제동,
+- 실행: 배경 교통에 SUMO가 모는 버스를 일정 간격으로 넣고(정류장 정차 포함) 충돌, 300초 넘게 선 차, 비상 제동,
   비상 정지를 차로별로 모은다. 버스의 주행 시간과 대기 시간도 적는다.
 """
 from __future__ import annotations
@@ -31,12 +31,14 @@ from sumolib.net import readNet
 from env import road_builder
 from env.road_config import EGO, ROAD, TRAFFIC, bus_vtype_attributes, configure_map
 from maps import available_maps, load_map
+from scripts.validate_road import long_stands
 
 BUS_PERIOD_S = 120
 STOP_DURATION_S = 8
 WARNING = re.compile(r"^Warning: (.*)$", re.MULTILINE)
 LANE = re.compile(r"lane[= ]'([^']+)'")
-KINDS = (("teleport", "Teleporting vehicle"), ("emergency_braking", "performs emergency braking"),
+# 순간이동을 끄고 돌린다(학습 환경과 같다). 막힌 차는 300초 넘게 이어서 선 차(stuck)로 센다.
+KINDS = (("stuck", None), ("emergency_braking", "performs emergency braking"),
          ("emergency_stop", "performs emergency stop"), ("collision", "collision with"))
 
 
@@ -108,15 +110,18 @@ def run(map_id: str, scenario: str, seed: int, seconds: float) -> dict:
         completed = subprocess.run([
             checkBinary("sumo"), "-c", str(cfg),
             "--route-files", "audit_bus.rou.xml," + inputs.find("route-files").get("value"),
-            "--end", str(seconds), "--time-to-teleport", "300", "--no-step-log", "true",
+            "--end", str(seconds), "--time-to-teleport", "-1", "--no-step-log", "true",
             "--duration-log.disable", "true", "--collision-output", "collisions.xml",
-            "--tripinfo-output", "tripinfo.xml"], cwd=folder, capture_output=True, text=True, timeout=1800)
+            "--tripinfo-output", "tripinfo.xml", "--fcd-output", "fcd.xml", "--device.fcd.period", "1",
+            "--fcd-output.attributes", "speed,lane"], cwd=folder, capture_output=True, text=True, timeout=1800)
         if completed.returncode:
             raise RuntimeError(completed.stderr[-2000:])
         warnings = WARNING.findall(completed.stderr)
-        events = []
+        events = [{"kind": "stuck", "lane": row["lane"], "bus": "audit_bus" in row["id"],
+                   "text": f"{row['id']} stood {row['stood_s']:.0f}s from t={row['since_s']:.0f}"}
+                  for row in long_stands(folder / "fcd.xml")]
         for text in warnings:
-            kind = next((name for name, marker in KINDS if marker in text), None)
+            kind = next((name for name, marker in KINDS if marker and marker in text), None)
             lane = LANE.search(text)
             if kind and kind != "collision":
                 events.append({"kind": kind, "lane": lane.group(1) if lane else None,

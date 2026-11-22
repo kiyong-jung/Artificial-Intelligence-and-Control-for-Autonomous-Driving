@@ -45,5 +45,7 @@ COMMON_ARGS = [
 
 
 def sumo_cmd(cfg, seed=0, extra=None, binary="sumo"):
-    cmd = [checkBinary(binary), "-c", cfg, "--seed", str(seed)] + COMMON_ARGS
+    # 콘솔 경고만 끈다. 비상 제동·충돌·보행자 정체 경고는 실행 폴더의 sumo_warnings.log에 남는다(감사 E3).
+    log = os.path.join(os.path.dirname(os.path.abspath(cfg)), "sumo_warnings.log")
+    cmd = [checkBinary(binary), "-c", cfg, "--seed", str(seed)] + COMMON_ARGS + ["--error-log", log]
     return cmd + list(extra or [])

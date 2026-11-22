@@ -218,11 +218,13 @@ class HapjeongTraffic:
         return n
 
     def _type_persons(self):
-        """보행자 경로 파일의 모든 보행자에게 보행자 분포를 준다. 반환: 그 수."""
+        """보행자 경로 파일의 모든 보행자(person, personFlow)에게 보행자 분포를 준다. 반환: 그 수."""
         path = os.path.join(self.out_dir, "pedestrians.rou.xml")
         tree = ET.parse(path)
         n = 0
-        for person in tree.getroot().iter("person"):
+        for person in tree.getroot():
+            if person.tag not in ("person", "personFlow"):
+                continue
             person.set("type", PED_DIST)
             n += 1
         tree.write(path, encoding="utf-8", xml_declaration=True)

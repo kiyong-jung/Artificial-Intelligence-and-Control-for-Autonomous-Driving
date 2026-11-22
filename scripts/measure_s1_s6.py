@@ -147,7 +147,7 @@ def main():
             still["cur"] = cur = None
         if kind and cur is None:
             still["cur"] = {"kind": kind, "t0": round(t, 1), "lap": lap(), "road": road, "lane": idx, "pos": round(pos, 1),
-                            "phase": bus.phase, "why": bus.why, "handover": bus._handover, "forced": bus._forced_p is not None}
+                            "phase": bus.phase, "why": bus.why, "handover": bus._handover is not None}
 
     def on_step(t):
         ids = tc.vehicle.getIDList()
@@ -387,7 +387,7 @@ def main():
                              "route_idx": tc.vehicle.getRouteIndex("bus0"), "route_tail": tc.vehicle.getRoute("bus0")[max(0, tc.vehicle.getRouteIndex("bus0") - 1):][:4],
                              "next_stops": [(getattr(s, "stoppingPlaceID", ""), round(float(getattr(s, "endPos", 0.0)), 1))
                                             for s in tc.vehicle.getStops("bus0")[:2]] if hasattr(tc.vehicle, "getStops") else None,
-                             "pilot_phase": bus.phase, "pilot_forced": bus._forced_p is not None,
+                             "pilot_phase": bus.phase, "pilot_handover": bus._handover is not None,
                              "tls": {node: [tc.trafficlight.getRedYellowGreenState(node), tc.trafficlight.getPhase(node),
                                             round(tc.trafficlight.getNextSwitch(node) - t, 1)]}
                              if node in tc.trafficlight.getIDList() else None,
@@ -434,7 +434,7 @@ def main():
            "presence": presence.summary(),
            "a1_in_signal_area": len(sig["in_area"]), "a1_in_signal_area_examples": sig["in_area"][:8],
            "stops_by_lap": {k: v for k, v in sig["stops"].items()},
-           "bus": {"missed": bus.missed, "forced": bus.forced, "slowed": bus.slowed, "changes": bus.changes},
+           "bus": {"missed": bus.missed, "handed": bus.handed, "slowed": bus.slowed, "changes": bus.changes},
            "S5": {"per_lap": per_lap(ev["S5"])},
            "S6": {"per_lap": per_lap(ev["S6"]), "ped_decisions": world.ped.summary() if world.ped else None},
            "S6_vehicle_waiting": {"max_wait_s": round(wait["max_wait"], 1), "vehicles_over_20s": len(wait["over20"]),

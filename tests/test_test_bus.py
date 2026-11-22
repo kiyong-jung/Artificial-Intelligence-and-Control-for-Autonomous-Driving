@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -76,6 +77,13 @@ class _V:
     def setBusStop(self, v, sid, duration=0):
         self.tc.bus_stops.append((sid, duration))
 
+    def getStops(self, v):
+        return [SimpleNamespace(stoppingPlaceID=sid) for sid, _ in self.tc.bus_stops]
+
+    def replaceStop(self, v, i, edge):
+        assert edge == ""
+        self.tc.skipped.append(self.tc.bus_stops.pop(i)[0])
+
     def setLaneChangeMode(self, v, mode):
         self.tc.lc_mode.append(mode)
 
@@ -129,6 +137,7 @@ class _FakeTC:
         self.prev_road = None            # 교차로 안(내부 도로)이면 방금 지난 경로 도로
         self.alive = False
         self.added, self.bus_stops, self.lc_mode, self.change_req, self.set_speed = [], [], [], [], []
+        self.skipped = []                # 건너뛴 정류장
         self.routes, self.route_defs = {}, {}
         self.signals, self.best_offset, self.continues, self.followers = 0, 0, True, []
         self.others = {}                 # 다른 차 id -> {"road", "pos", "len", "speed"}
@@ -144,6 +153,17 @@ def _run(pilot, tc, t0, t1, dt=0.1):
     while t < t1 - 1e-9:
         pilot.tick(tc, t)
         t = round(t + dt, 6)
+    return t
+
+
+def _drive(pilot, tc, edges, t, dt=0.1):
+    """버스를 tc.speed로 edges를 따라 끝까지 몬다(차로는 그대로). 끝난 시각."""
+    for e in edges:
+        tc.road, tc.pos = e, 0.0
+        L = _net().getEdge(e).getLength()
+        while tc.pos < L:
+            pilot.tick(tc, t)
+            tc.pos, t = tc.pos + tc.speed * dt, round(t + dt, 6)
     return t
 
 
@@ -256,57 +276,68 @@ def test_follow_on_change_in_same_window_is_quick():
     assert tc.change_req[-1] == 4
 
 
-def test_bus_stops_to_guarantee_arrival_in_target_lane_before_window_end():
-    # 정류장 차로 10 m 전 도착 보장이 S2·S3 상호작용보다 우선이다. 창 끝이 가까운데 아직 목표 차로가 아니면 버스가 멈춰서
-    # 목표 차로의 차를 보내고 빈틈에 차선을 바꾼다(양보형·비양보형과 무관)
+def test_bus_hands_over_to_sumo_near_window_end_instead_of_stopping():
+    # 창 끝이 제동 거리 안인데 목표 차로에 못 갔으면 달리는 차로에 멈춰 서지 않는다(예전에는 속도 0으로 서서 300초까지 기다렸다).
+    # SUMO 기본 차선 변경(1621)에 넘겨 SUMO가 빈틈을 찾고 이웃 차가 협조하게 한다. 창 끝 도로를 지나야 512로 돌린다
     tc = _FakeTC(speed=10.0)
     pilot = _pilot(tc)
     pilot.tick(tc, 0.0)
     tc.road, tc.lane, tc.pos = "R71.135", 2, 45.0          # S3 창 끝(R71.206 3.3 m)까지 약 22 m, 목표 차로 1
     tc.followers = [("x", 1.0)]                              # 목표 차로에 차가 바로 옆에 있다(차선 변경 불가)
     _run(pilot, tc, 0.1, 1.0)
-    assert tc.set_speed and tc.set_speed[-1] == 0.0          # 멈춘다
-    assert tc.change_req and tc.signals != 0                 # 방향지시등을 켜고 차선 변경을 계속 요청한다
-    assert pilot.forced == [(1, "S3")]
-    tc.lane, tc.followers = 1, []                            # 빈틈이 생겨 목표 차로로 옮겼다
+    assert 0.0 not in tc.set_speed and tc.lc_mode[-1] == 1621 and pilot.handed == [(1, "S3")]
+    tc.road, tc.pos = "R71.206", 1.0                         # 창 끝 도로: 아직 SUMO가 몬다
     _run(pilot, tc, 1.0, 1.5)
-    assert tc.set_speed[-1] == -1                            # 멈춤을 푼다
+    assert tc.lc_mode[-1] == 1621 and tc.change_req == []
+    tc.lane, tc.road, tc.pos = 1, "R71.256", 1.0             # 창 끝 도로를 지났다
+    _run(pilot, tc, 1.5, 2.0)
+    assert tc.lc_mode[-1] == 512
 
 
-def test_forced_stop_compares_lanes_through_the_connections_not_by_number():
-    # R54 차로 4는 R42 차로 3(좌회전 차로)으로, 차로 5는 R42 차로 4로 이어진다. 창 끝 도로(R42)의 목표 차로 번호(3)와 지금 차로 번호를
-    # 그대로 비교하면, 이미 맞는 차로(4, 5)에 있는 버스를 멈춰 세우고 틀린 차로(3, R42 차로 2로 직진)로 옮기라고 했다
-    L = _net().getEdge("R54").getLength()
-    for lane in (4, 5):
-        tc = _FakeTC(speed=12.0)
-        pilot = _pilot(tc)
-        pilot.tick(tc, 0.0)
-        tc.road, tc.lane, tc.pos = "R54", lane, L - 20.0       # 창 끝(R42 6 m)까지 26 m: 제동 거리(32.8 m) 안
-        _run(pilot, tc, 0.1, 2.0)
-        assert 0.0 not in tc.set_speed and pilot.forced == [], lane
-
-
-def test_forced_stop_moves_toward_the_lane_that_reaches_the_target():
-    # R54 차로 2는 R42 차로 1(직진)로 간다. 멈춰서 옮길 때는 R42 차로 3으로 이어지는 가장 가까운 차로(4)로 간다(위쪽 +1)
+@pytest.mark.parametrize("lane, hands_over", [(3, True), (4, False), (5, False)])
+def test_handover_compares_lanes_through_the_connections_not_by_number(lane, hands_over):
+    # R54 차로 4는 R42 차로 3(좌회전 차로)으로, 차로 5는 R42 차로 4로 이어진다. 차로 3은 R42 차로 2(직진)로 간다. 창 끝 도로(R42)의
+    # 목표 차로 번호(3)와 지금 차로 번호를 그대로 비교하면 이미 맞는 차로(4, 5)의 버스를 넘기고 틀린 차로(3)는 그냥 둔다
     L = _net().getEdge("R54").getLength()
     tc = _FakeTC(speed=12.0)
     pilot = _pilot(tc)
     pilot.tick(tc, 0.0)
-    tc.road, tc.lane, tc.pos = "R54", 3, L - 20.0              # 차로 3은 R42 차로 2(직진)로 간다: 목표(R42 3)에 못 닿는다
-    _run(pilot, tc, 0.1, 1.0)
-    assert tc.set_speed[-1] == 0.0 and tc.change_req and tc.change_req[0] == 4
+    tc.road, tc.lane, tc.pos = "R54", lane, L - 20.0         # 창 끝(R42 6 m)까지 26 m: 제동 거리(32.8 m) 안
+    _run(pilot, tc, 0.1, 2.0)
+    assert (pilot.handed == [(1, "S2")]) == hands_over and (1621 in tc.lc_mode) == hands_over
+    assert 0.0 not in tc.set_speed
 
 
-def test_no_forced_stop_when_far_from_window_end_or_already_in_target_lane():
+def test_no_handover_when_far_from_window_end_or_already_in_target_lane():
     tc = _FakeTC(speed=10.0)
     pilot = _pilot(tc)
     pilot.tick(tc, 0.0)
     tc.road, tc.lane, tc.pos = "R71", 2, 20.0                # 창 끝까지 100 m 넘게 남았다
     _run(pilot, tc, 0.1, 1.0)
-    assert 0.0 not in tc.set_speed
     tc.road, tc.lane, tc.pos = "R71.135", 1, 45.0            # 이미 목표 차로
     _run(pilot, tc, 1.0, 2.0)
-    assert 0.0 not in tc.set_speed and pilot.forced == []
+    assert pilot.handed == [] and 1621 not in tc.lc_mode
+
+
+def test_unreachable_curb_stop_is_skipped_instead_of_blocking_the_lane():
+    # 창 끝(정류장 10 m 전)까지 정류장 차로에 못 갔으면 그 정류장을 건너뛴다. 달리는 차로에 서서 정류장 차로를 기다리지 않는다
+    tc = _FakeTC(speed=10.0)
+    pilot = _pilot(tc)
+    pilot.tick(tc, 0.0)
+    tc.lane, tc.followers = 2, [("x", 1.0)]                  # 목표 차로(1)가 내내 막혀 있다(FakeTC는 차선 변경 요청을 따르지 않는다)
+    _drive(pilot, tc, ["R71", "R71.135", "R71.206", "R71.256"], 0.1)
+    assert tc.skipped == [STOP_AT[0]] and pilot.missed == [(1, "S3", "R71.206")]
+    assert [s for s, _ in tc.bus_stops] == list(STOP_AT[1:])  # 다른 정류장은 그대로
+    assert 0.0 not in tc.set_speed and tc.change_req           # 서지 않았고, 그 전에는 차선 변경을 요청했다
+
+
+def test_reached_curb_stop_is_kept():
+    tc = _FakeTC(speed=10.0)
+    pilot = _pilot(tc)
+    pilot.tick(tc, 0.0)
+    tc.lane = 1
+    _drive(pilot, tc, ["R71", "R71.135", "R71.206"], 0.1)
+    assert tc.skipped == [] and pilot.missed == [] and pilot.handed == []
 
 
 def test_bus_slows_and_lets_blocker_pass_then_changes():
@@ -347,18 +378,3 @@ def test_blocker_on_next_short_road_is_still_tracked():
     tc.others["f"]["pos"] = 20.0                                        # 뒤끝이 버스 앞끝보다 5 m 넘게 앞섰다
     _run(pilot, tc, 5.0, 5.2)
     assert tc.set_speed[-1] == -1 and len(tc.change_req) > n
-
-
-def test_forced_stop_is_released_when_the_bus_enters_a_junction():
-    # 강제 정차는 차선을 바꾸려고 서는 것인데 교차로 안에서는 차선을 바꿀 수 없다. 제동 중에 교차로 안으로 밀려 들어간 버스를 세워 두었더니
-    # J107 안에서 300초 섰다(quiet 3바퀴째). 교차로 안에서는 정차를 풀어 지나가게 한다
-    tc = _FakeTC(speed=6.0)
-    pilot = _pilot(tc)
-    pilot.tick(tc, 0.0)
-    L = _net().getEdge("R111").getLength()
-    tc.road, tc.lane, tc.pos = "R111", 1, L - 3.0
-    _run(pilot, tc, 0.1, 1.0)
-    assert pilot.forced == [(1, "S2")] and tc.set_speed[-1] == 0.0       # 강제 정차가 걸렸다
-    tc.prev_road, tc.road, tc.lane, tc.pos = "R111", ":J107_2", 1, 1.0
-    _run(pilot, tc, 1.0, 2.0)
-    assert tc.set_speed[-1] == -1 and pilot._forced_p is None             # 교차로 안: 풀었다

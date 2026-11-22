@@ -17,7 +17,7 @@ from traffic.test_bus import BUS, TestBusPilot  # noqa: E402
 # 차로가 갈 수 있는 길로 진로 바꾸기(setRoute, LaneRouteAdapter)는 버스와 무관해 허용한다.
 VEHICLE_CONTROL = ("setSpeed", "slowDown", "changeLane", "changeSublane", "changeTarget", "remove", "moveTo",
                    "moveToXY", "setStop", "resume", "setLaneChangeMode", "setSpeedMode", "openGap", "setAcceleration",
-                   "setMaxSpeed")
+                   "setMaxSpeed", "replaceStop")
 PERSON_CONTROL = ("add", "remove", "appendWaitingStage", "appendWalkingStage", "removeStages", "moveTo", "moveToXY",
                   "setParameter", "setSpeed")
 

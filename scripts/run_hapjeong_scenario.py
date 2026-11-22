@@ -165,7 +165,7 @@ def main():
         laps = bus.lap_times
         print(f"버스 완주 {len(laps)}바퀴" + (f", 바퀴당 평균 {sum(laps) / len(laps):.0f}초" if laps else ""))
         print("버스 차로 변경 요청: " + (", ".join(f"{k} {v}회" for k, v in bus.changes.items()) or "없음"))
-        print(f"창 끝까지 못 옮김(missed): {bus.missed}, 속도 줄임: {bus.slowed}")
+        print(f"창 끝까지 못 옮김(missed, S3이면 정류장을 건너뜀): {bus.missed}, SUMO에 넘김: {bus.handed}, 속도 줄임: {bus.slowed}")
         if state["rings"]:
             print("버스 차로 변경 때 목표 차로 뒤차가 한 일(주행 모델별):\n" + state["rings"].summary())
         if getattr(world, "stop", None) is not None:

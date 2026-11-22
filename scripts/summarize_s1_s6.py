@@ -46,7 +46,7 @@ def row(d):
         "presence_teleport": d["presence"]["teleport"],
         "S6_max_wait_s": d["S6_vehicle_waiting"]["max_wait_s"],
         "S6_over20s": d["S6_vehicle_waiting"]["vehicles_over_20s"],
-        "bus_forced_stops": len(d["bus"]["forced"]),
+        "bus_forced_stops": len(d["bus"]["forced"]) if "forced" in d["bus"] else float("nan"),   # 창 끝 강제 정차(지웠다)
         "bus_missed": len(d["bus"]["missed"]),
         **still_rows(d.get("bus_still")),
     }

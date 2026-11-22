@@ -8,8 +8,10 @@
 - 버스는 한 번만 넣는다. 노선 끝이 가까워지면 다음 바퀴 노선을 이어 붙인다(다시 넣지 않으므로 바퀴 사이 순간이동이 없다).
 - SUMO 자율 차선 변경은 끄고(512) 차선 변경은 **정해진 창(`LanePlan`) 안에서만** 요청한다. 창 밖에서는 차로를 지킨다
   (다음 도로로 이어지지 않는 차로에서 도로 끝이 가까울 때만 예외).
-- 신호 교차로 정지선 앞(signal_areas)에서는 차선 변경을 요청하지 않는다. 창 끝까지 목표 차로에 못 가면 SUMO 기본
-  차선 변경(1621)으로 넘기고 `missed`에 남긴다. 다음 도로에서 다시 512로 돌린다.
+- 신호 교차로 정지선 앞(signal_areas)에서는 차선 변경을 요청하지 않는다.
+- 창 끝이 제동 거리 안인데 지금 차로가 목표 차로에 닿지 못하면 SUMO 기본 차선 변경(1621)에 넘긴다(`handed`). 달리는 차로에
+  멈춰 서지 않고, SUMO의 전략 차선 변경과 이웃 차의 협조로 빈틈을 찾는다. 창 끝까지 못 가면 `missed`에 남긴다. 정류장 창(S3)이면
+  그 정류장을 건너뛰고, 좌회전 창(S2)이면 SUMO에 맡긴 채 정지선에서 기다릴 수 있다. 창 끝 도로를 지나면 다시 512로 돌린다.
 - 상대를 기다리지 않는다. 목표 차로에 차가 있든 없든 방향지시등을 켜고 정해진 시간 뒤 요청한다.
 """
 from dataclasses import dataclass
@@ -26,7 +28,7 @@ STOP_LANE_LEAD_M = 10.0         # 정류장 차로에는 정류장 시작 이만
 EXTRA_PER_LANE_M = 40.0         # 차로를 한 칸 더 옮겨야 하면 창을 이만큼 늘린다
 BLINKER_RIGHT, BLINKER_LEFT = 1, 2
 LC_MANUAL, LC_SUMO = 512, 1621
-FORCE_DECEL, FORCE_MARGIN_M = 2.5, 4.0   # 도착 보장: 이 감속도로 멈출 거리 + 여유 안에 창 끝이 들어오면 멈춰서 기다린다
+HANDOVER_DECEL, HANDOVER_MARGIN_M = 2.5, 4.0   # 이 감속도로 설 거리 + 여유 안에 창 끝이 들어오면 SUMO에 넘긴다
 
 
 @dataclass
@@ -36,6 +38,7 @@ class LanePlan:
     end_pos: float         # 창 끝 위치: 이 지점까지 목표 차로에 있어야 한다
     target_lane: int       # 창 끝 도로에서의 목표 차로
     length: float          # 창 길이(창 끝에서 거슬러)
+    stop: str = ""         # S3: 창 끝까지 정류장 차로에 못 가면 건너뛸 정류장
 
 
 def lap_route(net, loop):
@@ -65,7 +68,7 @@ def lane_plans(net, route, stops):
     if end < 0:
         edge, end = _back(net, route, route.index(s2["edge"]), s2["startPos"], STOP_LANE_LEAD_M)
     plans.append(LanePlan("S3", edge, end, s2["lane_idx"],
-                          CHANGE_WINDOW_M + EXTRA_PER_LANE_M * max(0, top - s2["lane_idx"] - 1)))
+                          CHANGE_WINDOW_M + EXTRA_PER_LANE_M * max(0, top - s2["lane_idx"] - 1), s2["id"]))
     for k, (a, b) in enumerate(zip(route, route[1:] + route[:1])):
         ea, eb = net.getEdge(a), net.getEdge(b)
         conns = ea.getConnections(eb)
@@ -103,20 +106,18 @@ class TestBusPilot:
         self.forbidden = forbidden_intervals(net, self.lap_edges)
         self._len = {}
         self.lap, self.lap_times, self.lap_t0 = 0, [], None
-        self.missed, self.slowed = [], []
+        self.missed, self.slowed, self.handed = [], [], []
         self.changes = {}
         self.why = ""
         self.phase, self.t_phase, self.plan, self.target = "idle", 0.0, None, None
         self._done = set()
         self._added = False
         self._last_road = None
-        self._handover = False
+        self._handover = None           # SUMO 차선 변경에 넘긴 창. 창 끝 도로를 지나면 512로 돌린다
         self._slow_t0 = None
         self._chain = None              # 방금 변경을 마친 창(같은 창의 다음 변경은 빠르게)
         self._signal_s = self.SIGNAL_S
         self._blocker, self._blocker_t0, self._fast_t0, self._blocker_seen = None, 0.0, None, 0.0
-        self.forced = []                    # 도착 보장으로 멈춘 창 (바퀴, 종류)
-        self._forced_p, self._forced_t0 = None, 0.0
 
     # ---- 노선 ----------------------------------------------------------------------------------
     def _L(self, edge):
@@ -169,15 +170,11 @@ class TestBusPilot:
         if not road.startswith(":") and road != self._last_road:
             if road == START_EDGE:
                 self._new_lap(t)
-            if self._handover:
+            if self._handover is not None and self._last_road == self._handover.edge:
                 tc.vehicle.setLaneChangeMode(BUS, LC_MANUAL)
-                self._handover = False
+                self._handover = None
             self._last_road = road
         if road.startswith(":"):
-            # 교차로 안에서는 차선을 바꿀 수 없다. 제동 중에 교차로 안으로 밀려 들어간 버스에 강제 정차(속도 0)가 걸려 있으면 풀지 않는 한
-            # 그 자리에 선다(J107 안에서 300초). 지나가게 푼다
-            if self._forced_p is not None:
-                self._end_forced(tc, t)
             return
         self._extend()
         self._pilot(tc, t, road)
@@ -206,11 +203,13 @@ class TestBusPilot:
                 continue
             if d <= 0:                               # 창 끝에 닿았다
                 self._done.add(k)
-                if road == p.edge and idx != p.target_lane:
+                if road == p.edge and idx not in self._lanes_reaching_target(tc, p):
                     self.missed.append((self.lap, p.kind, p.edge))
-                    tc.vehicle.setLaneChangeMode(BUS, LC_SUMO)
-                    self._handover = True
-                    self._reset(tc, 0.0)
+                    if p.stop:
+                        self._skip_stop(tc, p.stop)
+                        self._reset(tc, 0.0)
+                    elif self._handover is None:
+                        self._hand_over(tc, p)
                 continue
             if d <= p.length:
                 return k, p, d
@@ -228,9 +227,10 @@ class TestBusPilot:
     def _pilot(self, tc, t, road):
         idx, pos = tc.vehicle.getLaneIndex(BUS), tc.vehicle.getLanePosition(BUS)
         act = self._active(tc, road, idx, pos)
-        forbidden = self._forbidden(road, pos) or self._handover
-        if self._force_arrival(tc, t, act, idx):
-            return                                       # 도착 보장 중(멈춰서 빈틈을 기다린다): 시나리오 단계는 건너뛴다
+        if act is not None and self._handover is None and self._cannot_make_it(tc, act, idx):
+            self.handed.append((self.lap, act[1].kind))
+            self._hand_over(tc, act[1])
+        forbidden = self._forbidden(road, pos) or self._handover is not None
         if act is not None:
             p = act[1]
             off = self._offset(tc, road, idx, p)
@@ -279,37 +279,28 @@ class TestBusPilot:
         elif self.phase == "cool" and t - self.t_phase >= self.COOL_S:
             self.phase = "idle"
 
-    def _force_arrival(self, tc, t, act, idx):
-        """창 끝(정류장 차로 정류장 10 m 전, 좌회전 차로 신호 정지선 앞)까지 목표 차로에 도착하는 것을 보장한다.
-
-        S2·S3 상호작용(후행차 기다리기, 비양보형 보내기)으로 차선 변경이 늦어져 창 끝을 놓치면 버스가 정류장·좌회전 차로 앞에서
-        이상한 자세로 서 있으면서 주변 차를 막았다(3바퀴 측정에서 700초 넘는 바퀴). 도착 보장이 시나리오보다 우선이다:
-        창 끝이 제동 거리 안인데 아직 목표 차로가 아니면 버스가 멈춰서 목표 차로의 차를 먼저 보내고, 빈틈에 차선을 바꾼다.
-        목표 차로에 닿으면 멈춤을 푼다. 하고 있으면 True.
-        """
-        if act is None or tc.vehicle.getStopState(BUS) & 1:
-            return self._end_forced(tc, t) if self._forced_p is not None else False
+    def _cannot_make_it(self, tc, act, idx):
+        """창 끝이 제동 거리 안인데 지금 차로가 창 끝에서 목표 차로에 닿지 못한다. 정류장에 서 있는 동안은 아니다."""
         _, p, d = act
-        # 차로 번호를 창 끝 도로의 목표 차로와 그대로 견주면 안 된다. 도로마다 차로 번호가 달라서(R54 차로 4 -> R42 차로 3) 이미 맞는
-        # 차로의 버스를 멈춰 세우고 틀린 차로로 옮기라고 했다. 연결을 따라 창 끝에서 목표 차로에 닿는 차로인지 본다
+        if tc.vehicle.getStopState(BUS) & 1:
+            return False
         good = self._lanes_reaching_target(tc, p)
-        if idx in good or not good:
-            return self._end_forced(tc, t) if self._forced_p is not None else False
         v = tc.vehicle.getSpeed(BUS)
-        if self._forced_p is None:
-            if d > v * v / (2.0 * FORCE_DECEL) + FORCE_MARGIN_M:
-                return False
-            self._forced_p, self._forced_t0 = p, t
-            self.forced.append((self.lap, p.kind))
-            self._release_speed(tc, t)
-            self._blocker = None
-        tc.vehicle.setSpeed(BUS, 0.0)
-        step = 1 if min(good, key=lambda k: (abs(k - idx), -k)) > idx else -1       # 목표에 닿는 가장 가까운 차로 쪽으로
-        tc.vehicle.setSignals(BUS, BLINKER_LEFT if step > 0 else BLINKER_RIGHT)
-        if int(round((t - self._forced_t0) * 10)) % 10 == 0:          # 1초마다 다시 요청한다(빈틈이 생기면 SUMO가 옮긴다)
-            tc.vehicle.changeLane(BUS, idx + step, self.REQUEST_DURATION)
-        self.phase, self.t_phase = "cool", t
-        return True
+        return bool(good) and idx not in good and d <= v * v / (2.0 * HANDOVER_DECEL) + HANDOVER_MARGIN_M
+
+    def _hand_over(self, tc, p):
+        """남은 변경을 SUMO 기본 차선 변경(전략·협조, 1621)에 맡긴다. SUMO는 차로 끝까지 빈틈을 찾고, 이웃 차는 제 협조 성향만큼
+        속도를 줄여 자리를 내준다. 버스 규칙은 창 끝 도로를 지날 때까지 차선 변경을 요청하지 않는다."""
+        tc.vehicle.setLaneChangeMode(BUS, LC_SUMO)
+        self._handover = p
+        self._reset(tc, 0.0)
+
+    def _skip_stop(self, tc, sid):
+        """정류장 차로에 못 들어갔다. 달리는 차로에 서서 막지 않고 이번 바퀴의 그 정류장을 건너뛴다."""
+        for i, s in enumerate(tc.vehicle.getStops(BUS)):
+            if s.stoppingPlaceID == sid:
+                tc.vehicle.replaceStop(BUS, i, "")
+                return
 
     def _lanes_reaching_target(self, tc, p):
         """지금 도로의 차로 중, 노선의 연결을 따라가 창 끝 도로(p.edge)의 목표 차로(p.target_lane)에 닿는 차로 번호 집합.
@@ -336,12 +327,6 @@ class TestBusPilot:
             if ok:
                 good.add(k)
         return good
-
-    def _end_forced(self, tc, t):
-        tc.vehicle.setSpeed(BUS, -1)
-        tc.vehicle.setSignals(BUS, 0)
-        self._forced_p, self.phase, self.t_phase, self.plan, self._chain = None, "cool", t, None, None
-        return False
 
     def _let_blocker_pass(self, tc, t, road, pos):
         """목표 차로 후행차가 버스보다 `BLOCKER_DV` 넘게 빠른 상태가 `BLOCKER_S` 이어지면 비양보형으로 보고, 속도를 줄여

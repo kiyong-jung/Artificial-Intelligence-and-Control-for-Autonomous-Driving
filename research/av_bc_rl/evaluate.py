@@ -7,8 +7,10 @@ behavior_metrics.py가 센다. seed 집합은 task.md의 dev(1000번대), train(
     python research/av_bc_rl/evaluate.py --policy bc --model results/bc_x/model.pt --split final --label bc_seed0
 """
 import argparse
+import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -23,11 +25,42 @@ SCENARIO_OFFSET = {"quiet": 0, "baseline": 300, "busy": 600}   # 교통량마다
 MAX_STEPS = 1400   # 700초. 전문가의 busy 한 바퀴(정차 포함)는 330~480초다
 
 
+CODE_PATHS = ("env", "algorithms", "collect_pomdp_data.py", "maps/hapjeong")   # 주행 결과를 바꾸는 코드와 지도
+
+
+def run_key(args):
+    """이미 있는 주행 기록을 다시 써도 되는지 가르는 값: 정책, 모델 파일 해시, 에피소드 수, 주행 코드와 지도의 git 트리.
+    커밋하지 않은 변경이 있으면 '+dirty'가 붙는다."""
+    def tree(path):
+        rev = subprocess.run(["git", "rev-parse", f"HEAD:{path}"], cwd=REPO, capture_output=True, text=True).stdout.strip()
+        dirty = subprocess.run(["git", "diff", "--quiet", "HEAD", "--", path], cwd=REPO).returncode != 0
+        return rev + ("+dirty" if dirty else "")
+    key = {"policy": args.policy, "episodes": args.episodes, "max_steps": MAX_STEPS,
+           "code": {path: tree(path) for path in CODE_PATHS}}
+    if args.model:
+        with open(args.model, "rb") as f:
+            key["model_sha256"] = hashlib.sha256(f.read()).hexdigest()
+    return key
+
+
 def run(args, scenario):
     seed = SPLITS[args.split] + SCENARIO_OFFSET[scenario]
     name = f"{args.label}_{args.split}_{scenario}"
     out_dir = os.path.join(REPO, "data", "research", "eval")
     jsonl = os.path.join(out_dir, name + ".jsonl.gz")
+    key_path = os.path.join(out_dir, name + ".key.json")
+    key = run_key(args)
+    if os.path.exists(jsonl):
+        old = None
+        if os.path.exists(key_path):
+            with open(key_path, encoding="utf-8") as f:
+                old = json.load(f)
+        if old != key:
+            print(f"  {name}: 기록이 지금 코드·모델·에피소드 수와 달라 다시 돌린다")
+            for suffix in (".jsonl.gz", ".npz", ".metadata.json"):
+                if os.path.exists(os.path.join(out_dir, name + suffix)):
+                    os.remove(os.path.join(out_dir, name + suffix))
+            shutil.rmtree(os.path.join(out_dir, name + ".assets"), ignore_errors=True)
     if not os.path.exists(jsonl):
         command = [sys.executable, os.path.join(REPO, "collect_pomdp_data.py"), "--map", "hapjeong",
                    "--scenario", scenario, "--seed", str(seed), "--policy", args.policy,
@@ -38,6 +71,8 @@ def run(args, scenario):
         started = time.time()
         subprocess.run(command, cwd=REPO, check=True, stdout=subprocess.DEVNULL)
         print(f"  {name}: {time.time() - started:.0f}s")
+        with open(key_path, "w", encoding="utf-8") as f:
+            json.dump(key, f, ensure_ascii=False, indent=1)
     per_episode = [episode_metrics(records) for records in load_episodes(jsonl)]
     return {"scenario": scenario, "seed_start": seed, "jsonl": os.path.relpath(jsonl, REPO),
             "summary": summarize(per_episode),

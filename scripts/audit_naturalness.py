@@ -186,20 +186,23 @@ RULES = [
     ("lit", "maps/hapjeong/generator/*.py", "*", "*", "*", A,
      "서예인 원본 생성기. 실행에 쓰는 도로망은 scripts/build_hapjeong.py가 만든다"),
     # ---- 커밋된 지도 ----
-    ("xml", "maps/hapjeong/source/network.net.xml", "connection", "uncontrolled", "G22>R94", O + "M3",
-     "신호 횡단보도 J48에서 골목 G22 우회전만 신호 없이 나온다"),
+    ("xml", "maps/hapjeong/source/network.net.xml", "connection", "uncontrolled", "G22>R94", A,
+     "골목 G22는 비우선 연결(state m)이라 간선 차에게 양보하고, 우회전 길이 횡단보도와 겹치지 않는다. 간선 1,400대/시간에서 "
+     "골목 차 평균 대기 4.2초, 충돌 0(지도 README 3.14.0)"),
     ("xml", "maps/paldalmun/source/network.full.net.xml", "*", "*", "*", A, "자르기 전 원본(실행에 쓰지 않는다)"),
     ("data", "hapjeong", "crossing-vehicle-priority", "S6_wausanro", "*", O + "M1",
      "신호 없는 횡단보도에서 차가 우선(보행자가 양보). 한국 법규와 반대"),
     ("data", "hapjeong", "persons-single-crossing", "s6ped", "*", A,
      "S6 횡단보도만 건너는 보행 수요. 도착은 포아송이다. 양(시간당 240명)은 팀 밀도 설정이다(지도 README 3.14.0의 결정 표)"),
-    ("data", "hapjeong", "service-stop-at-edge-end", "*", "*", O + "M4",
-     "정차할 정류장이 도로 끝·시작에 붙어 있다(s6 놓침 버그의 조건)"),
+    ("data", "hapjeong", "service-stop-at-edge-end", "*", "*", A,
+     "OSM 정류장 위치 그대로다. 도로를 벗어나면 놓침으로 세어(645ed74) 갇히지 않는다. 전문가 dev 30회에서 120/120 정차"),
     ("data", "hapjeong", "short-split-edge", "*", "*", O + "M5",
-     "40m보다 짧은데 차로마다 가는 길이 달라, 틀린 차로로 들어온 차가 옮길 자리가 없다"),
-    ("data", "hapjeong", "flow-origin-interior", "*", "*", O + "M6", "지도 안쪽 도로에서 차가 생긴다"),
-    ("data", "hapjeong", "demand-multiplier", "*", "*", O + "M8",
-     "지도 빌드가 수요를 손으로 키웠다(골목 3배, S6 보행자 4배, 상수역 출구 2배)"),
+     "40m보다 짧은데 차로마다 가는 길이 달라, 틀린 차로로 들어온 차가 옮길 자리가 없다. 학습 환경 78회에서는 틀린 차로에 "
+     "선 차 0대(동적 결과의 short_split_edges). traffic 경로 busy 3회에서는 R111b에 4~5대가 섰다"),
+    ("data", "hapjeong", "flow-origin-interior", "*", "*", A,
+     "골목 안쪽 끝(건물·주차장 출입)에서 나오는 차다. 도로 시작점에서 생기고, 버스 50m 안 출현은 학습 환경 78회에 2대였다"),
+    ("data", "hapjeong", "demand-multiplier", "*", "*", A,
+     "팀 밀도 설정(골목 3배, S6 보행자 4배, 상수역 출구 2배). 켜고 끈 발생률은 지도 README 3.14.0의 결정 표에 있다"),
 ]
 
 
@@ -414,6 +417,10 @@ def scan_map(map_id="hapjeong"):
                 on_route = edge_id in m["routes"][m["ego_route"]]
                 add(where, edge_id, f"{per_hour:.0f}대/시간(baseline), 이어진 도로 {len(beyond)}개"
                     + (", 버스 경로 위" if on_route else ""))
+    # 경유 도로(via)를 적어 가장 빠른 길이 아닌 곳으로 돌린 흐름
+    for flow in m["flows"]:
+        if flow.get("via"):
+            add("flow-forced-via", flow["id"], f"{flow['vehs_per_hour']}대/시간이 {flow['via']}를 거친다")
     # 다음 도로로 이어지지 않는 차로, 짧은데 차로마다 가는 길이 다른 도로
     for edge in car_edges(net.getEdges()):
         lanes = [lane for lane in edge.getLanes() if lane.allows("passenger")]
@@ -546,7 +553,8 @@ class SumoProbe:
         self.out.mkdir(parents=True, exist_ok=True)
         self.net = None
         self.data = dict(collisions=[], teleports=[], emergency_stops=[], near_departures=[], near_person_departures=0,
-                         departed=0, stuck={}, stuck_persons={}, sim_end=None, ego_first_seen=None)
+                         departed=0, stuck={}, stuck_persons={}, sim_end=None, ego_first_seen=None, short_split={})
+        self.short = {}     # 짧은데 차로마다 가는 길이 다른 도로(M5) → 차로 번호별 다음 도로
         self._orig = {name: getattr(traci, name) for name in ("start", "load", "simulationStep")}
         traci.start = lambda cmd, *a, **k: self._orig["start"](self._rewrite(cmd), *a, **k)
         traci.load = lambda args, *a, **k: self._orig["load"](self._rewrite(args), *a, **k)
@@ -562,6 +570,11 @@ class SumoProbe:
         if self.net is None:
             from sumolib.net import readNet
             self.net = readNet(str(Path(cfg).parent / "network.net.xml"))
+            for edge in self.net.getEdges():
+                outs = {lane.getIndex(): {c.getTo().getID() for c in lane.getOutgoing()}
+                        for lane in edge.getLanes() if lane.allows("passenger")}
+                if len(outs) >= 2 and edge.getLength() < 40.0 and len(set(map(frozenset, outs.values()))) > 1:
+                    self.short[edge.getID()] = outs
         return cmd + ["--no-warnings", "false", "--log", str(self.out / "sumo.log"),
                       "--collision-output", str(self.out / "collisions.xml"),
                       "--statistic-output", str(self.out / "statistics.xml")]
@@ -614,6 +627,14 @@ class SumoProbe:
                     rec = d["stuck"].setdefault(vid, dict(first_t=t, **self._where(vid)))
                     rec["max_wait"] = round(max(rec.get("max_wait", 0.0), wait), 1)
                     rec["last_t"] = t
+            for edge_id, outs in self.short.items():      # 짧은 갈림 도로에 선 차: 얼마나, 틀린 차로에서인가
+                for vid in tc.edge.getLastStepVehicleIDs(edge_id):
+                    wait = tc.vehicle.getWaitingTime(vid)
+                    route, i = tc.vehicle.getRoute(vid), tc.vehicle.getRouteIndex(vid)
+                    wrong = i + 1 < len(route) and route[i + 1] not in outs.get(tc.vehicle.getLaneIndex(vid), ())
+                    rec = d["short_split"].setdefault(f"{edge_id}|{vid}", dict(edge=edge_id, wait=0.0, wrong_wait=0.0))
+                    rec["wait"] = max(rec["wait"], wait)
+                    rec["wrong_wait"] = max(rec["wrong_wait"], wait if wrong else 0.0)
             for pid in tc.person.getIDList():
                 wait = tc.person.getWaitingTime(pid)
                 if wait >= STUCK_S:
@@ -646,6 +667,13 @@ class SumoProbe:
         for c in d["collisions"]:
             first.setdefault(tuple(sorted((c["collider"], c["victim"]))), c)
         places = collections.Counter(n["place"] for n in d["near_departures"])
+        short = {}
+        for edge_id in self.short:
+            rows = [r for r in d["short_split"].values() if r["edge"] == edge_id]
+            short[edge_id] = dict(seen=len(rows), max_wait=round(max((r["wait"] for r in rows), default=0.0), 1),
+                                  over_cycle=sum(r["wait"] > LONGEST_CYCLE_S for r in rows),
+                                  wrong_lane_stopped=sum(r["wrong_wait"] > 0 for r in rows),
+                                  wrong_lane_max_wait=round(max((r["wrong_wait"] for r in rows), default=0.0), 1))
         return dict(
             sim_seconds=end, ego_first_seen=d["ego_first_seen"], departed=d["departed"],
             teleports=len(d["teleports"]), teleport_examples=d["teleports"][:5],
@@ -662,7 +690,7 @@ class SumoProbe:
             stuck_person_examples=sorted(d["stuck_persons"].values(), key=lambda r: -r["max_wait"])[:5],
             near_departures=len(d["near_departures"]), near_departures_by_place=dict(places),
             near_departure_examples=[n for n in d["near_departures"] if n["place"] != "boundary_edge_start"][:8],
-            near_person_departures=d["near_person_departures"], sumo_statistics=stats,
+            near_person_departures=d["near_person_departures"], sumo_statistics=stats, short_split_edges=short,
             log_warnings=collections.Counter(re.sub(r"'[^']*'|[\d.]+", "#", line)[:70]
                                              for line in log.splitlines() if line.startswith("Warning")).most_common(8))
 

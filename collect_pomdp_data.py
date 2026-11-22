@@ -4,7 +4,7 @@
     (o_t, a_t, r_t, o_{t+1}, terminated, truncated, s_t, s_{t+1})
 
 - t: 에피소드 안의 RL 스텝 번호. 한 스텝은 metadata의 simulation.decision_interval초다.
-- o_t / o_{t+1}: agent가 실제로 보는 31차원 부분관측 (env/mdp_config.py)
+- o_t / o_{t+1}: agent가 실제로 보는 44차원 부분관측 (수업 원본 31 + 경로 정보 13, env/data_schema.py)
 - a_t: [가감속 raw, 차선변경 raw]
 - lane_change: 정책이 요청한 {-1, 0, +1}. lane_change_applied는 그 명령의 실행 여부
   (수업 원본과 같은 뜻), lane_change_actual은 같은 edge에서 확인된 실제 이동이다.
@@ -27,7 +27,8 @@
     python collect_pomdp_data.py --episodes 100
     python collect_pomdp_data.py --episodes 10 --gui
     python collect_pomdp_data.py --policy keep-lane --episodes 20
-    python collect_pomdp_data.py --policy route-follow --episodes 20   # 규칙으로 경로 완주
+    python collect_pomdp_data.py --policy route-follow --episodes 20   # 옛 규칙(신호를 못 봄, 비교 기준)
+    python collect_pomdp_data.py --policy expert --episodes 20         # 전문가 규칙(신호, 정류장, 경로 차로)
     python collect_pomdp_data.py --model results/run_xxx/model.pt --episodes 100   # 학습한 PPO로 수집
     python collect_pomdp_data.py --model results/run_xxx/model.pt --stochastic    # 샘플링 행동
     python collect_pomdp_data.py --episodes 200 --workers 8   # SUMO 8개 병렬 수집
@@ -65,7 +66,7 @@ import numpy as np
 from env.road_config import ROAD, EGO, TRAFFIC
 from env.mdp_config import SIMULATION, OBSERVATION, ACTION
 from env import road_builder
-from env.route_policy import route_following_action
+from env.route_policy import route_following_action, make_expert
 from env.sumo_env import SumoHighwayEnv
 from env.experiment import add_run_arguments, configure_execution, read_run_config, write_run_config
 from env import data_schema
@@ -112,6 +113,10 @@ def make_policy(args, env, worker_seed: int):
                     **{**HPARAMS, "device": args.device, "seed": worker_seed})
         agent.load(args.model)
         deterministic = not args.stochastic   # hybrid: (μ, argmax 차선) / 샘플링
+        saved = read_run_config(args.model) or {}
+        if saved.get("residual_scale"):
+            from algorithms.residual import ResidualPolicy
+            agent = ResidualPolicy(agent, env, saved["residual_scale"])
 
         def act(obs):
             a = agent.predict(obs, deterministic=deterministic)
@@ -132,6 +137,9 @@ def make_policy(args, env, worker_seed: int):
 
     if args.policy == "route-follow":
         return route_following_action
+
+    if args.policy == "expert":
+        return make_expert(env)
 
     # random: 가감속은 연속 uniform[-1,1], 차선변경은 {-1,0,+1} 직접 샘플링 (유지를 더 자주)
     rng = np.random.default_rng(worker_seed)
@@ -290,6 +298,9 @@ def collect(args, sumocfg, episodes, worker_id, jsonl_path, npz_path, tag=""):
                             "teleporting_ids": list(info["teleporting_ids"]),
                             "lane_before": info["lane_before"],
                             "lane_after": info["lane_after"],
+                            "service_event": info.get("service_event"),
+                            "stops_served": int(info.get("stops_served", 0)),
+                            "stops_missed": int(info.get("stops_missed", 0)),
                         },
                     }
                     if done:
@@ -372,7 +383,7 @@ def merge_parts(parts, jsonl_path, npz_path):
 def main():
     parser = argparse.ArgumentParser(description="SUMO POMDP trajectory collector")
     parser.add_argument("--episodes", type=int, default=50)
-    parser.add_argument("--policy", choices=["random", "keep-lane", "route-follow", "ppo", "bc"],
+    parser.add_argument("--policy", choices=["random", "keep-lane", "route-follow", "expert", "ppo", "bc"],
                         default=None,
                         help="행동 정책. route-follow는 학습 없이 경로를 완주하는 규칙. 생략 시 "
                              "--model이 있으면 파일을 보고 ppo/bc 자동 판별, 없으면 random")

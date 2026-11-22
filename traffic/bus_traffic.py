@@ -8,7 +8,7 @@
    - 가로변 노선 2개: 가로변 정류장 `stop_4`(`R49a`)와 `stop_5`(`R44`)에 선다.
    - **시험용 버스가 서는 정류장(지도 `bus_stops` 6곳)에는 배경 버스가 서지 않는다.** 노선이 그 정류장을 쓰게 되면 그 노선은
      만들지 않는다(`build_bus_traffic`의 `test_bus_stop_ids`).
-2. 택시(`bgtaxi`): 주변 승용차처럼 지나간다. 정류장 앞 정차 알고리즘(`stop_ahead.py`)이 서게 할 수 있는 후보가 된다.
+2. 택시(`bgtaxi`): 주변 승용차처럼 지나간다.
 """
 import random
 from dataclasses import dataclass, field
@@ -101,8 +101,7 @@ def build_bus_traffic(net, flows, bus_loop, test_bus_stop_ids, cfg=None, rng=Non
 
     def spread(kind, per_h, n_od, vtype):
         """주변 승용차 흐름의 (문→나가는 곳) 짝 중 많이 쓰이는 것을 골라 대수를 나눠 넣는다."""
-        # 시험용 버스 노선(bus_loop)을 많이 지나는 (문→나가는 곳) 짝을 먼저 고른다. 그래야 정류장 앞에서 시험용 버스 앞에 놓인
-        # 택시·버스가 실제로 있다(없으면 stop_ahead가 택시를 새로 넣는다).
+        # 시험용 버스 노선(bus_loop)을 많이 지나는 (문→나가는 곳) 짝을 먼저 고른다.
         loop = set(bus_loop or [])
 
         def uses_loop(f):

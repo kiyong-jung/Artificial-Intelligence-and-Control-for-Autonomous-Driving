@@ -35,11 +35,8 @@ from .interior_spawner import InteriorSpawner
 from .person_spawner import PersonSpawner, extract_persons
 from .lane_route import LaneRouteAdapter
 from .presence import VehicleArrivalGuard
-from .scenario_injector import ScenarioInjector
 from .right_turn import apply_right_on_red
 from .signal_areas import clip_zones, unsignalized_alleys, unsignalized_crossings
-from .test_bus import STOP_AT
-from .stop_ahead import StopAheadManager
 from .stop_bypass import StopBypassManager
 from .yield_logic import YieldManager, DEFAULT_TYPES, Trigger, Zone
 
@@ -370,8 +367,8 @@ class HapjeongTraffic:
         return out
 
     def run(self, t_end, bus_id="bus0", bus_hook=None, metrics=None, yield_types=None, on_step=None,
-            assign_existing=True, ped_defiance=True, stop_bypass=True, triggers=None, stop_ahead=True,
-            ped_cfg=None, scenario_inject=False, pilot=None, **mgr_kwargs):
+            assign_existing=True, ped_defiance=True, stop_bypass=True, triggers=None,
+            ped_cfg=None, pilot=None, **mgr_kwargs):
         """warmup 뒤 t_end초 동안 공통 실행 루프(runner.run)로 돌린다. 반환: (YieldManager, 마지막 시각).
 
         triggers: A1 진입 의사 구간. None이면 방향지시등만 본다. "scenario"면 scenario_triggers()를 쓴다.
@@ -397,29 +394,7 @@ class HapjeongTraffic:
             metrics.ped_mgr = self.ped        # 보행자가 무시하고 건널 때의 급감속·비상 감속을 센다
         self.stop = (StopBypassManager(traci, bus_id, rng=random.Random(self.seed + 3), owner=self.owner)
                      if stop_bypass else None)
-        self.ahead = None
-        if stop_ahead and pilot is not None:      # S4: 골목에서 나온 차가 정류장 근처에 선다(바퀴마다 1~2곳)
-            m = load_map(MAP_ID)
-            stops = [{"id": s["id"], "edge": s["lane"].rsplit("_", 1)[0], "lane": int(s["lane"].rsplit("_", 1)[1]),
-                      "startPos": s["startPos"], "endPos": s["endPos"]}
-                     for s in m["bus_stops"] if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]]
-            self.ahead = StopAheadManager(traci, bus_id, read_net(os.path.join(self.out_dir, "network.net.xml")),
-                                          pilot.lap_edges, stops, self.alleys, lap_fn=lambda: pilot.lap,
-                                          rng=random.Random(self.seed + 4), owner=self.owner)
-        extras = [self.ahead] if self.ahead else []
-        self.injector = None
-        if scenario_inject and pilot is not None:   # 방법 2: 시나리오 주입기(바퀴마다 S2·S3·S5·S6 상대를 계획해 넣는다)
-            m = load_map(MAP_ID)
-            net = read_net(os.path.join(self.out_dir, "network.net.xml"))
-            self.injector = ScenarioInjector(
-                traci, net, bus_id,
-                [{"id": s["id"], "edge": s["lane"].rsplit("_", 1)[0], "startPos": s["startPos"], "endPos": s["endPos"]}
-                 for s in m["bus_stops"] if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]],
-                self.s5_alleys, "carDist",        # 끼어들기 차도 보통 차다. 시험용 버스만 무시한다(주입기가 ignoreIDs를 건다)
-                lap_fn=lambda: pilot.lap, plans=pilot.plans, rng=random.Random(self.seed + 8),
-                a1_active=lambda vid: vid in mgr.inter, dwell_s=pilot.stop_s, stop_ids=STOP_AT)
-            pilot.follower_ready = self.injector.follower_ready     # 상대가 늦으면 시험용 버스가 속도를 줄인다
-            extras.append(self.injector)
+        extras = []
         if getattr(self, "persons", None) is not None:
             self.persons.bus = bus_id
             extras.insert(0, _TimeAdapter(self.persons))

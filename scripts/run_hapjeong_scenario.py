@@ -98,8 +98,6 @@ def main():
     ap.add_argument("--delay", type=int, default=50, help="GUI에서 0.1초 스텝마다 쉬는 시간(ms). 클수록 느리다")
     ap.add_argument("--zoom", type=float, default=900.0, help="버스를 따라갈 때의 확대율")
     ap.add_argument("--no-track", action="store_true", help="버스를 자동으로 따라가지 않는다")
-    ap.add_argument("--no-inject", action="store_true",
-                    help="시나리오 주입기를 끈다(기본은 켬: 매 바퀴 S2·S3·S6과 S5 1~2곳의 상대를 넣는다)")
     ap.add_argument("--stopped", action="append", default=[], metavar="SPEC",
                     help="S4 정차 차량(여러 번 줄 수 있다). 쉼표로 이은 key=value: kind=taxi|bus|car, "
                          "edge=R69,lane=1,pos=30 또는 stop=<정류장 id·이름>[,gap=14], depart=60(warmup 뒤 초), "
@@ -110,8 +108,6 @@ def main():
     ap.add_argument("--lane-buses", type=float, default=30.0,
                     help="배경 버스(전용 차로 노선, 정류장에 서고 출발) 시간당 대수. 0이면 배경 버스·택시를 넣지 않는다")
     ap.add_argument("--taxis", type=float, default=40.0, help="택시 시간당 대수")
-    ap.add_argument("--no-stop-ahead", action="store_true",
-                    help="시험용 버스가 정류장에 들어갈 때 앞의 택시·버스가 정류장 앞에 서는 동작을 끈다")
     ap.add_argument("--no-stop-bypass", action="store_true", help="S1(정차 버스 뒤 차량의 기다림·추월)을 끈다")
     ap.add_argument("--no-ped-defiance", action="store_true", help="A3 보강(신호 없는 횡단보도 보행자의 건너기 판정)을 끈다")
     ap.add_argument("--out-dir", default=os.path.join(tempfile.gettempdir(), "hapjeong_scenario"))
@@ -155,7 +151,7 @@ def main():
     try:
         world.run(tc.simulation.getTime() + a.seconds, bus_id=BUS, bus_hook=bus.tick, on_step=on_step,
                   stop_bypass=not a.no_stop_bypass, ped_defiance=not a.no_ped_defiance,
-                  stop_ahead=not a.no_stop_ahead, scenario_inject=not a.no_inject, pilot=bus,
+                  pilot=bus,
                   triggers="scenario" if a.triggers == "scenario" else None)
     except (traci.exceptions.FatalTraCIError, ConnectionError):
         print("창이 닫혀 시뮬레이션을 마칩니다.")
@@ -164,7 +160,7 @@ def main():
         laps = bus.lap_times
         print(f"버스 완주 {len(laps)}바퀴" + (f", 바퀴당 평균 {sum(laps) / len(laps):.0f}초" if laps else ""))
         print("버스 차로 변경 요청: " + (", ".join(f"{k} {v}회" for k, v in bus.changes.items()) or "없음"))
-        print(f"창 끝까지 못 옮김(missed): {bus.missed}, 늦은 상대(late): {bus.late}, 속도 줄임: {bus.slowed}")
+        print(f"창 끝까지 못 옮김(missed): {bus.missed}, 속도 줄임: {bus.slowed}")
         if state["rings"]:
             print("버스를 마주친 차량의 판정(주행 모델별):\n" + state["rings"].summary())
         if getattr(world, "stop", None) is not None:
@@ -172,8 +168,6 @@ def main():
         if getattr(world, "ped", None) is not None:
             print("A3 보행자 건너기 판정:", world.ped.summary())
         print("정차 차량(S4):", world.summary["stopped"])
-        if getattr(world, "ahead", None) is not None:
-            print("정류장 앞 정차(시험용 버스 진입 시):", world.ahead.summary())
         print(f"충돌 {state.get('collisions', 0)}건, 순간이동 {state.get('teleports', 0)}건")
         try:
             world.close()

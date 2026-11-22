@@ -158,7 +158,7 @@ def test_monitor_counts_appear_and_teleport_inside_radius():
 
 
 def test_radius_has_single_definition():
-    for name in ("traffic.person_spawner", "traffic.scenario_injector", "traffic.stop_ahead"):
+    for name in ("traffic.person_spawner",):
         try:
             mod = importlib.import_module(name)
         except ImportError:

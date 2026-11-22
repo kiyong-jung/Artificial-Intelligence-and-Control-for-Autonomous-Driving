@@ -165,13 +165,6 @@ def test_lane_plans_are_s3_then_two_s2_and_end_before_signals():
     # J1은 3.7.0부터 R42 차로 3도 좌회전(R68 차로 1)이다. 버스는 더 가까운 차로 3을 목표로 한다
     assert (p[2].edge, p[2].target_lane) == ("R42", 3) and p[2].end_pos == pytest.approx(6.0, abs=0.5)
     assert all(x.length >= 120.0 for x in p) and p[2].length > p[1].length     # J1 앞은 차로를 더 많이 옮긴다
-    # J1 창은 합정역(s6, R54a 245.5~270.5 m) 안에서 시작한다. 감속 판단은 정류장 끝부터 센다
-    net = _net()
-    eff = (net.getEdge("R54a").getLength() - 270.5 + net.getEdge("R54b").getLength() + net.getEdge("R54").getLength()
-           + p[2].end_pos)
-    # 3.7.0: 목표 차로가 4 -> 3이라 창이 240 -> 200 m로 줄어 s6 끝(창 끝 211.6 m 전)이 창 밖이다. 그래서 창 전체를 센다
-    assert eff > p[2].length and p[2].eff_length == p[2].length
-    assert p[0].eff_length == p[0].length and p[1].eff_length == p[1].length
 
 
 def test_pilot_departs_once_from_r68_and_sets_stops():
@@ -267,7 +260,7 @@ def test_bus_stops_to_guarantee_arrival_in_target_lane_before_window_end():
     # 정류장 차로 10 m 전 도착 보장이 S2·S3 상호작용보다 우선이다. 창 끝이 가까운데 아직 목표 차로가 아니면 버스가 멈춰서
     # 목표 차로의 차를 보내고 빈틈에 차선을 바꾼다(양보형·비양보형과 무관)
     tc = _FakeTC(speed=10.0)
-    pilot = _pilot(tc, follower_ready=lambda plan: False)
+    pilot = _pilot(tc)
     pilot.tick(tc, 0.0)
     tc.road, tc.lane, tc.pos = "R71.135", 2, 45.0          # S3 창 끝(R71.206 3.3 m)까지 약 22 m, 목표 차로 1
     tc.followers = [("x", 1.0)]                              # 목표 차로에 차가 바로 옆에 있다(차선 변경 불가)
@@ -286,7 +279,7 @@ def test_forced_stop_compares_lanes_through_the_connections_not_by_number():
     L = _net().getEdge("R54").getLength()
     for lane in (4, 5):
         tc = _FakeTC(speed=12.0)
-        pilot = _pilot(tc, follower_ready=lambda plan: False)
+        pilot = _pilot(tc)
         pilot.tick(tc, 0.0)
         tc.road, tc.lane, tc.pos = "R54", lane, L - 20.0       # 창 끝(R42 6 m)까지 26 m: 제동 거리(32.8 m) 안
         _run(pilot, tc, 0.1, 2.0)
@@ -297,7 +290,7 @@ def test_forced_stop_moves_toward_the_lane_that_reaches_the_target():
     # R54 차로 2는 R42 차로 1(직진)로 간다. 멈춰서 옮길 때는 R42 차로 3으로 이어지는 가장 가까운 차로(4)로 간다(위쪽 +1)
     L = _net().getEdge("R54").getLength()
     tc = _FakeTC(speed=12.0)
-    pilot = _pilot(tc, follower_ready=lambda plan: False)
+    pilot = _pilot(tc)
     pilot.tick(tc, 0.0)
     tc.road, tc.lane, tc.pos = "R54", 3, L - 20.0              # 차로 3은 R42 차로 2(직진)로 간다: 목표(R42 3)에 못 닿는다
     _run(pilot, tc, 0.1, 1.0)
@@ -306,7 +299,7 @@ def test_forced_stop_moves_toward_the_lane_that_reaches_the_target():
 
 def test_no_forced_stop_when_far_from_window_end_or_already_in_target_lane():
     tc = _FakeTC(speed=10.0)
-    pilot = _pilot(tc, follower_ready=lambda plan: False)
+    pilot = _pilot(tc)
     pilot.tick(tc, 0.0)
     tc.road, tc.lane, tc.pos = "R71", 2, 20.0                # 창 끝까지 100 m 넘게 남았다
     _run(pilot, tc, 0.1, 1.0)
@@ -356,49 +349,11 @@ def test_blocker_on_next_short_road_is_still_tracked():
     assert tc.set_speed[-1] == -1 and len(tc.change_req) > n
 
 
-def test_pilot_slows_but_never_waits_for_follower():
-    tc = _FakeTC()
-    state = {"ready": False}
-    pilot = _pilot(tc, follower_ready=lambda plan: state["ready"])
-    pilot.tick(tc, 0.0)
-    tc.road, tc.lane, tc.pos = "R71", 2, _net().getEdge("R71").getLength() - 20.0   # S3 창 앞 절반(창 끝까지 약 98 m)
-    _run(pilot, tc, 0.1, 3.5)
-    # 감속 속도는 지금 속도가 아니라 도로 제한 속도 기준이다(막 출발한 버스가 3 m/s로 30초 기던 문제)
-    # 제한 속도의 45%(6.3 m/s)로 줄여 후행차가 3 m까지 따라붙을 시간을 번다(60%에서는 후행차가 20 m 뒤에서 A1이 못 켜졌다)
-    assert tc.change_req == [] and tc.set_speed and tc.set_speed[0] == pytest.approx(max(0.45 * 13.89, 3.0))
-    assert tc.signals != 0                                            # 방향지시등은 켠 채로 달린다
-    state["ready"] = True
-    _run(pilot, tc, 3.5, 4.0)
-    assert tc.set_speed[-1] == -1 and tc.change_req and tc.change_req[0] == 1
-
-
-def test_pilot_keeps_slowing_until_the_last_30_percent_of_the_window():
-    # 창 절반이 아니라 마지막 30%까지 속도를 줄여 후행차를 기다린다(원래는 절반에서 그냥 옮겨 후행차가 20 m 뒤였다)
-    tc = _FakeTC()
-    pilot = _pilot(tc, follower_ready=lambda plan: False)
-    pilot.tick(tc, 0.0)
-    tc.road, tc.lane, tc.pos = "R71.135", 2, 0.0                      # S3 창 끝까지 약 78 m(창 160 m의 49%)
-    _run(pilot, tc, 0.1, 3.5)
-    assert tc.change_req == [] and tc.set_speed and tc.set_speed[-1] > 0   # 절반(80 m)은 막 지났지만 아직 기다린다
-
-
-def test_pilot_gives_up_slowing_after_half_window():
-    tc = _FakeTC()
-    pilot = _pilot(tc, follower_ready=lambda plan: False)
-    pilot.tick(tc, 0.0)
-    tc.road, tc.lane, tc.pos = "R71", 2, _net().getEdge("R71").getLength() - 20.0
-    _run(pilot, tc, 0.1, 3.5)
-    assert tc.change_req == []
-    tc.road, tc.pos = "R71.135", 40.0                                 # 창 절반을 지났다(창 끝까지 약 38 m)
-    _run(pilot, tc, 3.5, 3.7)
-    assert tc.set_speed[-1] == -1 and tc.change_req and pilot.late == [(1, "S3")]
-
-
 def test_forced_stop_is_released_when_the_bus_enters_a_junction():
     # 강제 정차는 차선을 바꾸려고 서는 것인데 교차로 안에서는 차선을 바꿀 수 없다. 제동 중에 교차로 안으로 밀려 들어간 버스를 세워 두었더니
     # J107 안에서 300초 섰다(quiet 3바퀴째). 교차로 안에서는 정차를 풀어 지나가게 한다
     tc = _FakeTC(speed=6.0)
-    pilot = _pilot(tc, follower_ready=lambda plan: False)
+    pilot = _pilot(tc)
     pilot.tick(tc, 0.0)
     L = _net().getEdge("R111").getLength()
     tc.road, tc.lane, tc.pos = "R111", 1, L - 3.0

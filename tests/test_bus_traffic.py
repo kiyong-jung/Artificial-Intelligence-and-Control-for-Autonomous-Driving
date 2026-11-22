@@ -1,6 +1,5 @@
-"""배경 버스·택시 투입(bus_traffic)과 정류장 앞 정차(stop_ahead)."""
+"""배경 버스·택시 투입(bus_traffic)."""
 import os
-import random
 import sys
 import xml.etree.ElementTree as ET
 
@@ -9,9 +8,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from maps import load_map  # noqa: E402
 from traffic.bus_traffic import BusTrafficCfg, CENTRAL_GROUPS  # noqa: E402
-from traffic.common import Ownership  # noqa: E402
 from traffic.hapjeong import HapjeongTraffic  # noqa: E402
-from traffic.stop_ahead import StopAheadManager  # noqa: E402
 
 
 def test_no_pass_through_buses_in_config():

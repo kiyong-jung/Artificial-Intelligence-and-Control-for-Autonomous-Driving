@@ -10,8 +10,8 @@ results/traffic_verification/s1_s6_<수요>_<시드>_<꼬리표>.json 에 쓴다
   S1  시험용 버스가 정류장에 서서 출발한 횟수(stops) / 그때 정차 버스 바로 뒤 후행차에 대한 S1 판정이 일어난 횟수(rear_events)
   S2  J82·J1 앞 창에서 왼쪽 차선변경을 시도한 횟수(attempts) / 그중 목표 차로 후행차 A1 상호작용이 있었던 횟수(a1)
   S3  s2 앞 창에서 오른쪽 차선변경을 시도한 횟수 / 같은 A1 상호작용 횟수
-  S4  시험용 버스가 서는 정류장 150 m 앞까지 왔을 때, 그 정류장 차로의 정류장 30 m 앞~끝 20 m 뒤에 정차 중(stop)인 차가 있던
-      정류장 수(바퀴·정류장마다 한 번)
+  S4  시험용 버스가 서는 정류장 150 m 앞까지 왔을 때, 가로변 차로의 정류장 30 m 앞(정류장이 도로 시작 가까이면 노선 앞 도로
+      끝까지)~끝 20 m 뒤에 정차 중(stop)인 차가 있던 정류장 수(바퀴·정류장마다 한 번). 누가 세웠는지 보지 않는다
   S5  골목에서 나온 차가 15초 안에 버스와 같은 도로의 앞 50 m에 들어온 횟수
   S6  신호 없는 횡단보도 50 m 앞에서 보행자가 건너고 있던 통과 횟수(버스 한 번 지날 때 한 번)
 """
@@ -47,6 +47,18 @@ S4_APPROACH_M, S4_BEFORE_M, S4_AFTER_M = 150.0, 30.0, 20.0
 
 class Done(Exception):
     pass
+
+
+def s4_zones(net, lap_edges, s):
+    """정류장 s 근처의 (차로 id, 시작, 끝) 구간들. 정류장 시작이 S4_BEFORE_M보다 도로 시작에 가까우면 노선 앞 도로의 가로변
+    차로 끝도 넣는다."""
+    zones = [(f"{s['edge']}_{s['lane_idx']}", s["startPos"] - S4_BEFORE_M, s["endPos"] + S4_AFTER_M)]
+    short = S4_BEFORE_M - s["startPos"]
+    if short > 0 and s["edge"] in lap_edges and lap_edges.index(s["edge"]) > 0:
+        prev = net.getEdge(lap_edges[lap_edges.index(s["edge"]) - 1])
+        curb = next(ln.getIndex() for ln in prev.getLanes() if ln.allows("taxi"))
+        zones.append((f"{prev.getID()}_{curb}", prev.getLength() - short, prev.getLength()))
+    return zones
 
 
 def rewrite_persons(path, k, seed):
@@ -89,9 +101,9 @@ def main():
     ev = {k: collections.Counter() for k in ("S1_stops", "S2_attempts", "S2_done", "S2_a1", "S3_attempts", "S3_done",
                                              "S3_a1", "S4", "S5", "S6", "other_attempts", "S2_J82_attempts", "S2_J82_a1",
                                              "S2_J1_attempts", "S2_J1_a1")}
-    served = [s for s in stops if s["id"] in STOP_AT]
-    s4 = {"seen": set(), "events": []}
     net = read_net(os.path.join(out_dir, "network.net.xml"))
+    served = [s for s in stops if s["id"] in STOP_AT]
+    s4 = {"seen": set(), "events": [], "zones": {s["id"]: s4_zones(net, bus.lap_edges, s) for s in served}}
     presence = PresenceMonitor(tc, net, "bus0")
     forbidden = forbidden_intervals(net, bus.lap_edges)
     sig = {"seen": set(), "in_area": [], "stops": collections.defaultdict(list)}
@@ -183,15 +195,16 @@ def main():
                 dd = tc.vehicle.getDrivingDistance("bus0", s["edge"], s["startPos"])
                 if not 0 < dd <= S4_APPROACH_M:
                     continue
-                lane = f"{s['edge']}_{s['lane_idx']}"
-                lo, hi = s["startPos"] - S4_BEFORE_M, s["endPos"] + S4_AFTER_M
-                for v in tc.lane.getLastStepVehicleIDs(lane):
-                    if v != "bus0" and tc.vehicle.isStopped(v) and lo <= tc.vehicle.getLanePosition(v) <= hi:
-                        s4["seen"].add((lap(), s["id"]))
-                        ev["S4"][lap()] += 1
-                        s4["events"].append((round(t), lap(), s["id"], v, tc.vehicle.getTypeID(v).split("@")[0],
-                                             round(tc.vehicle.getLanePosition(v), 1), round(dd)))
-                        break
+                hit = next(((v, lane) for lane, lo, hi in s4["zones"][s["id"]]
+                            for v in tc.lane.getLastStepVehicleIDs(lane)
+                            if v != "bus0" and tc.vehicle.isStopped(v) and lo <= tc.vehicle.getLanePosition(v) <= hi),
+                           None)
+                if hit:
+                    v, lane = hit
+                    s4["seen"].add((lap(), s["id"]))
+                    ev["S4"][lap()] += 1
+                    s4["events"].append((round(t), lap(), s["id"], v, tc.vehicle.getTypeID(v).split("@")[0], lane,
+                                         round(tc.vehicle.getLanePosition(v), 1), round(dd)))
             # S5: 골목에서 나온 차가 버스 앞 50 m에 들어옴
             for v in (ids if int(round(t * 10)) % 5 == 0 else ()):          # 0.5초마다만 훑는다(속도)
                 if v == "bus0":

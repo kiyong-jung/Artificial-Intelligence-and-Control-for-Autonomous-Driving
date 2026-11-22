@@ -47,8 +47,10 @@ def parking_area_xml(pid, lane, start, end, capacity=1):
 
 
 def taxi_flow_xml(fid, route, parking_id, duration, prob, vtype="taxi", begin=0, end=3600):
+    """S4: 초당 투입 확률 prob(포아송에 가까운 도착)로 경로를 달리다 정차 구역에 duration초 서는 흐름."""
     return (f'<flow id="{fid}" type="{vtype}" route="{route}" begin="{begin}" end="{end}" '
-            f'probability="{prob}"><stop parkingArea="{parking_id}" duration="{duration}"/></flow>')
+            f'probability="{prob}" departLane="best" departSpeed="max">'
+            f'<stop parkingArea="{parking_id}" duration="{duration}"/></flow>')
 
 
 # ---- S4 일반화: 정차 차량(택시·버스·일반 차량), 위치·시각·정차 시간·확률을 설정으로 받는다 ----------------------------------

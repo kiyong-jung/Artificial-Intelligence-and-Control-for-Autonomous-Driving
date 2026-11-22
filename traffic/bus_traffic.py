@@ -9,6 +9,9 @@
    - **시험용 버스가 서는 정류장(지도 `bus_stops` 6곳)에는 배경 버스가 서지 않는다.** 노선이 그 정류장을 쓰게 되면 그 노선은
      만들지 않는다(`build_bus_traffic`의 `test_bus_stop_ids`).
 2. 택시(`bgtaxi`): 주변 승용차처럼 지나간다.
+3. 정류장 근처 택시 정차(S4, `curb_taxi_stops`): 버스 노선의 정류장마다 가로변 차로의 정류장 바로 앞(안 되면 노선 앞 도로
+   끝, 그것도 안 되면 정류장 뒤)에 차로를 막는 정차 구역을 두고, 지도 경계에서 들어와 그곳에 섰다가 경계로 나가는 택시를
+   포아송 도착으로 흘린다. 시험용 버스의 위치·시각과 무관하다. 신호 정지선 앞 금지 구간에는 두지 않는다.
 """
 import random
 from dataclasses import dataclass, field
@@ -30,6 +33,8 @@ class BusTrafficCfg:
     taxis_per_h: float = 40.0          # 택시. 버스는 전용 차로 노선만 투입하고 배경 버스(통과 버스)는 넣지 않는다
     dwell: tuple = (12.0, 25.0)        # 정류장 정차 시간 U(lo, hi) [s] (흐름마다 하나)
     n_taxi_od: int = 10
+    curb_taxis_per_h: float = 12.0     # 정류장 한 곳 근처에 서는 택시 시간당 대수(포아송). 0이면 없다
+    curb_dwell: tuple = (15.0, 40.0)   # 그 택시의 정차 시간 U(lo, hi) [s] (정류장마다 하나)
 
 
 def _chain(net, edges, vclass="bus"):
@@ -127,3 +132,71 @@ def build_bus_traffic(net, flows, bus_loop, test_bus_stop_ids, cfg=None, rng=Non
 
     spread("bgtaxi", cfg.taxis_per_h, cfg.n_taxi_od, "bgtaxi")
     return parts, summary
+
+
+def _curb_lane(edge):
+    """도로에서 택시가 달릴 수 있는 가장 바깥(번호가 가장 작은) 차로 번호. 없으면 None."""
+    return next((ln.getIndex() for ln in edge.getLanes() if ln.allows("taxi")), None)
+
+
+def _curb_spot(net, route, stop, forbidden):
+    """정류장 stop 근처의 택시 정차 구역 (도로, 차로, 시작, 끝). 정류장 시작 20~10 m 앞, 노선 앞 도로 끝 15~5 m, 정류장 끝
+    5~15 m 뒤 순으로 고르고, 도로 끝 5 m 안과 신호 정지선 앞 금지 구간은 피한다. 없으면 None."""
+    edge, lane = stop["lane"].rsplit("_", 1)
+    cands = [(edge, int(lane), stop["startPos"] - 20.0, stop["startPos"] - 10.0)]
+    if edge in route and route.index(edge) > 0 and net.hasEdge(route[route.index(edge) - 1]):
+        prev = net.getEdge(route[route.index(edge) - 1])
+        L, curb = prev.getLength(), _curb_lane(prev)
+        if curb is not None:
+            cands.append((prev.getID(), curb, L - 15.0, L - 5.0))
+    cands.append((edge, int(lane), stop["endPos"] + 5.0, stop["endPos"] + 15.0))
+    for e, ln, lo, hi in cands:
+        if lo < 0 or hi > net.getEdge(e).getLength() - 5.0:
+            continue
+        if any(a < hi and lo < b for a, b in forbidden.get(e, [])):
+            continue
+        return e, ln, round(lo, 2), round(hi, 2)
+    return None
+
+
+def curb_taxi_stops(net, flows, bus_loop, bus_stops, cfg=None, rng=None):
+    """S4: 정류장 근처에 서는 택시 흐름. 반환: (경로 파일 조각 목록, 추가 파일 조각 목록, 요약 목록).
+
+    bus_stops: 지도의 bus_stops(lane, startPos, endPos). 노선(bus_loop) 위 정류장만 쓴다. 택시 vType(bgtaxi)은
+    build_bus_traffic이 넣는다.
+    """
+    from .cutin import parking_area_xml, taxi_flow_xml
+    from .presence import ends_at_boundary, starts_at_boundary
+    from .signal_areas import forbidden_intervals
+    cfg = cfg or BusTrafficCfg()
+    rng = rng or random.Random(0)
+    if cfg.curb_taxis_per_h <= 0:
+        return [], [], []
+    route = list(bus_loop)
+    forbidden = forbidden_intervals(net, route)
+    heads = sorted({f["from"] for f in flows if net.hasEdge(f["from"]) and starts_at_boundary(net, f["from"])})
+    tails = sorted({f["to"] for f in flows if net.hasEdge(f["to"]) and ends_at_boundary(net, f["to"])})
+    length = lambda p: sum(net.getEdge(e).getLength() for e in p)
+    parts, adds, summary = [], [], []
+    for s in bus_stops:
+        if s["lane"].rsplit("_", 1)[0] not in route:
+            continue
+        spot = _curb_spot(net, route, s, forbidden)
+        if spot is None:
+            summary.append({"stop": s["id"], "skipped": "no curb spot"})
+            continue
+        edge, lane, lo, hi = spot
+        head = min(filter(None, (_chain(net, [a, edge], "taxi") for a in heads)), key=length, default=None)
+        tail = min(filter(None, (_chain(net, [edge, b], "taxi") for b in tails)), key=length, default=None)
+        if not head or not tail:
+            summary.append({"stop": s["id"], "skipped": "no route"})
+            continue
+        pid, rid = f"pa_curb_{s['id']}", f"r_curb_{s['id']}"
+        dwell = round(rng.uniform(*cfg.curb_dwell), 1)
+        adds.append(parking_area_xml(pid, f"{edge}_{lane}", lo, hi, 1))
+        parts.append(f'<route id="{rid}" edges="{" ".join(head + tail[1:])}"/>')
+        parts.append(taxi_flow_xml(f"curbtaxi_{s['id']}", rid, pid, dwell, round(cfg.curb_taxis_per_h / 3600.0, 6),
+                                   vtype="bgtaxi", end=100000))
+        summary.append({"stop": s["id"], "edge": edge, "lane": lane, "start": lo, "end": hi, "dwell": dwell,
+                        "per_h": cfg.curb_taxis_per_h})
+    return parts, adds, summary

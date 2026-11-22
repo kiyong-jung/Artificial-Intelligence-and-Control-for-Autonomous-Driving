@@ -30,7 +30,7 @@ from .ped_defiance import PedDefianceManager
 from .pedestrian import PED_DIST, ped_dist_xml
 from .runner import run as run_loop
 from .sumo_conn import traci, sumo_cmd
-from .bus_traffic import BusTrafficCfg, build_bus_traffic
+from .bus_traffic import BusTrafficCfg, build_bus_traffic, curb_taxi_stops
 from .interior_spawner import InteriorSpawner
 from .lane_route import LaneRouteAdapter
 from .right_turn import apply_right_on_red
@@ -161,6 +161,10 @@ class HapjeongTraffic:
                                             [s["id"] for s in m["bus_stops"]], self.bus_traffic,
                                             random.Random(self.seed + 5))
             overlay_routes.extend(parts)
+            taxi_parts, taxi_add, self.summary["curb_taxis"] = curb_taxi_stops(
+                net, m["flows"], m["routes"]["bus_loop"], m["bus_stops"], self.bus_traffic, random.Random(self.seed + 7))
+            overlay_routes.extend(taxi_parts)
+            overlay_add.extend(taxi_add)
             self.summary["bus_traffic"] = bsum
 
         self._write("traffic.rou.xml", "routes", overlay_routes)

@@ -39,7 +39,7 @@ def test_bus_lines_use_the_dedicated_lanes_and_stop(world):
     assert all(flows[k].find("stop") is not None for k in flows if k.startswith("bgbus_line"))   # 정차 후 출발
     assert all(flows[k].find("stop") is None for k in flows if k.startswith("bgtaxi"))   # 택시는 정류장 흐름이 없다
     assert not any(k.startswith("bgbus_pass") for k in flows)                            # 통과 버스는 투입하지 않는다
-    assert all(k.startswith(("bgbus_line", "bgtaxi")) for k in flows)
+    assert all(k.startswith(("bgbus_line", "bgtaxi", "curbtaxi_")) for k in flows)
 
 
 def test_central_routes_run_boundary_to_boundary(world):
@@ -52,6 +52,27 @@ def test_central_routes_run_boundary_to_boundary(world):
         r = lines[f"bgbus_line_{name}"]["edges"]
         assert starts_at_boundary(net, r[0]) and ends_at_boundary(net, r[-1]), (name, r[0], r[-1])
         assert all(v in r for v in via)
+
+
+def test_curb_taxis_stop_near_bus_stops_on_their_own_schedule(world):
+    # S4: 정류장 근처 가로변 차로에 서는 택시는 포아송 흐름이다(시험용 버스 위치에 맞춰 넣지 않는다)
+    from traffic.alleys import read_net
+    from traffic.signal_areas import forbidden_intervals
+    net = read_net(os.path.join(world.out_dir, "network.net.xml"))
+    m = load_map("hapjeong")
+    spots = [c for c in world.summary["curb_taxis"] if "skipped" not in c]
+    loop_stops = [s for s in m["bus_stops"] if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]]
+    assert len(spots) == len(loop_stops)                                    # 노선 위 정류장 6곳 모두
+    bad = forbidden_intervals(net, m["routes"]["bus_loop"])
+    for c in spots:
+        assert not any(a < c["end"] and c["start"] < b for a, b in bad.get(c["edge"], []))   # 신호 정지선 앞이 아니다
+        assert net.getEdge(c["edge"]).getLanes()[c["lane"]].allows("taxi")
+    rou = ET.parse(os.path.join(world.out_dir, "traffic.rou.xml")).getroot()
+    flows = [f for f in rou.iter("flow") if f.get("id").startswith("curbtaxi_")]
+    assert len(flows) == len(spots)
+    assert all(f.get("probability") and f.find("stop").get("parkingArea") for f in flows)
+    add = ET.parse(os.path.join(world.out_dir, "traffic.add.xml")).getroot()
+    assert {p.get("id") for p in add.iter("parkingArea")} >= {f.find("stop").get("parkingArea") for f in flows}
 
 
 def test_taxis_are_flowing(world):

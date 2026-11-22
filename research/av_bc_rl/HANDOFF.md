@@ -72,8 +72,9 @@ $PY research/av_bc_rl/compare.py --split final --groups expert=expert bc=bc_s0,.
    `pip install eclipse-sumo==1.27.1`로 넣는다(requirements.txt). 리눅스 ARM에서 이 바퀴(wheel)가 되는지는
    확인하지 못했다.
 3. `agsci doctor examples/hapjeong_bus`와 `agsci run examples/hapjeong_bus --dry-run`으로 먼저 점검한다.
-   평가기는 결정적이어야 한다(같은 seed, 같은 점수). 이 Mac에서 두 번 돌려 같은 값이 나오는지는 아직
-   확인하지 않았다.
+   평가기는 결정적이어야 한다(같은 seed, 같은 점수). 이 Mac에서 전문가를 두 번 돌려 96.88373764527032로
+   같았고 에피소드별 결과도 모두 같았다. 다른 컴퓨터(리눅스, 다른 SUMO 빌드)에서는 값이 조금 다를 수 있으니
+   거기서 한 번 더 두 번 돌려 본다.
 4. CPU 과제다(`container.gpu_count=0`, `investigation.execution.gpu_evaluation=false`). 평가 한 번에 약 3분이다.
 
 ## 열린 일

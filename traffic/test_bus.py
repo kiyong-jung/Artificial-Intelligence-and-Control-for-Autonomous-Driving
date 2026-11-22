@@ -6,12 +6,12 @@
   합정역 7번 출구(s1)와 상수역(s3)에는 서지 않는다.
 
 - 버스는 한 번만 넣는다. 노선 끝이 가까워지면 다음 바퀴 노선을 이어 붙인다(다시 넣지 않으므로 바퀴 사이 순간이동이 없다).
-- SUMO 자율 차선 변경은 끄고(512) 차선 변경은 **정해진 창(`LanePlan`) 안에서만** 요청한다. 창 밖에서는 차로를 지킨다
+- SUMO 자율 차선 변경은 끄고(1536) 차선 변경은 **정해진 창(`LanePlan`) 안에서만** 요청한다. 창 밖에서는 차로를 지킨다
   (다음 도로로 이어지지 않는 차로에서 도로 끝이 가까울 때만 예외).
 - 신호 교차로 정지선 앞(signal_areas)에서는 차선 변경을 요청하지 않는다.
 - 창 끝이 제동 거리 안인데 지금 차로가 목표 차로에 닿지 못하면 SUMO 기본 차선 변경(1621)에 넘긴다(`handed`). 달리는 차로에
   멈춰 서지 않고, SUMO의 전략 차선 변경과 이웃 차의 협조로 빈틈을 찾는다. 창 끝까지 못 가면 `missed`에 남긴다. 정류장 창(S3)이면
-  그 정류장을 건너뛰고, 좌회전 창(S2)이면 SUMO에 맡긴 채 정지선에서 기다릴 수 있다. 창 끝 도로를 지나면 다시 512로 돌린다.
+  그 정류장을 건너뛰고, 좌회전 창(S2)이면 SUMO에 맡긴 채 정지선에서 기다릴 수 있다. 창 끝 도로를 지나면 다시 1536으로 돌린다.
 - 상대를 기다리지 않는다. 목표 차로에 차가 있든 없든 방향지시등을 켜고 정해진 시간 뒤 요청한다.
 """
 from dataclasses import dataclass
@@ -27,7 +27,11 @@ CHANGE_WINDOW_M = 120.0
 STOP_LANE_LEAD_M = 10.0         # 정류장 차로에는 정류장 시작 이만큼 전까지 들어가 있어야 한다
 EXTRA_PER_LANE_M = 40.0         # 차로를 한 칸 더 옮겨야 하면 창을 이만큼 늘린다
 BLINKER_RIGHT, BLINKER_LEFT = 1, 2
-LC_MANUAL, LC_SUMO = 512, 1621
+# 1536 = 512(자율 변경 끔, TraCI 요청의 안전 간격은 지킴) + bit10(TraCI 요청과 겹치지 않는 차로 안 횡이동, 곧 가운데 정렬).
+# 512만 쓰면 차선 변경이 차로 가운데에서 끝나지 않을 때 다시 정렬하지 않는다. busy seed 3에서 R77->R111 경계에서 끊긴 S2 변경이
+# 버스를 오른쪽으로 0.97 m 밀어 둔 채 J82를 좌회전했고, 나가는 도로 R112의 오른쪽 차로가 인도라 SUMO가 교차로 출구에서 버스를
+# 세웠다(MSVehicle::brakeForOverlap). env의 ego도 같은 이유로 1536이다(env/road_config.py)
+LC_MANUAL, LC_SUMO = 1536, 1621
 HANDOVER_DECEL, HANDOVER_MARGIN_M = 2.5, 4.0   # 이 감속도로 설 거리 + 여유 안에 창 끝이 들어오면 SUMO에 넘긴다
 
 
@@ -113,7 +117,7 @@ class TestBusPilot:
         self._done = set()
         self._added = False
         self._last_road = None
-        self._handover = None           # SUMO 차선 변경에 넘긴 창. 창 끝 도로를 지나면 512로 돌린다
+        self._handover = None           # SUMO 차선 변경에 넘긴 창. 창 끝 도로를 지나면 1536으로 돌린다
         self._slow_t0 = None
         self._chain = None              # 방금 변경을 마친 창(같은 창의 다음 변경은 빠르게)
         self._signal_s = self.SIGNAL_S

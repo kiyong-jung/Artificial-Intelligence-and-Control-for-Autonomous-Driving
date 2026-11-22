@@ -243,7 +243,7 @@ def test_pilot_hands_over_to_sumo_when_window_ends_in_wrong_lane():
     assert tc.lc_mode[-1] == 1621 and pilot.missed == [(1, "S2", "R42")]
     tc.road, tc.lane, tc.pos = "R68", 2, 1.0
     pilot.tick(tc, 2.0)
-    assert tc.lc_mode[-1] == 512
+    assert tc.lc_mode[-1] == LC_MANUAL
 
 
 def test_pilot_holds_lane_outside_windows():

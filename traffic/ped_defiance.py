@@ -6,8 +6,10 @@
 
 PedSUMO와 다르게 한 점
 - 무시 대상과 개입 조건은 버스로 한정하지 않는다. 가로막는 차량(통과 시간 < 건너는 시간)이 버스든 배경 차량이든
-  같은 확률로 판정한다(`ignore_scope="all"`). 무시해도 차량은 SUMO 기본 안전 규칙으로 보행자에게 반응한다. [현재 기본값은 "bus": 시험용 버스가 선두일 때만 판정하고 무시 대상도 그 vType뿐이다(사용자 결정: 배경 차와는 상호작용하지 않는다)]
-  `"bus"`로 주면 버스 vType만 무시한다.
+  같은 확률로 판정하고, 건너기로 하면 모든 차량 유형을 무시한다. 무시해도 차량은 SUMO 기본 안전 규칙으로 보행자에게
+  반응한다.
+- 합정역 실행(`HapjeongTraffic.run`)에서는 기본으로 끈다. 보행자의 간격 수용은 보행자 vType 분포(pedestrian.ped_dist_xml)가
+  맡는다. 이 모듈은 PedSUMO 방식을 따로 시험할 때 켠다.
 - 판정 주기: PedSUMO는 1초 스텝마다 굴린다. 여기는 스텝이 0.1초라 `period`(기본 1 s)마다 굴려
   같은 빈도를 유지한다.
 - 빠진 요소: eHMI, 성별·시력 계수. 근거 없이 독일 값을 옮기지 않으려고 뺐다.
@@ -135,11 +137,10 @@ class _Ped:
 class PedDefianceManager:
     """update(t)를 매 스텝 simulationStep() 앞에서 호출한다(A1의 YieldManager.update와 같은 자리)."""
 
-    def __init__(self, traci, bus_id, rng=None, cfg=None, ignore_scope="bus", crossings=None, age_range=(10, 80)):
+    def __init__(self, traci, bus_id, rng=None, cfg=None, crossings=None, age_range=(10, 80)):
         self.traci, self.bus = traci, bus_id
         self.rng = rng or random.Random(0)
         self.cfg = cfg or DefianceCfg()
-        self.ignore_scope = ignore_scope       # "all" 모든 vType (PedSUMO와 같음) / "bus" 버스 vType만
         self.age_range = age_range
         self.incoming = self._build_incoming(crossings)   # 횡단보도 차로 -> 그 횡단보도로 오는 차로 집합
         self.peds = {}                          # 보행자 id -> _Ped (횡단보도 앞에 있는 동안)
@@ -245,8 +246,6 @@ class PedDefianceManager:
         lead, lowest = self._lead(st.crossing)
         if lead is None or lowest >= t_cross:
             return                       # 막는 차량이 없다: 기본 모델대로 건넌다
-        if self.ignore_scope == "bus" and lead != self.bus:
-            return                       # 선두가 시험용 버스가 아니다: 배경 차와는 기본 안전 규칙대로 서로 양보한다
         if tc.vehicle.getWaitingTime(lead) >= c.veh_wait_hard:
             self.log.append({"t": t, "ped": pid, "crossing": st.crossing, "ttc": lowest, "p": 0.0, "cross": False,
                              "wait": t - st.t_wait0, "factors": {"hard_cap": 1}, "vehicle": lead})
@@ -271,8 +270,7 @@ class PedDefianceManager:
         if cross:
             st.decided = True
             self.watch[lead] = t + c.watch_s
-            types = [tc.vehicle.getTypeID(self.bus)] if self.ignore_scope == "bus" else list(tc.vehicletype.getIDList())
-            tc.person.setParameter(pid, "junctionModel.ignoreTypes", " ".join(types))
+            tc.person.setParameter(pid, "junctionModel.ignoreTypes", " ".join(tc.vehicletype.getIDList()))
 
     def watched(self, t):
         """지금 급감속을 재는 차량 id 집합(보행자가 무시하고 건너기로 한 때의 선두 차량)."""

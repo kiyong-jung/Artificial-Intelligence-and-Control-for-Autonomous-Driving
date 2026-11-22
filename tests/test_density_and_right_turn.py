@@ -37,12 +37,6 @@ class _FakeTc:
         added = []
 
         @classmethod
-        def getIDList(cls): return ["bus0"]
-
-        @classmethod
-        def getPosition(cls, v): return (250.0, 150.0)
-
-        @classmethod
         def add(cls, vid, rid, **kw): cls.added.append((vid, rid, kw))
 
     class route:
@@ -52,21 +46,21 @@ class _FakeTc:
         def add(cls, rid, edges): cls.routes[rid] = edges
 
 
-def test_spawner_never_places_cars_near_the_test_bus(world):
-    """시험용 버스에서 min_dist 안에는 투입하지 않는다(눈앞에 차가 갑자기 생기지 않는다)."""
+def test_spawner_places_cars_on_the_loop_without_looking_at_the_test_bus(world):
+    """출발 지점은 노선의 긴 도로 위 임의의 지점이고, 시험용 버스 위치를 읽지 않는다(가짜 traci에 버스 조회가 없다)."""
     m = load_map("hapjeong")
     net = read_net(os.path.join(world.out_dir, "network.net.xml"))
     tc = _FakeTc()
     tc.vehicle.added.clear()
-    sp = InteriorSpawner(tc, net, "bus0", m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}),
-                         per_h=3600.0 * 10, rng=random.Random(1), min_dist=200.0, dt=0.1)
+    sp = InteriorSpawner(tc, net, m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}),
+                         per_h=3600.0 * 10, rng=random.Random(1), dt=0.1)
     for k in range(3000):
         sp.update(k * 0.1)
-    assert sp.n_spawned > 100 and sp.n_skipped_near > 0
+    assert sp.n_spawned > 100
+    loop = set(m["routes"]["bus_loop"])
     for vid, rid, kw in tc.vehicle.added:
         edge = tc.route.routes[rid][0]
-        x, y = sp._xy(edge, float(kw["departPos"]))
-        assert ((x - 250.0) ** 2 + (y - 150.0) ** 2) ** 0.5 >= 200.0 - 1e-6
+        assert edge in loop and 0.0 < float(kw["departPos"]) < net.getEdge(edge).getLength()
         assert kw["typeID"] == "carDist"
 
 

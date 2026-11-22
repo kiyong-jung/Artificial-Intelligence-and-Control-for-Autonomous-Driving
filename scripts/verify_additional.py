@@ -114,7 +114,7 @@ def hap_run(seed, seconds, stopped_args=(), triggers=None, warmup=120.0, scenari
                 stats["stopped_parked_s"][item["id"]] += 0.1
 
     mgr, t_end = world.run(tc.simulation.getTime() + seconds, bus_id="bus0", bus_hook=bus.tick, metrics=rec,
-                           on_step=on_step, triggers=triggers)
+                           on_step=on_step, triggers=triggers, ped_defiance=True)
     out = {"seed": seed, "a1": dict(collections.Counter(r["outcome"] for r in mgr.log)), "a1_n": len(mgr.log),
            "s1": world.stop.summary(), "ped": world.ped.summary(), "collisions": rec.summary()["collisions"],
            "teleports": stats["teleports"],

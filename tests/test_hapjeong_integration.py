@@ -58,15 +58,17 @@ def test_every_unsignalized_merge_alley_flow_uses_the_alley_driver_distribution(
     assert not any("ignoreIDs" in (p.get("key") or "") for p in rou.iter("param"))
 
 
-def test_s6_pedestrians_get_both_types(world):
-    # 보행자는 경로 파일에서 떼어 persons.json으로 옮긴다(PersonSpawner가 버스 반경 밖에서 넣는다)
-    import json
-    assert list(ET.parse(os.path.join(world.out_dir, "pedestrians.rou.xml")).getroot().iter("person")) == []
-    with open(os.path.join(world.out_dir, "persons.json"), encoding="utf-8") as f:
-        persons = json.load(f)
-    typed = [p["type"] for p in persons if p.get("type")]
-    assert len(typed) == world.summary["s6_persons"] > 0
-    assert set(typed) == {"ped_p1", "ped_p2"}
+def test_pedestrians_stay_in_the_route_file_and_all_use_the_walker_distribution(world):
+    # 보행자는 경로 파일에 남아 SUMO가 출발시킨다(버스 가까이에서 미루거나 세워 두지 않는다). 모두 같은 보행자 분포를 쓴다
+    persons = list(ET.parse(os.path.join(world.out_dir, "pedestrians.rou.xml")).getroot().iter("person"))
+    assert len(persons) == world.summary["typed_persons"] > 100
+    assert {p.get("type") for p in persons} == {"pedDist"}
+    assert any(p.get("id").startswith("s6ped") for p in persons)
+    assert not os.path.exists(os.path.join(world.out_dir, "persons.json"))
+    rou = ET.parse(os.path.join(world.out_dir, "traffic.rou.xml")).getroot()
+    dist = next(d for d in rou.iter("vTypeDistribution") if d.get("id") == "pedDist")
+    walkers = [v for v in rou.iter("vType") if v.get("id") in dist.get("vTypes").split()]
+    assert len({v.get("impatience") for v in walkers}) == len(walkers) >= 4
 
 
 def test_driver_parameters_reach_background_car_on_hapjeong(world):

@@ -36,6 +36,7 @@ SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 0
 TAG = sys.argv[3] if len(sys.argv) > 3 else ""          # 결과 파일 이름 꼬리표
 OLD_PED = "old" in TAG                                  # 꼬리표에 old가 있으면 보행자 수정 전 설정으로 잰다
 PED_X = 4 if "hiped" in TAG else 1                      # 꼬리표에 hiped가 있으면 횡단보도 보행자를 4배로 늘린다
+PED_DEFIANCE = "pedsumo" in TAG or OLD_PED              # 꼬리표에 pedsumo가 있으면 PedSUMO 방식 건너기 판정을 켠다
 LAPS, T_MAX = int(os.environ.get("MEASURE_LAPS", "3")), float(os.environ.get("MEASURE_TMAX", "2600"))
 CUT_WINDOW, NEAR = 15.0, 50.0
 S6_CROSS, S6_EDGE = ":S6_wausanro_c", "R112.112"      # 횡단보도는 R112.112의 끝(116 m)에 있다. 예전 값 R112는 횡단보도 116 m 전이라 건너는 사람을 놓쳤다
@@ -48,17 +49,28 @@ class Done(Exception):
     pass
 
 
-def multiply_s6_persons(path, k, seed):
-    """신호 없는 횡단보도를 건너는 보행자(s6ped*)를 k배로 늘린다(persons.json). 사본은 출발 시각을 0~40초 흩뜨린다."""
-    import json
+def rewrite_persons(path, k, seed):
+    """보행자 경로 파일을 고친다. k=0이면 보행자를 모두 빼고, k>1이면 신호 없는 횡단보도를 건너는 보행자(s6ped*)를 k배로
+    늘린다(사본은 출발 시각을 0~40초 흩뜨린다). 출발 시각 순으로 다시 쓴다."""
+    import copy
     import random
+    import xml.etree.ElementTree as ET
     rng = random.Random(seed + 77)
-    with open(path, encoding="utf-8") as f:
-        persons = json.load(f)
-    extra = [dict(p, id=f"{p['id']}x{j}", depart=round(p["depart"] + rng.uniform(0, 40), 2))
-             for p in persons if p["id"].startswith("s6ped") for j in range(1, k)]
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(sorted(persons + extra, key=lambda p: p["depart"]), f, ensure_ascii=False)
+    tree = ET.parse(path)
+    root = tree.getroot()
+    persons = list(root.iter("person"))
+    for p in persons:
+        root.remove(p)
+    if k == 0:
+        persons = []
+    for p in [p for p in persons if p.get("id").startswith("s6ped")]:
+        for j in range(1, k):
+            c = copy.deepcopy(p)
+            c.set("id", f"{p.get('id')}x{j}")
+            c.set("depart", f"{float(p.get('depart')) + rng.uniform(0, 40):.2f}")
+            persons.append(c)
+    root.extend(sorted(persons, key=lambda p: float(p.get("depart"))))
+    tree.write(path, encoding="utf-8", xml_declaration=True)
 
 
 def main():
@@ -66,11 +78,8 @@ def main():
     world = HapjeongTraffic(out_dir, scenario=SCEN, seed=SEED, bus_traffic=True,
                             right_on_red="noror" not in TAG, interior_share=0.0 if "nointer" in TAG else 0.3)
     world.build()
-    if PED_X > 1:
-        multiply_s6_persons(os.path.join(out_dir, "persons.json"), PED_X, SEED)
-    if "noped" in TAG:                                  # 꼬리표에 noped가 있으면 배경 보행자를 모두 뺀다(J82 정지 원인 가리기)
-        with open(os.path.join(out_dir, "persons.json"), "w", encoding="utf-8") as f:
-            json.dump([], f)
+    if PED_X > 1 or "noped" in TAG:                     # 꼬리표에 noped가 있으면 배경 보행자를 모두 뺀다(J82 정지 원인 가리기)
+        rewrite_persons(os.path.join(out_dir, "pedestrians.rou.xml"), 0 if "noped" in TAG else PED_X, SEED)
     tc = world.start(warmup=120)
     m = load_map("hapjeong")
     loop = m["routes"]["bus_loop"]
@@ -355,7 +364,7 @@ def main():
                               use=("ttc", "wait", "group", "width", "size", "momentum", "age", "distract"))
     try:
         world.run(tc.simulation.getTime() + T_MAX + 10, bus_id="bus0", bus_hook=bus.tick, on_step=on_step,
-                  ped_cfg=ped_cfg, pilot=bus, triggers="scenario")
+                  ped_cfg=ped_cfg, ped_defiance=PED_DEFIANCE, pilot=bus, triggers="scenario")
     except Done:
         pass
     # S1 후행차 판정은 관찰 기록에서 센다(바퀴는 시험용 버스 한 바퀴)
@@ -380,10 +389,8 @@ def main():
            "a1_in_signal_area": len(sig["in_area"]), "a1_in_signal_area_examples": sig["in_area"][:8],
            "stops_by_lap": {k: v for k, v in sig["stops"].items()},
            "bus": {"missed": bus.missed, "forced": bus.forced, "slowed": bus.slowed, "changes": bus.changes},
-           "persons": world.persons.summary() if getattr(world, "persons", None) else None,
-           "arrival_guard_extended": len(world.arrival_guard.extended) if getattr(world, "arrival_guard", None) else None,
            "S5": {"per_lap": per_lap(ev["S5"])},
-           "S6": {"per_lap": per_lap(ev["S6"]), "ped_decisions": world.ped.summary()},
+           "S6": {"per_lap": per_lap(ev["S6"]), "ped_decisions": world.ped.summary() if world.ped else None},
            "S6_vehicle_waiting": {"max_wait_s": round(wait["max_wait"], 1), "vehicles_over_20s": len(wait["over20"]),
                                   "vehicles_over_30s": len(wait["over30"]), "max_queue": wait["max_queue"],
                                   "crossing_occupied_share": round(wait["occ_steps"] / max(1, wait["steps"]), 3),
@@ -396,7 +403,6 @@ def main():
                       "new_vehicles_within_100m_of_bus": len(safety["popin_100m"]),
                       "within_100m_examples": safety["popin_100m"][:8]},
            "ped_x": PED_X, "ped_cfg": "old" if OLD_PED else "new", "variant": TAG, "trace": trace,
-           "ped_revoked": world.ped.revoked if world.ped else None,
            "lap_time_breakdown": {k: {kk: round(v, 1) for kk, v in d.items()} for k, d in timing.items()},
            "bus_long_waits_outside_stops": bw["long"], "bus_stuck_probe": probe["log"], "s3_trace": bw["s3_trace"],
            "interior": world.interior.summary() if world.interior else None,

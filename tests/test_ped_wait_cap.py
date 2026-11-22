@@ -29,12 +29,16 @@ class _L:
     def getLength(self, lane): return 100.0
 
 
+class _VT:
+    def getIDList(self): return ["car", "bus_test"]
+
+
 def _mgr(wait, road):
     m = object.__new__(PedDefianceManager)
-    class T: vehicle, lane, person = _Veh(wait), _L(), _Person(road)
+    class T: vehicle, lane, person, vehicletype = _Veh(wait), _L(), _Person(road), _VT()
     m.traci, m.cfg, m.rng = T(), DefianceCfg(), random.Random(0)
     m.incoming = {"cross": {"lane"}}
-    m.peds, m.log, m.watch, m.revoked, m.ignore_scope = {}, [], {}, 0, "all"
+    m.peds, m.log, m.watch, m.revoked = {}, [], {}, 0
     return m, T
 
 
@@ -56,14 +60,11 @@ def test_pending_decision_is_revoked_but_a_crossing_ped_finishes():
     assert st2.decided and m2.revoked == 0
 
 
-def test_ped_defiance_ignores_only_the_test_bus_and_never_a_background_car():
-    # 배경 차(선두)가 막고 있으면 보행자는 기본 규칙대로 기다린다. 무시하고 건너는 것은 시험용 버스에 대해서만이다
+def test_ped_defiance_treats_a_background_car_like_the_test_bus():
+    # 선두가 배경 차여도 시험용 버스와 같은 규칙으로 판정하고, 건너기로 하면 모든 차량 유형을 무시한다
     m, T = _mgr(wait=0.0, road=":J_w0")
-    m.ignore_scope, m.bus = "bus", "bus0"
+    m.bus = "bus0"
     m.cfg.base, m.cfg.use = 1.0, []                                                # 건너기 확률 1: 결과가 우연에 좌우되지 않게
     st = _Ped(age=30, distracted=False, t_wait0=0.0, crossing="cross")
     m._decide("p", st, 10.0)                                                       # 선두는 id 'v'(배경 차)
-    assert not st.decided and T.person.params == []
-    m.bus = "v"                                                                    # 선두가 시험용 버스
-    m._decide("p", st, 11.0)
-    assert st.decided and T.person.params[-1][2] == "car"
+    assert st.decided and T.person.params[-1][2] == "car bus_test"

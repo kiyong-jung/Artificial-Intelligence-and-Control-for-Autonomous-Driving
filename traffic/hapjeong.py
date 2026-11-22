@@ -10,13 +10,12 @@ env.road_config.configure_map이 읽고, env.road_builder.build가 실행 폴더
   S5  버스 경로에 합류하는 신호 없는 골목을 지도에서 모두 찾아(traffic.alleys), 그 골목으로 나오는 흐름을 골목 운전자
       분포(cutin, impatience·jmTimegapMinor 구간, 앞차 무시 없음)로 바꾼다. 골목에서 출발하는 흐름과, 고리 골목을
       거쳐(via) 나오는 흐름이 둘 다 대상이다.
-  S6  와우산로 횡단보도를 건너는 보행자를 P1(대기형)/P2(진입형)로 나눈다. 신호 없는 횡단보도 앞 보행자의 건너기 판정은
-      PedDefianceManager가 한다.
+  S6  모든 보행자에게 보행자 분포(pedDist: P1·P2를 impatience 구간으로 넓힌 것)를 준다. 보행자는 경로 파일대로 SUMO가
+      넣고 지운다. PedSUMO 방식 건너기 판정(PedDefianceManager)은 run(ped_defiance=True)로 켤 때만 쓴다.
   S4  (선택) 정차 차량. 택시·버스·일반 차량, 위치·시각·정차 시간·확률을 StoppedSpec으로 받는다.
 
 버스는 이 모듈이 만들지 않는다. 버스 제어 쪽이 `bus_hook(traci, t)`로 버스를 넣고 몰면 된다.
 """
-import json
 import os
 import random
 import xml.etree.ElementTree as ET
@@ -28,33 +27,20 @@ from env.road_config import ROAD, EGO, TRAFFIC, configure_map
 from .alleys import close_loop, find_merge_alleys, flow_merges, read_net
 from .cutin import STOPPED_KINDS, StoppedSpec, alley_driver_bins, cutin_vtype_xml, stopped_vehicle_xml
 from .ped_defiance import PedDefianceManager
-from .pedestrian import ped_vtypes_xml
+from .pedestrian import PED_DIST, ped_dist_xml
 from .runner import run as run_loop
 from .sumo_conn import traci, sumo_cmd
 from .bus_traffic import BusTrafficCfg, build_bus_traffic
 from .interior_spawner import InteriorSpawner
-from .person_spawner import PersonSpawner, extract_persons
 from .lane_route import LaneRouteAdapter
-from .presence import VehicleArrivalGuard
 from .right_turn import apply_right_on_red
 from .signal_areas import clip_zones, unsignalized_alleys, unsignalized_crossings
 from .stop_bypass import StopBypassManager
 from .yield_logic import YieldManager, Trigger, Zone
 
 MAP_ID = "hapjeong"
-S6_EDGES = ("-R112", "R112.112")       # 와우산로. 이 둘을 모두 걷는 보행자가 S6 횡단보도를 건넌다(R112가 R112.112 등으로 나뉘기 전 이름 R112로는 s6ped가 빠졌다)
 BUS_VTYPE = ('<vType id="bus_test" vClass="bus" length="12" width="2.5" accel="1.2" decel="4.0" '
              'tau="1.0" sigma="0" guiShape="bus" color="255,0,0"/>')   # 버스는 빨간색
-
-
-class _TimeAdapter:
-    """실행 루프의 t는 0부터 세지만 보행자 출발 시각은 SUMO 시각이다. SUMO 시각으로 바꿔 넘긴다."""
-
-    def __init__(self, inner):
-        self.inner = inner
-
-    def update(self, t):
-        self.inner.update(traci.simulation.getTime())
 
 
 def _fragment(xml_text):
@@ -102,19 +88,18 @@ class HapjeongTraffic:
 
     cutin: True면 신호 없는 합류 골목 흐름을 골목 운전자 분포(cutin)로 바꾼다. cutin_bins를 안 주면
            cutin.alley_driver_bins()(앞차 무시 없음, impatience·jmTimegapMinor 구간)를 쓴다.
-    ped_mix: S6 보행자 P1 비율(0~1). None이면 보행자를 그대로 둔다.
+    ped_types: True면 모든 보행자가 보행자 분포(pedDist)를 쓴다. ped_v_low는 P1 구간이 무시하는 차의 최고 속도[m/s].
     stopped: [StoppedSpec] S4 정차 차량 목록(택시·버스·일반 차량). None이면 없다.
     taxi_depart: 예전 방식. 숫자면 그 시각(초)에 R69 안쪽 차로 정류장 앞에 택시 한 대가 선다(StoppedSpec 하나와 같다).
     merge_route: S5에서 '합류'의 기준이 되는 버스 경로(도로 id 목록). None이면 지도의 bus_loop.
     """
 
     def __init__(self, out_dir, scenario="baseline", seed=0, *, cutin=True,
-                 cutin_bins=None, ped_mix=0.5, ped_v_low=1.5, taxi_depart=None, stopped=None, merge_route=None,
+                 cutin_bins=None, ped_types=True, ped_v_low=1.5, taxi_depart=None, stopped=None, merge_route=None,
                  bus_traffic=None, right_on_red=True, right_on_red_exclude=("J1", "J82", "J83", "J42"),
-                 interior_share=0.3, interior_min_dist=200.0):
-        # interior_share: 입구 배경 차량 흐름 중 이 비율을 노선 위 임의의 지점에서 출발시킨다(0이면 끈다). 시험용 버스에서
-        # interior_min_dist m 안에서는 투입하지 않아 눈앞에 갑자기 생기지 않는다.
-        self.interior_share, self.interior_min_dist = interior_share, interior_min_dist
+                 interior_share=0.3):
+        # interior_share: 입구 배경 차량 흐름 중 이 비율을 노선 위 임의의 지점에서 출발시킨다(0이면 끈다).
+        self.interior_share = interior_share
         # right_on_red: True면 신호 교차로의 우회전이 신호와 무관하게 간다. 단 우회전 차가 지나는 횡단보도의 보행자 신호가
         # 적색이고 겹치는 직진·좌회전이 녹색이 아닌 위상에서만 열린다(신호 프로그램만 바꾼다). exclude는 합정역 사거리(J1)와
         # 상수역 사거리(J82). J82는 우회전을 연 뒤 교차로가 막히는 문제가 생겨 원래 신호 프로그램으로 되돌렸다(사용자 결정).
@@ -125,7 +110,7 @@ class HapjeongTraffic:
         self.out_dir = os.path.abspath(out_dir)
         self.scenario, self.seed = scenario, seed
         self.cutin, self.cutin_bins = cutin, cutin_bins
-        self.ped_mix, self.ped_v_low, self.taxi_depart = ped_mix, ped_v_low, taxi_depart
+        self.ped_types, self.ped_v_low, self.taxi_depart = ped_types, ped_v_low, taxi_depart
         self.stopped = list(stopped or [])
         if taxi_depart is not None:
             self.stopped.append(StoppedSpec("taxi", "R69", 1, 30.0, float(taxi_depart), 30.0, 1.0, "taxi0"))
@@ -138,7 +123,7 @@ class HapjeongTraffic:
         configure_map(self.scenario, self.seed, None, MAP_ID)
         cfg = road_builder.build(ROAD, EGO, TRAFFIC, self.out_dir)
         rng = random.Random(self.seed)
-        self.summary = {"cutin_flows": 0, "cutin_alleys": [], "s6_persons": 0, "stopped": []}
+        self.summary = {"cutin_flows": 0, "cutin_alleys": [], "typed_persons": 0, "stopped": []}
 
         overlay_routes = [BUS_VTYPE]              # 다른 경로 파일보다 먼저 읽혀야 한다
         overlay_add = []
@@ -147,14 +132,9 @@ class HapjeongTraffic:
             bins = self.cutin_bins or alley_driver_bins()
             overlay_routes.append(cutin_vtype_xml("cutin", bins=bins, v_ign=15.0, base_attrs=_krauss_attrs()))
             self.summary["cutin_flows"] = self._retype_alley_flows()
-        if self.ped_mix is not None:
-            overlay_routes.append(ped_vtypes_xml(self.ped_v_low, 0.75))
-            self.summary["s6_persons"] = self._retype_s6_persons(rng)
-        # 보행자는 경로 파일에서 떼어 PersonSpawner가 시험용 버스 반경 밖에서만 넣는다(버스 옆에서 갑자기 생기지 않게)
-        persons = extract_persons(os.path.join(self.out_dir, "pedestrians.rou.xml"))
-        with open(os.path.join(self.out_dir, "persons.json"), "w", encoding="utf-8") as f:
-            json.dump(persons, f, ensure_ascii=False)
-        self.summary["persons"] = len(persons)
+        if self.ped_types:
+            overlay_routes.append(ped_dist_xml(self.ped_v_low))
+            self.summary["typed_persons"] = self._type_persons()
         self.interior_per_h = 0.0
         if self.interior_share > 0:
             self.interior_per_h = self._shift_entry_flows(self.interior_share)
@@ -256,15 +236,14 @@ class HapjeongTraffic:
         tree.write(path, encoding="utf-8", xml_declaration=True)
         return moved
 
-    def _retype_s6_persons(self, rng):
+    def _type_persons(self):
+        """보행자 경로 파일의 모든 보행자에게 보행자 분포를 준다. 반환: 그 수."""
         path = os.path.join(self.out_dir, "pedestrians.rou.xml")
         tree = ET.parse(path)
         n = 0
         for person in tree.getroot().iter("person"):
-            edges = {e for walk in person.iter("walk") for e in (walk.get("edges") or "").split()}
-            if all(e in edges for e in S6_EDGES):
-                person.set("type", "ped_p1" if rng.random() < self.ped_mix else "ped_p2")
-                n += 1
+            person.set("type", PED_DIST)
+            n += 1
         tree.write(path, encoding="utf-8", xml_declaration=True)
         return n
 
@@ -282,32 +261,20 @@ class HapjeongTraffic:
         if self.right_on_red:      # 신호와 무관한 우회전(횡단보도에 사람이 없을 때). 합정역 사거리(J1)는 제외
             net = read_net(os.path.join(self.out_dir, "network.net.xml"))
             self.summary["right_on_red"] = apply_right_on_red(traci, net, exclude=self.right_on_red_exclude)
-        self.interior = self._make_interior("bus0")
-        self.persons = self._make_person_spawner("bus0")
+        self.interior = self._make_interior()
         for k in range(int(round(warmup / 0.1))):
-            if self.persons is not None:
-                self.persons.update(traci.simulation.getTime())
             if self.interior is not None:
                 self.interior.update(k * 0.1)      # 예열 중에도 노선 위에서 출발시켜 시작 때부터 밀도를 맞춘다
             traci.simulationStep()
         return traci
 
-    def _make_person_spawner(self, bus_id):
-        path = os.path.join(self.out_dir, "persons.json")
-        if not os.path.exists(path):
-            return None
-        with open(path, encoding="utf-8") as f:
-            persons = json.load(f)
-        net = read_net(os.path.join(self.out_dir, "network.net.xml"))
-        return PersonSpawner(traci, net, bus_id, persons)
-
-    def _make_interior(self, bus_id):
+    def _make_interior(self):
         if self.interior_share <= 0 or self.interior_per_h <= 0:
             return None
         m = load_map(MAP_ID)
         net = read_net(os.path.join(self.out_dir, "network.net.xml"))
-        return InteriorSpawner(traci, net, bus_id, m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}),
-                               self.interior_per_h, rng=random.Random(self.seed + 6), min_dist=self.interior_min_dist)
+        return InteriorSpawner(traci, net, m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}),
+                               self.interior_per_h, rng=random.Random(self.seed + 6))
 
     def scenario_triggers(self, approach=120.0, loop=None, plans=None):
         """A1 진입 의사 구간: S2(좌회전 직전, 좌측), S3(정류장 접근, 우측), S4(정차 차량 앞, 양쪽).
@@ -365,12 +332,13 @@ class HapjeongTraffic:
         return out
 
     def run(self, t_end, bus_id="bus0", bus_hook=None, metrics=None, on_step=None,
-            assign_existing=True, ped_defiance=True, stop_bypass=True, triggers=None,
+            assign_existing=True, ped_defiance=False, stop_bypass=True, triggers=None,
             ped_cfg=None, pilot=None, **mgr_kwargs):
         """warmup 뒤 t_end초 동안 공통 실행 루프(runner.run)로 돌린다. 반환: (YieldManager, 마지막 시각).
 
         triggers: A1 진입 의사 구간. None이면 방향지시등만 본다. "scenario"면 scenario_triggers()를 쓴다.
         stop_bypass: S1(정차 버스 뒤 차량) 관찰을 켠다.
+        ped_defiance: PedSUMO 방식 보행자 건너기 판정을 켠다(기본은 끔. 보행자 vType 분포가 건너기를 정한다).
         """
         if triggers == "scenario":
             triggers = self.scenario_triggers(plans=pilot.plans if pilot is not None else None)
@@ -388,20 +356,12 @@ class HapjeongTraffic:
         if metrics is not None and self.ped is not None and getattr(metrics, "ped_mgr", None) is None:
             metrics.ped_mgr = self.ped        # 보행자가 무시하고 건널 때의 급감속·비상 감속을 센다
         self.stop = StopBypassManager(traci, bus_id) if stop_bypass else None
-        extras = []
-        if getattr(self, "persons", None) is not None:
-            self.persons.bus = bus_id
-            extras.insert(0, _TimeAdapter(self.persons))
         # 지금 있는 차로에서 갈 수 있는 쪽으로 진로를 바꾼다(좌회전 전용 차로에 들어온 우회전 차는 좌회전한다)
         self.lane_route = LaneRouteAdapter(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
-        extras.append(self.lane_route)
-        # 지도 안쪽에서 끝나는 경로의 차가 시험용 버스 가까이에서 사라지지 않게 목적지를 지도 경계로 늘린다
-        self.arrival_guard = VehicleArrivalGuard(traci, read_net(os.path.join(self.out_dir, "network.net.xml")), bus_id)
-        extras.append(self.arrival_guard)
+        extras = [self.lane_route]
         if self.interior is None:
-            self.interior = self._make_interior(bus_id)
+            self.interior = self._make_interior()
         if self.interior is not None:
-            self.interior.bus = bus_id
             extras.append(self.interior)
         t = run_loop(traci, t_end, bus_id, bus_hook=bus_hook, yield_mgr=mgr, metrics=metrics,
                      on_step=on_step, ped_mgr=self.ped, stop_mgr=self.stop, extras=extras)

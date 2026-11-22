@@ -3,6 +3,8 @@
 - 목표 밀도는 도로 이름별 "대/100 m/차로"다(`DEFAULT_LANE_DENSITY`). 목표 2이면 창(100 m) 안에 버스 차로에 2대, 옆 차로에 2대, 차로가 더 있으면 그 차로에도
   2대씩이다. 승용차가 못 쓰는 차로(인도, 버스 전용)는 세지 않고, 창이 도로 경계를 걸치면 차로마다 창 안에서 그 차로가 있는 길이만큼만 센다.
   밀도가 없는 도로(와우산로·잔다리로)는 목표도 투입도 없다. 창 안 대수는 자연 차량을 포함해 모든 차를 센다.
+- 부족분은 창 안 대수에서 **창 바로 뒤에서 오고 있는 키퍼 차(버스 뒤 `radius + margin + 70 m` 안)**를 뺀 값이다. 버스가 신호·정류장에 서 있으면 뒤에서 만든 차가 창에
+  들어오지 못하고 줄을 서는데, 창 안만 세면 같은 부족분이 남아 계속 만들어 차가 쌓인다. 키퍼가 만든 차가 이미 오고 있으면 더 만들지 않는다.
 - 모자라면 **버스 뒤 `radius + margin`~ +40 m에서 만든다**(구간 끝 `stop_zone_m` 앞, 빈 자리, 버스에서 직선 `radius + margin` 이상). 늘어나는 것은 허용하고,
   줄어드는 쪽으로는 지우지 않는다.
 - 지우기(순간이동)는 버스 시야(`radius + margin`) 밖에서만 한다.
@@ -28,7 +30,7 @@ class BusWindowKeeper:
 
     def __init__(self, traci, net, bus_id, loop_edges, lane_density=DEFAULT_LANE_DENSITY, *, radius=PRESENCE_RADIUS_M,
                  margin=SPAWN_MARGIN_M, rng=None, period=0.5, ahead_m=300.0, stop_zone_m=30.0, queue_max=6,
-                 max_per_h=3600.0, burst=6.0, avoid=frozenset(), protected=None, tries=6, spawn_span_m=40.0):
+                 max_per_h=3600.0, burst=6.0, avoid=frozenset(), protected=None, tries=6, spawn_span_m=40.0, pending_span_m=70.0):
         self.tc, self.net, self.bus = traci, net, bus_id
         self.rng = rng or random.Random(0)
         self.density = dict(lane_density)
@@ -36,6 +38,7 @@ class BusWindowKeeper:
         self.view = radius + margin                       # 버스 시야(+여유): 이 밖에서만 만들고 지운다
         self.ahead_m, self.stop_zone_m, self.queue_max, self.tries = ahead_m, stop_zone_m, queue_max, tries
         self.max_per_h, self.burst, self.spawn_span_m = max_per_h, burst, spawn_span_m
+        self.pending_span_m = pending_span_m                  # 창 뒤 시야 바깥 이만큼 안의 키퍼 차는 곧 창에 들어올 차로 센다
         self.avoid = frozenset(avoid)
         self.protected = protected or (lambda vid: False)
         self.loop = [e for e in loop_edges if net.hasEdge(e)]
@@ -149,7 +152,22 @@ class BusWindowKeeper:
                 if -R <= rel <= R:
                     k = tc.vehicle.getLaneIndex(vid)
                     count[k] = count.get(k, 0) + 1
-        return {k: int(round(a)) - count.get(k, 0) for k, a in avail.items() if a >= 0.5}
+        pending = self._pending(i, pos)
+        return {k: int(round(a)) - count.get(k, 0) - pending.get(k, 0) for k, a in avail.items() if a >= 0.5}
+
+    def _pending(self, i, pos):
+        """차로 번호 k -> 창 바로 뒤(창 가장자리 밖 `view + pending_span_m` 안)에서 오고 있는 키퍼 차 수."""
+        tc, R = self.tc, self.radius
+        out = {}
+        for edge, rel_start, L in self._layout(i, pos, self.view + self.pending_span_m, 0.0):
+            for vid in tc.edge.getLastStepVehicleIDs(edge):
+                if vid not in self.cars:
+                    continue
+                rel = rel_start + tc.vehicle.getLanePosition(vid)
+                if -(self.view + self.pending_span_m) <= rel < -R:
+                    k = tc.vehicle.getLaneIndex(vid)
+                    out[k] = out.get(k, 0) + 1
+        return out
 
     def _spawn_rear(self, i, pos, k):
         """차로 k에 버스 뒤 시야 바깥쪽에서 차를 한 대 만든다. 만들었으면 True."""

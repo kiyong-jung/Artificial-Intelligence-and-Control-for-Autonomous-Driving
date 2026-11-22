@@ -228,3 +228,26 @@ def test_local_route_turns_off_before_avoid_roads_and_ends_at_the_boundary():
 
 def test_default_density_covers_only_yanghwa_and_dongmak_roads():
     assert set(DEFAULT_LANE_DENSITY) == {"양화로", "독막로"} and all(v > 0 for v in DEFAULT_LANE_DENSITY.values())
+
+
+def test_keeper_does_not_keep_spawning_while_its_own_cars_are_still_on_their_way_into_the_window():
+    # 버스가 신호·정류장에 서 있으면 뒤에서 만든 차가 창에 들어오지 못하고 줄을 선다. 창 안 대수만 세면 같은 부족분이 계속 남아 주기마다 또 만들어
+    # 차가 쌓인다. 창 바로 뒤에서 오고 있는 키퍼 차도 부족분을 채우는 것으로 센다
+    tc = _Tc()
+    k = _keeper(tc)
+    for step in range(30):
+        k.update(step * 0.5)                                   # 만든 차는 그 자리에서 움직이지 않는다(창에 못 들어온다)
+    per_lane = {}
+    for a in tc.added:
+        per_lane[int(a["departLane"])] = per_lane.get(int(a["departLane"]), 0) + 1
+    assert per_lane == {1: 2, 2: 2, 3: 2}                      # 목표(차로마다 2대)를 넘겨 만들지 않는다
+    assert len(tc.added) == 6
+
+
+def test_keeper_does_not_remove_pending_cars_or_count_far_away_cars_as_pending():
+    tc = _Tc()
+    k = _keeper(tc)
+    tc.cars["win_far"] = {"road": "R54a", "pos": 5.0, "lane": 1}      # 버스 뒤 145 m: 곧 들어올 차가 아니다
+    k.cars.add("win_far")
+    k.update(0.0)
+    assert any(int(a["departLane"]) == 1 for a in tc.added)             # 1차로는 여전히 부족으로 보고 만든다

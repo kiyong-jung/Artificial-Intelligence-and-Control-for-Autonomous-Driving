@@ -1,11 +1,15 @@
 """S4. 정류장 앞에 차가 미리 서 있어 정류장으로 가는 시험용 버스의 길목을 막는다.
 
-- 후보 정류장은 시험용 버스가 서는 곳(`STOP_AT`)이다. `stop_ids`로 제한할 수 있다(기본 설정은 s2 성산중학교와 s6 합정역). 바퀴마다 1~2곳(`n_range`)을 뽑는다.
+- 후보 정류장은 시험용 버스가 서는 곳(`STOP_AT`)이다. `stop_ids`로 제한할 수 있다(기본 설정은 s4 극동방송·s5 서교동교회·s6 합정역이고 s2 성산중학교는 뺀다). 바퀴마다 1~2곳(`n_range`)을 뽑는다.
 - **차는 골목에서 나오지 않는다.** 버스가 정차 자리에 닿기 `lead_s`(40)초 안으로 다가오면, 버스 반경(+여유) 밖의 정차 자리 가까이에 차를 **미리 생성**해
   세워 둔다(`how="direct"`). 자리가 막혀 있거나 버스가 `direct_min_eta_s`초 안으로 가까워졌으면 그 바퀴는 건너뛴다(`none`).
 - 서는 자리(`stop_position`): 정류장 시작 10~25 m 앞 또는 정류장 끝 5~20 m 뒤. 신호 정지선 앞 금지 구간(signal_areas)과 도로 밖은 고르지 않는다.
-- **버스가 오면 일정 시간 기다렸다가 출발한다**: 차는 계속 서서 기다리다가, 버스가 정차 자리 `arrive_m`(20 m) 안으로 오면(또는 지나가면) 그 시각부터 `dwell`(15~30초)
+- **직접 배치**: 후보 정류장(s4·s5·s6) 모두 골목 없이 정차 자리에 직접 세운다.
+- **버스가 오면 일정 시간 기다렸다가 출발한다**: 차는 계속 서서 기다리다가, 버스가 정차 자리 `arrive_m`(20 m) 안으로 오면(또는 지나가면) 그 시각부터 `dwell`(기본 5초)
   뒤에 출발한다. 버스가 끝내 오지 않으면 `max_wait_s` 뒤에 출발하고, 바퀴가 끝나면 남은 차도 출발시킨다. 출발한 차는 지도 경계까지 가장 가까운 길로 나간다.
+- **뒤에 온 차는 강제로 추월시킨다**: 서 있는 동안 같은 차로 바로 뒤 `follower_m`(60 m) 안에 온 차(시험용 버스 제외)는 경로가 정해져 있어도(골목으로 꺾는 경로 등)
+  앞으로 가는 경로로 다시 정하고 옆 차로로 추월하게 한다. 뒤차들이 줄을 서서 버스가 정차 자리에 못 다가가 정차 차가 더 오래 기다리는 것을 막는다.
+  버스가 정차 자리 `arrive_far_m`(60 m) 안에서 `still_s`(2초) 넘게 서 있어도 도착으로 본다.
 - 소유권: 세워 두는 동안 그 차는 `S4A`에 속한다. 끝나면 놓는다.
 """
 import random
@@ -84,6 +88,7 @@ class _Block:
     confirmed: bool = False    # 그 차가 실제로 섰다(isStopped)
     t_done: float = None       # 생성 시각
     seen_ahead: bool = False   # 버스가 정차 자리 앞에 있는 것을 본 적이 있다
+    still_since: float = None  # 버스가 정차 자리 가까이에서 서기 시작한 시각
     t_arrive: float = None     # 버스가 정차 자리에 닿은(또는 지나간) 시각
     release_at: float = None   # 이 시각이 지나면 출발시킨다
     released: bool = False
@@ -95,8 +100,9 @@ class StopAheadManager:
     OWNER = "S4A"
 
     def __init__(self, traci, bus_id, net, route, stops, lap_fn, rng=None, owner=None, n_range=(1, 3),
-                 dwell=(15.0, 30.0), lead_s=40.0, spawn_types=SPAWN_TYPES, direct_min_eta_s=8.0, free_behind_m=35.0,
-                 free_ahead_m=15.0, stop_ids=None, arrive_m=20.0, max_wait_s=150.0):
+                 dwell=(5.0, 5.0), lead_s=40.0, spawn_types=SPAWN_TYPES, direct_min_eta_s=8.0, free_behind_m=35.0,
+                 free_ahead_m=15.0, stop_ids=None, arrive_m=20.0, max_wait_s=150.0, follower_m=60.0, pass_ttl_s=25.0,
+                 arrive_far_m=60.0, still_s=2.0, ahead_m=300.0):
         """stops: [{"id", "edge", "lane"(차로 번호), "startPos", "endPos"}]. route: 시험용 버스 한 바퀴 노선."""
         self.tc, self.bus, self.net, self.route = traci, bus_id, net, list(route)
         self.stops = {s["id"]: s for s in stops}
@@ -107,6 +113,8 @@ class StopAheadManager:
         self.dwell, self.lead_s, self.spawn_types = dwell, lead_s, tuple(spawn_types)
         self.direct_min_eta_s, self.free_behind_m, self.free_ahead_m = direct_min_eta_s, free_behind_m, free_ahead_m
         self.arrive_m, self.max_wait_s = arrive_m, max_wait_s
+        self.follower_m, self.pass_ttl_s, self.arrive_far_m, self.still_s, self.ahead_m = follower_m, pass_ttl_s, arrive_far_m, still_s, ahead_m
+        self.passing = {}                              # 강제로 추월시키는 차 id -> {"t0", "edge", "pos", "last"}
         self.candidates = [sid for sid in STOP_AT
                            if sid in self.stops and self.stops[sid]["edge"] in self.route and (stop_ids is None or sid in stop_ids)]
         self.plan = {}
@@ -223,6 +231,8 @@ class StopAheadManager:
             if b.done:
                 if not in_junction:                              # 교차로 안에서는 버스 위치를 알 수 없다
                     self._wait_for_bus(b, d, t, b.vid in ids)
+                if b.confirmed and not b.released and b.vid in ids:
+                    self._clear_followers(b, t, ids)
                 continue
             if d is None or d < 0:
                 continue
@@ -240,13 +250,82 @@ class StopAheadManager:
             return
         if d is not None and d > 0:
             b.seen_ahead = True
-        if b.t_arrive is None and ((d is not None and d <= self.arrive_m) or (d is None and b.seen_ahead)):
+        # 뒤에 줄 선 차들 때문에 버스가 정차 자리 arrive_m 안으로 못 들어와도, 가까이(arrive_far_m)에서 still_s 넘게 서 있으면 도착으로 본다
+        if d is not None and 0 < d <= self.arrive_far_m and self.tc.vehicle.getSpeed(self.bus) < 0.5:
+            b.still_since = t if b.still_since is None else b.still_since
+        else:
+            b.still_since = None
+        waiting = b.still_since is not None and t - b.still_since >= self.still_s
+        if b.t_arrive is None and ((d is not None and d <= self.arrive_m) or waiting or (d is None and b.seen_ahead)):
             b.t_arrive = t
             b.release_at = t + round(self.rng.uniform(*self.dwell), 1)
         if b.release_at is None and b.t_done is not None and t - b.t_done > self.max_wait_s:
             b.release_at = t                                     # 버스가 끝내 오지 않았다
         if b.release_at is not None and t >= b.release_at:
             self._release(b)
+
+    # ---- 뒤에 온 차 강제 추월 --------------------------------------------------------------
+    def _forward_path(self, edge):
+        """edge에서 시작해 버스 노선을 따라 약 `ahead_m` 앞까지 가고 지도 경계로 나가는 경로(골목으로 꺾지 않는다). 노선 밖이면 None."""
+        if edge not in self.route:
+            return None
+        out, total = [edge], self.net.getEdge(edge).getLength()
+        for e in self.route[self.route.index(edge) + 1:]:
+            if total >= self.ahead_m:
+                break
+            out.append(e)
+            total += self.net.getEdge(e).getLength()
+        tail = nearest_boundary_exit(self.net, out[-1])
+        return out[:-1] + tail if tail else out
+
+    def _pass_lane(self, edge, lane, pos):
+        """추월할 옆 차로 번호(왼쪽 우선). 승용차가 못 쓰거나 그 자리에 차가 있으면 None."""
+        ed = self.net.getEdge(edge)
+        for k in (lane + 1, lane - 1):
+            if not (0 <= k < ed.getLaneNumber() and ed.getLane(k).allows("passenger")):
+                continue
+            if all(abs(self.tc.vehicle.getLanePosition(v) - pos) > 12.0 for v in self.tc.lane.getLastStepVehicleIDs(f"{edge}_{k}")):
+                return k
+        return None
+
+    def _clear_followers(self, b, t, ids):
+        """서 있는 S4 차(b) 뒤 같은 차로에 온 차를 경로를 고쳐 강제로 추월시키고, 지나갔거나 시간이 지나면 놓는다."""
+        tc = self.tc
+        lane_id = f"{b.edge}_{b.stop['lane']}"
+        for vid in tc.lane.getLastStepVehicleIDs(lane_id):
+            if vid == self.bus or vid == b.vid or vid in self.passing or vid not in ids:
+                continue
+            pos = tc.vehicle.getLanePosition(vid)
+            if not (b.pos - self.follower_m <= pos < b.pos) or not self.owner.claim(vid, self.OWNER):
+                continue
+            path = self._forward_path(b.edge)
+            try:
+                if path:
+                    tc.vehicle.setRoute(vid, path)
+            except Exception:
+                pass
+            self.passing[vid] = {"t0": t, "edge": b.edge, "pos": b.pos, "last": -1e9, "lane": b.stop["lane"]}
+        for vid, rec in list(self.passing.items()):
+            if rec["edge"] != b.edge or vid not in ids:
+                continue
+            road = tc.vehicle.getRoadID(vid)
+            done = road != b.edge or tc.vehicle.getLanePosition(vid) > rec["pos"] + 5.0 or t - rec["t0"] > self.pass_ttl_s or b.released
+            if done:
+                self._stop_passing(vid)
+                continue
+            if t - rec["last"] >= 1.0 and tc.vehicle.getLaneIndex(vid) == rec["lane"]:
+                k = self._pass_lane(b.edge, rec["lane"], tc.vehicle.getLanePosition(vid))
+                if k is not None:
+                    tc.vehicle.changeLane(vid, k, 5.0)
+                rec["last"] = t
+
+    def _stop_passing(self, vid):
+        self.passing.pop(vid, None)
+        self.owner.release(vid, self.OWNER)
+        try:
+            self.tc.vehicle.changeLane(vid, self.tc.vehicle.getLaneIndex(vid), 0.0)
+        except Exception:
+            pass
 
     def summary(self):
         """끝난 바퀴와 진행 중인 바퀴를 합쳐 센다. blocks_per_lap은 바퀴마다 정류장 앞에 미리 세운 차 수다."""

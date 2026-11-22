@@ -60,6 +60,9 @@ class _V:
     def changeLane(self, *a):
         pass
 
+    def getFollower(self, v, dist=0.0):
+        return self.tc.rear if self.tc.rear else ("", -1.0)
+
     def openGap(self, *a):
         self.tc.opengap += 1
 
@@ -82,6 +85,7 @@ class _FakeTC:
         self.params = {"driver.type": "yielder" if action == "yield" else "nonyielder", "driver.action": action,
                        "driver.delay": "0.5", "driver.newTau": "2.0"}
         self.set_speed, self.opengap, self.accel = {}, 0, 0
+        self.rear = None               # 양보형 바로 뒤차 (id, 간격)
         self.lane_len = 103.0          # 버스가 정지선 3 m 앞: 서 있어도 진입 의사로 본다(_waiting_at_line)
         self.gap = 2.0                 # 목표 차로 후행차와 버스 사이 간격(getLeftFollowers)
         self.vehicle, self.lane = _V(self), _Lane(self)
@@ -162,3 +166,26 @@ def test_nonyielders_always_block():
         YM(tc, "bus0", rng=random.Random(seed)).on_departed(["f"])
         assert tc.params["driver.action"] == "block"
     assert not hasattr(DEFAULT_TYPES["nonyielder"], "p_close_gap")
+
+
+def test_yielder_boxed_in_by_a_car_behind_ignores_the_yield_and_overtakes_the_waiting_bus():
+    # 버스가 좌회전 차로 진입을 기다리며 서 있다. 양보하려는 차 바로 뒤에 차가 붙어 있으면 길을 터 줄 수 없어 둘 다 선다.
+    # 일정 시간 지나면 양보를 접고 버스를 지나간다(막기와 같은 속도)
+    tc = _FakeTC(0.0, "yield")
+    tc.rear = ("r", 6.0)
+    mgr = YieldManager(tc, "bus0")
+    _step(mgr, tc, 0.0, 1.0)
+    assert tc.set_speed["f"] == pytest.approx(0.0)                       # 처음에는 양보(버스보다 느리게)
+    _step(mgr, tc, 1.0, 3.0)
+    assert tc.set_speed["f"] == pytest.approx(BLOCK_MIN_SPEED) and mgr.inter["f"].overtook
+
+
+def test_yielder_without_a_car_behind_or_with_a_moving_bus_keeps_yielding():
+    tc = _FakeTC(0.0, "yield")                                           # 뒤차 없음
+    _step(YieldManager(tc, "bus0"), tc, 0.0, 4.0)
+    assert tc.set_speed["f"] == pytest.approx(0.0)
+    tc = _FakeTC(8.0, "yield")                                           # 버스가 달린다
+    tc.rear = ("r", 6.0)
+    mgr = YieldManager(tc, "bus0")
+    _step(mgr, tc, 0.0, 4.0)
+    assert tc.set_speed["f"] == pytest.approx(8.0 - YIELD_DV) and not mgr.inter["f"].overtook

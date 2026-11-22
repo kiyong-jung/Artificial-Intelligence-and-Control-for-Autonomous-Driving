@@ -51,10 +51,19 @@ class _V:
         return (1e5, 1e5) if v == "bus0" else (0.0, 0.0)
 
     def getSpeed(self, v):
-        return 8.0
+        return self.tc.bus_speed if v == "bus0" else 8.0
 
     def getRoadID(self, v):
-        return self.tc.bus_road
+        return self.tc.car_road.get(v, self.tc.bus_road)
+
+    def getLaneIndex(self, v):
+        return self.tc.car_lane.get(v, 1)
+
+    def setRoute(self, v, edges):
+        self.tc.routes_set.append((v, list(edges)))
+
+    def changeLane(self, v, lane, dur):
+        self.tc.lane_req.append((v, lane, dur))
 
     def getRoute(self, v):
         return _route()
@@ -113,6 +122,8 @@ class _TC:
         self.bus_road, self.bus_pos = bus_road, bus_pos
         self.cars, self.visible, self.added, self.routes, self.stops_set = [], set(), [], {}, []
         self.stopped, self.resumed, self.lane_cars, self.car_pos = set(), [], {}, {}
+        self.car_road, self.car_lane, self.bus_speed = {}, {}, 8.0
+        self.routes_set, self.lane_req = [], []
         self.vehicle, self.route, self.lane = _V(self), _R(self), _L(self)
 
 
@@ -247,3 +258,102 @@ def test_car_is_released_if_the_bus_never_comes_and_at_lap_end():
     m2.lap_fn = lambda: 2                                                               # 바퀴가 끝났다
     m2.update(5.0)
     assert vid2 in tc2.resumed
+
+
+def test_default_hapjeong_candidates_exclude_s2_and_each_remaining_stop_has_a_spot():
+    from traffic.hapjeong import STOP_AHEAD_STOPS
+    assert STOP_AHEAD_STOPS == (S4, S5, S6) and S2 not in STOP_AHEAD_STOPS
+    m = _mgr(_TC(), stop_ids=STOP_AHEAD_STOPS)
+    assert set(m.candidates) == {S4, S5, S6}
+    for sid in STOP_AHEAD_STOPS:
+        assert m._plan_block(sid) is not None
+
+
+def test_default_wait_after_the_bus_arrives_is_five_seconds_for_every_candidate_stop():
+    from traffic.hapjeong import STOP_AHEAD_STOPS
+    for sid in STOP_AHEAD_STOPS:
+        tc, m, b = _planned(sid, eta_s=25.0, stop_ids=STOP_AHEAD_STOPS)
+        m.update(0.0)
+        assert tc.added and b.how == "direct", sid                                      # 세 정류장 모두 정차 자리에 직접 배치
+        vid = tc.added[0]["id"]
+        tc.visible.add(vid)
+        m.update(0.1)
+        tc.stopped.add(vid)
+        m.update(0.2)
+        _bus_at(tc, b, 15.0)                                                            # 버스가 정차 자리 20 m 안으로 왔다
+        m.update(10.0)
+        assert b.t_arrive == 10.0 and b.release_at == 15.0, sid                         # 5초 뒤 출발
+        m.update(14.9)
+        assert tc.resumed == []
+        m.update(15.0)
+        assert tc.resumed == [vid]
+
+
+def _followers(tc, b, specs):
+    """specs: {id: 정차 자리 기준 뒤쪽 거리(m)}. S4 차와 같은 차로에 그 차들이 서 있다."""
+    lane_id = f"{b.edge}_{b.stop['lane']}"
+    tc.lane_cars[lane_id] = ["bus0"] + list(specs)
+    for vid, back in specs.items():
+        tc.cars.append(vid)
+        tc.visible.add(vid)
+        tc.car_road[vid], tc.car_lane[vid], tc.car_pos[vid] = b.edge, b.stop["lane"], b.pos - back
+
+
+def test_followers_behind_the_waiting_car_are_rerouted_forward_and_sent_to_overtake():
+    tc, m, b, vid = _spawned(S2)
+    _followers(tc, b, {"f1": 20.0, "f2": 45.0, "far": 75.0})
+    m.update(1.0)
+    routed = dict(tc.routes_set)
+    assert set(routed) == {"f1", "f2"}                                                  # 60 m 밖 차와 시험용 버스는 건드리지 않는다
+    for r in routed.values():
+        assert r[0] == b.edge and not any(e.startswith("G") for e in r)                 # 골목으로 꺾는 경로를 앞으로 가는 경로로 고친다
+        assert ends_at_boundary(_net(), r[-1])
+    assert {(v, lane) for v, lane, _ in tc.lane_req} == {("f1", b.stop["lane"] + 1), ("f2", b.stop["lane"] + 1)}   # 왼쪽 차로로 추월
+    assert set(m.passing) == {"f1", "f2"} and m.owner.owner("f1") == "S4A"
+
+
+def test_overtake_waits_for_a_free_adjacent_lane_and_skips_cars_owned_by_others():
+    tc, m, b, vid = _spawned(S2)
+    _followers(tc, b, {"f1": 20.0, "f2": 30.0})
+    left = f"{b.edge}_{b.stop['lane'] + 1}"
+    tc.lane_cars[left] = ["x"]
+    tc.car_pos["x"] = b.pos - 20.0                                                      # 왼쪽 차로 바로 옆에 차가 있다
+    m.owner.claim("f2", "A1")                                                           # f2는 다른 행동(A1)이 쓰고 있다
+    m.update(1.0)
+    assert dict(tc.routes_set).keys() == {"f1"} and tc.lane_req == []                   # 길은 고치지만 자리가 날 때까지 요청하지 않는다
+    tc.lane_cars[left] = []
+    m.update(2.5)
+    assert tc.lane_req and tc.lane_req[0][:2] == ("f1", b.stop["lane"] + 1)
+
+
+def test_a_follower_is_released_after_it_has_passed_the_waiting_car():
+    tc, m, b, vid = _spawned(S2)
+    _followers(tc, b, {"f1": 20.0})
+    m.update(1.0)
+    assert "f1" in m.passing
+    tc.car_pos["f1"] = b.pos + 10.0                                                     # 정차 차를 지나갔다
+    m.update(2.0)
+    assert "f1" not in m.passing and m.owner.owner("f1") is None
+
+
+def test_bus_stopped_close_behind_the_queue_counts_as_arrival_after_two_seconds():
+    tc, m, b, vid = _spawned(S2, dwell=(5.0, 5.0))
+    _bus_at(tc, b, 40.0)                                                                # 줄 선 차들 때문에 정차 자리 40 m 앞에서 못 간다
+    tc.bus_speed = 0.0
+    m.update(10.0)
+    assert b.t_arrive is None
+    m.update(12.0)
+    assert b.t_arrive == 12.0 and b.release_at == 17.0
+
+
+def test_bus_still_moving_or_far_away_does_not_count_as_arrival():
+    tc, m, b, vid = _spawned(S2)
+    _bus_at(tc, b, 40.0)                                                                # 40 m 앞이지만 달리고 있다
+    for i in range(50):
+        m.update(10.0 + i * 0.1)
+    assert b.t_arrive is None
+    tc.bus_speed = 0.0
+    _bus_at(tc, b, 120.0)                                                               # 120 m 앞에서 서 있다(60 m 밖)
+    for i in range(50):
+        m.update(20.0 + i * 0.1)
+    assert b.t_arrive is None

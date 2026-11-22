@@ -46,11 +46,12 @@ from .stop_bypass import StopBypassManager
 from .yield_logic import YieldManager, DEFAULT_TYPES, Trigger, Zone
 
 MAP_ID = "hapjeong"
-# S4(정류장 앞 정차) 후보 정류장: s2 성산중학교(독막로)와 s6 합정역(양화로). 와우산로의 s4·잔다리로의 s5는 투입하지 않으려고 뺐다
-STOP_AHEAD_STOPS = (STOP_AT[0], STOP_AT[3])
+# S4(정류장 앞 정차) 후보 정류장: s4 극동방송(와우산로), s5 서교동교회(잔다리로), s6 합정역(양화로). s2 성산중학교는 뺐다(사용자 결정: 정차 자리 바로 뒤에
+# 골목 G30으로 꺾는 차들이 줄을 서서 다른 차가 추월할 수 없었다)
+STOP_AHEAD_STOPS = (STOP_AT[1], STOP_AT[2], STOP_AT[3])
 S6_EDGES = ("-R112", "R112.112")       # 와우산로. 이 둘을 모두 걷는 보행자가 S6 횡단보도를 건넌다(R112가 R112.112 등으로 나뉘기 전 이름 R112로는 s6ped가 빠졌다)
-# S5 끼어들기 후보 골목 (교차로, 골목 도로, 합류하는 버스 도로). 둘 다 신호 없는 교차로다
-S5_ALLEYS = {("X_dongmak6", "G12", "R71.256"), ("X_jandari2", "G23", "-R96.119")}
+# S5 끼어들기 후보 골목 (교차로, 골목 도로, 합류하는 버스 도로). 신호 없는 교차로다. 잔다리로2길 한 곳만 남겼다(사용자 결정: 독막로6길 G12 -> R71.256은 뺐다)
+S5_ALLEYS = {("X_jandari2", "G23", "-R96.119")}
 BUS_VTYPE = ('<vType id="bus_test" vClass="bus" length="12" width="2.5" accel="1.2" decel="4.0" '
              'tau="1.0" sigma="0" guiShape="bus" color="255,0,0"/>')   # 버스는 빨간색
 
@@ -243,7 +244,7 @@ class HapjeongTraffic:
                 if flow_merges(net, flow.attrib, [a]):
                     per_alley[a.junction] += 1                  # 합류하는 배경 흐름 수(기록만)
         self.alleys = alleys                       # S4(정류장 근처 정차)가 쓰는 신호 없는 합류 골목 전부
-        # S5 끼어들기 후보는 두 곳뿐이다(사용자 결정): 독막로6길 G12 -> R71.256, 잔다리로2길 G23 -> -R96.119. 그 밖의 골목은
+        # S5 끼어들기 후보는 한 곳뿐이다(사용자 결정): 잔다리로2길 G23 -> -R96.119. 그 밖의 골목은
         # 끼어들기가 다른 차로·교차로의 차에 영향을 줘 사고·정체가 났다. 신호 교차로 제외(alleys가 이미 걸렀다)는 그대로다
         self.s5_alleys = [a for a in alleys if (a.junction, a.feeder, a.into) in S5_ALLEYS and not a.signalized]
         self.summary["cutin_alleys"] = [

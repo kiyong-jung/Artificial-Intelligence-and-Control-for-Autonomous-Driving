@@ -419,3 +419,13 @@ def test_no_back_point_is_retried_not_given_up():
     inj = _inj(tc, alleys=[])
     inj.update(0.0)
     assert ("S3", "R71.206") not in inj._lap["lane_done"]
+
+
+def test_near_bus_keeps_being_retried_until_the_window_ends():
+    # S2·S3는 항상 일어나야 한다: 창 뒤 절반에서도 키퍼가 못 넣었다고 포기하지 않는다
+    tc = _TC2(bus_road="R77", bus_pos=25.0)
+    inj = _inj(tc, alleys=[])
+    inj.update(0.0)
+    tc.f.bus_pos = 62.0
+    inj._lanes(0.1, inj._state())
+    assert ("S2", "R111b") not in inj._lap["lane_done"]

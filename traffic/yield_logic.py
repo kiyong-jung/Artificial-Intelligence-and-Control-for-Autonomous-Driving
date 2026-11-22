@@ -22,6 +22,9 @@ YIELD_DV = 2.0          # 양보형: 버스보다 이만큼 느리게 [m/s]
 BLOCK_DV = 2.0          # 비양보형: 버스보다 이만큼 빠르게 [m/s]
 BLOCK_MIN_SPEED = 4.0   # 비양보형 목표 속도의 바닥(버스가 서 있어도 지나가게) [m/s]
 BLOCK_MAX_S = 20.0      # 비양보형이 막는 최대 시간 [s]
+BOXED_BUS_SPEED = 0.5   # 버스가 이 속도 미만이면 좌회전·정류장 진입을 기다리며 서 있는 것으로 본다 [m/s]
+BOXED_WAIT_S = 1.5      # 양보하려는 차가 뒤차에 막힌 채 이만큼 기다리면 양보를 접고 추월한다 [s]
+BOXED_GAP_M = 12.0      # 양보형 바로 뒤 이 거리 안에 차가 있으면 뒤차에 막힌 것이다(길을 터 주려 서도 못 선다) [m]
 PASS_MARGIN = 5.0       # 비양보형 뒤끝이 버스 앞끝보다 이만큼 앞서면 지나간 것으로 본다 [m]
 # A1은 목표 차로 후행차가 버스에 이만큼 다가왔을 때 시작한다(TraCI getLeft/RightFollowers 간격) [m].
 # 50 m 안이면 바로 켜던 때는 비양보형이 먼 뒤에서 억지로 따라와 버스를 추월해 부자연스러웠다. 후행차는 50 m 밖에서 들어와
@@ -91,6 +94,8 @@ class _Interaction:
     max_decel: float = 0.0    # 관측된 최대 감속 [m/s²] (양수)
     prev_speed: float = None
     lane0: int = None         # 상호작용 시작 때 차로
+    boxed_since: float = None  # 서 있는 버스 앞에서 뒤차에 막힌 채 양보하려 한 시작 시각
+    overtook: bool = False    # 뒤차에 막혀 양보를 접고 추월으로 바꿨는가
     side: int = 0
 
     @property
@@ -247,6 +252,8 @@ class YieldManager:
             v_bus = tc.vehicle.getSpeed(self.bus)
             if it.t_open is None:
                 it.t_open, it.v0 = t, tc.vehicle.getSpeed(vid)
+            if it.action == "yield" and self._boxed_in(vid, it, t, v_bus):
+                it.action, it.overtook = "block", True        # 양보를 접고 버스를 먼저 지나간다(아래 막기와 같은 속도 지정)
             if it.action == "yield":
                 tc.vehicle.setSpeed(vid, max(0.0, v_bus - YIELD_DV))
             elif t - it.t_open > BLOCK_MAX_S:
@@ -255,6 +262,22 @@ class YieldManager:
             else:
                 # 막는 차는 감속하지 않는다: 버스가 막 출발해 느릴 때 '버스 + 2'로 맞추면 오던 속도보다 느려져 간격이 열렸다
                 tc.vehicle.setSpeed(vid, max(v_bus + BLOCK_DV, BLOCK_MIN_SPEED, it.v0))
+
+    def _boxed_in(self, vid, it, t, v_bus):
+        """버스가 진입을 기다리며 서 있는데 양보하려는 차가 바로 뒤차 때문에 길을 터 줄 수 없는 상태가 `BOXED_WAIT_S` 넘게 이어졌는가.
+        양보하고 싶어도 뒤에 차가 붙어 있으면 둘 다 서서 교착되므로 양보를 무시하고 추월하게 한다."""
+        if v_bus >= BOXED_BUS_SPEED:
+            it.boxed_since = None
+            return False
+        try:
+            rear, _gap = self.traci.vehicle.getFollower(vid, BOXED_GAP_M)
+        except Exception:
+            rear = ""
+        if not rear:
+            it.boxed_since = None
+            return False
+        it.boxed_since = t if it.boxed_since is None else it.boxed_since
+        return t - it.boxed_since >= BOXED_WAIT_S
 
     def _passed(self, vid):
         tc = self.traci

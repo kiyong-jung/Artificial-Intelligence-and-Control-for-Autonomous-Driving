@@ -333,8 +333,8 @@ class ScenarioInjector:
             if vid:
                 self._track(plan, vid, t)
                 self._record(plan.kind, t, "injected", vid)
-            elif why == "near_bus" and d_end > plan.eff_length / 2.0:
-                continue                                 # 창 앞 절반 동안은 버스가 출발 지점에서 멀어지면 다시 본다(J82: 신호 뒤 창이 곧 시작)
+            elif why == "near_bus":
+                continue                                 # 버스가 출발 지점에서 멀어질 때까지 창이 끝나기 전까지 계속 다시 본다(S2·S3는 항상 일어나야 한다)
             else:
                 lap["lane_done"].add(key)
                 self._record(plan.kind, t, why)

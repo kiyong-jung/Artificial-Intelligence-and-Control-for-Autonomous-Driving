@@ -193,13 +193,7 @@
         }
       },
       "removed_connections": [],
-      "through_alleys": {
-        "dongmak6": [
-          "G30",
-          "G11",
-          "G12"
-        ]
-      },
+      "through_alleys": {},
       "j1_second_left_lane": {
         "added": [
           "R42",
@@ -654,13 +648,13 @@
       "id": "f_-R61.320_to_R128",
       "from": "-R61.320",
       "to": "R128",
-      "vehs_per_hour": 9.28
+      "vehs_per_hour": 14.377
     },
     {
       "id": "f_-R61.320_to_R129",
       "from": "-R61.320",
       "to": "R129",
-      "vehs_per_hour": 9.28
+      "vehs_per_hour": 14.377
     },
     {
       "id": "f_-R61.320_to_R130",
@@ -738,7 +732,7 @@
       "id": "f_R114_to_R115",
       "from": "R114",
       "to": "R115",
-      "vehs_per_hour": 2.141
+      "vehs_per_hour": 3.317
     },
     {
       "id": "f_R114_to_R124",
@@ -762,13 +756,13 @@
       "id": "f_R114_to_R128",
       "from": "R114",
       "to": "R128",
-      "vehs_per_hour": 4.283
+      "vehs_per_hour": 6.636
     },
     {
       "id": "f_R114_to_R129",
       "from": "R114",
       "to": "R129",
-      "vehs_per_hour": 4.283
+      "vehs_per_hour": 6.636
     },
     {
       "id": "f_R114_to_R130",
@@ -780,7 +774,7 @@
       "id": "f_R114_to_R48",
       "from": "R114",
       "to": "R48",
-      "vehs_per_hour": 2.141
+      "vehs_per_hour": 3.317
     },
     {
       "id": "f_R114_to_R61",
@@ -858,7 +852,7 @@
       "id": "f_R51_to_R115",
       "from": "R51",
       "to": "R115",
-      "vehs_per_hour": 4.283
+      "vehs_per_hour": 6.636
     },
     {
       "id": "f_R51_to_R124",
@@ -882,13 +876,13 @@
       "id": "f_R51_to_R128",
       "from": "R51",
       "to": "R128",
-      "vehs_per_hour": 8.566
+      "vehs_per_hour": 13.271
     },
     {
       "id": "f_R51_to_R129",
       "from": "R51",
       "to": "R129",
-      "vehs_per_hour": 8.566
+      "vehs_per_hour": 13.271
     },
     {
       "id": "f_R51_to_R130",
@@ -900,7 +894,7 @@
       "id": "f_R51_to_R48",
       "from": "R51",
       "to": "R48",
-      "vehs_per_hour": 4.283
+      "vehs_per_hour": 6.636
     },
     {
       "id": "f_R51_to_R61",
@@ -942,19 +936,19 @@
       "id": "f_G3_to_R128",
       "from": "G3",
       "to": "R128",
-      "vehs_per_hour": 3.426
+      "vehs_per_hour": 5.308
     },
     {
       "id": "f_G3_to_R129",
       "from": "G3",
       "to": "R129",
-      "vehs_per_hour": 3.426
+      "vehs_per_hour": 5.308
     },
     {
       "id": "f_G3_to_R130",
       "from": "G3",
       "to": "R130",
-      "vehs_per_hour": 3.426
+      "vehs_per_hour": 5.308
     },
     {
       "id": "f_G3_to_R48",
@@ -1182,13 +1176,13 @@
       "id": "f_G25_to_R128",
       "from": "G25",
       "to": "R128",
-      "vehs_per_hour": 3.426
+      "vehs_per_hour": 5.308
     },
     {
       "id": "f_G25_to_R129",
       "from": "G25",
       "to": "R129",
-      "vehs_per_hour": 3.426
+      "vehs_per_hour": 5.308
     },
     {
       "id": "f_G25_to_R130",
@@ -1333,111 +1327,6 @@
       "from": "G26",
       "to": "R92",
       "vehs_per_hour": 2.654
-    },
-    {
-      "id": "f_-R61.320_to_R128_via_dongmak6",
-      "from": "-R61.320",
-      "to": "R128",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 5.097
-    },
-    {
-      "id": "f_-R61.320_to_R129_via_dongmak6",
-      "from": "-R61.320",
-      "to": "R129",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 5.097
-    },
-    {
-      "id": "f_R114_to_R115_via_dongmak6",
-      "from": "R114",
-      "to": "R115",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 1.176
-    },
-    {
-      "id": "f_R114_to_R128_via_dongmak6",
-      "from": "R114",
-      "to": "R128",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 2.353
-    },
-    {
-      "id": "f_R114_to_R129_via_dongmak6",
-      "from": "R114",
-      "to": "R129",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 2.353
-    },
-    {
-      "id": "f_R114_to_R48_via_dongmak6",
-      "from": "R114",
-      "to": "R48",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 1.176
-    },
-    {
-      "id": "f_R51_to_R115_via_dongmak6",
-      "from": "R51",
-      "to": "R115",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 2.353
-    },
-    {
-      "id": "f_R51_to_R128_via_dongmak6",
-      "from": "R51",
-      "to": "R128",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 4.705
-    },
-    {
-      "id": "f_R51_to_R129_via_dongmak6",
-      "from": "R51",
-      "to": "R129",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 4.705
-    },
-    {
-      "id": "f_R51_to_R48_via_dongmak6",
-      "from": "R51",
-      "to": "R48",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 2.353
-    },
-    {
-      "id": "f_G3_to_R128_via_dongmak6",
-      "from": "G3",
-      "to": "R128",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 1.882
-    },
-    {
-      "id": "f_G3_to_R129_via_dongmak6",
-      "from": "G3",
-      "to": "R129",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 1.882
-    },
-    {
-      "id": "f_G3_to_R130_via_dongmak6",
-      "from": "G3",
-      "to": "R130",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 1.882
-    },
-    {
-      "id": "f_G25_to_R128_via_dongmak6",
-      "from": "G25",
-      "to": "R128",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 1.882
-    },
-    {
-      "id": "f_G25_to_R129_via_dongmak6",
-      "from": "G25",
-      "to": "R129",
-      "via": "G30 G11 G12",
-      "vehs_per_hour": 1.882
     }
   ],
   "flow_arrivals": "poisson",

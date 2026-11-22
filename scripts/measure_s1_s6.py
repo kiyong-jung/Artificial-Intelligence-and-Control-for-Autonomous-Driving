@@ -91,7 +91,7 @@ def rewrite_persons(path, k, seed):
 def main():
     out_dir = os.path.join(tempfile.gettempdir(), f"occ_{SCEN}_{SEED}{'_' + TAG if TAG else ''}")
     world = HapjeongTraffic(out_dir, scenario=SCEN, seed=SEED, bus_traffic=True,
-                            right_on_red="noror" not in TAG, interior_share=0.0 if "nointer" in TAG else 0.3)
+                            right_on_red="noror" not in TAG, interior_share=0.3 if "withinter" in TAG else 0.0)
     world.build()
     if PED_X > 1 or "noped" in TAG:                     # 꼬리표에 noped가 있으면 배경 보행자를 모두 뺀다(J82 정지 원인 가리기)
         rewrite_persons(os.path.join(out_dir, "pedestrians.rou.xml"), 0 if "noped" in TAG else PED_X, SEED)

@@ -76,7 +76,7 @@ def test_alley_drivers_never_ignore_foes_and_spread_impatience():
     assert {b[0] for b in bins} == {0.0}                               # 큰길 차를 무시하지 않는다(jmIgnoreFoeProb=0)
     imp = [b[2] for b in bins]
     gap = [b[1] for b in bins]
-    assert imp == sorted(imp) and imp[0] == 0.0 and imp[-1] == 1.0     # 참을성 있는 운전자부터 조급한 운전자까지
+    assert imp == sorted(imp) and imp[0] == 0.0 and imp[-1] == 0.5     # 참을성 있는 운전자부터 조급한 운전자까지(상한 0.5)
     assert gap == sorted(gap, reverse=True) and all(g > 0 for g in gap)
 
 
@@ -122,3 +122,16 @@ def test_s1_observer_reports_what_the_follower_did():
             assert ev is not None and ev["outcome"] in ("waited", "overtook")
             assert (ev["outcome"] == "overtook") == r["changed_lane"]
             assert ev["aggressiveness"] is not None
+
+
+def test_no_pedestrian_ignores_vehicles():
+    """보행자는 누구도 차를 무시하지 않는다. 무시하면 횡단보도에 멈춘 차를 그대로 지나가 충돌한다."""
+    from traffic.pedestrian import ped_dist_xml
+    xml = ped_dist_xml()
+    assert 'jmIgnoreFoeProb="1"' not in xml and xml.count('jmIgnoreFoeProb="0"') == 5
+
+
+def test_teleport_is_off():
+    """SUMO 순간이동을 끈다. 막힘은 감추지 않고 그대로 남는다."""
+    from traffic.sumo_conn import COMMON_ARGS
+    assert COMMON_ARGS[COMMON_ARGS.index("--time-to-teleport") + 1] == "-1"

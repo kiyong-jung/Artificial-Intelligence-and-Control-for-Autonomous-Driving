@@ -98,8 +98,10 @@ class HapjeongTraffic:
     def __init__(self, out_dir, scenario="baseline", seed=0, *, cutin=True,
                  cutin_bins=None, ped_types=True, ped_v_low=1.5, taxi_depart=None, stopped=None, merge_route=None,
                  bus_traffic=None, right_on_red=True, right_on_red_exclude=("J1", "J82", "J83", "J42"),
-                 interior_share=0.3):
+                 interior_share=0.0):
         # interior_share: 입구 배경 차량 흐름 중 이 비율을 노선 위 임의의 지점에서 출발시킨다(0이면 끈다).
+        # 기본은 끈다. 켜면 차가 도로 한가운데서 생겨 버스 50m 안 출현이 실행당 7.2대에서 15.6대로 는다
+        # (busy, seed 0~4, 3바퀴. research/av_bc_rl/decisions.tsv). 밀도는 입구 수요로 올린다.
         self.interior_share = interior_share
         # right_on_red: True면 신호 교차로의 우회전이 신호와 무관하게 간다. 단 우회전 차가 지나는 횡단보도의 보행자 신호가
         # 적색이고 겹치는 직진·좌회전이 녹색이 아닌 위상에서만 열린다(신호 프로그램만 바꾼다). exclude는 합정역 사거리(J1)와

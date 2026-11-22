@@ -173,6 +173,7 @@ class SumoHighwayEnv(gym.Env):
         self.warmup_jitter_steps = int(mdp_sim.get("warmup_jitter_steps", 0))
         self.state_radius = float(mdp_sim["state_radius"])
         self.ego_insert_timeout = float(mdp_sim["ego_insert_timeout"])
+        self.stuck_timeout = float(mdp_sim.get("stuck_timeout", 200.0))
         self.visibility = float(mdp_obs["visibility"])   # 관측 거리 W
         # 밀도 정규화용 "차량 1대가 점유하는 길이" (차체 + 최소 간격)
         self.density_veh_len = float(mdp_obs.get("density_veh_length", 7.5))
@@ -1030,6 +1031,10 @@ class SumoHighwayEnv(gym.Env):
             reward = 0.0
             terminated = True
             termination_reason = "missing"
+        elif traci.vehicle.getWaitingTime(self.ego_id) >= self.stuck_timeout:
+            reward = 0.0
+            terminated = True
+            termination_reason = "stuck"
         else:
             ego_speed = traci.vehicle.getSpeed(self.ego_id)
             same_lane_leader = self._neighbor(0, leader=True)

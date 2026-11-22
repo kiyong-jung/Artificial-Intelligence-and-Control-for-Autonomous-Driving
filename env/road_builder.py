@@ -151,6 +151,8 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
     processing = ET.SubElement(configuration, "processing")
     for name, value in (("lateral-resolution", traffic["lateral_resolution"]),
                         ("collision.check-junctions", True), ("collision.action", "remove"),
+                        # 순간이동을 끈다. ego가 막히면 환경이 stuck으로 끝낸다(SIMULATION["stuck_timeout"]).
+                        ("time-to-teleport", -1),
                         ("collision.mingap-factor", traffic["collision_min_gap_factor"])):
         ET.SubElement(processing, name, _attrs(dict(value=value)))
     ET.SubElement(ET.SubElement(configuration, "time"), "step-length",

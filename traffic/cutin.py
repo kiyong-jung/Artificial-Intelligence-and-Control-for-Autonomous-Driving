@@ -33,10 +33,11 @@ def default_bins(n=6):
 def alley_driver_bins(n=6):
     """신호 없는 합류 골목 운전자 분포. 앞차를 무시하지 않는다(jmIgnoreFoeProb=0).
 
-    구간 i의 공격성 a = i/(n-1)에서 impatience = a(큰길 차를 감속시키는 합류를 받아들이는 정도, 기다릴수록 SUMO가 더 키운다),
+    구간 i의 공격성 a = i/(n-1)에서 impatience = 0.5a(큰길 차를 감속시키는 합류를 받아들이는 정도, 기다릴수록 SUMO가 더 키운다),
     jmTimegapMinor = 1.0 - 0.7a [s](큰길 차 앞뒤로 받아들이는 최소 시간 간격). 같은 가중. 값은 자리표시다.
+    impatience 상한을 1에서 0.5로 낮췄다. 1이면 골목 차가 J96에서 큰길 차와 부딪혔다(busy seed 2).
     """
-    return [(0.0, round(1.0 - 0.7 * a, 3), round(a, 3), round(1.0 / n, 4))
+    return [(0.0, round(1.0 - 0.7 * a, 3), round(0.5 * a, 3), round(1.0 / n, 4))
             for a in (i / (n - 1) for i in range(n))]
 
 

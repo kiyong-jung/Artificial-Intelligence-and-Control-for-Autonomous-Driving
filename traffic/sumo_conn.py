@@ -37,6 +37,8 @@ COMMON_ARGS = [
     "--collision.action", "warn",
     "--collision.check-junctions",
     "--intermodal-collision.action", "warn",
+    # 순간이동을 끈다. 막힘은 SUMO가 차를 옮겨 감추지 않고 그대로 남는다(측정에서 보인다).
+    "--time-to-teleport", "-1",
     "--no-step-log", "--no-warnings", "true",
     "--duration-log.disable",
 ]

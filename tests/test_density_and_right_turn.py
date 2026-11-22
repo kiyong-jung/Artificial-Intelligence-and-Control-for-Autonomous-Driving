@@ -16,10 +16,16 @@ from traffic.right_turn import right_turn_links  # noqa: E402
 
 @pytest.fixture(scope="module")
 def world(tmp_path_factory):
-    w = HapjeongTraffic(str(tmp_path_factory.mktemp("dens")), seed=0)
+    w = HapjeongTraffic(str(tmp_path_factory.mktemp("dens")), seed=0, interior_share=0.3)
     w.build()
     yield w
     w.close()
+
+
+def test_interior_spawner_is_off_by_default(tmp_path):
+    """기본값에서는 노선 위 임의 지점 출발이 없다(차가 도로 한가운데서 생기지 않는다)."""
+    w = HapjeongTraffic(str(tmp_path), seed=0)
+    assert w.interior_share == 0.0
 
 
 def test_entry_flows_are_reduced_by_the_interior_share(world):

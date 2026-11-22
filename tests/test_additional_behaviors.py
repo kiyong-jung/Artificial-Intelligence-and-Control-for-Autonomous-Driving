@@ -6,8 +6,7 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from traffic.common import AGGRESSION  # noqa: E402
-from traffic.cutin import StoppedSpec, cutin_bins_once, stopped_vehicle_xml  # noqa: E402
+from traffic.cutin import StoppedSpec, alley_driver_bins, stopped_vehicle_xml  # noqa: E402
 from traffic.scenarios_a2 import build_a2_net, build_s4_kind_net, run_s4  # noqa: E402
 from traffic.scenarios_s1 import build_s1_net, run_s1_episode  # noqa: E402
 from traffic.yield_logic import FOLLOWER_RANGE_M, Trigger, YieldManager, Zone  # noqa: E402
@@ -71,18 +70,14 @@ def test_target_is_only_the_nearest_follower_in_range():
     assert _mgr(_Veh(2, "A", 0.0, left=[("x", 99.0)]), follower_range=50.0)._target_follower(+1) is None
 
 
-def test_aggressiveness_maps_to_scenario_probabilities():
-    a = AGGRESSION
-    assert a.p_ignore(0.0) == pytest.approx(0.2) and a.p_ignore(1.0) == pytest.approx(1.0)
-    assert a.aggressiveness_from_ignore(a.p_ignore(0.3)) == pytest.approx(0.3)
-
-
-def test_cutin_bins_once_realize_p_ignore_by_weight():
-    bins = cutin_bins_once(6)
+def test_alley_drivers_never_ignore_foes_and_spread_impatience():
+    bins = alley_driver_bins(6)
     assert sum(b[3] for b in bins) == pytest.approx(1.0, abs=1e-3)
-    assert {b[0] for b in bins} <= {0.0, 1.0}                          # 무시 확률은 0 또는 1만(진입 판정은 차량당 한 번)
-    mean_p = sum(b[0] * b[3] for b in bins)
-    assert mean_p == pytest.approx(sum(AGGRESSION.p_ignore(i / 5) for i in range(6)) / 6, abs=1e-3)
+    assert {b[0] for b in bins} == {0.0}                               # 큰길 차를 무시하지 않는다(jmIgnoreFoeProb=0)
+    imp = [b[2] for b in bins]
+    gap = [b[1] for b in bins]
+    assert imp == sorted(imp) and imp[0] == 0.0 and imp[-1] == 1.0     # 참을성 있는 운전자부터 조급한 운전자까지
+    assert gap == sorted(gap, reverse=True) and all(g > 0 for g in gap)
 
 
 def test_stopped_vehicle_kinds_and_area_length():

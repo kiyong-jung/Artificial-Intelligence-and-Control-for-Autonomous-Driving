@@ -7,8 +7,9 @@ env.road_config.configure_map이 읽고, env.road_builder.build가 실행 폴더
   A1  배경 차량(vType `car_*`, 추종 모델 4종)이 투입될 때 운전자 성향(차선 변경 파라미터, speedFactor)을 연속 분포에서
       뽑아 준다. 버스가 차로를 바꾸려 할 때 목표 차로 후행차가 한 일을 기록한다(YieldManager, 조종하지 않는다).
   S1  차로 정차형 정류장에 선 버스 바로 뒤 차량이 기다렸는지 추월했는지 기록한다(StopBypassManager, 조종하지 않는다).
-  S5  버스 경로에 합류하는 골목을 지도에서 자동으로 찾아(traffic.alleys), 그 골목으로 나오는 흐름을 끼어들기형 vType으로
-      바꾼다. 골목에서 출발하는 흐름과, 고리 골목을 거쳐(via) 나오는 흐름이 둘 다 대상이다.
+  S5  버스 경로에 합류하는 신호 없는 골목을 지도에서 모두 찾아(traffic.alleys), 그 골목으로 나오는 흐름을 골목 운전자
+      분포(cutin, impatience·jmTimegapMinor 구간, 앞차 무시 없음)로 바꾼다. 골목에서 출발하는 흐름과, 고리 골목을
+      거쳐(via) 나오는 흐름이 둘 다 대상이다.
   S6  와우산로 횡단보도를 건너는 보행자를 P1(대기형)/P2(진입형)로 나눈다. 신호 없는 횡단보도 앞 보행자의 건너기 판정은
       PedDefianceManager가 한다.
   S4  (선택) 정차 차량. 택시·버스·일반 차량, 위치·시각·정차 시간·확률을 StoppedSpec으로 받는다.
@@ -25,8 +26,7 @@ from maps import load_map
 from env.road_config import ROAD, EGO, TRAFFIC, configure_map
 
 from .alleys import close_loop, find_merge_alleys, flow_merges, read_net
-from .common import AGGRESSION
-from .cutin import STOPPED_KINDS, StoppedSpec, cutin_bins_once, cutin_vtype_xml, stopped_vehicle_xml
+from .cutin import STOPPED_KINDS, StoppedSpec, alley_driver_bins, cutin_vtype_xml, stopped_vehicle_xml
 from .ped_defiance import PedDefianceManager
 from .pedestrian import ped_vtypes_xml
 from .runner import run as run_loop
@@ -43,8 +43,6 @@ from .yield_logic import YieldManager, Trigger, Zone
 
 MAP_ID = "hapjeong"
 S6_EDGES = ("-R112", "R112.112")       # 와우산로. 이 둘을 모두 걷는 보행자가 S6 횡단보도를 건넌다(R112가 R112.112 등으로 나뉘기 전 이름 R112로는 s6ped가 빠졌다)
-# S5 끼어들기 후보 골목 (교차로, 골목 도로, 합류하는 버스 도로). 둘 다 신호 없는 교차로다
-S5_ALLEYS = {("X_dongmak6", "G12", "R71.256"), ("X_jandari2", "G23", "-R96.119")}
 BUS_VTYPE = ('<vType id="bus_test" vClass="bus" length="12" width="2.5" accel="1.2" decel="4.0" '
              'tau="1.0" sigma="0" guiShape="bus" color="255,0,0"/>')   # 버스는 빨간색
 
@@ -64,11 +62,15 @@ def _fragment(xml_text):
 
 
 def _krauss_attrs():
-    """끼어들기 차량이 배경 차량과 같은 물리 특성을 갖게 env의 Krauss 설정을 쓴다."""
-    c = TRAFFIC["controllers"]["krauss"]
+    """끼어들기 차량이 배경 차량과 같은 물리 특성을 갖게 env의 Krauss 설정과 횡방향(SL2015) 설정을 쓴다."""
+    c, lat = TRAFFIC["controllers"]["krauss"], TRAFFIC["lateral_model"]
+    lateral = (f'laneChangeModel="SL2015" lcAccelLat="{lat["accel"]}" maxSpeedLat="{lat["max_speed"]}" '
+               f'lcMaxSpeedLatStanding="{lat["standing_speed"]}" lcMaxSpeedLatFactor="{lat["speed_factor"]}" '
+               f'lcCooperativeRoundabout="{lat["roundabout_cooperation"]}" '
+               if float(TRAFFIC["lateral_resolution"]) > 0 else "")
     return (f'carFollowModel="Krauss" accel="{c["accel"]}" decel="{c["decel"]}" tau="{c["tau"]}" '
-            f'minGap="{c["min_gap"]}" sigma="{c["sigma"]}" speedDev="{c["speed_dev"]}" '
-            f'maxSpeed="{TRAFFIC["max_speed"]}" vClass="passenger" length="4.5" color="0.55,0.55,0.55"')   # 끼어들기 차량은 회색
+            f'minGap="{c["min_gap"]}" sigma="{c["sigma"]}" speedDev="{c["speed_dev"]}" {lateral}'
+            f'maxSpeed="{TRAFFIC["max_speed"]}" vClass="passenger" length="4.5" color="0.55,0.55,0.55"')   # 골목 차량은 회색
 
 
 def stopped_from_arg(arg, warmup=0.0, index=0):
@@ -98,8 +100,8 @@ def stopped_from_arg(arg, warmup=0.0, index=0):
 class HapjeongTraffic:
     """합정역 실행 폴더를 만들고, 주변 교통 규칙을 붙여 시뮬레이션을 돌린다.
 
-    cutin: True면 S5 끼어들기. cutin_bins를 안 주면 cutin.cutin_bins_once()(진입 판정이 차량당 한 번)를 쓴다.
-           cutin.default_bins()를 주면 SUMO 기본 방식(접근 중 여러 번 뽑음)이다.
+    cutin: True면 신호 없는 합류 골목 흐름을 골목 운전자 분포(cutin)로 바꾼다. cutin_bins를 안 주면
+           cutin.alley_driver_bins()(앞차 무시 없음, impatience·jmTimegapMinor 구간)를 쓴다.
     ped_mix: S6 보행자 P1 비율(0~1). None이면 보행자를 그대로 둔다.
     stopped: [StoppedSpec] S4 정차 차량 목록(택시·버스·일반 차량). None이면 없다.
     taxi_depart: 예전 방식. 숫자면 그 시각(초)에 R69 안쪽 차로 정류장 앞에 택시 한 대가 선다(StoppedSpec 하나와 같다).
@@ -140,12 +142,11 @@ class HapjeongTraffic:
 
         overlay_routes = [BUS_VTYPE]              # 다른 경로 파일보다 먼저 읽혀야 한다
         overlay_add = []
+        self.alleys = self._find_alleys()
         if self.cutin:
-            bins = self.cutin_bins or cutin_bins_once()
+            bins = self.cutin_bins or alley_driver_bins()
             overlay_routes.append(cutin_vtype_xml("cutin", bins=bins, v_ign=15.0, base_attrs=_krauss_attrs()))
             self.summary["cutin_flows"] = self._retype_alley_flows()
-            self.cutin_aggr = self._cutin_aggressiveness(bins)
-            self.cutin_full_ignore = next((f"cutin_{i}" for i, b in enumerate(bins) if b[0] >= 1.0), "cutin_0")
         if self.ped_mix is not None:
             overlay_routes.append(ped_vtypes_xml(self.ped_v_low, 0.75))
             self.summary["s6_persons"] = self._retype_s6_persons(rng)
@@ -203,38 +204,36 @@ class HapjeongTraffic:
         add.set("value", ",".join([*add.get("value").split(","), "traffic.add.xml"]))
         tree.write(cfg, encoding="utf-8", xml_declaration=True)
 
-    def _retype_alley_flows(self):
-        """버스 경로에 합류하는 골목(지도에서 자동 탐지)을 찾아 둔다. 주입기(S5)와 S4가 쓴다.
-
-        배경 골목 흐름은 **바꾸지 않는다.** 끼어들기는 시험용 버스와만 상호작용해야 한다. 흐름을 앞차 무시 vType으로 바꾸면 배경 차와
-        충돌했다(busy 측정의 cutin_0 대 배경 차 11회). 끼어들기 차는 주입기가 시험용 버스가 가까울 때만 넣고, 그 차는 시험용
-        버스만 무시한다(junctionModel.ignoreIDs).
-        """
+    def _find_alleys(self):
+        """버스 경로에 합류하는 신호 없는 골목 전부(지도에서 자동 탐지). 신호 교차로로 합류하는 골목(cluster_J52_J56_J58,
+        J74, J48)은 신호가 순서를 정해 끼어들기가 없으므로 뺀다. S5 흐름 바꾸기와 측정(골목에서 나온 차)이 쓴다."""
         net = read_net(os.path.join(self.out_dir, "network.net.xml"))
         route = close_loop(net, self.merge_route or load_map(MAP_ID)["routes"]["bus_loop"])
-        # 신호 교차로로 합류하는 골목(cluster_J52_J56_J58, J74, J48)은 신호가 순서를 정해 끼어들기가 없으므로 뺀다
-        alleys = unsignalized_alleys(find_merge_alleys(net, route))
+        return unsignalized_alleys(find_merge_alleys(net, route))
+
+    def _retype_alley_flows(self):
+        """신호 없는 합류 골목으로 나오는 배경 흐름(carDist)을 모두 골목 운전자 분포(cutin)로 바꾸고 그 수를 돌려준다.
+
+        골목 차는 큰길 차를 무시하지 않는다. 얼마나 좁은 간격에 합류하는지만 운전자마다 다르다(impatience, jmTimegapMinor).
+        끼어들기는 시험용 버스와 배경 차 모두에게 같은 규칙으로 일어난다.
+        """
+        net = read_net(os.path.join(self.out_dir, "network.net.xml"))
         path = os.path.join(self.out_dir, "routes.rou.xml")
         tree = ET.parse(path)
-        per_alley = {a.junction: 0 for a in alleys}
+        per_alley = {a.junction: 0 for a in self.alleys}
         n = 0
         for flow in tree.getroot().iter("flow"):
-            for a in alleys:
-                if flow_merges(net, flow.attrib, [a]):
-                    per_alley[a.junction] += 1                  # 합류하는 배경 흐름 수(기록만)
-        self.alleys = alleys                       # S4(정류장 근처 정차)가 쓰는 신호 없는 합류 골목 전부
-        # S5 끼어들기 후보는 두 곳뿐이다(사용자 결정): 독막로6길 G12 -> R71.256, 잔다리로2길 G23 -> -R96.119. 그 밖의 골목은
-        # 끼어들기가 다른 차로·교차로의 차에 영향을 줘 사고·정체가 났다. 신호 교차로 제외(alleys가 이미 걸렀다)는 그대로다
-        self.s5_alleys = [a for a in alleys if (a.junction, a.feeder, a.into) in S5_ALLEYS and not a.signalized]
+            merged = [a for a in self.alleys if flow_merges(net, flow.attrib, [a])]
+            for a in merged:
+                per_alley[a.junction] += 1
+            if merged and flow.get("type") == "carDist":
+                flow.set("type", "cutin")
+                n += 1
+        tree.write(path, encoding="utf-8", xml_declaration=True)
         self.summary["cutin_alleys"] = [
             {"junction": a.junction, "feeder": a.feeder, "into": a.into, "junction_type": a.junction_type,
-             "minor": a.minor, "regulated": a.regulated, "flows": per_alley[a.junction]} for a in alleys]
+             "minor": a.minor, "regulated": a.regulated, "flows": per_alley[a.junction]} for a in self.alleys]
         return n
-
-    def _cutin_aggressiveness(self, bins):
-        """끼어들기 vType(구간 i)의 공격성 값. 구간의 무시 확률 p_ignore에서 거꾸로 구한다."""
-        return {f"cutin_{i}": (b[4] if len(b) > 4 else min(1.0, max(0.0, AGGRESSION.aggressiveness_from_ignore(b[0]))))
-                for i, b in enumerate(bins)}
 
     def _shift_entry_flows(self, share):
         """입구에서 들어오는 배경 차량(carDist) 흐름을 share 비율만큼 줄이고, 그 대수(대/시간)를 돌려준다.
@@ -375,7 +374,8 @@ class HapjeongTraffic:
         """
         if triggers == "scenario":
             triggers = self.scenario_triggers(plans=pilot.plans if pilot is not None else None)
-        mgr = YieldManager(traci, bus_id, rng=random.Random(self.seed), triggers=triggers, **mgr_kwargs)
+        mgr = YieldManager(traci, bus_id, rng=random.Random(self.seed), triggers=triggers,
+                           driver_prefixes=("car_", "cutin_"), **mgr_kwargs)
         self.mgr = mgr
         if assign_existing:        # warmup 중에 투입된 차량에도 운전자 성향을 준다
             mgr.on_departed(traci.vehicle.getIDList())

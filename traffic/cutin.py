@@ -1,7 +1,7 @@
 """A2. 끼어들기형(S5) vType 분포와 정차 차량(S4) 정의.
 
-끼어들기는 차선변경이 아니라 우선 교차로(priority junction)의 우선권 위반으로 구현한다.
-jm* 파라미터는 vType 단위로만 설정되므로 분포를 구간으로 나눈 vTypeDistribution을 쓴다.
+끼어들기는 차선변경이 아니라 우선 교차로(priority junction)에서 비우선 골목 차가 큰길 차의 간격을 얼마나 좁게
+받아들이는가로 나타난다. jm* 파라미터는 vType 단위로만 설정되므로 분포를 구간으로 나눈 vTypeDistribution을 쓴다.
 """
 
 from dataclasses import dataclass
@@ -30,26 +30,14 @@ def default_bins(n=6):
              round(i / (n - 1), 3), round(1.0 / n, 4)) for i in range(n)]
 
 
-def cutin_bins_once(n=6, aggression=None):
-    """끼어들기 진입 판정을 차량당 한 번(= 합류 상호작용당 한 번)으로 만드는 구간.
+def alley_driver_bins(n=6):
+    """신호 없는 합류 골목 운전자 분포. 앞차를 무시하지 않는다(jmIgnoreFoeProb=0).
 
-    SUMO의 jmIgnoreFoeProb는 접근 중 여러 번 뽑혀 실제 진입 확률이 p가 아니라 1-(1-p)^k가 된다(검증으로 확인, k≈5).
-    그래서 vType의 무시 확률을 0 또는 1로만 두고, '무시형' vType의 비율을 시나리오 확률 p_ignore(a)로 맞춘다.
-    구간(공격성 a_i)마다 vType 두 개(무시형, 비무시형)가 생기고, 투입 때 vTypeDistribution이 한 번 뽑는다.
-    5번째 값은 그 구간의 공격성 a다.
+    구간 i의 공격성 a = i/(n-1)에서 impatience = a(큰길 차를 감속시키는 합류를 받아들이는 정도, 기다릴수록 SUMO가 더 키운다),
+    jmTimegapMinor = 1.0 - 0.7a [s](큰길 차 앞뒤로 받아들이는 최소 시간 간격). 같은 가중. 값은 자리표시다.
     """
-    from .common import AGGRESSION
-    ag = aggression or AGGRESSION
-    bins = []
-    for i in range(n):
-        a = i / (n - 1)
-        p = min(1.0, max(0.0, ag.p_ignore(a)))
-        tg, imp = round(1.0 - 0.7 * a, 3), round(a, 3)
-        if p > 0:
-            bins.append((1.0, tg, imp, round(p / n, 5), a))
-        if p < 1:
-            bins.append((0.0, tg, imp, round((1 - p) / n, 5), a))
-    return bins
+    return [(0.0, round(1.0 - 0.7 * a, 3), round(a, 3), round(1.0 / n, 4))
+            for a in (i / (n - 1) for i in range(n))]
 
 
 def parking_area_xml(pid, lane, start, end, capacity=1):

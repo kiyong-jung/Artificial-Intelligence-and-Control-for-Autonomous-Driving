@@ -45,7 +45,6 @@ def check_s4():
 # ---------------------------------------------------------------------------------------------------------
 def check_s5():
     from traffic.alleys import find_merge_alleys, flow_merges, read_net
-    from traffic.cutin import cutin_bins_once, default_bins, cutin_vtype_xml
     from traffic.hapjeong import HapjeongTraffic
     out = {}
     # (a) 합정역: 합류 골목 8곳, 흐름 수, 교차로 유형

@@ -12,7 +12,7 @@ env.road_config.configure_map이 읽고, env.road_builder.build가 실행 폴더
       흐름과, 고리 골목을 거쳐(via) 나오는 흐름이 둘 다 대상이다.
   S6  모든 보행자에게 보행자 분포(pedDist: P1·P2를 impatience 구간으로 넓힌 것)를 준다. 보행자는 경로 파일대로 SUMO가
       넣고 지운다.
-  S4  bus_traffic을 주면 정류장 근처 가로변 차로에 서는 포아송 택시(bus_traffic.curb_taxi_stops)가 들어간다. 그 밖에
+  S4  bus_traffic을 주면 도로망의 가로변 정류장 근처에 서는 포아송 택시(bus_traffic.curb_taxi_stops)가 들어간다. 그 밖에
       (선택) 위치·시각·정차 시간·확률을 정한 정차 차량(택시·버스·일반 차량)을 StoppedSpec으로 받는다.
 
 버스는 이 모듈이 만들지 않는다. 버스 제어 쪽이 `bus_hook(traci, t)`로 버스를 넣고 몰면 된다.
@@ -151,7 +151,7 @@ class HapjeongTraffic:
             parts, bsum = build_bus_traffic(net, m["flows"], self.bus_traffic, random.Random(self.seed + 5))
             overlay_routes.extend(parts)
             taxi_parts, taxi_add, self.summary["curb_taxis"] = curb_taxi_stops(
-                net, m["flows"], m["routes"]["bus_loop"], m["bus_stops"], self.bus_traffic, random.Random(self.seed + 7))
+                net, m["flows"], self._bus_stops(cfg), self.bus_traffic, random.Random(self.seed + 7))
             overlay_routes.extend(taxi_parts)
             overlay_add.extend(taxi_add)
             self.summary["bus_traffic"] = bsum
@@ -161,6 +161,13 @@ class HapjeongTraffic:
         self._register(cfg)
         self.cfg = cfg
         return cfg
+
+    def _bus_stops(self, cfg):
+        """실행 폴더의 추가 파일에 있는 모든 정류장(busStop): [{id, lane, startPos, endPos}]."""
+        names = ET.parse(cfg).getroot().find("input").find("additional-files").get("value").split(",")
+        return [{"id": b.get("id"), "lane": b.get("lane"), "startPos": float(b.get("startPos")),
+                 "endPos": float(b.get("endPos"))}
+                for name in names for b in ET.parse(os.path.join(self.out_dir, name)).getroot().iter("busStop")]
 
     def _write(self, name, root, parts):
         r = ET.Element(root)

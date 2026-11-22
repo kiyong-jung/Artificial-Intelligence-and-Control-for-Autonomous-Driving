@@ -7,9 +7,10 @@
    - 중앙 정류장 우회 차로(`B1`, `B2`, `B3a`→`B3b`, `B4a`→`B4b`) 노선 4개: 각각 그 차로의 정류장(`stop_0`~`stop_3`)에 선다.
    - 가로변 노선 2개: 가로변 정류장 `stop_4`(`R49a`)와 `stop_5`(`R44`)에 선다.
 2. 택시(`bgtaxi`): 주변 승용차와 같은 출발·도착 짝을 같은 비율로 쓰며 지나간다.
-3. 정류장 근처 택시 정차(S4, `curb_taxi_stops`): 버스 노선의 정류장마다 가로변 차로의 정류장 바로 앞(안 되면 노선 앞 도로
-   끝, 그것도 안 되면 정류장 뒤)에 차로를 막는 정차 구역을 두고, 지도 경계에서 들어와 그곳에 섰다가 경계로 나가는 택시를
-   포아송 도착으로 흘린다. 시험용 버스의 위치·시각과 무관하다. 신호 정지선 앞 금지 구간에는 두지 않는다.
+3. 정류장 근처 택시 정차(S4, `curb_taxi_stops`): 도로망의 가로변 정류장마다(택시가 들어갈 수 없는 중앙 버스 전용 차로
+   정류장은 빼고) 정류장 바로 앞(안 되면 곧게 들어오는 앞 도로 끝, 그것도 안 되면 정류장 뒤)에 차로를 막는 정차 구역을
+   두고, 지도 경계에서 들어와 그곳에 섰다가 경계로 나가는 택시를 포아송 도착으로 흘린다. 시험용 버스의 노선·위치·시각과
+   무관하다. 신호 정지선 앞 금지 구간에는 두지 않는다.
 """
 import random
 from dataclasses import dataclass, field
@@ -117,49 +118,66 @@ def _curb_lane(edge):
     return next((ln.getIndex() for ln in edge.getLanes() if ln.allows("taxi")), None)
 
 
-def _curb_spot(net, route, stop, forbidden):
-    """정류장 stop 근처의 택시 정차 구역 (도로, 차로, 시작, 끝). 정류장 시작 20~10 m 앞, 노선 앞 도로 끝 15~5 m, 정류장 끝
-    5~15 m 뒤 순으로 고르고, 도로 끝 5 m 안과 신호 정지선 앞 금지 구간은 피한다. 없으면 None."""
+def _signal_zone(net, edge):
+    """도로 끝이 신호 교차로면 정지선 앞 금지 구간 (lo, hi), 아니면 None."""
+    from .signal_areas import is_signalized, no_change_m
+    e = net.getEdge(edge)
+    node = e.getToNode()
+    if not is_signalized(node):
+        return None
+    return max(0.0, e.getLength() - no_change_m(node.getID())), e.getLength()
+
+
+def _straight_predecessor(net, edge):
+    """edge로 곧게(직진 연결) 들어오는 앞 도로. 여럿이면 id 순 첫째, 없으면 None."""
+    e = net.getEdge(edge)
+    preds = sorted((p for p in e.getFromNode().getIncoming() if p.getConnections(e)
+                    and any(c.getDirection() == "s" for c in p.getConnections(e))), key=lambda p: p.getID())
+    return preds[0] if preds else None
+
+
+def _curb_spot(net, stop):
+    """정류장 stop 근처의 택시 정차 구역 (도로, 차로, 시작, 끝). 정류장 시작 20~10 m 앞, 곧게 들어오는 앞 도로 끝 15~5 m,
+    정류장 끝 5~15 m 뒤 순으로 고르고, 도로 끝 5 m 안과 신호 정지선 앞 금지 구간은 피한다. 없으면 None."""
     edge, lane = stop["lane"].rsplit("_", 1)
     cands = [(edge, int(lane), stop["startPos"] - 20.0, stop["startPos"] - 10.0)]
-    if edge in route and route.index(edge) > 0 and net.hasEdge(route[route.index(edge) - 1]):
-        prev = net.getEdge(route[route.index(edge) - 1])
-        L, curb = prev.getLength(), _curb_lane(prev)
-        if curb is not None:
-            cands.append((prev.getID(), curb, L - 15.0, L - 5.0))
+    prev = _straight_predecessor(net, edge)
+    if prev is not None and _curb_lane(prev) is not None:
+        L = prev.getLength()
+        cands.append((prev.getID(), _curb_lane(prev), L - 15.0, L - 5.0))
     cands.append((edge, int(lane), stop["endPos"] + 5.0, stop["endPos"] + 15.0))
     for e, ln, lo, hi in cands:
         if lo < 0 or hi > net.getEdge(e).getLength() - 5.0:
             continue
-        if any(a < hi and lo < b for a, b in forbidden.get(e, [])):
+        zone = _signal_zone(net, e)
+        if zone and zone[0] < hi and lo < zone[1]:
             continue
         return e, ln, round(lo, 2), round(hi, 2)
     return None
 
 
-def curb_taxi_stops(net, flows, bus_loop, bus_stops, cfg=None, rng=None):
-    """S4: 정류장 근처에 서는 택시 흐름. 반환: (경로 파일 조각 목록, 추가 파일 조각 목록, 요약 목록).
+def curb_taxi_stops(net, flows, bus_stops, cfg=None, rng=None):
+    """S4: 가로변 버스 정류장 근처에 서는 택시 흐름. 반환: (경로 파일 조각 목록, 추가 파일 조각 목록, 요약 목록).
 
-    bus_stops: 지도의 bus_stops(lane, startPos, endPos). 노선(bus_loop) 위 정류장만 쓴다. 택시 vType(bgtaxi)은
-    build_bus_traffic이 넣는다.
+    bus_stops: 도로망의 모든 정류장(lane, startPos, endPos). 택시가 설 수 있는 가로변 차로의 정류장을 모두 쓴다(중앙 버스
+    전용 차로 정류장은 택시가 못 들어가 빠진다). 시험용 버스 노선은 보지 않는다. 택시 vType(bgtaxi)은 build_bus_traffic이 넣는다.
     """
     from .cutin import parking_area_xml, taxi_flow_xml
     from .presence import ends_at_boundary, starts_at_boundary
-    from .signal_areas import forbidden_intervals
     cfg = cfg or BusTrafficCfg()
     rng = rng or random.Random(0)
     if cfg.curb_taxis_per_h <= 0:
         return [], [], []
-    route = list(bus_loop)
-    forbidden = forbidden_intervals(net, route)
     heads = sorted({f["from"] for f in flows if net.hasEdge(f["from"]) and starts_at_boundary(net, f["from"])})
     tails = sorted({f["to"] for f in flows if net.hasEdge(f["to"]) and ends_at_boundary(net, f["to"])})
     length = lambda p: sum(net.getEdge(e).getLength() for e in p)
     parts, adds, summary = [], [], []
-    for s in bus_stops:
-        if s["lane"].rsplit("_", 1)[0] not in route:
+    for s in sorted(bus_stops, key=lambda s: s["id"]):
+        edge, lane = s["lane"].rsplit("_", 1)
+        if not net.hasEdge(edge) or not net.getEdge(edge).getLanes()[int(lane)].allows("taxi"):
+            summary.append({"stop": s["id"], "skipped": "taxi not allowed"})
             continue
-        spot = _curb_spot(net, route, s, forbidden)
+        spot = _curb_spot(net, s)
         if spot is None:
             summary.append({"stop": s["id"], "skipped": "no curb spot"})
             continue

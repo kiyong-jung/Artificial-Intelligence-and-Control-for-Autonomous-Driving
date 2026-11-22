@@ -49,19 +49,22 @@ def test_central_routes_run_boundary_to_boundary(world):
         assert all(v in r for v in via)
 
 
-def test_curb_taxis_stop_near_bus_stops_on_their_own_schedule(world):
-    # S4: 정류장 근처 가로변 차로에 서는 택시는 포아송 흐름이다(시험용 버스 위치에 맞춰 넣지 않는다)
+def test_curb_taxis_stop_near_every_curbside_bus_stop_on_their_own_schedule(world):
+    # S4: 도로망의 가로변 정류장마다 근처에 서는 택시 포아송 흐름이 있다(시험용 버스 노선·위치와 무관하다)
     from traffic.alleys import read_net
-    from traffic.signal_areas import forbidden_intervals
+    from traffic.signal_areas import is_signalized, no_change_m
     net = read_net(os.path.join(world.out_dir, "network.net.xml"))
     m = load_map("hapjeong")
-    spots = [c for c in world.summary["curb_taxis"] if "skipped" not in c]
-    loop_stops = [s for s in m["bus_stops"] if s["lane"].rsplit("_", 1)[0] in m["routes"]["bus_loop"]]
-    assert len(spots) == len(loop_stops)                                    # 노선 위 정류장 6곳 모두
-    bad = forbidden_intervals(net, m["routes"]["bus_loop"])
+    taxis = {c["stop"]: c for c in world.summary["curb_taxis"]}
+    assert {"stop_4", "stop_5"} <= {k for k, c in taxis.items() if "skipped" not in c}     # 시험용 버스가 서지 않는 정류장
+    assert {s["id"] for s in m["bus_stops"]} <= set(taxis)
+    assert all(taxis[f"stop_{i}"].get("skipped") == "taxi not allowed" for i in range(4))   # 중앙 버스 전용 차로
+    spots = [c for c in taxis.values() if "skipped" not in c]
     for c in spots:
-        assert not any(a < c["end"] and c["start"] < b for a, b in bad.get(c["edge"], []))   # 신호 정지선 앞이 아니다
-        assert net.getEdge(c["edge"]).getLanes()[c["lane"]].allows("taxi")
+        e = net.getEdge(c["edge"])
+        if is_signalized(e.getToNode()):                                     # 신호 정지선 앞이 아니다
+            assert c["end"] <= e.getLength() - no_change_m(e.getToNode().getID())
+        assert e.getLanes()[c["lane"]].allows("taxi")
     rou = ET.parse(os.path.join(world.out_dir, "traffic.rou.xml")).getroot()
     flows = [f for f in rou.iter("flow") if f.get("id").startswith("curbtaxi_")]
     assert len(flows) == len(spots)

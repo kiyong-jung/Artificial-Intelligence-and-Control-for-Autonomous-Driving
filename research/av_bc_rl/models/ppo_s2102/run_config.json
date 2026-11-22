@@ -1,0 +1,199 @@
+{
+  "road": {
+    "map_id": "hapjeong",
+    "map_version": "3.13.0",
+    "name": "합정역 · 양화로와 독막로",
+    "length": 1949.44,
+    "num_lanes": 3,
+    "speed_limit": 13.89,
+    "ego_route": "bus_loop",
+    "scenario": "busy",
+    "seed": 2102,
+    "network_sha256": "7341638b8d303d0a831a3c9eda9803d080b4a5b726b5b61afe67fa0666d8fa82"
+  },
+  "ego": {
+    "speed_factor": 1,
+    "speed_dev": 0,
+    "depart_lane": "best",
+    "depart_speed": 0.0,
+    "speed_mode": 31,
+    "lane_change_mode": 1536,
+    "vclass": "bus",
+    "gui_shape": "bus",
+    "length": 12.0,
+    "width": 2.5,
+    "accel": 1.0,
+    "decel": 2.0,
+    "emergency_decel": 9.0,
+    "min_gap": 3.0,
+    "tau": 1.5,
+    "person_capacity": 40,
+    "boarding_duration": 2.0,
+    "max_speed": 13.89,
+    "comfort": {
+      "acceleration_limit": 1.5,
+      "jerk_limit": 2.0,
+      "hard_braking": 3.0
+    },
+    "vehicle": "bus",
+    "route_id": "bus_loop",
+    "service": {
+      "stops": [
+        "osm_stop_357920024",
+        "osm_stop_5930628870",
+        "osm_stop_3446267493",
+        "osm_stop_3424857165"
+      ],
+      "dwell_s": 8.0
+    }
+  },
+  "traffic": {
+    "max_speed": 13.89,
+    "depart_speed": "max",
+    "lateral_resolution": 0.8,
+    "lateral_model": {
+      "accel": 0.8,
+      "max_speed": 1.0,
+      "standing_speed": 0.0,
+      "speed_factor": 0.2,
+      "roundabout_cooperation": 0.2
+    },
+    "collision_min_gap_factor": -1.0,
+    "demand_scale": 1.25,
+    "vehs_per_hour": 1326.2474999999993,
+    "controllers": {
+      "krauss": {
+        "probability": 0.35,
+        "carFollowModel": "Krauss",
+        "accel": 2.0,
+        "decel": 4.5,
+        "tau": 1.2,
+        "min_gap": 2.5,
+        "sigma": 0.3,
+        "speed_dev": 0.08,
+        "color": "1,1,0"
+      },
+      "idm": {
+        "probability": 0.3,
+        "carFollowModel": "IDM",
+        "accel": 1.8,
+        "decel": 4.5,
+        "tau": 1.8,
+        "min_gap": 2.5,
+        "speed_dev": 0.08,
+        "color": "0,1,1"
+      },
+      "eidm": {
+        "probability": 0.2,
+        "carFollowModel": "EIDM",
+        "accel": 2.0,
+        "decel": 4.5,
+        "tau": 1.8,
+        "min_gap": 2.5,
+        "speed_dev": 0.08,
+        "color": "1,.6,0"
+      },
+      "acc": {
+        "probability": 0.15,
+        "carFollowModel": "ACC",
+        "accel": 2.0,
+        "decel": 4.5,
+        "tau": 1.5,
+        "collision_avoidance_override": 0.0,
+        "min_gap": 2.5,
+        "speed_dev": 0.05,
+        "color": "1,0,1"
+      }
+    }
+  },
+  "simulation": {
+    "step_length": 0.1,
+    "decision_interval": 0.5,
+    "max_steps": 1400,
+    "warmup_steps": 1800,
+    "warmup_jitter_steps": 1800,
+    "ego_insert_timeout": 60.0,
+    "state_radius": 150.0,
+    "gui_zoom": 200.0,
+    "gui_delay": 100.0,
+    "gui_track_ego": true
+  },
+  "observation": {
+    "visibility": 50.0,
+    "density_veh_length": 7.5
+  },
+  "action": {
+    "lane_change_safety": {
+      "enabled": true,
+      "min_front_gap": 3.0,
+      "min_rear_gap": 3.0,
+      "front_tau": 0.15,
+      "rear_tau": 0.3,
+      "approach_horizon": 0.6,
+      "spawn_protect": 60.0
+    },
+    "dim": 2,
+    "accel_index": 0,
+    "lane_change_index": 1,
+    "lane_change_threshold": 0.5,
+    "lane_change_duration": 1.0
+  },
+  "reward": {
+    "speed_weight": 0.1,
+    "close_gap_threshold": 6.0,
+    "close_gap_penalty": 0.1,
+    "collision_penalty": 5.0,
+    "arrival_bonus": 2.0,
+    "blocked_penalty": 0.0,
+    "blocked_gap": 20.0,
+    "blocked_speed_frac": 0.7,
+    "lane_change_penalty": 0.0,
+    "stop_served_bonus": 1.0,
+    "stop_missed_penalty": 3.0,
+    "intervention_penalty": 0.05,
+    "comfort_penalty": 0.02,
+    "invalid_action_penalty": 0.0
+  },
+  "hparams": {
+    "lr": 0.0001,
+    "n_steps": 2048,
+    "n_epochs": 10,
+    "minibatch_size": 64,
+    "gamma": 0.99,
+    "gae_lambda": 0.95,
+    "clip_eps": 0.2,
+    "value_coef": 0.5,
+    "entropy_coef": 0.0,
+    "lane_entropy_coef": 0.01,
+    "max_grad_norm": 0.5,
+    "normalize_advantage": true,
+    "hidden_sizes": [
+      256,
+      256
+    ],
+    "activation": "relu",
+    "policy_type": "hybrid",
+    "lane_keep_bias": 0.5,
+    "init_log_std": -0.5,
+    "seed": 2102,
+    "device": "cpu"
+  },
+  "git": {
+    "commit": "aec49962c19df7c5f0fc23c008d14aec5471661a",
+    "dirty": true
+  },
+  "versions": {
+    "python": "3.10.21",
+    "numpy": "2.2.6",
+    "gymnasium": "1.3.0",
+    "torch": "2.14.0",
+    "sumolib": "1.27.1",
+    "traci": "1.27.1"
+  },
+  "created_at": "2026-11-23T00:13:20.242993+09:00",
+  "kind": "ppo_training",
+  "residual_scale": 0.0,
+  "total_timesteps": 600000,
+  "eval_interval": 0,
+  "eval_episodes": 5
+}

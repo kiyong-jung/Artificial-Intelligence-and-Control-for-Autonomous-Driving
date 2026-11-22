@@ -53,16 +53,17 @@ done
 $PY research/av_bc_rl/merge_datasets.py data/research/bc_train.npz data/research/train_expert_{quiet,baseline,busy}.npz
 # BC
 $PY train_bc.py --data data/research/bc_train.npz --epochs 50 --seed 0 --device cpu --out-dir results/research/bc_s0
+# DAgger(BC가 달린 관측에 전문가 라벨, 2번 반복). 전문가 v5로 다시 모으려면 위 수집에서 --policy expert-v5
+$PY research/av_bc_rl/dagger.py --data data/research/bc_train.npz --model results/research/bc_s0/model.pt \
+    --iterations 2 --episodes 20 --out results/research/dagger_s0 --seed 0
 # PPO, Residual (busy, 학습 seed 셋)
 $PY train.py --map hapjeong --scenario busy --seed 2101 --timesteps 600000 --eval-interval 0 --max-steps 1400 \
     --results-dir results/research --run-label ppo_s2101
 $PY train.py --map hapjeong --scenario busy --seed 2201 --timesteps 300000 --eval-interval 0 --max-steps 1400 \
     --residual-scale 0.3 --results-dir results/research --run-label residual_s2201
 # 평가(dev로 고르고, final은 마지막에 한 번)
-$PY research/av_bc_rl/evaluate.py --policy expert --split final --label expert
-$PY research/av_bc_rl/evaluate.py --policy bc --model <model.pt> --split final --label bc_s0
-$PY research/av_bc_rl/evaluate.py --policy ppo --model <model.pt> --split final --label ppo_s2101
-$PY research/av_bc_rl/compare.py --split final --groups expert=expert bc=bc_s0,... --out research/av_bc_rl/report/final_table.md
+bash research/av_bc_rl/run_final_eval.sh          # 모든 정책 final 평가와 표(models/의 모델)
+$PY research/av_bc_rl/failure_cases.py --split final --out research/av_bc_rl/report/final_failures.md
 ```
 
 ## AI-Scientist-v3로 이어가기
@@ -90,7 +91,14 @@ $PY research/av_bc_rl/compare.py --split final --groups expert=expert bc=bc_s0,.
 - BC 데이터와 Residual RL은 전문가 v4와 지도 3.13.0 수요(보행자 고정 시각, 골목 고리 경유 흐름)로 만들었다. final 평가는
   지금 환경(지도 3.14.0, 충돌 차 정지, 진행 기반 stuck)에서 했다. 전문가 v5와 3.14.0으로 데이터를 다시 모으고
   BC, DAgger, Residual을 다시 학습하는 것이 다음 순서다(`--policy expert-v5`, `dagger.py`는 metadata로 판을 고른다).
-- PPO는 60만 걸음에서 멈췄다. 처음부터 배우는 PPO가 전문가 수준에 닿는지는 더 긴 학습이 필요하다.
+- PPO는 60만 걸음에서 멈췄다. 처음부터 배우는 PPO가 전문가 수준에 닿는지는 더 긴 학습이 필요하다. final에서 74번 갇혔고
+  50번이 서교동교회 정류장 앞이다(`report/final_failures.md`). 전문가 시연으로 시작하는 PPO(BC 초기화)도 후보다.
+- final `residual_s2203` busy 3번(seed 9603)에서 ego가 R77→R111 경계에서 끊긴 차선변경으로 1.25m 오른쪽에 밀린 채 J82를
+  좌회전했고, 나가는 R112 오른쪽이 인도라 SUMO가 출구에서 세웠다(`MSVehicle::brakeForOverlap`). 시험용 버스와 같은
+  원인인데 ego는 이미 차선 모드 1536이다. 25초 동안 가운데로 돌아오지 않은 이유를 찾는다. 재현:
+  `python collect_pomdp_data.py --map hapjeong --scenario busy --seed 9603 --policy ppo --model research/av_bc_rl/models/residual_s2203/model.pt --episodes 1 --workers 1 --max-steps 1400 --out-dir /tmp/r --name r`.
+- BC와 DAgger는 R111b 끝(J82 좌회전 직전 27m)에서 가끔 갇힌다. 좌회전 차로에서 오른쪽으로 옮긴 뒤 다시 움직이지 않는 것처럼
+  전문가가 보여 준 적 없는 상태다. DAgger 반복을 늘리면 줄어들 실패다.
 - 검사 도구 `scripts/audit_naturalness.py`를 바꿀 때마다 돌린다(정적 검사는 pytest에 들어 있다). 남은 OPEN 줄과 팀
   결정은 `naturalness_audit_round2.md`, `naturalness_audit_round3.md`에 있다.
 - `metrics/*_dev.json`은 환경을 여러 번 바꾸는 동안 잰 것이라 판이 섞여 있다(예: `bc_s0_dev`에는 순간이동이 있다).

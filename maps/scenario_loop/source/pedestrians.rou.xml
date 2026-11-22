@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<routes>
+    <personFlow id="ped_out_to_in" begin="0.0" end="36000" period="30.0" departPos="379.97">
+        <walk from="B_K" to="K_B" arrivalPos="15.00" />
+    </personFlow>
+    <personFlow id="ped_in_to_out" begin="15.0" end="36000" period="30.0" departPos="15.00">
+        <walk from="K_B" to="B_K" arrivalPos="379.97" />
+    </personFlow>
+</routes>

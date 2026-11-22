@@ -1,0 +1,427 @@
+{
+  "command": "python scripts/validate_road.py --map scenario_loop --seeds 0 7 42 --scenarios quiet baseline busy --seconds 1800 --out maps/scenario_loop/references/stability_validation.json",
+  "map_id": "scenario_loop",
+  "map_version": "5.0.0",
+  "network_sha256": "91d4a8a66f24a1d6abd9131d0300dc959e5d5f8f81f0d9d441cfa5e151f7338c",
+  "sumo_version": "Eclipse SUMO sumo 1.27.1",
+  "step_length": 0.1,
+  "seconds": 1800.0,
+  "warmup_seconds": 180.0,
+  "max_episode_seconds": 500.0,
+  "lane_data_from_seconds": 300,
+  "scenario_lanes": [
+    "M_ML_0",
+    "M_ML_1",
+    "ML_B_0",
+    "ML_B_1"
+  ],
+  "pass_condition": "배경: 충돌 0, 순간이동 0(300초 기준), 모든 경계 진입로에서 도착. ego: 충돌·투입 실패 없음. r0는 모든 실행에서 도착. s_*는 도착, 시간 초과, 300초 정지 뒤 순간이동을 시나리오 결과로 기록만 한다.",
+  "structure": {
+    "edges": 48,
+    "routes": 1,
+    "checked_connections": 4,
+    "bus_stops": 2
+  },
+  "ok": true,
+  "background": [
+    {
+      "scenario": "quiet",
+      "seed": 0,
+      "ok": true,
+      "collisions": 0,
+      "teleports": 0,
+      "emergency_braking": 0,
+      "mean_running": 13.981,
+      "max_trip_waiting_s": 35.6,
+      "arrived": 191,
+      "entries_without_arrival": [],
+      "lanes": {
+        "M_ML_0": {
+          "speed": 11.69,
+          "occupancy": 2.24,
+          "waitingTime": 0.0
+        },
+        "M_ML_1": {
+          "speed": 12.77,
+          "occupancy": 1.09,
+          "waitingTime": 0.0
+        },
+        "ML_B_0": {
+          "speed": 13.17,
+          "occupancy": 1.12,
+          "waitingTime": 0.0
+        },
+        "ML_B_1": {}
+      }
+    },
+    {
+      "scenario": "quiet",
+      "seed": 7,
+      "ok": true,
+      "collisions": 0,
+      "teleports": 0,
+      "emergency_braking": 0,
+      "mean_running": 13.685,
+      "max_trip_waiting_s": 24.7,
+      "arrived": 192,
+      "entries_without_arrival": [],
+      "lanes": {
+        "M_ML_0": {
+          "speed": 11.88,
+          "occupancy": 2.23,
+          "waitingTime": 0.0
+        },
+        "M_ML_1": {
+          "speed": 12.87,
+          "occupancy": 1.1,
+          "waitingTime": 0.0
+        },
+        "ML_B_0": {
+          "speed": 13.36,
+          "occupancy": 1.08,
+          "waitingTime": 0.0
+        },
+        "ML_B_1": {
+          "speed": 13.88,
+          "occupancy": 0.02,
+          "waitingTime": 0.0
+        }
+      }
+    },
+    {
+      "scenario": "quiet",
+      "seed": 42,
+      "ok": true,
+      "collisions": 0,
+      "teleports": 0,
+      "emergency_braking": 0,
+      "mean_running": 13.905,
+      "max_trip_waiting_s": 24.2,
+      "arrived": 192,
+      "entries_without_arrival": [],
+      "lanes": {
+        "M_ML_0": {
+          "speed": 11.58,
+          "occupancy": 2.25,
+          "waitingTime": 0.0
+        },
+        "M_ML_1": {
+          "speed": 12.87,
+          "occupancy": 1.11,
+          "waitingTime": 0.0
+        },
+        "ML_B_0": {
+          "speed": 13.23,
+          "occupancy": 1.11,
+          "waitingTime": 0.0
+        },
+        "ML_B_1": {}
+      }
+    },
+    {
+      "scenario": "baseline",
+      "seed": 0,
+      "ok": true,
+      "collisions": 0,
+      "teleports": 0,
+      "emergency_braking": 0,
+      "mean_running": 29.461,
+      "max_trip_waiting_s": 59.4,
+      "arrived": 380,
+      "entries_without_arrival": [],
+      "lanes": {
+        "M_ML_0": {
+          "speed": 11.44,
+          "occupancy": 4.6,
+          "waitingTime": 0.0
+        },
+        "M_ML_1": {
+          "speed": 12.68,
+          "occupancy": 2.17,
+          "waitingTime": 0.0
+        },
+        "ML_B_0": {
+          "speed": 13.15,
+          "occupancy": 2.03,
+          "waitingTime": 0.0
+        },
+        "ML_B_1": {
+          "speed": 13.61,
+          "occupancy": 0.16,
+          "waitingTime": 0.0
+        }
+      }
+    },
+    {
+      "scenario": "baseline",
+      "seed": 7,
+      "ok": true,
+      "collisions": 0,
+      "teleports": 0,
+      "emergency_braking": 0,
+      "mean_running": 28.878,
+      "max_trip_waiting_s": 40.4,
+      "arrived": 380,
+      "entries_without_arrival": [],
+      "lanes": {
+        "M_ML_0": {
+          "speed": 11.55,
+          "occupancy": 4.51,
+          "waitingTime": 0.0
+        },
+        "M_ML_1": {
+          "speed": 12.68,
+          "occupancy": 2.26,
+          "waitingTime": 0.0
+        },
+        "ML_B_0": {
+          "speed": 13.23,
+          "occupancy": 2.14,
+          "waitingTime": 0.0
+        },
+        "ML_B_1": {
+          "speed": 13.72,
+          "occupancy": 0.04,
+          "waitingTime": 0.0
+        }
+      }
+    },
+    {
+      "scenario": "baseline",
+      "seed": 42,
+      "ok": true,
+      "collisions": 0,
+      "teleports": 0,
+      "emergency_braking": 1,
+      "mean_running": 29.345,
+      "max_trip_waiting_s": 49.1,
+      "arrived": 379,
+      "entries_without_arrival": [],
+      "lanes": {
+        "M_ML_0": {
+          "speed": 11.37,
+          "occupancy": 4.56,
+          "waitingTime": 0.0
+        },
+        "M_ML_1": {
+          "speed": 12.75,
+          "occupancy": 2.22,
+          "waitingTime": 0.0
+        },
+        "ML_B_0": {
+          "speed": 13.16,
+          "occupancy": 2.14,
+          "waitingTime": 0.0
+        },
+        "ML_B_1": {
+          "speed": 13.53,
+          "occupancy": 0.06,
+          "waitingTime": 0.0
+        }
+      }
+    },
+    {
+      "scenario": "busy",
+      "seed": 0,
+      "ok": true,
+      "collisions": 0,
+      "teleports": 0,
+      "emergency_braking": 0,
+      "mean_running": 44.645,
+      "max_trip_waiting_s": 131.5,
+      "arrived": 467,
+      "entries_without_arrival": [],
+      "lanes": {
+        "M_ML_0": {
+          "speed": 11.23,
+          "occupancy": 5.78,
+          "waitingTime": 0.0
+        },
+        "M_ML_1": {
+          "speed": 12.59,
+          "occupancy": 2.83,
+          "waitingTime": 1.9
+        },
+        "ML_B_0": {
+          "speed": 13.18,
+          "occupancy": 2.54,
+          "waitingTime": 0.0
+        },
+        "ML_B_1": {
+          "speed": 13.55,
+          "occupancy": 0.18,
+          "waitingTime": 0.0
+        }
+      }
+    },
+    {
+      "scenario": "busy",
+      "seed": 7,
+      "ok": true,
+      "collisions": 0,
+      "teleports": 0,
+      "emergency_braking": 0,
+      "mean_running": 41.217,
+      "max_trip_waiting_s": 110.9,
+      "arrived": 469,
+      "entries_without_arrival": [],
+      "lanes": {
+        "M_ML_0": {
+          "speed": 11.43,
+          "occupancy": 5.62,
+          "waitingTime": 0.0
+        },
+        "M_ML_1": {
+          "speed": 12.52,
+          "occupancy": 2.78,
+          "waitingTime": 0.0
+        },
+        "ML_B_0": {
+          "speed": 13.12,
+          "occupancy": 2.51,
+          "waitingTime": 0.0
+        },
+        "ML_B_1": {
+          "speed": 13.58,
+          "occupancy": 0.18,
+          "waitingTime": 0.0
+        }
+      }
+    },
+    {
+      "scenario": "busy",
+      "seed": 42,
+      "ok": true,
+      "collisions": 0,
+      "teleports": 0,
+      "emergency_braking": 1,
+      "mean_running": 42.165,
+      "max_trip_waiting_s": 137.4,
+      "arrived": 467,
+      "entries_without_arrival": [],
+      "lanes": {
+        "M_ML_0": {
+          "speed": 11.28,
+          "occupancy": 5.72,
+          "waitingTime": 0.0
+        },
+        "M_ML_1": {
+          "speed": 12.6,
+          "occupancy": 2.66,
+          "waitingTime": 0.0
+        },
+        "ML_B_0": {
+          "speed": 13.15,
+          "occupancy": 2.55,
+          "waitingTime": 0.0
+        },
+        "ML_B_1": {
+          "speed": 13.67,
+          "occupancy": 0.12,
+          "waitingTime": 0.0
+        }
+      }
+    }
+  ],
+  "ego": [
+    {
+      "route": "bus_loop",
+      "scenario": "quiet",
+      "seed": 0,
+      "insertion_wait_s": 0.0,
+      "ok": true,
+      "termination_reason": "arrived",
+      "episode_s": 134.0,
+      "longest_stop_s": 0.0,
+      "total_reward": 22.724
+    },
+    {
+      "route": "bus_loop",
+      "scenario": "quiet",
+      "seed": 7,
+      "insertion_wait_s": 0.0,
+      "ok": true,
+      "termination_reason": "arrived",
+      "episode_s": 134.0,
+      "longest_stop_s": 0.0,
+      "total_reward": 22.724
+    },
+    {
+      "route": "bus_loop",
+      "scenario": "quiet",
+      "seed": 42,
+      "insertion_wait_s": 0.0,
+      "ok": true,
+      "termination_reason": "arrived",
+      "episode_s": 134.0,
+      "longest_stop_s": 0.0,
+      "total_reward": 22.724
+    },
+    {
+      "route": "bus_loop",
+      "scenario": "baseline",
+      "seed": 0,
+      "insertion_wait_s": 0.0,
+      "ok": true,
+      "termination_reason": "arrived",
+      "episode_s": 135.5,
+      "longest_stop_s": 0.0,
+      "total_reward": 22.507
+    },
+    {
+      "route": "bus_loop",
+      "scenario": "baseline",
+      "seed": 7,
+      "insertion_wait_s": 0.0,
+      "ok": true,
+      "termination_reason": "arrived",
+      "episode_s": 135.5,
+      "longest_stop_s": 0.0,
+      "total_reward": 22.507
+    },
+    {
+      "route": "bus_loop",
+      "scenario": "baseline",
+      "seed": 42,
+      "insertion_wait_s": 0.0,
+      "ok": true,
+      "termination_reason": "arrived",
+      "episode_s": 135.5,
+      "longest_stop_s": 0.0,
+      "total_reward": 22.507
+    },
+    {
+      "route": "bus_loop",
+      "scenario": "busy",
+      "seed": 0,
+      "insertion_wait_s": 0.0,
+      "ok": true,
+      "termination_reason": "arrived",
+      "episode_s": 135.5,
+      "longest_stop_s": 0.0,
+      "total_reward": 22.507
+    },
+    {
+      "route": "bus_loop",
+      "scenario": "busy",
+      "seed": 7,
+      "insertion_wait_s": 0.0,
+      "ok": true,
+      "termination_reason": "arrived",
+      "episode_s": 135.5,
+      "longest_stop_s": 0.0,
+      "total_reward": 22.507
+    },
+    {
+      "route": "bus_loop",
+      "scenario": "busy",
+      "seed": 42,
+      "insertion_wait_s": 0.0,
+      "ok": true,
+      "termination_reason": "arrived",
+      "episode_s": 135.5,
+      "longest_stop_s": 0.0,
+      "total_reward": 22.507
+    }
+  ]
+}

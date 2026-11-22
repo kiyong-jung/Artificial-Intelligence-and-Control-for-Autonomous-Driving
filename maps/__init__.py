@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 MAPS_DIR = Path(__file__).resolve().parent
-DEFAULT_MAP = "paldalmun"
+DEFAULT_MAP = "scenario_loop"
 
 
 def available_maps() -> list[str]:

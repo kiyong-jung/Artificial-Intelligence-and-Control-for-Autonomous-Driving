@@ -107,7 +107,9 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
     for begin, volume, flow in sorted(staggered, key=lambda item: item[0]):
         # 배경 차량은 출발·도착 도로만 정하고 경로는 SUMO가 고른다.
         ET.SubElement(routes, "flow", _attrs({
-            "id": flow["id"], "type": "carDist", "from": flow["from"], "to": flow["to"], "begin": f"{begin:.3f}",
+            "id": flow["id"], "type": "carDist", "from": flow["from"], "to": flow["to"],
+            # 같은 길이의 경로가 둘 이상일 때 지나야 할 도로를 고정한다(없으면 SUMO가 고른다).
+            "via": " ".join(flow["via"]) if flow.get("via") else None, "begin": f"{begin:.3f}",
             "end": 100000, "period": f"{3600.0 / volume:.6f}", "departLane": "best",
             "departSpeed": traffic["depart_speed"]}))
     _write_xml(output / "routes.rou.xml", routes)
@@ -126,9 +128,13 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
 
     # 4) GUI 초기 시점: 관심 영역(focus_bbox)이 화면에 맞도록 확대한다.
     left, bottom, right, top = compiled.getBoundary()
-    west, south, east, north = network["focus_bbox"]
-    x0, y0 = compiled.convertLonLat2XY(west, south)
-    x1, y1 = compiled.convertLonLat2XY(east, north)
+    #    평면 좌표로 그린 합성 도로는 위경도 대신 실행망 좌표(focus_xy)로 범위를 준다.
+    if "focus_xy" in network:
+        x0, y0, x1, y1 = network["focus_xy"]
+    else:
+        west, south, east, north = network["focus_bbox"]
+        x0, y0 = compiled.convertLonLat2XY(west, south)
+        x1, y1 = compiled.convertLonLat2XY(east, north)
     zoom = 100.0 * max(right - left, top - bottom) / max(abs(x1 - x0), abs(y1 - y0))
     view = ET.Element("viewsettings")
     ET.SubElement(view, "scheme", name="real world")

@@ -1,0 +1,188 @@
+{
+  "id": "scenario_loop",
+  "name": "연구 시나리오 도로(직사각형 + 가운데 가로 도로)",
+  "version": "5.0.0",
+  "description": "실제 지도가 아닌 합성 도로. 직사각형과 가운데 가로 도로로 된 日 모양이다. 버스는 아래쪽 절반을 반시계로 돌며 가운데 도로 끼어들기(S5), 가로변 정류장 2곳(S3·S4), 신호 없는 횡단보도(S6)를 지난다. 위쪽 절반은 양방향 도로이고 S5 차량이 돌아 나가는 길이다.",
+  "source_status": "synthetic",
+  "network_source": {
+    "path": "source/network.net.xml",
+    "sha256": "91d4a8a66f24a1d6abd9131d0300dc959e5d5f8f81f0d9d441cfa5e151f7338c",
+    "generator": "scripts/build_scenario_loop.py"
+  },
+  "extra_files": {
+    "routes": [
+      "source/pedestrians.rou.xml"
+    ]
+  },
+  "ego_vehicle": "bus",
+  "focus_xy": [
+    -200.0,
+    0.0,
+    400.0,
+    560.0
+  ],
+  "gui_center": {
+    "x": 100.0,
+    "y": 280.0
+  },
+  "assumptions": [
+    "도로 형상은 팀 스케치를 옮긴 것이다. 치수(폭 400m, 아래 320m, 위 240m)는 임의로 정했다.",
+    "제한속도는 50km/h, 진출입로 30km/h다. 신호는 없다.",
+    "배경 흐름은 합성 수요다(baseline 합계 810대/시간). quiet·baseline·busy는 0.5·1·1.25배다.",
+    "S6 보행자는 방향마다 시간당 120명이다."
+  ],
+  "routes": {
+    "bus_loop": [
+      "B_K",
+      "K_MR",
+      "MR_M",
+      "M_ML",
+      "ML_B"
+    ]
+  },
+  "route_design": {
+    "bus_loop": {
+      "description": "[연구] 아래 변 가운데 → 남쪽 정류장(S4) → 신호 없는 횡단보도(S6) → MR 좌회전(S5 합류 지점) → 가운데 도로(진입로 합류점 M) → ML 좌회전 → 서쪽 정류장 접근(S3)·정차(S4) → 남서 모서리(S2) → 아래 변 가운데",
+      "length_m": 1356.85,
+      "max_speed_mps": 13.89,
+      "first_edge_lanes": 3
+    }
+  },
+  "flows": [
+    {
+      "id": "f_X_TL_to_TL_X",
+      "from": "X_TL",
+      "to": "TL_X",
+      "vehs_per_hour": 150,
+      "note": "S5: 위쪽을 돌아 MR에서 가운데 도로로 끼어든 뒤 ML에서 우회전해 진출로로 나간다",
+      "via": [
+        "MR_M"
+      ]
+    },
+    {
+      "id": "f_X_TL_to_B_K",
+      "from": "X_TL",
+      "to": "B_K",
+      "vehs_per_hour": 150,
+      "note": "가운데 도로에서 ML 좌회전, 버스와 같은 방향으로 왼쪽 변·아래 변",
+      "via": [
+        "MR_M"
+      ]
+    },
+    {
+      "id": "f_B_K_to_TL_X",
+      "from": "B_K",
+      "to": "TL_X",
+      "vehs_per_hour": 150,
+      "note": "버스와 같은 차로로 오른쪽 변·가운데 도로를 지나 ML에서 우회전해 진출",
+      "via": [
+        "MR_M"
+      ]
+    },
+    {
+      "id": "f_X_TL_to_B_ML",
+      "from": "X_TL",
+      "to": "B_ML",
+      "vehs_per_hour": 100,
+      "note": "MR에서 직진해 아래쪽 절반을 반대 방향(시계)으로",
+      "via": [
+        "MR_K"
+      ]
+    },
+    {
+      "id": "f_ML_M_to_MR_K",
+      "from": "ML_M",
+      "to": "MR_K",
+      "vehs_per_hour": 80,
+      "note": "가운데 도로 동행 → MR 우회전 → 오른쪽 변 남행"
+    },
+    {
+      "id": "f_N_M_to_TL_X",
+      "from": "N_M",
+      "to": "TL_X",
+      "vehs_per_hour": 80,
+      "note": "진입로 → M에서 우회전해 버스 진행 방향으로 합류 → ML에서 우회전해 진출"
+    },
+    {
+      "id": "f_N_M_to_B_K",
+      "from": "N_M",
+      "to": "B_K",
+      "vehs_per_hour": 60,
+      "note": "진입로 → M 우회전 → ML 좌회전, 버스와 같은 방향으로 왼쪽 변·아래 변"
+    },
+    {
+      "id": "f_N_M_to_MR_K",
+      "from": "N_M",
+      "to": "MR_K",
+      "vehs_per_hour": 40,
+      "note": "진입로 → M 좌회전 → MR 우회전 → 오른쪽 변 남행"
+    }
+  ],
+  "max_lane_speed_mps": 13.89,
+  "ego_route": "bus_loop",
+  "bus_stops": [
+    {
+      "id": "stop_south",
+      "name": "남쪽 정류장",
+      "lane": "B_K_1",
+      "startPos": 58.5,
+      "endPos": 83.5,
+      "lanes_on_edge": 3
+    },
+    {
+      "id": "stop_west",
+      "name": "서쪽 정류장",
+      "lane": "ML_B_0",
+      "startPos": 81.4,
+      "endPos": 106.4,
+      "lanes_on_edge": 3
+    }
+  ],
+  "design": {
+    "measure_lanes": [
+      "M_ML_0",
+      "M_ML_1",
+      "ML_B_0",
+      "ML_B_1"
+    ],
+    "zones": {
+      "s5_cutin": {
+        "alley": "TL_MR",
+        "joins": "MR_M",
+        "node": "MR",
+        "note": "위쪽에서 내려온 차량이 우회전해, 좌회전해 들어오는 버스와 같은 가운데 도로로 신호 없이 합류"
+      },
+      "s3_s4_west_stop": {
+        "approach": "ML_B",
+        "node": "ML",
+        "note": "ML 좌회전 직후 오른쪽 차로의 서쪽 정류장으로 이동, 정차"
+      },
+      "entry_merge": {
+        "alley": "N_M",
+        "joins": "M_ML",
+        "node": "M",
+        "note": "가운데 도로 한가운데로 들어오는 짧은 진입로. 신호 없이 진입로가 양보"
+      },
+      "ml_lanes": {
+        "approach": "M_ML",
+        "left_to": "ML_B",
+        "note": "가운데 도로 0번 차로는 위쪽 우회전(진출)만, 1·2번 차로만 좌회전"
+      },
+      "s6_crossing": {
+        "node": "K",
+        "edges": [
+          "B_K",
+          "K_B"
+        ],
+        "note": "신호 없는 보행자 비우선 횡단보도"
+      },
+      "s5_exit": {
+        "edges": [
+          "ML_TL",
+          "TL_X"
+        ],
+        "note": "S5 차량이 나가는 길"
+      }
+    }
+  }
+}

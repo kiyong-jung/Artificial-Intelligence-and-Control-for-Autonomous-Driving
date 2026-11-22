@@ -12,12 +12,18 @@
 2. **환경.** 관측에 버스가 실제로 알 수 있는 경로 정보 15개를 붙였다(46차원). 정류장 정차(s2, s4, s5, s6에
    8초)를 환경이 센다. 가속도는 구동계처럼 결정 구간 동안 곧게 바뀐다. 차선변경 모드를 512에서 1536으로
    바꿔 버스가 차로 가운데로 다시 정렬한다(512에서는 인도에 걸쳐 멈추고 순간이동했다).
-3. **전문가 규칙(`env/route_policy.ExpertPolicy`).** 관측만 쓰는 IDM + 가상 정지점. busy dev 30회에서
+3. **전문가 규칙(`env/route_policy.ExpertPolicy`, v4).** 관측만 쓰는 IDM + 가상 정지점. busy dev 30회에서
    급제동 0, SUMO 개입 1.3%, 불일치 0.21%, 정류장 118/120. 관측만 쓰는지 48,176 샘플로 검증(차이 0).
-4. **억지 교통 코드.** `traffic/`의 버스 상대 조작 코드를 감사했다(`traffic_audit.md`). 학습 환경은 이 코드를
-   쓰지 않는다. 정리는 별도 브랜치에서 진행했다(아래 "열린 일").
-5. **학습.** BC(전문가 시연), PPO(처음부터), Residual RL(전문가 가감속 + 학습한 보정)을 같은 관측과
-   보상으로 학습하고, `evaluate.py`로 같은 seed에서 닫힌 루프 평가했다. 결과는 `report.md`.
+   `ExpertPolicyV5`는 차선변경과 앞차 추종을 SUMO가 실제로 지키는 안전 간격에 맞춰 정류장 120/120, 개입 0.89%다.
+   BC와 Residual은 v4로 학습했으므로 `make_expert`의 기본은 4다.
+4. **억지 교통 코드와 순간이동.** 버스 위치에 맞춰 배경 차와 보행자를 만들고 세우던 코드를 지웠다(`traffic_audit.md`).
+   순간이동은 모든 경로에서 끈다(`time-to-teleport -1`). 막히면 감추지 않고 `stuck`으로 센다.
+5. **검사 루프(사용자 요청, 2회 이상).** `scripts/audit_naturalness.py`가 정적 검사(배경 행위자에게 가는 TraCI 명령,
+   위험한 운전자·교차로 속성, 고정 시각 수요)와 동적 검사(순간이동, 충돌, 비상 제동, 오래 선 차, 버스 가까이 출현)를
+   한다. 1회차(`naturalness_audit_round1.md`) 뒤 환경, 주변 교통, 지도 수요를 고쳤고 2회차는 다른 모델이 다시 봤다
+   (`naturalness_audit_round2.md`). 지도는 3.14.0이 됐다(보행자 포아송 도착, 골목 고리 경유 흐름 제거).
+6. **학습.** BC(전문가 시연), DAgger, PPO(처음부터), Residual RL(전문가 가감속 + 학습한 보정)을 같은 관측과
+   보상으로 학습하고, `evaluate.py`로 final seed에서 닫힌 루프 평가했다. 결과는 `report.md`. 모델은 `models/`.
 
 ## 다른 컴퓨터에서 시작하기
 
@@ -29,7 +35,7 @@ conda create -n sumo-rl python=3.10 && conda activate sumo-rl
 python -m pip install -r requirements.txt tensorboard
 # SUMO 1.27.1을 설치하고 SUMO_HOME을 설정한다(README의 설치 절). 또는 pip install eclipse-sumo==1.27.1
 python -m pytest -q                       # 이 브랜치에서 통과해야 한다
-python research/av_bc_rl/agsci_task/evaluate.py --results_dir /tmp/eval_expert   # 전문가 96.9점, 3분
+python research/av_bc_rl/agsci_task/evaluate.py --results_dir /tmp/eval_expert   # 전문가 점수, 약 3분
 ```
 
 데이터(`data/`)와 학습 결과(`results/`)는 git에 없다. 아래 명령으로 다시 만든다. 학습한 모델 파일은
@@ -79,13 +85,25 @@ $PY research/av_bc_rl/compare.py --split final --groups expert=expert bc=bc_s0,.
 
 ## 열린 일
 
-- `traffic/` 억지 코드 정리 브랜치의 결과 검토와 병합(진행 상황은 decisions.tsv).
-- PR #8(3.7.0~3.13.0 패치 흡수)은 아직 리뷰 대기다. 이 연구는 main의 도로망(3.13.0)을 그대로 쓴다.
-- S6 횡단보도는 망에서 차량 우선(보행자 비우선)이다. 한국 법규(보행자 우선)와 맞출지는 팀이 정한다.
-- 전문가 v4는 busy에서 120번 중 2번 정류장을 놓치고, quiet train 60회 중 1회 R111b 끝에서 옆 차와 함께 멈춘다.
-  `ExpertPolicyV5`(`--policy expert-v5`)가 둘을 고쳤다(busy 120/120, quiet train 60/60, 개입 0.89%). 차선변경과
-  앞차 추종을 SUMO가 실제로 지키는 안전 간격에 맞춘 판이다(decisions.tsv). BC 데이터와 Residual RL은 v4로
-  학습했으므로 `make_expert`의 기본은 4다. v5로 다시 모아 학습할지는 정해야 한다.
+연구 쪽에서 이어갈 일이다.
+
+- BC 데이터와 Residual RL은 전문가 v4와 지도 3.13.0 수요(보행자 고정 시각, 골목 고리 경유 흐름)로 만들었다. final 평가는
+  지금 환경(지도 3.14.0, 충돌 차 정지, 진행 기반 stuck)에서 했다. 전문가 v5와 3.14.0으로 데이터를 다시 모으고
+  BC, DAgger, Residual을 다시 학습하는 것이 다음 순서다(`--policy expert-v5`, `dagger.py`는 metadata로 판을 고른다).
+- PPO는 60만 걸음에서 멈췄다. 처음부터 배우는 PPO가 전문가 수준에 닿는지는 더 긴 학습이 필요하다.
+- 검사 도구 `scripts/audit_naturalness.py`를 바꿀 때마다 돌린다(정적 검사는 pytest에 들어 있다). 남은 OPEN 줄과 팀
+  결정은 `naturalness_audit_round2.md`에 있다.
+
+팀이 정할 일이다(근거 문서를 같이 적는다).
+
+- S6 횡단보도 보행자 우선 전환(`proposal_s6_priority.md`). 바꾸면 `_crossing_occupied`가 걸어 들어오는 사람도 보게 같이 바꾼다.
+- 수요 배수(골목 3배, S6 보행자 4배, 상수역 2배). 실측 근거가 없다. 배수별 시나리오 발생 표는 `maps/hapjeong/README.md` 3.14.0 절.
+- 독막로6길 고리는 경유 흐름을 없앤 뒤 나오는 차가 없다. 출발지를 둘지 고리를 정리할지.
+- 황색 신호에서 배경 차가 9m/s²로 비상 제동한다(에피소드당 약 3번, ego는 0). 원인은 IDM 계열 정지 규칙(T 1.8초,
+  b 4.5)이고 신호 시간이 아니다. tau 1.2면 35건이 14건이 되지만 배경 교통 전체가 바뀐다(`naturalness_audit_round1.md` E4).
+- J42 R55 좌회전 차로가 하나뿐이고 주기가 182초라 좌회전 대기가 길다. 배경 버스 노선 B1, B4가 차로를 보지 않고 골라져
+  있다(`traffic/README.md`).
+- PR #8(3.7.0~3.13.0 패치 흡수)은 리뷰 대기다. 이 브랜치의 지도는 3.14.0(도로망은 3.13.0과 같고 수요만 다르다).
 
 ## 파일
 

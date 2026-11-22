@@ -1,0 +1,10 @@
+ts	phase	decision	why	evidence	result
+2026-11-22T14:41:15Z	frame	main을 pull하고 research/av-bc-rl 브랜치를 만듦	팀 최신(3.13.0, PR #7)에서 시작	main 2ca0f86	pytest 169 passed
+2026-11-22T14:41:15Z	frame	AI-Scientist-v3는 단계와 산출물 형식만 따르고 agsci run은 안 씀	이 Mac에 Docker, GPU가 없고 비컨테이너 실행은 에이전트가 전권으로 호스트에서 돌며 인증 토큰이 필요함	scratchpad/ext/ai-scientist-v3/README.md, docs/pipeline.md	task.md, rubrics.json 작성
+2026-11-22T14:41:15Z	harness	버스 행동 지표 스크립트 작성(급제동, 개입, 불일치, 정지 이유, 차선 왕복)	고치기 전 값을 먼저 재야 전후 비교가 됨	research/av_bc_rl/behavior_metrics.py	동작
+2026-11-22T14:41:15Z	harness	지표 스크립트의 거리 0.0을 없음으로 보던 버그 수정	정지선 위(0m) 정지를 설명 없는 정지로 잘못 셌음	behavior_metrics.py _near()	설명 없는 정지 1.25 -> 0/바퀴
+2026-11-22T14:41:15Z	baseline	기준 규칙 정책 8에피소드(busy, seed 1000~1007) 측정	고치기 전 값	data/research/baseline_rule_v0.jsonl.gz, metrics/baseline_rule_v0.json	완주 8/8, 급제동 1.75/바퀴(최대 15.2m/s2), SUMO 개입 33%, 불일치 7.9%, 정류장 정차 0
+2026-11-22T14:41:15Z	diagnose	신호 앞 급정지 원인을 0.1초 단위로 재현	숫자를 믿기 전에 무엇을 잰 것인지 확인	scratchpad/probe/red_stop_probe.py	관측에 신호가 없어 12.5m/s로 적색 24m 앞까지 감, SUMO가 정지선 0.64m 앞에서 7.9->0m/s를 0.1초에 만듦(speed_mode 31의 적색 강제 정지). getAcceleration은 0을 돌려줘 승차감 기록에서 빠짐
+2026-11-22T14:41:15Z	diagnose	BC 라벨이 거의 상수임을 확인	규칙 정책이 항상 [0.25, 0]을 냄	train_bc 5 epoch val_loss 0.001	BC가 신호, 정류장을 배울 수 없는 데이터
+2026-11-22T14:41:15Z	audit	traffic/의 억지 시나리오 코드 감사를 별도 에이전트에 맡김	사용자가 정성적으로 부자연스러운 차량을 봄. 25개 파일이라 읽기 전용으로 분리	background agent	open
+2026-11-22T14:43:26Z	measure	ego 가속도를 SUMO getAcceleration 대신 0.1초 속도 차로 계산	적색 강제 정지(80m/s2)를 getAcceleration이 0으로 돌려줘 승차감 기록에서 빠졌음	env/sumo_env.py step(), data/research/baseline_rule_v0b	peak_acceleration 2.0 -> 80.1, 79.4로 기록됨

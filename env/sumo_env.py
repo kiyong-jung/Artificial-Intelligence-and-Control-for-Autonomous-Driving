@@ -296,6 +296,7 @@ class SumoHighwayEnv(gym.Env):
 
         self.step_count = 0
         self._acceleration, self._jerk = 0.0, 0.0
+        self._speed = float(traci.vehicle.getSpeed(self.ego_id)) if self.ego_id in traci.vehicle.getIDList() else 0.0
         return self._get_obs(), {"sumo_seed": self.sumo_seed,
                                  "ego_insert_wait_seconds": (1 + _wait) * self.step_length,
                                  "warmup_seconds": warmup_steps * self.step_length,
@@ -816,7 +817,11 @@ class SumoHighwayEnv(gym.Env):
                     v + accel_cmd * self.step_length * (substep + 1), 0.0, allowed)))
             traci.simulationStep()
             if self.ego_id in traci.vehicle.getIDList():
-                acceleration = float(traci.vehicle.getAcceleration(self.ego_id))
+                # 가속도는 속도 변화로 잰다. SUMO가 적색 정지선 앞에서 속도를 한 계산 만에 0으로 만들면
+                # getAcceleration()은 0을 돌려줘, 승객이 겪는 급정지가 기록에서 빠진다.
+                speed = float(traci.vehicle.getSpeed(self.ego_id))
+                acceleration = (speed - self._speed) / self.step_length
+                self._speed = speed
                 self._jerk = (acceleration - self._acceleration) / self.step_length
                 self._acceleration = acceleration
                 peak_acceleration = max(peak_acceleration, abs(acceleration))

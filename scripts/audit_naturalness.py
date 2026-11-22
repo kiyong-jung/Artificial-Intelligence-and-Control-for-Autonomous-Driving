@@ -109,7 +109,7 @@ LONGEST_CYCLE_S = 182.0    # 가장 긴 신호 주기. 이보다 오래 서 있�
 #   lit : 파일=.py, 어디서=함수, 무엇=옵션·속성 이름, 대상=값
 #   xml : 파일=XML 이름(gen:env/…, gen:traffic/…는 만들어 본 실행 폴더), 어디서=태그, 무엇=속성, 대상=id(숫자는 #)
 #   data: 파일=지도 id, 어디서=검사 이름, 무엇=항목
-# 판정 ALLOW = 정당하다. OPEN:<번호> = research/av_bc_rl/naturalness_audit_round1.md의 발견. 고치면 이 줄을 지운다.
+# 판정 ALLOW = 정당하다. OPEN:<번호> = research/av_bc_rl/naturalness_audit_round1.md·round2.md의 발견. 고치면 이 줄을 지운다.
 # ---------------------------------------------------------------------------------------------------------------
 A, O = "ALLOW", "OPEN:"
 RULES = [
@@ -138,8 +138,9 @@ RULES = [
      "정지선 맨 앞에 200초(가장 긴 신호 주기보다 길게) 선 차만, 회차 없이 지금 차로가 가는 길로. 운전자의 포기 행동"),
     ("call", "traffic/lane_route.py", "LaneRouteAdapter._stuck", "vehicle.<alias>", "v", A,
      "읽기 전용 별칭(getSpeed, getWaitingTime, getLanePosition)"),
-    ("call", "traffic/right_turn.py", "apply_right_on_red", "trafficlight.setProgramLogic", "tid", O + "X3",
-     "실행 중 신호 프로그램을 바꿔 적색 우회전을 일시정지 후 진행(s)으로 연다. traffic 경로에만 있다(env는 지도 신호 그대로)"),
+    ("call", "traffic/right_turn.py", "apply_right_on_red", "trafficlight.setProgramLogic", "tid", A,
+     "팀 결정(traffic/README '우회전과 보행자'). 시작할 때 한 번, 적색 우회전을 일시정지 후 진행(s)으로 연다. 버스를 보지 않는다. "
+     "traffic 경로에만 있는 차이(X3)라 S1~S6 발생률은 학습 환경의 값이 아니다(traffic/README)"),
     ("lit", "traffic/cutin.py", "cutin_vtype_xml", "jmIgnoreFoeProb", "*", A,
      "bins를 반드시 받는다(기본값 없음). 합정역은 alley_driver_bins의 0, 0보다 큰 값은 합성 도로 검증만 준다"),
     ("lit", "traffic/cutin.py", "cutin_vtype_xml", "impatience", "*", A,
@@ -150,9 +151,11 @@ RULES = [
     ("lit", "traffic/pedestrian.py", "ped_dist_xml", "*", "*", O + "T8",
      "보행자 분포: impatience 0~1, jmTimegapMinor. jmIgnoreFoeProb는 0으로 적는다"),
     ("lit", "traffic/pedestrian.py", "*", "*", "*", A, "합성 T자로 검증 장면의 보행자 유형(합정역 실행과 무관)"),
-    ("lit", "traffic/sumo_conn.py", "", "no-warnings", "true", O + "E3", "SUMO 경고를 끈다"),
-    ("lit", "traffic/sumo_conn.py", "", "step-method.ballistic", "*", O + "X1",
-     "traffic 경로만 ballistic 적분이다. 학습 환경은 SUMO 기본(Euler)이라 두 경로의 물리가 다르다"),
+    ("lit", "traffic/sumo_conn.py", "", "no-warnings", "true", A,
+     "콘솔만 끈다. 경고는 sumo_cmd의 --error-log로 실행 폴더의 sumo_warnings.log에 남는다(감사 2회차)"),
+    ("lit", "traffic/sumo_conn.py", "", "step-method.ballistic", "*", A,
+     "팀 결정(traffic/README, 감사 1회차 X1). traffic 경로만 ballistic 적분이라 두 경로의 물리가 다르다. "
+     "traffic 경로의 측정값을 학습 환경의 값으로 쓰지 않는다"),
     ("xml", "gen:traffic/traffic.rou.xml", "vType", "impatience", "cutin_#", A,
      "골목 운전자 6구간 impatience 0.1~0.5. 모든 신호 없는 골목 출구 흐름"),
     ("xml", "gen:traffic/traffic.rou.xml", "vType", "jmTimegapMinor", "cutin_#", A, "골목 운전자 0.3~0.86초, 위와 같다"),
@@ -180,8 +183,9 @@ RULES = [
      "지도 패치 도구가 경로가 끊긴 보행자를 찾아내려고 오류를 경고로 받는다"),
     ("lit", "scripts/road_usage.py", "run", "no-warnings", "true", A, "도로 사용량 측정(읽기만)"),
     ("lit", "scripts/scenario_supply.py", "run", "no-warnings", "true", A, "시나리오 공급 측정(읽기만)"),
-    ("xml", "maps/paldalmun/source/network.net.xml", "connection", "uncontrolled", "*", O + "P1",
-     "팔달문 지도(수업 기본 지도)의 신호 없는 연결. 이번 감사는 합정역만 봤다"),
+    ("xml", "maps/paldalmun/source/network.net.xml", "connection", "uncontrolled", "*", A,
+     "팔달문 도로 중간 점(우선 교차로, 들어오는 차로가 마주 보는 두 방향 2차로씩뿐, 횡단보도 없음)을 곧게 지나는 연결이다. "
+     "상태 M(우선)이고 겹치는 상대 흐름이 없다(감사 2회차에서 도로망을 읽어 확인)"),
     ("call", "scripts/audit_naturalness.py", "*", "*", "*", A, "이 검사기(읽기와 자기 점검)"),
     ("lit", "maps/hapjeong/generator/*.py", "*", "*", "*", A,
      "서예인 원본 생성기. 실행에 쓰는 도로망은 scripts/build_hapjeong.py가 만든다"),
@@ -190,8 +194,12 @@ RULES = [
      "골목 G22는 비우선 연결(state m)이라 간선 차에게 양보하고, 우회전 길이 횡단보도와 겹치지 않는다. 간선 1,400대/시간에서 "
      "골목 차 평균 대기 4.2초, 충돌 0(지도 README 3.14.0)"),
     ("xml", "maps/paldalmun/source/network.full.net.xml", "*", "*", "*", A, "자르기 전 원본(실행에 쓰지 않는다)"),
-    ("data", "hapjeong", "crossing-vehicle-priority", "S6_wausanro", "*", O + "M1",
-     "신호 없는 횡단보도에서 차가 우선(보행자가 양보). 한국 법규와 반대"),
+    ("data", "hapjeong", "crossing-vehicle-priority", "S6_wausanro", "*", A,
+     "팀 결정(research/av_bc_rl/proposal_s6_priority.md). 신호 없는 횡단보도에서 차가 우선이라 한국 법규와 반대다. 보행자 우선으로 "
+     "바꾸면 관측(_crossing_occupied)도 함께 바꾸고 데이터를 다시 모아야 한다"),
+    ("data", "hapjeong", "flow-lane-change-too-short", "*", "*", O + "R2-W1",
+     "지도 흐름이 가장 빠른 길로 가며 짧은 도로에서 두 칸을 옮겨야 한다(각 7대/시간). 학습 환경 19회에서 f_R125_to_R124가 "
+     "R126_2에서 비상 제동 1번. 지도(학습 세계)를 바꾸는 일이라 팀이 정한다(naturalness_audit_round2.md)"),
     ("data", "hapjeong", "persons-single-crossing", "s6ped", "*", A,
      "S6 횡단보도만 건너는 보행 수요. 도착은 포아송이다. 양(시간당 240명)은 팀 밀도 설정이다(지도 README 3.14.0의 결정 표)"),
     ("data", "hapjeong", "service-stop-at-edge-end", "*", "*", A,
@@ -385,6 +393,49 @@ def scan_all_xml(tmp):
         for path in sorted(folder.iterdir()):
             if path.suffix in (".xml", ".sumocfg") and path.name != "network.net.xml":
                 hits += scan_xml(path, f"{prefix}/{path.name}")
+        hits += scan_route_lanes(folder, prefix)
+    return hits
+
+
+LANE_CHANGE_S = 10.0       # SUMO SL2015가 한 칸 옮길 거리를 미리 잡는 시간(MSLCM_SL2015.cpp LOOK_FORWARD)
+
+
+def short_lane_changes(net, edges, vclass):
+    """경로의 가운데 도로마다 앞 도로에서 들어오는 차로와 다음 도로로 가는 차로 사이 가장 적은 칸 수를 세고,
+    칸 수 x 제한 속도 x 10초보다 짧은 도로를 [(도로, 칸 수, 길이)]로 돌려준다."""
+    out = []
+    for prev, edge, nxt in zip(edges, edges[1:], edges[2:]):
+        if not (net.hasEdge(prev) and net.hasEdge(edge) and net.hasEdge(nxt)):
+            continue
+        e = net.getEdge(edge)
+        arrive = {c.getToLane().getIndex() for lane in net.getEdge(prev).getLanes() if lane.allows(vclass)
+                  for c in lane.getOutgoing() if c.getTo() == e and c.getToLane().allows(vclass)}
+        leave = {lane.getIndex() for lane in e.getLanes() if lane.allows(vclass)
+                 for c in lane.getOutgoing() if c.getTo().getID() == nxt}
+        need = min((abs(a - b) for a in arrive for b in leave), default=0)
+        if need and e.getLength() < need * e.getSpeed() * LANE_CHANGE_S:
+            out.append((edge, need, e.getLength()))
+    return out
+
+
+def scan_route_lanes(folder, prefix):
+    """실행 폴더의 경로 파일에 적힌 <route>를 그 경로를 쓰는 차의 vClass로 따라가 차로를 옮길 거리가 모자란 도로를 찾는다.
+    배경 버스 B1·B4가 정지선 앞 틀린 차로에 서던 원인이다(감사 2회차)."""
+    from sumolib.net import readNet
+    net = readNet(str(folder / "network.net.xml"))
+    hits = []
+    for path in sorted(folder.glob("*.rou.xml")):
+        root = ET.parse(path).getroot()
+        vclass = {t.get("id"): t.get("vClass", "passenger") for t in root.iter("vType")}
+        users = {f.get("route"): vclass.get(f.get("type"), "passenger") for f in root.iter() if f.get("route")}
+        for route in root.iter("route"):
+            if route.get("id") is None or route.get("edges") is None:
+                continue
+            short = short_lane_changes(net, route.get("edges").split(), users.get(route.get("id"), "bus"))
+            if short:
+                hits.append(dict(kind="xml", file=f"{prefix}/{path.name}", where="route", what="lane-change-too-short",
+                                 target=route.get("id"),
+                                 detail=", ".join(f"{e} {n}칸/{length:.1f}m" for e, n, length in short)))
     return hits
 
 
@@ -421,6 +472,13 @@ def scan_map(map_id="hapjeong"):
     for flow in m["flows"]:
         if flow.get("via"):
             add("flow-forced-via", flow["id"], f"{flow['vehs_per_hour']}대/시간이 {flow['via']}를 거친다")
+    # 흐름이 SUMO의 가장 빠른 길로 가면서 짧은 도로에서 여러 칸을 옮겨야 하는가(정지선 앞 틀린 차로에 서는 차의 원인)
+    for flow in m["flows"]:
+        path, _ = net.getShortestPath(net.getEdge(flow["from"]), net.getEdge(flow["to"]), vClass="passenger")
+        short = short_lane_changes(net, [e.getID() for e in path or []], "passenger")
+        if short:
+            add("flow-lane-change-too-short", flow["id"], f"{flow['vehs_per_hour']}대/시간, "
+                + ", ".join(f"{e} {n}칸/{length:.1f}m" for e, n, length in short))
     # 다음 도로로 이어지지 않는 차로, 짧은데 차로마다 가는 길이 다른 도로
     for edge in car_edges(net.getEdges()):
         lanes = [lane for lane in edge.getLanes() if lane.allows("passenger")]
@@ -521,7 +579,16 @@ BAD_CFG = ('<configuration><processing><time-to-teleport value="300"/><collision
            '<ignore-route-errors value="true"/></processing></configuration>')
 
 
+# 감사 2회차 전 배경 버스 B1·B4 노선(합정역 도로망에서 R49a 22.9 m에 세 칸, R55 102.7 m에 네 칸)
+BAD_BUS_ROUTES = ('<routes><vType id="bgbus" vClass="bus"/>'
+                  '<route id="r_bgbus_B1" edges="R114 R49a B1 R41 R43 R50 R92"/>'
+                  '<route id="r_bgbus_B4" edges="-R126 R55a B4a B4b R55 R92"/>'
+                  '<flow id="b1" type="bgbus" route="r_bgbus_B1" begin="0" end="1" number="1"/>'
+                  '<flow id="b4" type="bgbus" route="r_bgbus_B4" begin="0" end="1" number="1"/></routes>')
+
+
 def self_check():
+    from maps import load_map
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         (tmp / "bad.py").write_text(BAD_PY)
@@ -529,14 +596,22 @@ def self_check():
         (tmp / "bad.sumocfg").write_text(BAD_CFG)
         hits = scan_python(tmp, [tmp / "bad.py"]) + scan_xml(tmp / "bad.rou.xml", "bad.rou.xml") \
             + scan_xml(tmp / "bad.sumocfg", "bad.sumocfg")
+        lanes = tmp / "lanes"
+        lanes.mkdir()
+        (lanes / "network.net.xml").symlink_to(load_map("hapjeong")["net_path"])
+        (lanes / "bus.rou.xml").write_text(BAD_BUS_ROUTES)
+        bus = scan_route_lanes(lanes, "bad")
+        hits += bus
     found = {(h["kind"], h["what"]) for h in hits}
     expected = {("call", "vehicle.setSpeed"), ("call", "vehicle.setLaneChangeMode"), ("call", "vehicle.moveToXY"),
                 ("call", "person.add"), ("call", "vehicle.<alias>"), ("call", "vehicle.<getattr>"),
                 ("lit", "time-to-teleport"), ("lit", "ignore-route-errors"), ("lit", "collision.action"),
                 ("lit", "jmIgnoreFoeProb"), ("lit", "jmDriveAfterRedTime"),
                 ("xml", "jmIgnoreFoeProb"), ("xml", "jmDriveAfterRedTime"), ("xml", "impatience"), ("xml", "sigma"),
-                ("xml", "departPos"), ("xml", "departLane"), ("xml", "value")}
+                ("xml", "departPos"), ("xml", "departLane"), ("xml", "value"), ("xml", "lane-change-too-short")}
     missing = expected - found
+    if {h["target"] for h in bus} != {"r_bgbus_B1", "r_bgbus_B4"}:
+        missing.add(("xml", "lane-change-too-short: B1과 B4 둘 다"))
     unknown = [h for h in hits if judge(h)[0] != "UNKNOWN"]
     return missing, unknown, hits
 

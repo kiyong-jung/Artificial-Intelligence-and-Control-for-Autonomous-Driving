@@ -135,6 +135,10 @@ if __name__ == "__main__":
         parser.error(f"{os.path.join(os.path.dirname(model_path), 'run_config.json')}이 없습니다. "
                      "이 도로에서 train.py 또는 train_bc.py로 학습한 run만 평가할 수 있습니다.")
     trained = saved["road"]
+    if args.learning_profile is None:
+        args.learning_profile = saved["ego"].get("learning_profile", "legacy")
+    elif args.learning_profile != saved["ego"].get("learning_profile", "legacy"):
+        parser.error("학습 당시 learning_profile과 평가 profile이 다릅니다.")
     if args.map is None:
         args.map = trained["map_id"]
     current = load_map(args.map)
@@ -166,6 +170,8 @@ if __name__ == "__main__":
     if saved["kind"] != "bc_training":
         HPARAMS.update(saved.get("hparams") or {})
     code_reward = dict(REWARD)
+    if EGO.get("learning_profile") == "bus_service_v1":
+        EGO["task_rewards"] = dict(saved["ego"]["task_rewards"])
     REWARD.clear()
     REWARD.update(saved["reward"])
     changed = sorted(key for key in code_reward.keys() | REWARD.keys()

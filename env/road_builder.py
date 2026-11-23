@@ -114,6 +114,22 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
             "begin": "0" if poisson else f"{begin:.3f}", "end": 100000,
             "period": f"exp({volume / 3600.0:.6f})" if poisson else f"{3600.0 / volume:.6f}", "departLane": "best",
             "departSpeed": traffic["depart_speed"]}))
+    if ego.get("learning_profile") == "bus_service_v1":
+        # Background stopping traffic is scheduled before ego exists; no ETA matching,
+        # roadside teleport/spawn, speed manipulation or runtime injector is used.
+        import random
+        rng = random.Random(road["seed"])
+        scheduled = sorted((rng.uniform(0, 120), sid) for sid in ego["service_stop_ids"])
+        for index, (begin, sid) in enumerate(scheduled):
+            flow = ET.SubElement(routes, "flow", id=f"service_obstacle_{index}",
+                type="carDist", route=ego["route_id"], begin=str(begin), end="100000",
+                period=str(ego["background_stop_period"]), departLane="best", departSpeed="0")
+            ET.SubElement(flow, "stop", busStop=sid, duration=str(ego["background_stop_duration"]))
+        # SUMO requires all flows in departure order, including existing demand.
+        flows = list(routes.findall("flow"))
+        for flow in flows:
+            routes.remove(flow)
+        routes.extend(sorted(flows, key=lambda f: float(f.get("begin", 0))))
     _write_xml(output / "routes.rou.xml", routes)
 
     # 지도에 딸린 SUMO 파일(신호 프로그램, 교통섬, 보행자 등)은 그대로 복사해 함께 읽는다.

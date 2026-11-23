@@ -1,0 +1,171 @@
+{
+  "bc_ppo_initial": {
+    "hparams": {
+      "lr": 0.0001,
+      "n_steps": 1024,
+      "n_epochs": 10,
+      "minibatch_size": 64,
+      "gamma": 0.999,
+      "gae_lambda": 0.95,
+      "clip_eps": 0.2,
+      "value_coef": 0.005,
+      "entropy_coef": 0.0,
+      "lane_entropy_coef": 0.0,
+      "max_grad_norm": 0.5,
+      "normalize_advantage": true,
+      "hidden_sizes": [
+        128,
+        128
+      ],
+      "activation": "tanh",
+      "policy_type": "hybrid",
+      "lane_keep_bias": 0.5,
+      "init_log_std": -2.0,
+      "seed": 74001,
+      "device": "cpu"
+    },
+    "steps": 32768,
+    "reward": {
+      "progress_total": 10.0,
+      "step_cost": 0.001,
+      "service": 5.0,
+      "arrival": 10.0,
+      "collision": -10.0,
+      "red_light": -10.0,
+      "missed_stop": -10.0,
+      "incomplete_end": -10.0,
+      "service_shaping_weight": 2.0,
+      "service_shaping_gamma": 0.999
+    }
+  },
+  "bc_ppo_refine": {
+    "hparams": {
+      "lr": 3e-05,
+      "n_steps": 1024,
+      "n_epochs": 5,
+      "minibatch_size": 64,
+      "gamma": 0.999,
+      "gae_lambda": 0.95,
+      "clip_eps": 0.1,
+      "value_coef": 0.005,
+      "entropy_coef": 0.0,
+      "lane_entropy_coef": 0.0,
+      "max_grad_norm": 0.5,
+      "normalize_advantage": true,
+      "hidden_sizes": [
+        128,
+        128
+      ],
+      "activation": "tanh",
+      "policy_type": "hybrid",
+      "lane_keep_bias": 0.5,
+      "init_log_std": -2.0,
+      "seed": 75001,
+      "device": "cpu"
+    },
+    "steps": 65536,
+    "reward": {
+      "progress_total": 10.0,
+      "step_cost": 0.001,
+      "service": 5.0,
+      "arrival": 10.0,
+      "collision": -10.0,
+      "red_light": -10.0,
+      "missed_stop": -10.0,
+      "incomplete_end": -10.0,
+      "service_shaping_weight": 2.0,
+      "service_shaping_gamma": 0.999
+    }
+  },
+  "residual": {
+    "hparams": {
+      "lr": 0.0001,
+      "n_steps": 1024,
+      "n_epochs": 10,
+      "minibatch_size": 64,
+      "gamma": 0.999,
+      "gae_lambda": 0.95,
+      "clip_eps": 0.2,
+      "value_coef": 0.005,
+      "entropy_coef": 0.0,
+      "lane_entropy_coef": 0.0,
+      "max_grad_norm": 0.5,
+      "normalize_advantage": true,
+      "hidden_sizes": [
+        128,
+        128
+      ],
+      "activation": "tanh",
+      "policy_type": "hybrid",
+      "lane_keep_bias": 0.5,
+      "init_log_std": -2.0,
+      "seed": 74001,
+      "device": "cpu"
+    },
+    "steps": 32768,
+    "reward": {
+      "progress_total": 10.0,
+      "step_cost": 0.001,
+      "service": 5.0,
+      "arrival": 10.0,
+      "collision": -10.0,
+      "red_light": -10.0,
+      "missed_stop": -10.0,
+      "incomplete_end": -10.0,
+      "service_shaping_weight": 2.0,
+      "service_shaping_gamma": 0.999
+    }
+  },
+  "ppo": {
+    "hparams": {
+      "lr": 3e-05,
+      "n_steps": 1024,
+      "n_epochs": 5,
+      "minibatch_size": 64,
+      "gamma": 0.999,
+      "gae_lambda": 0.95,
+      "clip_eps": 0.1,
+      "value_coef": 0.005,
+      "entropy_coef": 0.0,
+      "lane_entropy_coef": 0.0,
+      "max_grad_norm": 0.5,
+      "normalize_advantage": true,
+      "hidden_sizes": [
+        128,
+        128
+      ],
+      "activation": "tanh",
+      "policy_type": "hybrid",
+      "lane_keep_bias": 0.5,
+      "init_log_std": -2.0,
+      "seed": 75001,
+      "device": "cpu"
+    },
+    "steps": 65536,
+    "reward": {
+      "progress_total": 10.0,
+      "step_cost": 0.001,
+      "service": 5.0,
+      "arrival": 10.0,
+      "collision": -10.0,
+      "red_light": -10.0,
+      "missed_stop": -10.0,
+      "incomplete_end": -10.0,
+      "service_shaping_weight": 2.0,
+      "service_shaping_gamma": 0.999
+    },
+    "status": "Reference preset only; no same-task random-initialized PPO winner established. NOT the 49/100 model."
+  },
+  "bc": {
+    "epochs": 100,
+    "brake_weight": 4,
+    "lr": 0.0003,
+    "seed": 38001,
+    "selection": "minimum episode-validation weighted loss; test split unused",
+    "hidden_sizes": [
+      128,
+      128
+    ]
+  },
+  "selection_scope": "Best observed within tested full-route candidates, not global optimum; all settings frozen before final78101..78200."
+}

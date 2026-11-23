@@ -27,7 +27,7 @@ COLUMNS = [
     ("event.lane_before", "Integer / String", SCHOOL, "Action 적용 전 AV 차선"),
     ("event.lane_after", "Integer / String", SCHOOL, "Action 적용 후 AV 차선"),
     ("event.termination_reason", "String", TEAM, "종료 원인 (arrived, collision, time_limit, teleport, missing, stuck). stuck은 ego가 stuck_timeout초 동안 stuck_progress_m도 못 간 것. 종료가 아니면 빈 값"),
-    ("event.background_collisions", "Integer", TEAM, "이 step 동안 ego가 끼지 않은 배경 차량끼리의 충돌 수"),
+    ("event.background_collisions", "Integer", TEAM, "이 step 동안 ego가 끼지 않은 충돌 수(배경 차량끼리, 배경 차량과 보행자)"),
     ("event.service_event", "String", TEAM, "이 step에 정차할 정류장을 마쳤으면 served, 서지 않고 지나쳤으면 missed, 아니면 빈 값"),
     ("event.stops_served", "Integer", TEAM, "에피소드에서 지금까지 정차를 마친 정류장 수"),
     ("event.stops_missed", "Integer", TEAM, "에피소드에서 지금까지 서지 않고 지나친 정차 정류장 수"),
@@ -69,8 +69,8 @@ OBSERVATION_FEATURES = (
 #   stop_*: 정차해야 할 다음 정류장. 거리/300(앞범퍼를 정류장 끝 1m 앞에), 남은 정차 시간 비율, 정류장 차로까지 차로 수/2(+는 왼쪽, 300m 안에서만)
 #   route_lane_*: 경로를 이어 가려면 옮겨야 할 차로 수/2(+는 왼쪽), 지금 차로로 경로를 따라 더 갈 수 있는 거리/300
 #   crosswalk_*: 경로 위 다음 횡단보도 거리/50, 보행자가 건너는 중이거나(신호 없는 횡단보도는) 기다리는지
-#   speed_limit: 지금 차로의 허용 속도/경로 제한속도
-#   next_speed_limit*: 경로를 따라 100m 안에서 가장 낮은 허용 속도(교차로 안 회전 차로 포함)/경로 제한속도와 그 거리/100
+#   speed_limit: 지금 자리의 허용 속도/경로 제한속도. 차로 제한속도와 곡선 제한(버스 횡가속도 한계, env/route_map.curve_speeds) 중 낮은 값
+#   next_speed_limit*: 경로를 따라 100m 안에서 가장 낮은 허용 속도(교차로 안 회전 차로와 곡선 제한 포함)/경로 제한속도와 그 거리/100
 #   ego_acceleration: 지금 가속도/2
 ROUTE_FEATURES = ("tl_distance", "tl_red", "tl_yellow", "tl_yield",
                   "stop_distance", "stop_dwell_remaining", "stop_lane_offset",

@@ -504,8 +504,8 @@ def scan_map(map_id="hapjeong"):
     for flow in m["flows"]:
         if flow.get("via"):
             add("flow-forced-via", flow["id"], f"{flow['vehs_per_hour']}대/시간이 {flow['via']}를 거친다")
-    avoid = frozenset(f":{c}" for c in m["network_source"]["pedestrians"].get("removed_crossing_walkers", {}))
-    hits += scan_demand(map_id, Path(m["net_path"]), m["flows"], m.get("extra_route_paths", []), avoid)
+    from scripts.fix_pedestrian_walks import removed_crossings
+    hits += scan_demand(map_id, Path(m["net_path"]), m["flows"], m.get("extra_route_paths", []), removed_crossings(m))
     # 흐름이 SUMO의 가장 빠른 길로 가면서 짧은 도로에서 여러 칸을 옮겨야 하는가(정지선 앞 틀린 차로에 서는 차의 원인)
     for flow in m["flows"]:
         path, _ = net.getShortestPath(net.getEdge(flow["from"]), net.getEdge(flow["to"]), vClass="passenger")

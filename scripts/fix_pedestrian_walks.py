@@ -136,10 +136,16 @@ def fix_walks(root: ET.Element, net_path: Path, avoid: frozenset[str] = frozense
     return changed
 
 
+def removed_crossings(definition: dict) -> frozenset[str]:
+    """map.json에 적힌, 보행자를 뺀 횡단보도(J1_c1)의 교차로 안 차로 id. 고정 경로에 쓰지 않는다."""
+    return frozenset(f":{crossing}" for crossing in
+                     definition["network_source"]["pedestrians"].get("removed_crossing_walkers", {}))
+
+
 def main() -> None:
     definition = json.loads((FOLDER / "map.json").read_text(encoding="utf-8"))
     record = definition["network_source"]["pedestrians"]
-    avoid = frozenset(f":{crossing}" for crossing in record.get("removed_crossing_walkers", {}))
+    avoid = removed_crossings(definition)
     raw = ROUTES.read_bytes()
     root = ET.fromstring(raw)
     changed = fix_walks(root, NET, avoid)

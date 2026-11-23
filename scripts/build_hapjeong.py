@@ -34,7 +34,7 @@ from scripts.build_road import ALLEY, ARTERIAL_PER_LANE, publish, shortest_route
 from scripts.patch_network import digest
 from scripts.prune_network import OPTIONS
 from scripts.drop_turnaround_flows import keep_natural
-from scripts.fix_pedestrian_walks import fix_walks
+from scripts.fix_pedestrian_walks import fix_walks, removed_crossings
 from scripts.randomize_pedestrians import randomize
 from scripts.validate_road import validate_structure
 
@@ -662,7 +662,10 @@ def build_pedestrians(net_path: Path, output: Path, temporary: Path) -> None:
         root.remove(person)
     root.extend(people)
     randomize(root, PEDESTRIANS["end"])   # 고정 출발 시각을 seed를 따르는 포아송 도착(personFlow)으로 바꾼다
-    fix_walks(root, net_path)   # 끊긴 걸음은 다시 찾고, 대각선으로 건너는 걸음은 횡단보도를 고정한다
+    # 끊긴 걸음은 다시 찾고, 대각선으로 건너는 걸음은 횡단보도를 고정한다. 보행자를 뺀 횡단보도는 커밋된 map.json의 기록을 따른다.
+    committed = FOLDER / "map.json"
+    avoid = removed_crossings(json.loads(committed.read_text(encoding="utf-8"))) if committed.exists() else frozenset()
+    fix_walks(root, net_path, avoid)
     ET.ElementTree(root).write(output, encoding="utf-8", xml_declaration=True)
 
 

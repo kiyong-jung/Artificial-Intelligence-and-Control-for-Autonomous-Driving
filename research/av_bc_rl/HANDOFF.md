@@ -84,9 +84,38 @@ $PY research/av_bc_rl/failure_cases.py --split final --out research/av_bc_rl/rep
    거기서 한 번 더 두 번 돌려 본다.
 4. CPU 과제다(`container.gpu_count=0`, `investigation.execution.gpu_evaluation=false`). 평가 한 번에 약 3분이다.
 
+## final 평가 뒤에 바꾼 환경 (11/23)
+
+`report.md`와 `metrics/*_final.json`은 이 변경 전 환경에서 잰 값이다. 관측의 뜻이 바뀌었으므로(아래 2, 3) 학습 정책은
+다시 모으고 다시 학습한 뒤 비교한다. 앞뒤 수치는 `metrics/curve_merge_{before,after,after_mode38}_dev.json`과
+`decisions.tsv`에 있다(전문가 v5, dev 교통량마다 20회).
+
+1. **선 차의 옆 이동을 다시 0으로, 버스는 차로 끝에서 요청으로 끼어든다.** `lcMaxSpeedLatStanding` 0.3은 대기열의 배경 차를
+   옆으로 밀어 30~40도 돌렸다(busy seed 2600에서 도로 위 26대, 지금 0대). R111b 끝 갇힘의 실제 원인은 버스가 못 움직인 것이
+   아니라 서로 자리를 바꿔야 하는 두 차의 교착이었다. 왼쪽 차로 끝의 승용차는 버스 차로로, 버스는 그 차의 차로로 가야 했는데
+   전문가가 차로 끝 8m 앞에 서서 그 차가 들어올 자리(8.4m)를 0.1m 차이로 막았다. v5는 10m를 남기고(`lane_end_room`),
+   끝나는 차로에서 1m/s 이하로 기어가면 틈이 없어도 요청한다. 환경 게이트도 그 조건에서는 요청을 SUMO에 넘긴다
+   (`mdp_config.ACTION["lane_change_safety"]`의 `lane_end_*`). 달리는 중의 요청은 그대로 막는다.
+2. **곡선 속도 제한.** 버스 횡가속도 한계 2.0m/s²(`road_config` comfort)로 차로 형상에서 위치별 속도 제한을 만들고
+   (`route_map.curve_speeds`), 환경의 허용 속도와 관측 `speed_limit`, `next_speed_limit*`에 넣었다. 앞쪽 제한은 이제
+   교차로 안에서도 경로를 따라 100m를 본다. J82·J83·J42 좌회전과 -R96.64의 꺾인 곳이 16~21km/h가 된다. 횡가속도
+   최댓값은 16.6 → 2.08m/s², 바퀴 시간은 +6~11초다. `behavior_metrics.py`가 횡가속도(속도 × 요 레이트)를 센다.
+   AI-Scientist 평가기의 전문가 점수는 97.22에서 96.55836138096521이 됐다(두 번 돌려 metrics.json 전체가 같다).
+3. **나가는 쪽 횡단보도 위치.** 교차로를 돌아 나가는 길의 횡단보도는 경로 위에서 9~12m에 걸치는데 그 끝(다음 도로의 시작)을
+   위치로 적고 있었다. 그 3m 앞에 서는 버스는 횡단보도 위에 섰다. 느리게 돌면서 드러났다(dev busy 1601, 보행자 충돌).
+   이제 띠에 들어서는 곳을 적는다. 관측 `crosswalk_distance`와 기록의 `distance_to_crossing`이 그만큼 앞당겨진다.
+
 ## 열린 일
 
 연구 쪽에서 이어갈 일이다.
+
+- 곡선 제한으로 버스가 J82를 20km/h로 돌면 교차로를 비우는 데 6.5초가 걸리고, J82의 황색 3초 + 전적색 3초보다 길다.
+  황색에 못 서고 들어간 버스는 보행 신호가 켜질 때 아직 교차로 안에 있다. 횡단보도 위치를 고친 뒤 dev 60회와 속도 모드
+  38의 30회에서 충돌은 0이지만 신호 시간과 버스 통과 시간이 맞지 않는 것은 그대로다(신호는 팀이 정한다).
+- 속도 모드 38에서는 J83에서 횡가속도가 2.23m/s²까지 나왔다(모드 31은 2.08). 환경은 판단을 시작할 때의 자리로 허용 속도를
+  정하고, 버스는 0.5초 동안 2~3m를 더 간다. 그 0.5초에 지날 자리의 가장 낮은 제한을 쓰면 줄어든다.
+- 관측 `next_speed_limit`은 100m 안의 가장 낮은 제한 하나다. 높은 제한 뒤에 더 낮은 제한이 이어지는 길에서는 가까운 쪽을
+  못 본다. 합정역 노선에는 그런 곳이 없다.
 
 - BC 데이터와 Residual RL은 전문가 v4와 지도 3.13.0 수요(보행자 고정 시각, 골목 고리 경유 흐름)로 만들었다. final 평가는
   지금 환경(지도 3.14.0, 충돌 차 정지, 진행 기반 stuck)에서 했다. 전문가 v5와 3.14.0으로 데이터를 다시 모으고
@@ -98,7 +127,9 @@ $PY research/av_bc_rl/failure_cases.py --split final --out research/av_bc_rl/rep
   원인인데 ego는 이미 차선 모드 1536이다. 25초 동안 가운데로 돌아오지 않은 이유를 찾는다. 재현:
   `python collect_pomdp_data.py --map hapjeong --scenario busy --seed 9603 --policy ppo --model research/av_bc_rl/models/residual_s2203/model.pt --episodes 1 --workers 1 --max-steps 1400 --out-dir /tmp/r --name r`.
 - BC와 DAgger는 R111b 끝(J82 좌회전 직전 27m)에서 가끔 갇힌다. 좌회전 차로에서 오른쪽으로 옮긴 뒤 다시 움직이지 않는 것처럼
-  전문가가 보여 준 적 없는 상태다. DAgger 반복을 늘리면 줄어들 실패다.
+  전문가가 보여 준 적 없는 상태다. DAgger 반복을 늘리면 줄어들 실패다. final busy 9619의 `bc_s0`은 선 차의 옆 이동을
+  0으로 하면 차로 끝에 선 채 200초 동안 요청을 내지 않았다(SUMO는 그때 변경이 막히지 않았다고 본다). 11/23 변경 뒤에는
+  완주하지만(정차 3/4) 곡선 제한으로 접근이 달라져 미리 좌회전 차로에 들어간 덕이고, 그 정책의 버릇은 그대로다.
 - 검사 도구 `scripts/audit_naturalness.py`를 바꿀 때마다 돌린다(정적 검사는 pytest에 들어 있다). 남은 OPEN 줄과 팀
   결정은 `naturalness_audit_round2.md`, `naturalness_audit_round3.md`에 있다.
 - `metrics/*_dev.json`은 환경을 여러 번 바꾸는 동안 잰 것이라 판이 섞여 있다(예: `bc_s0_dev`에는 순간이동이 있다).

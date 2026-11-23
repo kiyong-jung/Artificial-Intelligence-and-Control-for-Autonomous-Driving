@@ -56,6 +56,7 @@ class ExpertPolicy:
     stop_give_up = 15.0       # m. 이 안까지 정류장 차로에 못 들어가면 그 정류장을 지나친다(옆 차로를 막고 기다리지 않는다)
     crosswalk_stop_gap = 3.0  # m. 사람이 있는 횡단보도 앞에 설 간격
     stop_line_gap = 2.0       # m. 적색 정지선 앞에 설 간격(SUMO도 정지선 바로 앞에서 세운다)
+    lane_end_room = 8.0       # m. 못 옮긴 채 끝나는 차로에서 차로 끝 앞에 남기는 거리
 
     def __init__(self, vmax, visibility, max_accel, max_decel,
                  tl_range=100.0, stop_range=300.0, continuation_range=300.0, crossing_range=50.0, limit_range=100.0):
@@ -152,7 +153,7 @@ class ExpertPolicy:
         """경로를 이으려면 옮겨야 하는데 못 옮겼으면 차로 끝 앞에 선다."""
         continuation = self._f(obs, "route_lane_continuation") * self.continuation_range
         if abs(self._f(obs, "route_lane_offset")) > 0.25 and continuation < 80.0:
-            return [self._idm(v, v0, max(continuation - 8.0, 0.0) + self.target_gap, v, self.target_gap)]
+            return [self._idm(v, v0, max(continuation - self.lane_end_room, 0.0) + self.target_gap, v, self.target_gap)]
         return []
 
     def _gap_ok(self, obs, side):
@@ -218,6 +219,9 @@ class ExpertPolicyV5(ExpertPolicy):
     creep_within = 40.0      # m
     safe_follow_horizon = 1.0  # s. SUMO 안전 속도까지 남은 차이를 이 시간에 걸쳐 맞춘다
     safe_follow_margin = 1.0   # m
+    # 옆 차로 끝에 선 차가 버스 앞으로 들어올 자리. 승용차 5m + 버스 최소 간격 3m + 그 차가 차로 끝 앞에 남긴 0.4m는 8.4m다.
+    # 8m에서는 그 차가 0.1m 차이로 못 들어와 옆 차로 끝을 막았고, 그 차로로 가야 하는 버스도 같이 섰다(final busy 9600).
+    lane_end_room = 10.0       # m
 
     def _neighbors(self, obs, side):
         """옆 차로의 (앞차 간격 m, 앞차 속도), (뒤차 간격 m, 뒤차 속도). 차가 없으면 None."""
@@ -279,9 +283,20 @@ class ExpertPolicyV5(ExpertPolicy):
         v_safe = -b * tau + np.sqrt(b * b * tau * tau + 2.0 * b * room)
         return [(v_safe - v) / self.safe_follow_horizon]
 
+    def _lane_end_merge(self, obs):
+        """끝나는 차로에서 서 있거나 기어가는 중인지. 이때는 틈이 없어도 요청한다. 환경이 간격 게이트를 건너뛰는 조건
+        (env/mdp_config.ACTION["lane_change_safety"]의 lane_end_*)과 같다. 줄 선 옆 차로에는 틈이 저절로 생기지 않고,
+        요청이 SUMO에 가야 뒤차가 끼워 준다. 달리는 중에는 틈 없는 요청이 뒤차를 버스 뒤에 붙잡아 두므로 하지 않는다."""
+        offset = self._f(obs, "route_lane_offset")
+        if abs(offset) <= 0.25 or self._f(obs, _side(1 if offset > 0 else -1) + "_route_connectivity") < 0.0:
+            return False
+        return (self._f(obs, "ego_speed") * self.vmax <= self.gate["lane_end_speed"]
+                and self._f(obs, "route_lane_continuation") * self.continuation_range <= self.gate["lane_end_within"])
+
     def lateral(self, obs):
         direction, _remaining = self._wanted_lane(obs)
-        if direction and self._f(obs, "stop_dwell_remaining") <= 0.0 and self._merge_ok(obs, _side(direction)):
+        if direction and self._f(obs, "stop_dwell_remaining") <= 0.0 and (
+                self._merge_ok(obs, _side(direction)) or self._lane_end_merge(obs)):
             return float(direction)
         return 0.0
 

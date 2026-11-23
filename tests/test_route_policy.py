@@ -83,3 +83,33 @@ def test_stop_lane_opens_late(expert):
     accel, lane = expert(obs)
     assert lane == -1.0
     assert (accel < 0.0) == isinstance(expert, ExpertPolicyV5)
+
+
+def test_creeping_at_lane_end_requests_into_a_queue(expert):
+    """R111b 끝(final busy 9600): 버스가 0.8m/s로 기어가고 차로 끝까지 11m, 왼쪽 차로 뒤차가 3.5m 뒤에서 1.9m/s로 온다.
+    간격 기준으로는 못 옮기지만 요청해야 SUMO가 뒤차를 줄여 끼워 준다. v4는 요청하지 않는다."""
+    obs = observe(0.8, route_lane_offset=0.5, route_lane_continuation=11.0 / 300.0,
+                  lane_cars={"left1": (VIS, 0.8, 3.5, 1.9)})
+    assert (expert(obs)[1] == 1.0) == isinstance(expert, ExpertPolicyV5)
+
+
+def test_moving_bus_still_waits_for_a_gap():
+    """같은 틈이라도 달리는 중(6m/s)에는 요청하지 않는다. 틈 없이 걸어 둔 요청은 뒤차를 버스 뒤에 붙잡아 둔다."""
+    v5 = ExpertPolicyV5(VMAX, VIS, 1.0, 2.0)
+    obs = observe(6.0, route_lane_offset=0.5, route_lane_continuation=30.0 / 300.0,
+                  lane_cars={"left1": (VIS, 6.0, 3.5, 7.1)})
+    assert v5(obs)[1] == 0.0
+
+
+def test_lane_end_request_needs_a_lane_to_go_to(expert):
+    """옮길 차로가 없으면(연결성 -1) 차로 끝에 서 있어도 요청하지 않는다."""
+    obs = observe(0.0, route_lane_offset=0.5, route_lane_continuation=5.0 / 300.0, left1_route_connectivity=-1.0)
+    assert expert(obs)[1] == 0.0
+
+
+def test_leaves_room_for_a_car_to_merge_in_front(expert):
+    """못 옮긴 채 차로 끝 9m 앞에 섰다. 옆 차로 끝의 승용차(5m)가 버스 앞으로 들어오려면 버스 최소 간격 3m까지 8.4m가
+    필요하다. v4는 8m까지 더 다가가 그 차를 막았고(남은 틈 2.9m, final busy 9600) v5는 더 다가가지 않는다."""
+    obs = observe(0.0, route_lane_offset=0.5, route_lane_continuation=9.0 / 300.0,
+                  lane_cars={"left1": (0.0, 0.0, 0.0, 0.0)})
+    assert (expert(obs)[0] > 0.0) == (not isinstance(expert, ExpertPolicyV5))

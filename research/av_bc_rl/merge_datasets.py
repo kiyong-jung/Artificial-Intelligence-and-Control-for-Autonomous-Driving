@@ -40,10 +40,19 @@ def main(out, sources, keep_failed=False):
             for key in KEYS:
                 parts[key].append(data[key][keep])
             parts["episode"].append(data["episode"][keep].astype(np.int64) + 10000 * index)
+    metas = [json.loads(Path(s).with_name(Path(s).name.removesuffix(".npz") + ".metadata.json").read_text(encoding="utf-8"))
+             for s in sources]
+    # dagger.py는 metadata의 policy로 라벨을 붙일 전문가를 고른다. 다른 정책이나 다른 지도의 데이터를 섞으면 그 값이 틀린다.
+    for key in ("policy",):
+        values = {m.get(key) for m in metas}
+        if len(values) > 1:
+            raise SystemExit(f"{key}가 다른 파일을 합칠 수 없다: {sorted(map(str, values))}")
+    maps = {((m.get("road") or {}).get("map_id"), (m.get("road") or {}).get("map_version")) for m in metas}
+    if len(maps) > 1:
+        raise SystemExit(f"지도가 다른 파일을 합칠 수 없다: {sorted(map(str, maps))}")
     merged = {key: np.concatenate(values) for key, values in parts.items()}
     np.savez_compressed(out, **merged)
-    first = Path(sources[0])
-    meta = json.loads(first.with_name(first.name.removesuffix(".npz") + ".metadata.json").read_text(encoding="utf-8"))
+    meta = metas[0]
     meta["merged_from"] = [str(Path(s)) for s in sources]
     meta["merged_episode_offset"] = 10000
     meta["dropped_failed_episodes"] = dropped

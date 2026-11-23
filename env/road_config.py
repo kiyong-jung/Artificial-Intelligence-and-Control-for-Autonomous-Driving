@@ -36,11 +36,17 @@ _EGO_VEHICLES = {
     # 시내버스. 10/29 회의에서 정한 버스 특징(긴 차체, 제한된 가속, 승객 편안함)을 수치로 둔다.
     # 길이·폭은 대형 시내버스, 가감속은 서 있는 승객이 견디는 범위다. comfort의 한계를 넘으면
     # 기록에 위반으로 남는다(행동을 막지는 않는다). 현장 실측값은 아니다.
+    # lateral_acceleration_limit만은 속도 상한이 된다. 차로 형상의 곡률에서 곡선 속도 제한을 만들어 환경이 허용 속도로
+    # 쓴다(env/route_map.curve_speeds). 2.0m/s²(약 0.2g)는 이 표의 감속 한계(decel 2.0)와 같은 크기다. 도로망의
+    # 교차로 속도는 승용차 기준 5.5m/s²(netconvert junctions.limit-turn-speed 기본값)이고, 여러 내부 차로로 나뉜
+    # 회전(J42)에는 그 제한도 걸리지 않아 버스가 47km/h로 좌회전했다.
     "bus": {"vclass": "bus", "gui_shape": "bus", "length": 12.0, "width": 2.5,
             "accel": 1.0, "decel": 2.0, "emergency_decel": 9.0, "min_gap": 3.0, "tau": 1.5,
             "person_capacity": 40, "boarding_duration": 2.0, "max_speed": 33.33,
-            "comfort": {"acceleration_limit": 1.5, "jerk_limit": 2.0, "hard_braking": 3.0}},
+            "comfort": {"acceleration_limit": 1.5, "jerk_limit": 2.0, "hard_braking": 3.0,
+                        "lateral_acceleration_limit": 2.0}},
 }
+BUS_COMFORT = _EGO_VEHICLES["bus"]["comfort"]   # 행동 지표(research/av_bc_rl/behavior_metrics.py)가 같은 한계를 쓴다
 # 지도별 버스 운행 설정. 정차할 정류장(map.json의 bus_stops id)과 한 번 서는 시간(초).
 # 합정역은 팀이 정한 s2 성산중학교, s4 극동방송, s5 서교동교회, s6 합정역에 8초씩 선다(traffic/test_bus.py와 같다).
 _SERVICE = {
@@ -121,10 +127,10 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
         # 횡방향 속도뿐 아니라 가속도도 제한하는 SL2015를 사용한다.
         # 원형 도로의 순간 횡점프와 저속에서 옆으로 미끄러지는 현상을 줄인다.
         lateral_resolution=0.8,
-        # standing_speed: 선 채로 옆으로 움직이는 속도(m/s). 기어가며 핸들을 돌려 옆 차로로 머리를 넣는 정도다. 0이면
-        # 차로 끝에 선 차가 옆으로 전혀 못 움직여, 짧은 갈림 도로(R111b 27m)에서 버스가 왼쪽 차로로 못 옮기고 200초 넘게
-        # 섰다(final busy 전문가 v5 1회, BC 1회). 0.3이면 그 셋이 완주했고 배경 충돌·순간이동은 같고 비상 제동은 33 -> 32건이다.
-        lateral_model={"accel": 0.8, "max_speed": 1.0, "standing_speed": 0.3,
+        # standing_speed: 선 채로 옆으로 움직이는 속도(m/s, lcMaxSpeedLatStanding). 0.3이면 대기열에 선 배경 차가 옆으로
+        # 밀리며 30~40도 돌아 뒤차와 겹친다(busy seed 2600에서 15도 넘게 돈 정지 차 26대, 0이면 0대). 버스도 0이다.
+        # 버스가 끝나는 차로에서 요청한 차선변경은 SUMO가 급한 변경으로 다뤄 이 값과 무관하게 움직인다(0과 0.3의 결과가 같았다).
+        lateral_model={"accel": 0.8, "max_speed": 1.0, "standing_speed": 0.0,
                        "speed_factor": 0.2, "roundabout_cooperation": 0.2},
         # -1은 SUMO의 모델별 기본값(Krauss=1, IDM/EIDM/ACC=0.1)이다.
         # minGap 전체를 강제하면 몸체가 2.49m 떨어진 정지 차량도 삭제된다.

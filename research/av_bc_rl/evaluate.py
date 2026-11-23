@@ -25,16 +25,27 @@ SCENARIO_OFFSET = {"quiet": 0, "baseline": 300, "busy": 600}   # 교통량마다
 MAX_STEPS = 1400   # 700초. 전문가의 busy 한 바퀴(정차 포함)는 330~480초다
 
 
-CODE_PATHS = ("env", "algorithms", "collect_pomdp_data.py", "maps/hapjeong")   # 주행 결과를 바꾸는 코드와 지도
+CODE_PATHS = ("env", "algorithms", "utils", "train.py", "collect_pomdp_data.py", "maps/hapjeong")   # 주행 결과를 바꾸는 코드와
+# 지도. collect_pomdp_data.py가 train.py의 HPARAMS·REWARD를, algorithms/ppo.py가 utils/의 신경망을 읽는다.
 
 
 def run_key(args):
     """이미 있는 주행 기록을 다시 써도 되는지 가르는 값: 정책, 모델 파일 해시, 에피소드 수, 주행 코드와 지도의 git 트리.
-    커밋하지 않은 변경이 있으면 '+dirty'가 붙는다."""
+    커밋하지 않은 변경(추적하지 않는 새 파일 포함)이 있으면 그 내용의 해시를 '+dirty:' 뒤에 붙여, 고칠 때마다 다시 돌린다."""
     def tree(path):
-        rev = subprocess.run(["git", "rev-parse", f"HEAD:{path}"], cwd=REPO, capture_output=True, text=True).stdout.strip()
-        dirty = subprocess.run(["git", "diff", "--quiet", "HEAD", "--", path], cwd=REPO).returncode != 0
-        return rev + ("+dirty" if dirty else "")
+        def git(*command):
+            return subprocess.run(["git", *command], cwd=REPO, capture_output=True).stdout
+        rev = git("rev-parse", f"HEAD:{path}").decode().strip()
+        diff = git("diff", "HEAD", "--", path)
+        untracked = sorted(git("ls-files", "--others", "--exclude-standard", "--", path).decode().split())
+        if not diff and not untracked:
+            return rev
+        digest = hashlib.sha256(diff)
+        for name in untracked:
+            digest.update(name.encode())
+            with open(os.path.join(REPO, name), "rb") as f:
+                digest.update(f.read())
+        return f"{rev}+dirty:{digest.hexdigest()[:12]}"
     key = {"policy": args.policy, "episodes": args.episodes, "max_steps": MAX_STEPS,
            "code": {path: tree(path) for path in CODE_PATHS}}
     if args.model:
@@ -103,7 +114,8 @@ def main():
         print(f"{args.label:>16} {block['scenario']:<8} n={s['episodes']} {s['terminations']} "
               f"lap={s['lap_time_s']['mean'] or 0:.0f}s hard={s['hard_brakes']['mean']:.2f} "
               f"interv={s['speed_intervened_rate']['mean'] * 100:.1f}% mismatch={s['label_mismatch_rate']['mean'] * 100:.2f}% "
-              f"jerk={s['jerk_violation_rate']['mean'] * 100:.1f}% stuck={s['stuck_events']['mean']:.2f} "
+              f"jerk={s['jerk_violation_rate']['mean'] * 100:.1f}% lat={s['lateral_accel_peak']['mean']:.1f}m/s2 "
+              f"stuck={s['stuck_events']['mean']:.2f} "
               f"served={s['bus_stops_served']['mean']:.2f} missed={(s['bus_stops_missed']['mean'] or 0):.2f}")
     print(out)
 

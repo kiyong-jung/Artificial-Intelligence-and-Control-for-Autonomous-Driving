@@ -14,13 +14,15 @@ import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from collect_pomdp_data import iter_transitions  # noqa: E402
+from env.road_config import BUS_COMFORT  # noqa: E402
 
 DT = 0.5
 VIS = 50.0                 # 관측 거리 W(m). obs[9] = 현재 차선 선행차 거리 / W
 STOPPED = 0.1              # m/s 미만이면 멈춤
 MIN_STOP_S = 2.0           # 이만큼 이상 멈춰야 정지로 센다
 STUCK_S = 30.0             # 이만큼 넘게 멈추면 갇힘
-HARD_BRAKE = 3.0           # m/s². 버스 승차감 한계(road_config comfort.hard_braking)
+HARD_BRAKE = BUS_COMFORT["hard_braking"]                    # m/s². 버스 승차감 한계
+LATERAL_LIMIT = BUS_COMFORT["lateral_acceleration_limit"]   # m/s². 버스 횡가속도 한계(곡선 속도 제한과 같은 값)
 PINGPONG_S = 10.0          # 이 시간 안에 반대 방향으로 다시 바꾸면 왕복
 QUEUE_GAP = 15.0           # 선행차가 이보다 가까우면 줄 서기
 RED_NEAR = 35.0            # 정지선이 이보다 가까운 적·황색이면 신호 대기
@@ -48,6 +50,23 @@ def stop_reason(record):
     if state["ego"].get("road_id", "").startswith(":"):
         return "in_junction"
     return "unexplained"
+
+
+def lateral_acceleration(records):
+    """판단마다 횡가속도 크기(m/s²) = 속도 × 요 레이트. 요 레이트는 기록된 heading(도)의 판단 사이 변화다.
+    SUMO의 heading은 뒤범퍼에서 앞범퍼를 본 방향이라 차체가 실제로 도는 속도다. 도착해 ego가 사라진 마지막 판단은 0이다."""
+    egos = [r["state"]["ego"] for r in records] + [(records[-1].get("next_state") or {}).get("ego", {})]
+    out = np.zeros(len(records))
+    for i, (a, b) in enumerate(zip(egos, egos[1:])):
+        if "heading" in a and "heading" in b:
+            turn = (b["heading"] - a["heading"] + 180.0) % 360.0 - 180.0
+            out[i] = abs(np.radians(turn)) / DT * 0.5 * (a["speed"] + b["speed"])
+    return out
+
+
+def _place(road_id):
+    """교차로 안 도로(:J82_15)는 교차로 이름(J82)으로 묶는다."""
+    return road_id[1:].rsplit("_", 1)[0] if road_id.startswith(":") else road_id
 
 
 def episode_metrics(records):
@@ -89,6 +108,11 @@ def episode_metrics(records):
     reasons = defaultdict(float)
     for s in stops:
         reasons[s["reason"]] += s["duration_s"]
+    lateral = lateral_acceleration(records)
+    lateral_by_place = defaultdict(float)
+    for record, value in zip(records, lateral):
+        place = _place(record["state"]["ego"]["road_id"])
+        lateral_by_place[place] = max(lateral_by_place[place], float(value))
     return {
         "episode": records[0]["episode"],
         "steps": steps,
@@ -101,6 +125,9 @@ def episode_metrics(records):
         "max_decel": float(-np.min(accel)) if accel.size else 0.0,
         "jerk_violation_rate": float(np.mean([bool(r["comfort"]["jerk_violation"]) for r in records])),
         "accel_violation_rate": float(np.mean([bool(r["comfort"]["acceleration_violation"]) for r in records])),
+        "lateral_accel_peak": float(lateral.max()),
+        "lateral_accel_violation_rate": float(np.mean(lateral > LATERAL_LIMIT)),
+        "lateral_accel_peak_by_place": {k: v for k, v in lateral_by_place.items() if v > 0.5 * LATERAL_LIMIT},
         "speed_intervened_rate": intervened / steps,
         "label_mismatch_rate": mismatch / steps,
         "stops": len(stops),
@@ -125,6 +152,7 @@ def load_episodes(path):
 
 
 SUMMARY_KEYS = ("arrived", "lap_time_s", "progress", "mean_speed", "hard_brakes", "max_decel", "jerk_violation_rate",
+                "lateral_accel_peak", "lateral_accel_violation_rate",
                 "speed_intervened_rate", "label_mismatch_rate", "unexplained_stops", "stuck_events", "lane_changes",
                 "lane_change_pingpong", "lane_change_refused", "bus_stops_served", "bus_stops_missed")
 
@@ -146,6 +174,11 @@ def summarize(per_episode):
         for k, v in e["stop_time_by_reason"].items():
             reasons[k] += v
     out["stop_time_by_reason_total_s"] = dict(reasons)
+    places = defaultdict(float)
+    for e in per_episode:
+        for k, v in e["lateral_accel_peak_by_place"].items():
+            places[k] = max(places[k], v)
+    out["lateral_accel_peak_by_place_max"] = dict(sorted(places.items(), key=lambda item: -item[1]))
     return out
 
 

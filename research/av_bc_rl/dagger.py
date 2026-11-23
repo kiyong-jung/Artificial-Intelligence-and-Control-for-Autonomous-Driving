@@ -28,7 +28,7 @@ def expert_from_metadata(meta):
     """데이터를 모은 판의 전문가. metadata의 policy가 expert-v5면 v5, 아니면 v4다."""
     expert = EXPERT_VERSIONS[5 if meta.get("policy") == "expert-v5" else 4]
     return expert(meta["road"]["speed_limit"], meta["observation"]["visibility"], meta["ego"]["accel"],
-                  meta["ego"]["decel"], sumo_env.TL_RANGE, sumo_env.STOP_RANGE, sumo_env.CONTINUATION_RANGE,
+                  meta["ego"]["decel"], sumo_env.TL_RANGE, sumo_env.STOP_RANGE, meta["observation"]["connectivity_range"],
                   sumo_env.CROSSING_RANGE, sumo_env.LIMIT_RANGE)
 
 

@@ -19,7 +19,7 @@ sys.path.insert(0, REPO)
 from behavior_metrics import load_episodes  # noqa: E402
 from env import data_schema  # noqa: E402
 
-ROUTE = list(data_schema.ROUTE_FEATURES)
+FEATURES = list(data_schema.OBSERVATION_FEATURES)
 
 
 def stop_place(episode):
@@ -44,12 +44,13 @@ def describe(path):
             continue
         record = stop_place(episode) if reason == "stuck" else episode[-1]
         ego = record["state"]["ego"]
-        route = dict(zip(ROUTE, record["observation"][-len(ROUTE):]))
+        observed = dict(zip(FEATURES, record["observation"]))
         light = (record["state"].get("traffic_light") or {}).get("state")
         places[f"{reason}@{ego['lane_id']}"] += 1
         rows.append(f"| {index} | {reason} | {record['sim_time']:.0f} | `{ego['lane_id']}` {ego['lane_position']:.1f}m | "
-                    f"{ego['speed']:.2f} | {light} | {route['stop_distance']:.2f} | {route['route_lane_offset']:+.2f} | "
-                    f"{route['route_lane_continuation']:.2f} |")
+                    f"{ego['speed']:.2f} | {light} | {observed['stop_distance']:.2f} | "
+                    f"{observed['left1_route_connectivity']:+.2f} / {observed['current_route_connectivity']:+.2f} / "
+                    f"{observed['right1_route_connectivity']:+.2f} |")
     return rows, places, background
 
 
@@ -69,8 +70,8 @@ def main():
         rows, places, background = describe(path)
         lines.append(f"\n### {name}: 못 끝낸 에피소드 {len(rows)}개, 배경 충돌 스텝 {background}\n")
         if rows:
-            lines.append("| 에피소드 | 끝 | 시각(s) | 머문 곳 | 속도 | 신호 | 정류장 거리 | 경로 차로 차이 | 차로 남은 길 |")
-            lines.append("|---|---|---|---|---|---|---|---|---|")
+            lines.append("| 에피소드 | 끝 | 시각(s) | 머문 곳 | 속도 | 신호 | 정류장 거리 | 연결성(왼쪽 / 지금 / 오른쪽) |")
+            lines.append("|---|---|---|---|---|---|---|---|")
             lines.extend(rows)
             lines.append("\n곳별: " + ", ".join(f"{k} {v}" for k, v in places.most_common()))
     text = "\n".join(lines) + "\n"

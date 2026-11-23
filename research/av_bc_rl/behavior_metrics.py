@@ -26,6 +26,7 @@ LATERAL_LIMIT = BUS_COMFORT["lateral_acceleration_limit"]   # m/s². 버스 횡�
 PINGPONG_S = 10.0          # 이 시간 안에 반대 방향으로 다시 바꾸면 왕복
 QUEUE_GAP = 15.0           # 선행차가 이보다 가까우면 줄 서기
 RED_NEAR = 35.0            # 정지선이 이보다 가까운 적·황색이면 신호 대기
+RED_QUEUE = 150.0          # 정지선이 이보다 가까운 적·황색 뒤에 줄을 섰으면 신호 대기열
 STOP_NEAR = 30.0           # 정류장이 이보다 가까우면 정류장 정차
 
 
@@ -38,10 +39,11 @@ def stop_reason(record):
     """정지 시작 시점의 기록으로 멈춘 이유를 고른다. 어느 것도 아니면 'unexplained'."""
     state, obs = record["state"], record["observation"]
     light = state.get("traffic_light") or {}
-    if light.get("state") and light["state"][:1] in "rRyYu" and _near(light.get("distance_to_stop_line"), RED_NEAR):
+    red = bool(light.get("state")) and light["state"][:1] in "rRyYu"
+    if red and _near(light.get("distance_to_stop_line"), RED_NEAR):
         return "signal"
     if obs[9] * VIS < QUEUE_GAP:
-        return "queue"
+        return "signal_queue" if red and _near(light.get("distance_to_stop_line"), RED_QUEUE) else "queue"
     nav = state.get("navigation") or {}
     if _near(nav.get("distance_to_stop"), STOP_NEAR):
         return "bus_stop"
@@ -118,11 +120,16 @@ def episode_metrics(records):
         "steps": steps,
         "termination": last.get("termination_reason") or ("truncated" if records[-1]["truncated"] else "open"),
         "arrived": bool(last.get("arrived")),
+        "vehicle_collision": bool(last.get("collided")) and not last.get("pedestrian_collision"),
+        "pedestrian_collision": bool(last.get("pedestrian_collision")),
+        "red_light_violation": bool(last.get("red_light_violation")),
+        "teleports": sum(1 for r in records if "ego" in r["event"].get("teleporting_ids", ())),
         "lap_time_s": steps * DT if last.get("arrived") else None,
         "progress": 1.0 - (navN.get("distance_to_destination") or 0.0) / max(nav0.get("distance_to_destination") or 1.0, 1.0),
         "mean_speed": float(np.mean(speed)),
         "hard_brakes": int(np.sum(accel < -HARD_BRAKE)),
         "max_decel": float(-np.min(accel)) if accel.size else 0.0,
+        "peak_acceleration": float(max(r["comfort"].get("peak_acceleration") or 0.0 for r in records)),
         "jerk_violation_rate": float(np.mean([bool(r["comfort"]["jerk_violation"]) for r in records])),
         "accel_violation_rate": float(np.mean([bool(r["comfort"]["acceleration_violation"]) for r in records])),
         "lateral_accel_peak": float(lateral.max()),
@@ -133,7 +140,7 @@ def episode_metrics(records):
         "stops": len(stops),
         "stop_time_by_reason": dict(reasons),
         "unexplained_stops": sum(1 for s in stops if s["reason"] in ("unexplained", "in_junction")),
-        "stuck_events": sum(1 for s in stops if s["duration_s"] >= STUCK_S and s["reason"] not in ("signal",)),
+        "stuck_events": sum(1 for s in stops if s["duration_s"] >= STUCK_S and s["reason"] not in ("signal", "signal_queue")),
         "lane_changes": len(changes),
         "lane_change_pingpong": pingpong,
         "lane_change_requests": requested,
@@ -151,7 +158,9 @@ def load_episodes(path):
     return [sorted(v, key=lambda r: r["t"]) for _, v in sorted(episodes.items())]
 
 
-SUMMARY_KEYS = ("arrived", "lap_time_s", "progress", "mean_speed", "hard_brakes", "max_decel", "jerk_violation_rate",
+SUMMARY_KEYS = ("arrived", "vehicle_collision", "pedestrian_collision", "red_light_violation", "teleports",
+                "lap_time_s", "progress", "mean_speed", "hard_brakes", "max_decel", "peak_acceleration",
+                "jerk_violation_rate",
                 "lateral_accel_peak", "lateral_accel_violation_rate",
                 "speed_intervened_rate", "label_mismatch_rate", "unexplained_stops", "stuck_events", "lane_changes",
                 "lane_change_pingpong", "lane_change_refused", "bus_stops_served", "bus_stops_missed")
@@ -168,6 +177,7 @@ def summarize(per_episode):
         values = [float(e[key]) for e in per_episode if e[key] is not None]
         out[key] = {"mean": float(np.mean(values)) if values else None,
                     "std": float(np.std(values)) if values else None,
+                    "max": float(np.max(values)) if values else None,
                     "n": len(values)}
     reasons = defaultdict(float)
     for e in per_episode:

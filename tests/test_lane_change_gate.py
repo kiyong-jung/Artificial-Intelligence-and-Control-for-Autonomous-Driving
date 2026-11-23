@@ -1,4 +1,6 @@
-"""끝나는 차로에서 서 있거나 기어가는 버스의 차선변경 요청은 환경 게이트를 지나 SUMO에 간다. 달리는 중에는 그대로 막는다."""
+"""차선변경 요청은 수업 원본의 간격 게이트를 지나야 SUMO에 간다. 끝나는 차로에서 기어가는 버스에게도 예외가 없다.
+
+게이트를 지난 요청은 SUMO가 옆 차와 무관하게 실행한다(laneChangeMode 0). 게이트가 측면충돌을 막는 유일한 환경 장치다."""
 import os
 import sys
 
@@ -14,13 +16,13 @@ EGO_ID, FOLLOWER = "ego", "f"
 
 
 class _Vehicle:
-    """R111b_1(27m)의 16m 지점에 선 버스와, 왼쪽 차로에서 버스 뒤범퍼 2m 뒤에 선 승용차."""
+    """R111b_1(27m)의 16m 지점에 선 버스와, 왼쪽 차로에서 버스 뒤범퍼 2m 뒤에 선 승용차(follower가 거짓이면 없다)."""
 
-    def __init__(self, speed, best_lane_offset):
-        self.speed, self.best_lane_offset, self.changes = speed, best_lane_offset, []
+    def __init__(self, speed, follower):
+        self.speed, self.follower, self.changes = speed, follower, []
 
     def getIDList(self):
-        return [EGO_ID, FOLLOWER]
+        return [EGO_ID, FOLLOWER] if self.follower else [EGO_ID]
 
     def getRoadID(self, _vid):
         return "R111b"
@@ -43,9 +45,6 @@ class _Vehicle:
     def getDistance(self, _vid):
         return 900.0
 
-    def getBestLanes(self, _vid):
-        return [("R111b_1", 27.0, 0.0, self.best_lane_offset, False, ()), ("R111b_2", 27.0, 0.0, 0, True, ())]
-
     def getNeighbors(self, _vid, _mode):
         return []
 
@@ -60,11 +59,16 @@ class _Vehicle:
 
 
 class _Lane:
+    def __init__(self, follower):
+        self.follower = follower
+
     def getAllowed(self, _lane):
         return []
 
     def getLastStepVehicleIDs(self, lane):
-        return [FOLLOWER] if lane == "R111b_2" else [EGO_ID]
+        if lane == "R111b_2":
+            return [FOLLOWER] if self.follower else []
+        return [EGO_ID]
 
     def getLength(self, _lane):
         return 27.0
@@ -78,11 +82,17 @@ class _Edge:
         return 4
 
 
+class _Simulation:
+    def getTime(self):
+        return 100.0
+
+
 class _FakeTraci:
     TraCIException = traci.TraCIException
 
-    def __init__(self, speed, best_lane_offset):
-        self.vehicle, self.lane, self.edge = _Vehicle(speed, best_lane_offset), _Lane(), _Edge()
+    def __init__(self, speed, follower):
+        self.vehicle, self.lane, self.edge = _Vehicle(speed, follower), _Lane(follower), _Edge()
+        self.simulation = _Simulation()
 
 
 @pytest.fixture(scope="module")
@@ -93,24 +103,24 @@ def env():
                                    action=ACTION, reward=REWARD)
 
 
-def _request_left(env, monkeypatch, speed, best_lane_offset=1):
-    fake = _FakeTraci(speed, best_lane_offset)
+def _request_left(env, monkeypatch, speed, follower=True):
+    fake = _FakeTraci(speed, follower)
     monkeypatch.setattr(sumo_env, "traci", fake)
     env._segment_cache.clear()
     return env._apply_lane_change(1), fake.vehicle.changes
 
 
-def test_creeping_at_the_lane_end_sends_the_request_despite_a_car_2m_behind(env, monkeypatch):
-    applied, changes = _request_left(env, monkeypatch, speed=0.5)
+@pytest.mark.parametrize("speed", [0.0, 0.5, 5.0])
+def test_a_car_2m_behind_refuses_the_request_at_any_speed(env, monkeypatch, speed):
+    """끝나는 차로 끝에서 서 있거나 기어가도 게이트를 건너뛰지 않는다."""
+    applied, changes = _request_left(env, monkeypatch, speed)
+    assert not applied and changes == []
+
+
+def test_a_clear_lane_sends_the_request(env, monkeypatch):
+    applied, changes = _request_left(env, monkeypatch, speed=0.5, follower=False)
     assert applied and changes == [(EGO_ID, 2, ACTION["lane_change_duration"])]
 
 
-def test_moving_bus_is_still_refused_with_the_same_gap(env, monkeypatch):
-    applied, changes = _request_left(env, monkeypatch, speed=5.0)
-    assert not applied and changes == []
-
-
-def test_a_change_the_route_does_not_need_is_still_refused(env, monkeypatch):
-    """지금 차로가 경로로 이어지면(정류장 차로 맞추기 같은 변경) 서 있어도 간격 게이트를 지나야 한다."""
-    applied, changes = _request_left(env, monkeypatch, speed=0.5, best_lane_offset=0)
-    assert not applied and changes == []
+def test_the_gate_has_no_lane_end_exception():
+    assert not [key for key in ACTION["lane_change_safety"] if key.startswith("lane_end")]

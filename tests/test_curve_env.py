@@ -1,4 +1,6 @@
-"""환경이 곡선 속도 제한을 관측과 허용 속도에 넣어, 버스가 좌회전 전에 줄이고 횡가속도 한계 안에서 돈다(실제 SUMO)."""
+"""환경이 곡선 속도 제한을 관측에 넣어, 전문가가 좌회전 전에 줄이고 횡가속도 한계 안에서 돈다(실제 SUMO).
+
+환경은 수업 원본처럼 최고 속도(vmax)로만 자른다. 곡선 제한을 지키는 것은 정책이다."""
 import math
 import os
 import subprocess
@@ -94,8 +96,12 @@ def test_the_turn_is_visible_ahead_and_inside_the_junction(env):
             assert row[4][INDEX["next_speed_limit"]] * VMAX <= env.route_map.curve_speed("out_0", 0.0) + 0.01
 
 
-def test_full_throttle_is_held_to_the_curve_speed(env):
-    """관측을 보지 않고 늘 가속하는 정책도 환경의 허용 속도가 곡선 제한으로 낮춘다."""
+def test_the_environment_does_not_hold_full_throttle_to_the_curve_speed(env):
+    """관측을 보지 않고 늘 가속하는 정책은 곡선 제한을 넘겨 돈다. 환경은 vmax로만 자르고, 제한은 관측에 그대로 보인다."""
     rows = _drive(env, lambda _obs: np.array([1.0, 0.0], dtype=np.float32))
     leaving = next(row for row in rows if row[0] == "out")
-    assert leaving[2] <= env.route_map.curve_speed("out_0", 0.0) + 1.0
+    limit_here = env.route_map.curve_speed("out_0", leaving[1])
+    assert leaving[2] > limit_here + 3.0
+    assert max(row[2] for row in rows) <= VMAX + 1e-6
+    assert leaving[4][INDEX["speed_limit"]] * VMAX == pytest.approx(limit_here, abs=0.01)
+    assert _lateral_peak(rows) > EGO["comfort"]["lateral_acceleration_limit"]

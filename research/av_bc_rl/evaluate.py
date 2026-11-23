@@ -112,9 +112,11 @@ def main():
     for block in results["scenarios"]:
         s = block["summary"]
         print(f"{args.label:>16} {block['scenario']:<8} n={s['episodes']} {s['terminations']} "
+              f"collision={s['vehicle_collision']['mean'] * 100:.0f}% pedestrian={s['pedestrian_collision']['mean'] * 100:.0f}% "
+              f"red={s['red_light_violation']['mean'] * 100:.0f}% teleports={s['teleports']['mean'] * s['episodes']:.0f} "
               f"lap={s['lap_time_s']['mean'] or 0:.0f}s hard={s['hard_brakes']['mean']:.2f} "
               f"interv={s['speed_intervened_rate']['mean'] * 100:.1f}% mismatch={s['label_mismatch_rate']['mean'] * 100:.2f}% "
-              f"jerk={s['jerk_violation_rate']['mean'] * 100:.1f}% lat={s['lateral_accel_peak']['mean']:.1f}m/s2 "
+              f"jerk={s['jerk_violation_rate']['mean'] * 100:.1f}% lat={s['lateral_accel_peak']['max']:.2f}m/s2 "
               f"stuck={s['stuck_events']['mean']:.2f} "
               f"served={s['bus_stops_served']['mean']:.2f} missed={(s['bus_stops_missed']['mean'] or 0):.2f}")
     print(out)

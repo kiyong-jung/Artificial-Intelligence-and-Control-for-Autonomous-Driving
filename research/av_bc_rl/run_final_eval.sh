@@ -22,6 +22,8 @@ run() {   # label policy [model]
 	fi
 }
 
+# models/의 BC, DAgger, PPO, Residual은 스키마 v3(46차원 관측)으로 학습했다. 지금 관측(43차원)으로 다시 학습하기
+# 전에는 collect_pomdp_data.py가 차원이 다르다고 알리고 멈춘다.
 run rule route-follow
 run expert expert
 run expert_v5 expert-v5

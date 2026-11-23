@@ -69,7 +69,7 @@ python scripts/fill_column_slide.py 00조_칼럼설명.pptx data/submission/00�
 - 버스 승차감은 `state.ego.acceleration`, `state.ego.jerk`와 `comfort.peak_acceleration`, `comfort.peak_jerk`로 남는다. 한계(가속 1.5m/s², jerk 2.0m/s³)를 넘은 스텝은 `comfort.*_violation`이 참이다.
 - `export_csv.py`는 모든 행에 표의 컬럼이 있는지, 가속도가 제원의 한계 안인지 검사한 뒤에만 CSV를 쓴다.
 
-버스는 경로 위 정류장 네 곳(s2, s4, s5, s6)에 8초씩 선다. 환경이 정차 성공과 놓침을 세고 `event.service_event`에 적는다. 관측은 수업 원본 31차원에 버스가 실제로 알 수 있는 경로 정보 15개(신호, 정류장, 경로 차로, 횡단보도, 제한속도)를 붙인 46차원이다. 컬럼 이름은 `env/data_schema.py`의 `ROUTE_FEATURES`에 있다. 규칙 정책은 두 가지다. `--policy route-follow`는 예전 규칙이고, `--policy expert`는 관측만 보고 행동을 정하는 전문가(`env/route_policy.ExpertPolicy`)다. BC 데이터는 전문가로 모은다. 전문가, BC, PPO, Residual RL 연구는 [research/av_bc_rl/HANDOFF.md](research/av_bc_rl/HANDOFF.md)에 있다.
+버스는 경로 위 정류장 네 곳(s2, s4, s5, s6)에 8초씩 선다. 환경이 정차 성공과 놓침을 세고 `event.service_event`에 적는다. 관측은 수업 원본 31차원에 버스가 실제로 보거나 알 수 있는 경로 정보 12개(신호, 정류장, 횡단보도, 제한속도, 가속도)를 붙인 43차원이다. 어느 차로로 가라는 값은 없다. 컬럼 이름은 `env/data_schema.py`의 `ROUTE_FEATURES`에 있다. 규칙 정책 `--policy route-follow`는 예전 규칙이고, `--policy expert-v5`는 관측만 보고 행동을 정하는 전문가(`env/route_policy.ExpertPolicyV5`)다. BC 데이터는 이 전문가로 모은다. 무엇을 쓰고 쓰지 않는지는 [research/av_bc_rl/collection_policy.md](research/av_bc_rl/collection_policy.md)에 있다. 전문가, BC, PPO, Residual RL 연구는 [research/av_bc_rl/HANDOFF.md](research/av_bc_rl/HANDOFF.md)에 있다.
 
 아래는 이전 규칙 버스와 3.5.0 도로망에서 잰 값이다. 3.5.0 도로망의 busy 80에피소드(seed 500)에서 골목 차량이 버스 앞에 끼어든 것은 42번이고, 그중 12번은 버스와 같은 차로다(seed 600으로 다시 재면 33번, 7번)(3.0.0에서는 버스가 다른 차와 거의 마주치지 않았다). 구간별 수치는 `python3 scripts/scenario_sections.py <jsonl.gz>`로 본다. 규칙 버스는 80에피소드 중 78회를 완주한다(seed 600에서는 79회). 나머지는 마지막 도로 `R42`에서 제한 시간 600초를 넘기거나 상수역 사거리에서 충돌로 끝난다([maps/hapjeong/README.md](maps/hapjeong/README.md)의 알려진 현상). 시나리오별 발생은 `python3 scripts/scenario_occurrence.py <jsonl.gz>`로 세고, 시나리오의 재료가 도로에 얼마나 공급되는지는 `python scripts/scenario_supply.py`로 센다. 학습 쪽 사용법은 [부록 B](#부록-b-학습-평가-데이터-수집)에 있다.
 
@@ -141,7 +141,8 @@ python train_bc.py --data data/paldalmun/run1.npz --epochs 50
 수업 원본 코드와 다르게 동작하는 부분은 다음과 같다.
 
 - SUMO 계산 간격 0.1초. 0.5초로 계산하면 교차로와 합류부의 대기열이 달라진다.
-- ego 안전 보조가 켜져 있다(`speed_mode=31`, `lane_change_mode=1536`). 1536은 512에 차로 가운데 다시 맞추기(bit 10)를 더한 값이다. 512에서는 버스가 차선변경 도중 멈추면 인도에 걸친 채 서 있다가 순간이동했다. 끌지는 팀이 정한다. 값은 `env/road_config.py`의 `_EGO`에 있다.
+- ego 안전 보조는 수업 원본처럼 꺼져 있다(`speed_mode=0`, `lane_change_mode=0`, `env/road_config.py`의 `_EGO_COMMON`). 환경은 속도를 경로 최고 속도로만 자르고, 차선변경이 끝나면 차로 가운데로 옮긴다. 충돌(차, 보행자)과 적색 정지선 통과는 에피소드를 끝낸다.
+- 차로 연결성은 200m 앞까지 본다(`OBSERVATION["connectivity_range"]`, 수업 원본은 50m). 좌회전 직전 도로가 27m라서다.
 - ego를 넣기 전에 배경 교통을 180초 흘린다.
 - `blocked_penalty`가 0이다. 교차로에서 양보하며 기다리는 것까지 벌점을 받지 않게 했다.
 - ego 투입 시각을 에피소드마다 0~180초 흩뜨린다. 배경 차량이 일정한 간격으로 나와, 투입 시각이 같으면 ego가 매번 같은 차를 같은 자리에서 만난다.

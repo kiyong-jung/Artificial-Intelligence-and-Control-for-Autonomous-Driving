@@ -20,13 +20,12 @@ _EGO_COMMON = {
     "speed_factor": 1, "speed_dev": 0,
     "depart_lane": "best", # 진입부 차선 수가 경로마다 다르므로 SUMO가 연결 차선을 고른다.
     "depart_speed": 0.0,   # 정지 출발. 혼잡한 진입부에서 빈틈이 작아도 투입된다.
-    # 신호 없는 도로에서 교차로 우선권과 안전 차간은 SUMO 보조(31)가 지킨다.
-    # 512는 자율 차선변경을 끄고 TraCI 명령의 안전 간격만 검사한다.
-    # 1536 = 512 + bit10. bit10은 TraCI 명령과 충돌하지 않는 차로 안 횡이동(가운데 정렬)을 허용한다.
-    # 512만 쓰면 차선변경이 차로 가운데에서 끝나지 않을 때 다시 정렬하지 않아, 버스(폭 2.5m)가 3.2m 차로에서
-    # 오른쪽으로 0.5m 넘게 밀려 인도 차로에 걸쳤다. 그러면 SUMO가 인도를 걷는 보행자를 앞차로 보고 버스를 세워
-    # 300초 뒤 순간이동했다(research/av_bc_rl/decisions.tsv).
-    "speed_mode": 31, "lane_change_mode": 1536,
+    # 수업 원본(upstream env/sumo_env.py)과 같다. speed_mode 0은 SUMO의 안전 속도, 가감속 한계, 교차로 우선권,
+    # 적색 정지를 모두 끈다. 켜 두면 SUMO가 대신 브레이크를 밟아 충돌 회피를 배울 신호가 사라진다.
+    # lane_change_mode 0은 SUMO의 자율 차선변경을 끄고 TraCI 요청을 옆 차 간격과 무관하게 실행한다. 측면충돌은
+    # 수업 원본의 간격 게이트(mdp_config.ACTION["lane_change_safety"])와 정책이 막는다. 이 모드에서는 차선변경이
+    # 차로 가운데 0.35m 앞에서 끝나므로 환경이 가운데까지 옮긴다(env/sumo_env.py _steer).
+    "speed_mode": 0, "lane_change_mode": 0,
 }
 _EGO_VEHICLES = {
     # 수업 원본의 승용차.
@@ -36,8 +35,9 @@ _EGO_VEHICLES = {
     # 시내버스. 10/29 회의에서 정한 버스 특징(긴 차체, 제한된 가속, 승객 편안함)을 수치로 둔다.
     # 길이·폭은 대형 시내버스, 가감속은 서 있는 승객이 견디는 범위다. comfort의 한계를 넘으면
     # 기록에 위반으로 남는다(행동을 막지는 않는다). 현장 실측값은 아니다.
-    # lateral_acceleration_limit만은 속도 상한이 된다. 차로 형상의 곡률에서 곡선 속도 제한을 만들어 환경이 허용 속도로
-    # 쓴다(env/route_map.curve_speeds). 2.0m/s²(약 0.2g)는 이 표의 감속 한계(decel 2.0)와 같은 크기다. 도로망의
+    # lateral_acceleration_limit에서는 곡선 속도 제한이 나온다. 차로 형상의 곡률에서 만들어 관측(speed_limit,
+    # next_speed_limit*)에 넣는다(env/route_map.curve_speeds). 환경은 이 속도로 자르지 않는다. 지키는 것은 정책이다.
+    # 2.0m/s²(약 0.2g)는 이 표의 감속 한계(decel 2.0)와 같은 크기다. 도로망의
     # 교차로 속도는 승용차 기준 5.5m/s²(netconvert junctions.limit-turn-speed 기본값)이고, 여러 내부 차로로 나뉜
     # 회전(J42)에는 그 제한도 걸리지 않아 버스가 47km/h로 좌회전했다.
     "bus": {"vclass": "bus", "gui_shape": "bus", "length": 12.0, "width": 2.5,

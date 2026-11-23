@@ -8,7 +8,7 @@
 그다음 seed×시나리오마다 두 종류를 프로세스 풀에서 돌린다.
 - 배경: 배경 차량만 --seconds 동안. 충돌·300초 넘게 선 차·급제동·평균 주행 대수·최대 대기와,
   t=300초부터 map.json design.measure_lanes 차로의 평균 속도·점유율·대기 시간.
-- ego: 기본 ego 경로와 모든 s_* 경로를 경로 추종 규칙으로 한 에피소드씩. 투입 대기·종료 사유·에피소드 길이·
+- ego: 기본 ego 경로와 모든 s_* 경로를 전문가 규칙(env/route_policy.ExpertPolicyV5)으로 한 에피소드씩. 투입 대기·종료 사유·에피소드 길이·
   최장 정지·보상 합.
 통과 기준(PASS_CONDITION): 배경은 충돌 0, 300초 넘게 이어서 선 차 0, 모든 경계 진입로에서 출발한 차량의 도착.
 학습 환경처럼 순간이동을 끄고 돌린다. 막힌 차는 사라지지 않고 서 있으므로 선 시간으로 센다.
@@ -38,7 +38,7 @@ from sumolib import checkBinary
 from sumolib.net import readNet
 
 from env import road_builder
-from env.route_policy import route_following_action
+from env.route_policy import make_expert
 from env.road_config import ROAD, EGO, TRAFFIC, configure_map
 from env.mdp_config import SIMULATION
 from maps import DEFAULT_MAP, available_maps
@@ -184,7 +184,8 @@ def run_background(folder: Path, scenario: str, seed: int, seconds: float, map_i
 
 
 def run_ego(folder: Path, scenario: str, seed: int, route: str, map_id: str) -> dict:
-    """경로 추종 규칙으로 ego 한 에피소드를 달려 투입·종료·정지·보상을 잰다."""
+    """전문가 규칙으로 ego 한 에피소드를 달려 투입·종료·정지·보상을 잰다. ego는 SUMO 안전 보조 없이 달리므로
+    신호를 보지 못하는 옛 경로 추종 규칙은 첫 적색에서 끝난다."""
     import traci
     from env.mdp_config import OBSERVATION, ACTION, REWARD
     from env.sumo_env import SumoHighwayEnv
@@ -204,8 +205,9 @@ def run_ego(folder: Path, scenario: str, seed: int, route: str, map_id: str) -> 
             return row
         row["insertion_wait_s"] = round(info["ego_insert_wait_seconds"] - step, 1)
         total, streak, longest = 0.0, 0, 0
+        policy = make_expert(env, version=5)
         for index in range(env.max_steps):
-            observation, reward, terminated, truncated, info = env.step(route_following_action(observation))
+            observation, reward, terminated, truncated, info = env.step(policy(observation))
             total += float(reward)
             if env.ego_id in traci.vehicle.getIDList() and traci.vehicle.getSpeed(env.ego_id) < 0.1:
                 streak += 1

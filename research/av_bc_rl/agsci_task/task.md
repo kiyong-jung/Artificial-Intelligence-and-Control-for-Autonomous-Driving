@@ -1,7 +1,8 @@
 # Goal
 - Improve the driving policy of an autonomous city bus on the Hapjeong (Seoul) loop in SUMO.
 - The bus must complete the 1,949 m loop, serve 4 roadside stops for 8 s each, and drive smoothly and lawfully.
-- The SUMO safety assist (speedMode 31) stays on as a last line of defense, but a good policy should almost never need it.
+- The SUMO safety assist is off (speedMode 0, laneChangeMode 0, as in the course baseline). A collision with a vehicle or a
+  pedestrian, or crossing a red stop line, ends the episode.
 
 # What you may change
 - Only `src/program.py` (and new files under `src/`). It must define `make_policy(env)` that returns a function
@@ -10,8 +11,8 @@
   {-1 right, 0 keep, +1 left} at |x| >= 0.5.
 - `env` is `env.sumo_env.SumoHighwayEnv` of the Hapjeong repository (`HAPJEONG_REPO`). You may read its attributes
   (`vmax`, `visibility`, `max_accel`, `max_decel`) and the observation layout in `env/data_schema.py`
-  (`OBSERVATION_FEATURES`, 46 values: 31 course features + 15 route features: traffic light, stop, route lane,
-  crosswalk, speed limits, acceleration).
+  (`OBSERVATION_FEATURES`, 43 values: 31 course features + 12 route features: traffic light, stop, crosswalk,
+  speed limits, acceleration). No feature tells the bus which lane to use; the per-lane route connectivity does.
 - You may load trained weights you produce yourself (BC, PPO, residual RL) from files under `src/`.
 
 # What you may not do

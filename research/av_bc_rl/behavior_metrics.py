@@ -5,9 +5,11 @@
 판단 한 번이 0.5초다. 지표는 모두 기록에 남은 값만 쓴다(정책 내부 값은 보지 않는다).
 """
 import argparse
+import functools
 import json
 import os
 import sys
+import xml.etree.ElementTree as ET
 from collections import defaultdict
 
 import numpy as np
@@ -15,7 +17,9 @@ import numpy as np
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from collect_pomdp_data import iter_transitions  # noqa: E402
 from env.road_config import BUS_COMFORT  # noqa: E402
+from maps import load_map  # noqa: E402
 
+MAP_ID = "hapjeong"        # 연구 주행 지도(evaluate.py --map hapjeong). 교차로 안에 서서 막는지 가를 때 쓴다
 DT = 0.5
 VIS = 50.0                 # 관측 거리 W(m). obs[9] = 현재 차선 선행차 거리 / W
 STOPPED = 0.1              # m/s 미만이면 멈춤
@@ -69,6 +73,44 @@ def lateral_acceleration(records):
 def _place(road_id):
     """교차로 안 도로(:J82_15)는 교차로 이름(J82)으로 묶는다."""
     return road_id[1:].rsplit("_", 1)[0] if road_id.startswith(":") else road_id
+
+
+@functools.lru_cache(maxsize=None)
+def conflict_free_lanes(map_id=MAP_ID):
+    """교차로 안 차로 가운데 다른 어느 연결(차, 횡단보도)과도 겹치지 않는 차로. 도로가 갈라지거나 차로 수만 바뀌는
+    곳이다(합정 J2는 R54가 R42 직진과 R65 우회전으로 갈라질 뿐이다). 여기 선 차는 아무도 막지 않는다. SUMO 배경 차도
+    겹치는 연결이 있을 때만 교차로를 비운다(MSVehicle::keepClear)."""
+    root = ET.parse(load_map(map_id)["net_path"]).getroot()
+    free = set()
+    for junction in root.iter("junction"):
+        lanes = (junction.get("intLanes") or "").split()
+        free.update(lanes[int(request.get("index"))] for request in junction.iter("request") if "1" not in request.get("foes"))
+    return frozenset(free)
+
+
+def junction_stops(records):
+    """교차로 안 차로(:J2_1_0)에 멈춰 있던 구간마다 (교차로, 시작 t, 길이 초, 그때 신호 상태, 막는지). 같은 교차로
+    안에서 멈춤이 이어진 판단을 하나로 센다. 겹치는 연결이 있는 차로에 섰으면 막는 것(blocking)이다. 지도에 없는 차로는
+    막는 것으로 본다."""
+    free = conflict_free_lanes()
+    out, run = [], None
+    for record in records:
+        ego = record["state"]["ego"]
+        road = ego.get("road_id", "")
+        inside = road.startswith(":") and ego["speed"] < STOPPED
+        place = _place(road) if inside else None
+        if run is not None and place == run["junction"]:
+            run["duration_s"] += DT
+            run["blocking"] = run["blocking"] or ego.get("lane_id") not in free
+            continue
+        if run is not None and run["duration_s"] >= MIN_STOP_S:
+            out.append(run)
+        light = (record["state"].get("traffic_light") or {}).get("state")
+        run = ({"junction": place, "t": record["t"], "duration_s": DT, "signal": light,
+                "blocking": ego.get("lane_id") not in free} if inside else None)
+    if run is not None and run["duration_s"] >= MIN_STOP_S:
+        out.append(run)
+    return out
 
 
 def episode_metrics(records):
@@ -148,6 +190,7 @@ def episode_metrics(records):
         "bus_stops_served": served,
         "bus_stops_missed": missed,
         "stop_events": stops,
+        "junction_stops": junction_stops(records),
     }
 
 
@@ -189,6 +232,15 @@ def summarize(per_episode):
         for k, v in e["lateral_accel_peak_by_place"].items():
             places[k] = max(places[k], v)
     out["lateral_accel_peak_by_place_max"] = dict(sorted(places.items(), key=lambda item: -item[1]))
+    # 교차로 안에 10초, 30초 넘게 선 횟수. free_는 겹치는 연결이 없는 곳(아무도 막지 않음)이다.
+    junctions = defaultdict(lambda: {"10s": 0, "30s": 0, "free_10s": 0, "free_30s": 0, "max_s": 0.0})
+    for e in per_episode:
+        for stop in e["junction_stops"]:
+            counts, prefix = junctions[stop["junction"]], "" if stop["blocking"] else "free_"
+            counts[prefix + "10s"] += stop["duration_s"] >= 10.0
+            counts[prefix + "30s"] += stop["duration_s"] >= 30.0
+            counts["max_s"] = max(counts["max_s"], stop["duration_s"])
+    out["junction_stops_by_place"] = dict(sorted(junctions.items()))
     return out
 
 

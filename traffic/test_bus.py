@@ -46,11 +46,11 @@ class LanePlan:
 
 
 def lap_route(net, loop):
-    """한 바퀴 노선: R68 다음 bus_loop 전체. 끝(R42)에서 R68로 이어져야 한다."""
+    """한 바퀴 노선: R68에서 출발해 R42까지. bus_loop는 3.19.0부터 R68로 끝난다(그 전에는 R42로 끝나 R68을 잇는다)."""
     closed = close_loop(net, loop)
-    if closed[len(loop):] != [START_EDGE]:
+    if closed[-1] != START_EDGE or START_EDGE in closed[:-1]:
         raise ValueError(f"노선 끝 {loop[-1]}에서 처음 {loop[0]} 사이가 {START_EDGE} 하나가 아니다: {closed[len(loop):]}")
-    return [START_EDGE, *loop]
+    return [START_EDGE, *closed[:-1]]
 
 
 def _back(net, route, k, pos, back):

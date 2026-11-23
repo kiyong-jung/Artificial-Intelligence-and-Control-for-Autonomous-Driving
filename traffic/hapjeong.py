@@ -259,7 +259,7 @@ class HapjeongTraffic:
         route = loop or m["routes"]["bus_loop"]
         net = read_net(os.path.join(self.out_dir, "network.net.xml"))
         out = []
-        route = close_loop(net, route)      # 노선 끝과 처음 사이에 시뮬레이션이 잇는 도로(R42 -> R68 -> R69)를 포함한다
+        route = close_loop(net, route)      # 닫히지 않은 노선이면 끝과 처음 사이에 시뮬레이션이 잇는 도로를 포함한다
 
         def zones_before(k, pos, length=approach):
             """경로의 k번째 도로 pos 앞 length m를 도로 경계를 넘어 거슬러 올라가며 구간으로 만든다.

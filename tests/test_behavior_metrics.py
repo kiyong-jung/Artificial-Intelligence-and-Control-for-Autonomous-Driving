@@ -43,6 +43,20 @@ def test_straight_driving_has_none():
     assert metrics["lateral_accel_peak"] == 0.0 and metrics["lateral_accel_peak_by_place"] == {}
 
 
+@pytest.mark.parametrize("lane, blocking", [(":J2_1_2", False), (":J1_11_0", True)])
+def test_standing_inside_a_junction_blocks_only_where_movements_cross(lane, blocking):
+    """버스가 교차로 안 차로에 40초 섰다. 합정 J2는 양화로에서 우회전 연결로(R65)가 갈라지기만 하는 곳이라 겹치는 연결이
+    없어 아무도 막지 않는다. J1(합정역 사거리) 직진 차로는 다른 방향 차와 횡단보도를 가로지르므로 막는다."""
+    records = _records([0.0] * 81, [90.0] * 81, [lane.rsplit("_", 1)[0]] * 81)
+    for record in records:
+        record["state"]["ego"]["lane_id"] = lane
+    (stop,) = behavior_metrics.episode_metrics(records)["junction_stops"]
+    assert (stop["duration_s"], stop["blocking"]) == (40.0, blocking)
+    counts = behavior_metrics.summarize([behavior_metrics.episode_metrics(records)])["junction_stops_by_place"]
+    junction = lane[1:].split("_")[0]
+    assert (counts[junction]["30s"], counts[junction]["free_30s"]) == ((1, 0) if blocking else (0, 1))
+
+
 @pytest.mark.parametrize("light, stuck", [("r", 0), ("G", 1)])
 def test_a_long_wait_in_a_red_light_queue_is_not_stuck(light, stuck):
     """정지선 60m 뒤에서 앞차 4m 뒤에 65초 섰다. 적색 대기열이면 갇힌 것이 아니고, 녹색인데 서 있으면 갇힌 것이다."""

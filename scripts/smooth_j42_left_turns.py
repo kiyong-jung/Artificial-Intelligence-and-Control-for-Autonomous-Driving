@@ -110,6 +110,12 @@ def splice(old: ET.Element, new: ET.Element) -> int:
 
 
 def main() -> None:
+    # 이미 적용한 지도에 다시 돌리면 안 된다. 3.18.0이 J42 정지선을 옮긴 뒤로는 아래의 "모양이 같은가" 비교가 어긋나,
+    # 다시 돌리면 곡선을 새로 만들고 지도 판을 3.17.0으로 되돌렸다(sha256도 바뀜).
+    applied = json.loads((SOURCE.parent / "map.json").read_text(encoding="utf-8"))["network_source"].get("patches", {})
+    if "j42_tangent_left_turns" in applied:
+        print("이미 적용했다(map.json의 patches.j42_tangent_left_turns): 바꾸지 않는다")
+        return
     net_path = SOURCE / "network.net.xml"
     original = net_path.read_bytes()
     tree = ET.parse(net_path)

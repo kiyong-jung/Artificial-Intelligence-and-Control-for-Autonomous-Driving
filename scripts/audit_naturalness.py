@@ -214,6 +214,9 @@ RULES = [
      "선 차 0대(동적 결과의 short_split_edges). traffic 경로 busy 3회에서는 R111b에 4~5대가 섰다"),
     ("data", "hapjeong", "flow-origin-interior", "*", "*", A,
      "골목 안쪽 끝(건물·주차장 출입)에서 나오는 차다. 도로 시작점에서 생기고, 버스 50m 안 출현은 학습 환경 78회에 2대였다"),
+    ("data", "hapjeong", "demand-multiplier", "DEMAND_SCALE", "*", A,
+     "사용자 결정(3.20.0): 버스와 배경 차의 상호작용을 늘리려 흐름 전체에 같은 배율을 곱했다. 학습 seed 여덟 실행과 dev 평가에서 "
+     "충돌·순간이동 0과 전문가 v5 완주를 지킨 가장 큰 배율이다(지도 README 3.20.0)"),
     ("data", "hapjeong", "demand-multiplier", "*", "*", A,
      "팀 밀도 설정(골목 3배, S6 보행자 4배, 상수역 출구 2배). 켜고 끈 발생률은 지도 README 3.14.0의 결정 표에 있다"),
 ]
@@ -487,6 +490,38 @@ def fringe_turnarounds(net):
     return out
 
 
+def _points(text):
+    return [tuple(map(float, p.split(",")[:2])) for p in text.split()]
+
+
+def stop_lines_under_crossings(root, margin=0.05):
+    """신호를 기다리는 차가 횡단보도 위에 서는 곳: 횡단보도가 건너는 들어오는 차로의 끝(정지선)이 횡단보도 띠(중심선에서
+    폭/2) 안에 있다. 횡단보도만 바깥으로 옮기고 정지선(endOffset)을 그대로 두면 생긴다(3.18.0). 반환: [(횡단보도, 차로, 중심선까지 m)]"""
+    incoming = {j.get("id"): set((j.get("incLanes") or "").split()) for j in root.iter("junction")}
+    lanes = {lane.get("id"): (edge, lane) for edge in root.iter("edge") if not edge.get("function")
+             for lane in edge.iter("lane")}
+    out = []
+    for edge in root.iter("edge"):
+        if edge.get("function") != "crossing":
+            continue
+        lane = edge.find("lane")
+        (ax, ay), (bx, by) = _points(lane.get("shape"))[0], _points(lane.get("shape"))[-1]
+        length = math.hypot(bx - ax, by - ay)
+        half = float(lane.get("width", 4.0)) / 2
+        node = edge.get("id")[1:].rsplit("_c", 1)[0]
+        for crossed in edge.get("crossingEdges").split():
+            for lane_id in sorted(incoming.get(node, ())):
+                if lane_id.rsplit("_", 1)[0] != crossed or lane_id not in lanes:
+                    continue
+                if "pedestrian" in (lanes[lane_id][1].get("allow") or "").split():
+                    continue
+                px, py = _points(lanes[lane_id][1].get("shape"))[-1]
+                distance = abs((bx - ax) * (py - ay) - (by - ay) * (px - ax)) / length
+                if distance < half - margin:
+                    out.append((edge.get("id"), lane_id, round(distance, 2)))
+    return out
+
+
 def scan_map(map_id="hapjeong"):
     from sumolib.net import readNet
     from maps import load_map
@@ -528,6 +563,8 @@ def scan_map(map_id="hapjeong"):
                 + ", ".join(f"{e} {n}칸/{length:.1f}m" for e, n, length in short))
     for edge_id, node in fringe_turnarounds(net):
         add("fringe-turnaround", edge_id, f"{node}에서 반대 방향으로만 이어진다")
+    for crossing, lane_id, distance in stop_lines_under_crossings(ET.parse(m["net_path"]).getroot()):
+        add("stop-line-under-crossing", lane_id, f"정지선이 {crossing} 중심선에서 {distance}m, 띠 안이다")
     # 다음 도로로 이어지지 않는 차로, 짧은데 차로마다 가는 길이 다른 도로
     for edge in car_edges(net.getEdges()):
         lanes = [lane for lane in edge.getLanes() if lane.allows("passenger")]
@@ -576,6 +613,9 @@ def scan_map(map_id="hapjeong"):
         text = build.read_text(encoding="utf-8")
         for name in re.findall(r'"(\w+_x\d+)"\s*:', text):
             add("demand-multiplier", name, f"scripts/build_{map_id}.py SHORTCUTS")
+        scale = re.search(r"^DEMAND_SCALE = ([\d.]+)", text, re.M)
+        if scale and float(scale.group(1)) != 1.0:
+            add("demand-multiplier", "DEMAND_SCALE", f"scripts/build_{map_id}.py 배경 흐름 전체 x{scale.group(1)}")
     return hits
 
 
@@ -644,6 +684,21 @@ BAD_WALKS = ('<routes><personFlow id="ped199" begin="0" end="3600" period="exp(0
              '<walk edges="R45 R42 W4 R65 R54 R54b R54a"/></personFlow></routes>')
 
 
+def _crossing_moved_without_stop_line(crossing=":J96_c2", lane_id="-R127_1", shift=1.0):
+    """지금 도로망에서 횡단보도 하나를 정지선 쪽으로 shift m 옮기고 정지선은 그대로 둔 것(3.18.0을 반만 한 실수)."""
+    from maps import load_map
+    root = ET.parse(load_map("hapjeong")["net_path"]).getroot()
+    lane = next(e for e in root.iter("edge") if e.get("id") == crossing).find("lane")
+    end = next(_points(x.get("shape"))[-1] for x in root.iter("lane") if x.get("id") == lane_id)
+    shape = _points(lane.get("shape"))
+    (ax, ay), (bx, by) = shape[0], shape[-1]
+    nx, ny = -(by - ay) / math.hypot(bx - ax, by - ay), (bx - ax) / math.hypot(bx - ax, by - ay)
+    if (end[0] - ax) * nx + (end[1] - ay) * ny < 0:
+        nx, ny = -nx, -ny
+    lane.set("shape", " ".join(f"{x + shift * nx:.2f},{y + shift * ny:.2f}" for x, y in shape))
+    return root
+
+
 def self_check():
     from maps import load_map
     with tempfile.TemporaryDirectory() as tmp:
@@ -661,6 +716,8 @@ def self_check():
         hits += bus
         (tmp / "walks.rou.xml").write_text(BAD_WALKS)
         hits += scan_demand("bad", Path(load_map("hapjeong")["net_path"]), BAD_FLOWS, [tmp / "walks.rou.xml"])
+        hits += [dict(kind="data", file="bad", where="stop-line-under-crossing", what=lane_id, target="", detail="")
+                 for _, lane_id, _ in stop_lines_under_crossings(_crossing_moved_without_stop_line())]
     found = {(h["kind"], h["what"]) for h in hits}
     expected = {("call", "vehicle.setSpeed"), ("call", "vehicle.setLaneChangeMode"), ("call", "vehicle.moveToXY"),
                 ("call", "person.add"), ("call", "vehicle.<alias>"), ("call", "vehicle.<getattr>"),
@@ -668,7 +725,8 @@ def self_check():
                 ("lit", "jmIgnoreFoeProb"), ("lit", "jmDriveAfterRedTime"),
                 ("xml", "jmIgnoreFoeProb"), ("xml", "jmDriveAfterRedTime"), ("xml", "impatience"), ("xml", "sigma"),
                 ("xml", "departPos"), ("xml", "departLane"), ("xml", "value"), ("xml", "lane-change-too-short"),
-                ("data", "f_R125_to_R124"), ("data", "f_G26_to_R129"), ("data", "ped199"), ("data", "ped592")}
+                ("data", "f_R125_to_R124"), ("data", "f_G26_to_R129"), ("data", "ped199"), ("data", "ped592"),
+                ("data", "-R127_1")}
     missing = expected - found
     if {h["target"] for h in bus} != {"r_bgbus_B1", "r_bgbus_B4"}:
         missing.add(("xml", "lane-change-too-short: B1과 B4 둘 다"))

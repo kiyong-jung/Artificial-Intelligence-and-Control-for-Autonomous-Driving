@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import run_hapjeong_scenario as RS  # noqa: E402
 from maps import load_map  # noqa: E402
 from traffic.alleys import read_net  # noqa: E402
+from traffic.bus_window_keeper import DEFAULT_LANE_DENSITY  # noqa: E402
 from traffic.hapjeong import HapjeongTraffic  # noqa: E402
 from traffic.presence import PresenceMonitor  # noqa: E402
 from traffic.signal_areas import forbidden_intervals, is_signalized  # noqa: E402
@@ -62,7 +63,8 @@ def multiply_s6_persons(path, k, seed):
 def main():
     out_dir = os.path.join(tempfile.gettempdir(), f"occ_{SCEN}_{SEED}{'_' + TAG if TAG else ''}")
     world = HapjeongTraffic(out_dir, scenario=SCEN, seed=SEED, bus_traffic=True,
-                            right_on_red="noror" not in TAG, interior_share=0.0 if "nointer" in TAG else 0.3)
+                            right_on_red="noror" not in TAG, interior_share=0.0 if "nointer" in TAG else 0.3,
+                            lane_density=None if "nodensity" in TAG else DEFAULT_LANE_DENSITY)
     world.build()
     if PED_X > 1:
         multiply_s6_persons(os.path.join(out_dir, "persons.json"), PED_X, SEED)
@@ -354,7 +356,7 @@ def main():
         pass
     # S4, S1 후행차 판정은 관리자 기록에서 센다(바퀴는 시험용 버스 한 바퀴)
     s4 = (world.ahead.summary() if world.ahead is not None else
-          {"blocks_per_lap": [0] * LAPS, "alley": 0, "none": 0})      # noahead 변형도 끝까지 돈다
+          {"blocks_per_lap": [0] * LAPS, "direct": 0, "none": 0})      # noahead 변형도 끝까지 돈다
     laps_done = len(bus.lap_times)
     per_lap = lambda c: [c.get(i, 0) for i in range(1, LAPS + 1)]
     bounds, acc = [], st["t0"] or 0.0
@@ -362,22 +364,22 @@ def main():
         acc += d
         bounds.append(acc)
     s1_rear = collections.Counter()
-    for r in world.stop.log:                     # S1 판정이 일어난 시각 -> 바퀴
+    for r in (world.stop.log if world.stop else []):       # S1 판정이 일어난 시각 -> 바퀴
         s1_rear[sum(1 for b in bounds if b < r["t_decide"]) + 1] += 1
     res = {"scenario": SCEN, "seed": SEED, "laps_done": laps_done, "lap_seconds": [round(x) for x in bus.lap_times],
            "S1": {"bus_stops_then_departs": per_lap(ev["S1_stops"]), "rear_vehicle_events": per_lap(s1_rear),
-                  "rear_outcomes": world.stop.summary()},
+                  "rear_outcomes": world.stop.summary() if world.stop else None},
            "S2": {"attempts": per_lap(ev["S2_attempts"]), "done": per_lap(ev["S2_done"]), "with_a1_follower": per_lap(ev["S2_a1"])},
            "S3": {"attempts": per_lap(ev["S3_attempts"]), "done": per_lap(ev["S3_done"]), "with_a1_follower": per_lap(ev["S3_a1"])},
            "S2_by_junction": {j: {"attempts": per_lap(ev[f"S2_{j}_attempts"]), "with_a1": per_lap(ev[f"S2_{j}_a1"])}
                               for j in ("J82", "J1")},
            "S4": {"blocks_per_lap": s4["blocks_per_lap"][:LAPS], "total": sum(s4["blocks_per_lap"][:LAPS]),
-                  "alley": s4["alley"], "none": s4["none"],
+                  "direct": s4["direct"], "none": s4["none"], "bus_arrived": s4.get("bus_arrived"),
                   "actually_stopped": s4.get("actually_stopped"), "log": getattr(world.ahead, "log", None)},
            "presence": presence.summary(),
            "a1_in_signal_area": len(sig["in_area"]), "a1_in_signal_area_examples": sig["in_area"][:8],
            "stops_by_lap": {k: v for k, v in sig["stops"].items()},
-           "bus": {"missed": bus.missed, "forced": bus.forced, "late": bus.late, "slowed": bus.slowed, "changes": bus.changes},
+           "bus": {"missed": bus.missed, "forced": bus.forced, "changes": bus.changes},
            "persons": world.persons.summary() if getattr(world, "persons", None) else None,
            "arrival_guard_extended": len(world.arrival_guard.extended) if getattr(world, "arrival_guard", None) else None,
            "S5": {"per_lap": per_lap(ev["S5"])},

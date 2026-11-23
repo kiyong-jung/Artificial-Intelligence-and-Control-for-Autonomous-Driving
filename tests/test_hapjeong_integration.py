@@ -40,11 +40,11 @@ def test_merge_alleys_are_found_from_the_map(world):
     assert all(a["minor"] and a["regulated"] for a in alleys)        # 골목이 비우선이고 충돌이 기록되는 교차로
 
 
-def test_s5_candidates_are_only_the_two_chosen_alleys_and_never_signalized(world):
-    # S5 끼어들기 후보는 독막로6길(X_dongmak6, G12 -> R71.256)과 잔다리로2길(X_jandari2, G23 -> -R96.119) 두 곳뿐이다.
+def test_s5_candidate_is_only_the_jandari_alley_and_never_signalized(world):
+    # S5 끼어들기 후보는 잔다리로2길(X_jandari2, G23 -> -R96.119) 한 곳뿐이다(독막로6길 X_dongmak6은 사용자 결정으로 뺐다).
     # 신호 교차로(cluster_J52_J56_J58, J74, J48)는 원래대로 제외한다. S4(정류장 근처 정차)는 다른 골목도 쓸 수 있어 그대로다
     got = {(a.junction, a.feeder, a.into) for a in world.s5_alleys}
-    assert got == {("X_dongmak6", "G12", "R71.256"), ("X_jandari2", "G23", "-R96.119")}
+    assert got == {("X_jandari2", "G23", "-R96.119")}
     assert not any(a.signalized for a in world.s5_alleys)
     assert {a.junction for a in world.alleys} >= {"X_dongmak3", "X_wausan11", "X_jandari7", "X_jandari3"}   # S4용은 유지
 
@@ -90,3 +90,20 @@ def test_a1_personality_reaches_background_car_on_hapjeong(world):
     assert tc.vehicle.getTypeID("f0").startswith("car_krauss")   # 주행 모델은 그대로(setMaxSpeed가 vType을 복제해 접미사가 붙는다)
     assert tc.vehicle.getParameter("f0", "driver.type") in ("yielder", "nonyielder")
     assert any(r["follower"] == "f0" for r in mgr.log)
+
+
+def test_density_keeper_is_wired_and_can_be_disabled(tmp_path):
+    on = HapjeongTraffic(str(tmp_path / "on"), seed=0)
+    on.build()
+    on.start(warmup=3)
+    try:
+        assert on.keeper is not None and set(on.keeper.density) == {"양화로", "독막로"}
+    finally:
+        on.close()
+    off = HapjeongTraffic(str(tmp_path / "off"), seed=0, lane_density=None)
+    off.build()
+    off.start(warmup=3)
+    try:
+        assert off.keeper is None
+    finally:
+        off.close()

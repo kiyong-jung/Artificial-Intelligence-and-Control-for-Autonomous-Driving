@@ -1,0 +1,1611 @@
+{
+ "label": "v5_frozenlc_fix",
+ "policy": "expert-v5",
+ "model": null,
+ "split": "dev",
+ "episodes_per_scenario": 10,
+ "max_steps": 1400,
+ "scenarios": [
+  {
+   "scenario": "quiet",
+   "seed_start": 1000,
+   "jsonl": "data/research/eval/v5_frozenlc_fix_dev_quiet.jsonl.gz",
+   "summary": {
+    "episodes": 10,
+    "terminations": {
+     "arrived": 10
+    },
+    "arrived": {
+     "mean": 1.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "lap_time_s": {
+     "mean": 394.1,
+     "std": 49.21879722219957,
+     "n": 10
+    },
+    "progress": {
+     "mean": 0.9991775648295171,
+     "std": 0.00012473487080284806,
+     "n": 10
+    },
+    "mean_speed": {
+     "mean": 5.789761710591251,
+     "std": 0.6899149294675756,
+     "n": 10
+    },
+    "hard_brakes": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "max_decel": {
+     "mean": 1.5950000000000002,
+     "std": 0.13499999999999995,
+     "n": 10
+    },
+    "jerk_violation_rate": {
+     "mean": 0.011347441415846008,
+     "std": 0.0009067796651674725,
+     "n": 10
+    },
+    "lateral_accel_peak": {
+     "mean": 2.0411081202813084,
+     "std": 0.010829737561850909,
+     "n": 10
+    },
+    "lateral_accel_violation_rate": {
+     "mean": 0.001395027835289222,
+     "std": 0.0002843153357951021,
+     "n": 10
+    },
+    "speed_intervened_rate": {
+     "mean": 0.0015595210021547763,
+     "std": 0.0005980837911296235,
+     "n": 10
+    },
+    "label_mismatch_rate": {
+     "mean": 0.0014217799553228204,
+     "std": 0.00044628898322182176,
+     "n": 10
+    },
+    "unexplained_stops": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "stuck_events": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "lane_changes": {
+     "mean": 1.2,
+     "std": 0.4,
+     "n": 10
+    },
+    "lane_change_pingpong": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "lane_change_refused": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "bus_stops_served": {
+     "mean": 4.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "bus_stops_missed": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "stop_time_by_reason_total_s": {
+     "bus_stop": 255.0,
+     "signal": 538.0
+    },
+    "lateral_accel_peak_by_place_max": {
+     "-R96.64": 2.0733924166766093,
+     "R54a": 1.9962302210040557,
+     "J82": 1.9510732579260137,
+     "R73": 1.9466767079158567,
+     "J23": 1.921673224549812,
+     "R42": 1.7911793137672032,
+     "J42": 1.758066301846902,
+     "R112": 1.7003083708418005,
+     "J84": 1.6631141548260566,
+     "R69a": 1.540723378933063,
+     "J83": 1.446857742481216
+    }
+   },
+   "episodes": [
+    {
+     "episode": 0,
+     "steps": 882,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 441.0,
+     "progress": 0.9993313173493117,
+     "mean_speed": 5.092837938844847,
+     "hard_brakes": 0,
+     "max_decel": 1.5500000000000007,
+     "jerk_violation_rate": 0.011337868480725623,
+     "accel_violation_rate": 0.0045351473922902496,
+     "lateral_accel_peak": 2.0348110278066818,
+     "lateral_accel_violation_rate": 0.0011337868480725624,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J82": 1.9147039271007933,
+      "R112": 1.661443399478744,
+      "J83": 1.4373519651861284,
+      "-R96.64": 2.0348110278066818,
+      "J42": 1.4065795541118071,
+      "R54a": 1.909860477158086
+     },
+     "speed_intervened_rate": 0.0011337868480725624,
+     "label_mismatch_rate": 0.0011337868480725624,
+     "stops": 6,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 93.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 1,
+     "steps": 849,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 424.5,
+     "progress": 0.9993273577514467,
+     "mean_speed": 5.290465529411766,
+     "hard_brakes": 0,
+     "max_decel": 1.5499999999999998,
+     "jerk_violation_rate": 0.01060070671378092,
+     "accel_violation_rate": 0.004711425206124852,
+     "lateral_accel_peak": 2.035477866626651,
+     "lateral_accel_violation_rate": 0.001177856301531213,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J82": 1.865452201686088,
+      "R112": 1.4449058412949467,
+      "J83": 1.4330692483423189,
+      "-R96.64": 2.035477866626651,
+      "J42": 1.4502464056890554,
+      "R54a": 1.9309319487439536
+     },
+     "speed_intervened_rate": 0.001177856301531213,
+     "label_mismatch_rate": 0.001177856301531213,
+     "stops": 6,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 76.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 2,
+     "steps": 932,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 466.0,
+     "progress": 0.9993313173493117,
+     "mean_speed": 4.81994973204716,
+     "hard_brakes": 0,
+     "max_decel": 1.5500000000000007,
+     "jerk_violation_rate": 0.01072961373390558,
+     "accel_violation_rate": 0.00536480686695279,
+     "lateral_accel_peak": 2.0733924166766093,
+     "lateral_accel_violation_rate": 0.002145922746781116,
+     "lateral_accel_peak_by_place": {
+      "J23": 1.8717581265390186,
+      "R73": 1.9466767079158567,
+      "J82": 1.845121454990618,
+      "R112": 1.4499160975902539,
+      "J83": 1.434600162673974,
+      "-R96.64": 2.0733924166766093,
+      "J42": 1.4504709964025206,
+      "R54a": 1.9962302210040557
+     },
+     "speed_intervened_rate": 0.001072961373390558,
+     "label_mismatch_rate": 0.001072961373390558,
+     "stops": 8,
+     "stop_time_by_reason": {
+      "signal": 92.5,
+      "bus_stop": 25.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 2,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 10,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 3,
+     "steps": 679,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 339.5,
+     "progress": 0.9990757230826315,
+     "mean_speed": 6.624355,
+     "hard_brakes": 0,
+     "max_decel": 1.5499999999999998,
+     "jerk_violation_rate": 0.011782032400589101,
+     "accel_violation_rate": 0.0029455081001472753,
+     "lateral_accel_peak": 2.0381837083364145,
+     "lateral_accel_violation_rate": 0.0014727540500736377,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J23": 1.921673224549812,
+      "R73": 1.7220906546436188,
+      "J82": 1.8626074040171268,
+      "R112": 1.4403725977959112,
+      "J83": 1.4412477900077307,
+      "-R96.64": 2.0381837083364145,
+      "J42": 1.758066301846902,
+      "R54a": 1.5486087787624994,
+      "R42": 1.7911793137672032
+     },
+     "speed_intervened_rate": 0.0014727540500736377,
+     "label_mismatch_rate": 0.0014727540500736377,
+     "stops": 5,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 24.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 4,
+     "steps": 746,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 373.0,
+     "progress": 0.9990757230826315,
+     "mean_speed": 6.030170682730924,
+     "hard_brakes": 0,
+     "max_decel": 1.5500000000000007,
+     "jerk_violation_rate": 0.010723860589812333,
+     "accel_violation_rate": 0.005361930294906166,
+     "lateral_accel_peak": 2.0381837083364145,
+     "lateral_accel_violation_rate": 0.0013404825737265416,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.645772418864985,
+      "R69a": 1.540723378933063,
+      "R73": 1.1838636761109445,
+      "J82": 1.8613465207441582,
+      "R112": 1.5471733945038564,
+      "J83": 1.4412477900077307,
+      "-R96.64": 2.0381837083364145,
+      "J42": 1.758066301846902,
+      "R54a": 1.5486087787624994,
+      "R42": 1.7911793137672032
+     },
+     "speed_intervened_rate": 0.002680965147453083,
+     "label_mismatch_rate": 0.002680965147453083,
+     "stops": 6,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 36.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 5,
+     "steps": 713,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 356.5,
+     "progress": 0.9990757230826315,
+     "mean_speed": 6.308987114845938,
+     "hard_brakes": 0,
+     "max_decel": 1.5499999999999998,
+     "jerk_violation_rate": 0.011220196353436185,
+     "accel_violation_rate": 0.004207573632538569,
+     "lateral_accel_peak": 2.0382027606995905,
+     "lateral_accel_violation_rate": 0.001402524544179523,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.6631141548260566,
+      "R69a": 1.5367252048625364,
+      "J82": 1.9147039271007933,
+      "R112": 1.6614629002170103,
+      "J83": 1.4412477900077307,
+      "-R96.64": 2.0382027606995905,
+      "J42": 1.758066301846902,
+      "R54a": 1.5486087787624994,
+      "R42": 1.7911793137672032
+     },
+     "speed_intervened_rate": 0.001402524544179523,
+     "label_mismatch_rate": 0.001402524544179523,
+     "stops": 6,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 28.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 2,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 10,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 6,
+     "steps": 948,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 474.0,
+     "progress": 0.9993313173493117,
+     "mean_speed": 4.7386856691253945,
+     "hard_brakes": 0,
+     "max_decel": 1.5499999999999998,
+     "jerk_violation_rate": 0.010548523206751054,
+     "accel_violation_rate": 0.005274261603375527,
+     "lateral_accel_peak": 2.0381837083364145,
+     "lateral_accel_violation_rate": 0.0010548523206751054,
+     "lateral_accel_peak_by_place": {
+      "J23": 1.8718370304310428,
+      "R73": 1.9466373142638416,
+      "J82": 1.845121454990618,
+      "R112": 1.4499160975902539,
+      "J83": 1.446857742481216,
+      "-R96.64": 2.0381837083364145,
+      "J42": 1.439097080984359,
+      "R54a": 1.8884506000183587
+     },
+     "speed_intervened_rate": 0.0010548523206751054,
+     "label_mismatch_rate": 0.0010548523206751054,
+     "stops": 8,
+     "stop_time_by_reason": {
+      "signal": 105.0,
+      "bus_stop": 25.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 7,
+     "steps": 721,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 360.5,
+     "progress": 0.9990757230826315,
+     "mean_speed": 6.2390811634349035,
+     "hard_brakes": 0,
+     "max_decel": 1.5499999999999998,
+     "jerk_violation_rate": 0.011095700416088766,
+     "accel_violation_rate": 0.004160887656033287,
+     "lateral_accel_peak": 2.0382027606995905,
+     "lateral_accel_violation_rate": 0.0013869625520110957,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J82": 1.9147039271007933,
+      "R112": 1.6614238987404781,
+      "J83": 1.4412477900077307,
+      "-R96.64": 2.0382027606995905,
+      "J42": 1.758066301846902,
+      "R54a": 1.5486087787624994,
+      "R42": 1.7911793137672032
+     },
+     "speed_intervened_rate": 0.0013869625520110957,
+     "label_mismatch_rate": 0.0013869625520110957,
+     "stops": 6,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 31.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 8,
+     "steps": 686,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 343.0,
+     "progress": 0.9990757230826315,
+     "mean_speed": 6.556934206695778,
+     "hard_brakes": 0,
+     "max_decel": 1.5500000000000007,
+     "jerk_violation_rate": 0.011661807580174927,
+     "accel_violation_rate": 0.004373177842565598,
+     "lateral_accel_peak": 2.038240484595126,
+     "lateral_accel_violation_rate": 0.0014577259475218659,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J23": 1.0164327661639199,
+      "R73": 1.1016570057413742,
+      "J82": 1.9510732579260137,
+      "R112": 1.7003083708418005,
+      "J83": 1.4412630801391757,
+      "-R96.64": 2.038240484595126,
+      "J42": 1.7580506584608115,
+      "R54a": 1.5486087787624994,
+      "R42": 1.7911793137672032
+     },
+     "speed_intervened_rate": 0.0014577259475218659,
+     "label_mismatch_rate": 0.0014577259475218659,
+     "stops": 5,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 17.0
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 9,
+     "steps": 726,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 363.0,
+     "progress": 0.9990757230826315,
+     "mean_speed": 6.196150068775791,
+     "hard_brakes": 0,
+     "max_decel": 2.0,
+     "jerk_violation_rate": 0.013774104683195593,
+     "accel_violation_rate": 0.009641873278236915,
+     "lateral_accel_peak": 2.0382027606995905,
+     "lateral_accel_violation_rate": 0.0013774104683195593,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J82": 1.9095047518293973,
+      "R112": 1.6481243952434321,
+      "J83": 1.4412477900077307,
+      "-R96.64": 2.0382027606995905,
+      "J42": 1.758066301846902,
+      "R54a": 1.5486087787624994,
+      "R42": 1.7911793137672032
+     },
+     "speed_intervened_rate": 0.0027548209366391185,
+     "label_mismatch_rate": 0.0013774104683195593,
+     "stops": 6,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 32.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 3,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    }
+   ]
+  },
+  {
+   "scenario": "baseline",
+   "seed_start": 1300,
+   "jsonl": "data/research/eval/v5_frozenlc_fix_dev_baseline.jsonl.gz",
+   "summary": {
+    "episodes": 10,
+    "terminations": {
+     "arrived": 10
+    },
+    "arrived": {
+     "mean": 1.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "lap_time_s": {
+     "mean": 398.5,
+     "std": 49.37560126216186,
+     "n": 10
+    },
+    "progress": {
+     "mean": 0.9991616819481933,
+     "std": 0.0001423930380408364,
+     "n": 10
+    },
+    "mean_speed": {
+     "mean": 5.724581129116743,
+     "std": 0.651966598206806,
+     "n": 10
+    },
+    "hard_brakes": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "max_decel": {
+     "mean": 1.8200000000000003,
+     "std": 0.22045407685048607,
+     "n": 10
+    },
+    "jerk_violation_rate": {
+     "mean": 0.017479026649874933,
+     "std": 0.0046564081949286825,
+     "n": 10
+    },
+    "lateral_accel_peak": {
+     "mean": 2.046224943343872,
+     "std": 0.013502933712711157,
+     "n": 10
+    },
+    "lateral_accel_violation_rate": {
+     "mean": 0.0014820937036585742,
+     "std": 0.0003248042017971039,
+     "n": 10
+    },
+    "speed_intervened_rate": {
+     "mean": 0.0028595228741625824,
+     "std": 0.0036152768985935,
+     "n": 10
+    },
+    "label_mismatch_rate": {
+     "mean": 0.0011244610430212153,
+     "std": 0.0006421115377339737,
+     "n": 10
+    },
+    "unexplained_stops": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "stuck_events": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "lane_changes": {
+     "mean": 1.4,
+     "std": 0.48989794855663565,
+     "n": 10
+    },
+    "lane_change_pingpong": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "lane_change_refused": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "bus_stops_served": {
+     "mean": 4.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "bus_stops_missed": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "stop_time_by_reason_total_s": {
+     "bus_stop": 280.5,
+     "signal": 534.0,
+     "crosswalk": 5.0
+    },
+    "lateral_accel_peak_by_place_max": {
+     "-R96.64": 2.073582999126013,
+     "R54a": 2.0411476009903473,
+     "J82": 1.9667716602803185,
+     "R73": 1.9466767079158567,
+     "J23": 1.8751115419499518,
+     "R42": 1.8593565778378984,
+     "J42": 1.8495152623903797,
+     "R112": 1.7499125059832195,
+     "J83": 1.6888111161469759,
+     "J84": 1.6631141548260566,
+     "R69a": 1.5843617259674851
+    }
+   },
+   "episodes": [
+    {
+     "episode": 0,
+     "steps": 762,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 381.0,
+     "progress": 0.9990837312580888,
+     "mean_speed": 5.9039099606815215,
+     "hard_brakes": 0,
+     "max_decel": 1.5499999999999998,
+     "jerk_violation_rate": 0.015748031496062992,
+     "accel_violation_rate": 0.007874015748031496,
+     "lateral_accel_peak": 2.0373072996301094,
+     "lateral_accel_violation_rate": 0.0013123359580052493,
+     "lateral_accel_peak_by_place": {
+      "J23": 1.8745197627597805,
+      "R73": 1.9461251967876672,
+      "J82": 1.8985317020630252,
+      "R112": 1.4712101539826872,
+      "J83": 1.4409748833445635,
+      "-R96.64": 2.0373072996301094,
+      "J42": 1.6600303714915496,
+      "R54a": 1.7995273801355294,
+      "R42": 1.7951684704196196
+     },
+     "speed_intervened_rate": 0.0013123359580052493,
+     "label_mismatch_rate": 0.0013123359580052493,
+     "stops": 8,
+     "stop_time_by_reason": {
+      "bus_stop": 34.0,
+      "signal": 26.0
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 1,
+     "steps": 736,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 368.0,
+     "progress": 0.9990757230826315,
+     "mean_speed": 6.1120972862957945,
+     "hard_brakes": 0,
+     "max_decel": 1.5499999999999998,
+     "jerk_violation_rate": 0.010869565217391304,
+     "accel_violation_rate": 0.004076086956521739,
+     "lateral_accel_peak": 2.0382027606995905,
+     "lateral_accel_violation_rate": 0.001358695652173913,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J82": 1.9147039271007933,
+      "R112": 1.661443399478744,
+      "J83": 1.4412477900077307,
+      "-R96.64": 2.0382027606995905,
+      "J42": 1.758066301846902,
+      "R54a": 1.5486087787624994,
+      "R42": 1.7911793137672032
+     },
+     "speed_intervened_rate": 0.001358695652173913,
+     "label_mismatch_rate": 0.001358695652173913,
+     "stops": 6,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 40.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 2,
+     "steps": 895,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 447.5,
+     "progress": 0.9992330837303683,
+     "mean_speed": 5.028323549107142,
+     "hard_brakes": 0,
+     "max_decel": 2.0,
+     "jerk_violation_rate": 0.017877094972067038,
+     "accel_violation_rate": 0.0111731843575419,
+     "lateral_accel_peak": 2.073582999126013,
+     "lateral_accel_violation_rate": 0.0022346368715083797,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.6629019990599074,
+      "R69a": 1.537128649587364,
+      "R73": 1.1838636761109445,
+      "J82": 1.9665741535861743,
+      "R112": 1.7441627741041956,
+      "J83": 1.435901061110704,
+      "-R96.64": 2.073582999126013,
+      "J42": 1.839574570338706,
+      "R54a": 1.990140900587005,
+      "R42": 1.8593565778378984
+     },
+     "speed_intervened_rate": 0.0022346368715083797,
+     "label_mismatch_rate": 0.0022346368715083797,
+     "stops": 7,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 102.0
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 2,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 10,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 3,
+     "steps": 856,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 428.0,
+     "progress": 0.9990778585960868,
+     "mean_speed": 5.256208168028005,
+     "hard_brakes": 0,
+     "max_decel": 2.0,
+     "jerk_violation_rate": 0.02336448598130841,
+     "accel_violation_rate": 0.02102803738317757,
+     "lateral_accel_peak": 2.0381837083364145,
+     "lateral_accel_violation_rate": 0.0011682242990654205,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.6631141548260566,
+      "R69a": 1.5367252048625364,
+      "J82": 1.9143879162156334,
+      "R112": 1.6996943090330756,
+      "J83": 1.4492925605635487,
+      "-R96.64": 2.0381837083364145,
+      "J42": 1.0131364402982879,
+      "R54a": 1.9751488626515799,
+      "R42": 1.792275545820146
+     },
+     "speed_intervened_rate": 0.0011682242990654205,
+     "label_mismatch_rate": 0.0011682242990654205,
+     "stops": 7,
+     "stop_time_by_reason": {
+      "bus_stop": 34.0,
+      "signal": 72.0
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 2,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 10,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 4,
+     "steps": 663,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 331.5,
+     "progress": 0.9990776806366322,
+     "mean_speed": 6.784320030120483,
+     "hard_brakes": 0,
+     "max_decel": 1.5499999999999998,
+     "jerk_violation_rate": 0.016591251885369532,
+     "accel_violation_rate": 0.006033182503770739,
+     "lateral_accel_peak": 2.0397841068435967,
+     "lateral_accel_violation_rate": 0.0015082956259426848,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J23": 1.8745654942259098,
+      "R73": 1.9460685589335764,
+      "J82": 1.9667716602803185,
+      "R112": 1.7499125059832195,
+      "J83": 1.440194895701858,
+      "-R96.64": 2.0397841068435967,
+      "J42": 1.800697290041101,
+      "R54a": 1.9949802622704755,
+      "R42": 1.7921767034612697
+     },
+     "speed_intervened_rate": 0.0015082956259426848,
+     "label_mismatch_rate": 0.0015082956259426848,
+     "stops": 5,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 19.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 5,
+     "steps": 736,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 368.0,
+     "progress": 0.9990778585960868,
+     "mean_speed": 6.112185481682497,
+     "hard_brakes": 0,
+     "max_decel": 2.000000000000001,
+     "jerk_violation_rate": 0.02717391304347826,
+     "accel_violation_rate": 0.029891304347826088,
+     "lateral_accel_peak": 2.072342710040079,
+     "lateral_accel_violation_rate": 0.001358695652173913,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.623366290160384,
+      "R69a": 1.5843617259674851,
+      "J23": 1.8560866940595167,
+      "R73": 1.9387260715187045,
+      "J82": 1.866594923899772,
+      "R112": 1.4992793436100438,
+      "J83": 1.6028002924549083,
+      "-R96.64": 2.072342710040079,
+      "J42": 1.8495152623903797,
+      "R54a": 1.9851119018989924,
+      "R42": 1.7922755458201367
+     },
+     "speed_intervened_rate": 0.01358695652173913,
+     "label_mismatch_rate": 0.0,
+     "stops": 7,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 23.5,
+      "crosswalk": 5.0
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 10,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 6,
+     "steps": 715,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 357.5,
+     "progress": 0.9990757230826315,
+     "mean_speed": 6.291363547486033,
+     "hard_brakes": 0,
+     "max_decel": 1.5500000000000007,
+     "jerk_violation_rate": 0.011188811188811189,
+     "accel_violation_rate": 0.004195804195804196,
+     "lateral_accel_peak": 2.0382214320574064,
+     "lateral_accel_violation_rate": 0.0013986013986013986,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.6631141548260566,
+      "R69a": 1.5367252048625364,
+      "J82": 1.9147999348704212,
+      "R112": 1.6623989356537499,
+      "J83": 1.4412630801391757,
+      "-R96.64": 2.0382214320574064,
+      "J42": 1.7580506584608115,
+      "R54a": 1.5486087787624994,
+      "R42": 1.7911793137672032
+     },
+     "speed_intervened_rate": 0.0013986013986013986,
+     "label_mismatch_rate": 0.0013986013986013986,
+     "stops": 6,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 24.0
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 2,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 10,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 7,
+     "steps": 807,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 403.5,
+     "progress": 0.9993275357109013,
+     "mean_speed": 5.570348638613861,
+     "hard_brakes": 0,
+     "max_decel": 2.0,
+     "jerk_violation_rate": 0.01734820322180917,
+     "accel_violation_rate": 0.008674101610904586,
+     "lateral_accel_peak": 2.0392312165562196,
+     "lateral_accel_violation_rate": 0.0012391573729863693,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J23": 1.8751115419499518,
+      "R73": 1.9459282285276025,
+      "J82": 1.9667519096109036,
+      "R112": 1.7495253186513022,
+      "J83": 1.6888111161469759,
+      "-R96.64": 2.0392312165562196,
+      "J42": 1.3351861231337785,
+      "R54a": 1.926872979445054
+     },
+     "speed_intervened_rate": 0.0024783147459727386,
+     "label_mismatch_rate": 0.0,
+     "stops": 5,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 75.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 8,
+     "steps": 778,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 389.0,
+     "progress": 0.9990778585960868,
+     "mean_speed": 5.782496662387677,
+     "hard_brakes": 0,
+     "max_decel": 2.0,
+     "jerk_violation_rate": 0.017994858611825194,
+     "accel_violation_rate": 0.007712082262210797,
+     "lateral_accel_peak": 2.044245599158945,
+     "lateral_accel_violation_rate": 0.0012853470437017994,
+     "lateral_accel_peak_by_place": {
+      "J23": 1.8717975784850418,
+      "R73": 1.9466767079158567,
+      "J82": 1.8437501662034175,
+      "R112": 1.4627524863478607,
+      "J83": 1.5839780483181722,
+      "-R96.64": 2.044245599158945,
+      "J42": 1.0131364402982879,
+      "R54a": 1.9751488626515799,
+      "R42": 1.792275545820146
+     },
+     "speed_intervened_rate": 0.002570694087403599,
+     "label_mismatch_rate": 0.0012853470437017994,
+     "stops": 7,
+     "stop_time_by_reason": {
+      "signal": 24.5,
+      "bus_stop": 34.0
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 9,
+     "steps": 1022,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 511.0,
+     "progress": 0.9995097661924196,
+     "mean_speed": 4.404557966764418,
+     "hard_brakes": 0,
+     "max_decel": 2.0,
+     "jerk_violation_rate": 0.016634050880626222,
+     "accel_violation_rate": 0.016634050880626222,
+     "lateral_accel_peak": 2.0411476009903473,
+     "lateral_accel_violation_rate": 0.0019569471624266144,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.6631141548260566,
+      "R69a": 1.5367252048625364,
+      "J82": 1.9073254963753103,
+      "R112": 1.6942543270195876,
+      "J83": 1.441576819478318,
+      "-R96.64": 2.0143240240522067,
+      "J42": 1.2340468153305444,
+      "R54a": 2.0411476009903473,
+      "R42": 1.6810536416213282
+     },
+     "speed_intervened_rate": 0.0009784735812133072,
+     "label_mismatch_rate": 0.0009784735812133072,
+     "stops": 7,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 126.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 2,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 10,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    }
+   ]
+  },
+  {
+   "scenario": "busy",
+   "seed_start": 1600,
+   "jsonl": "data/research/eval/v5_frozenlc_fix_dev_busy.jsonl.gz",
+   "summary": {
+    "episodes": 10,
+    "terminations": {
+     "arrived": 10
+    },
+    "arrived": {
+     "mean": 1.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "lap_time_s": {
+     "mean": 411.05,
+     "std": 47.58016918843396,
+     "n": 10
+    },
+    "progress": {
+     "mean": 0.9990181354031205,
+     "std": 0.000367571888035558,
+     "n": 10
+    },
+    "mean_speed": {
+     "mean": 5.54260193039911,
+     "std": 0.6334624042919413,
+     "n": 10
+    },
+    "hard_brakes": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "max_decel": {
+     "mean": 1.75548,
+     "std": 0.2127681216723973,
+     "n": 10
+    },
+    "jerk_violation_rate": {
+     "mean": 0.015496153473796542,
+     "std": 0.004436281720751773,
+     "n": 10
+    },
+    "lateral_accel_peak": {
+     "mean": 2.0302448833328026,
+     "std": 0.02096949760310241,
+     "n": 10
+    },
+    "lateral_accel_violation_rate": {
+     "mean": 0.0013068447813243,
+     "std": 0.00072761538612986,
+     "n": 10
+    },
+    "speed_intervened_rate": {
+     "mean": 0.005552515138859731,
+     "std": 0.006968365292044967,
+     "n": 10
+    },
+    "label_mismatch_rate": {
+     "mean": 0.0009923480748214972,
+     "std": 0.0005146063688457933,
+     "n": 10
+    },
+    "unexplained_stops": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "stuck_events": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "lane_changes": {
+     "mean": 1.3,
+     "std": 0.6403124237432849,
+     "n": 10
+    },
+    "lane_change_pingpong": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "lane_change_refused": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "bus_stops_served": {
+     "mean": 4.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "bus_stops_missed": {
+     "mean": 0.0,
+     "std": 0.0,
+     "n": 10
+    },
+    "stop_time_by_reason_total_s": {
+     "signal": 595.5,
+     "bus_stop": 272.0
+    },
+    "lateral_accel_peak_by_place_max": {
+     "-R96.64": 2.050929739304245,
+     "R54a": 2.0115514350177284,
+     "R73": 1.9877330275957903,
+     "J82": 1.96206891948004,
+     "J23": 1.8793329001731076,
+     "R42": 1.8415609278150769,
+     "J42": 1.7581288753912465,
+     "R112": 1.7264102349356203,
+     "X_jandari7": 1.6664944156698054,
+     "J84": 1.646347673277784,
+     "R69a": 1.6335679276102657,
+     "J83": 1.6272347543279722
+    }
+   },
+   "episodes": [
+    {
+     "episode": 0,
+     "steps": 952,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 476.0,
+     "progress": 0.9989250359144425,
+     "mean_speed": 4.726494018887723,
+     "hard_brakes": 0,
+     "max_decel": 1.8047999999999993,
+     "jerk_violation_rate": 0.017857142857142856,
+     "accel_violation_rate": 0.01050420168067227,
+     "lateral_accel_peak": 2.050929739304245,
+     "lateral_accel_violation_rate": 0.0031512605042016808,
+     "lateral_accel_peak_by_place": {
+      "J23": 1.8744014069217552,
+      "R73": 1.9461645904396818,
+      "J82": 1.845121454990618,
+      "R112": 1.4499160975902539,
+      "J83": 1.4412477900077307,
+      "-R96.64": 2.050929739304245,
+      "J42": 1.5284137321145082,
+      "R54a": 2.0115514350177284,
+      "R42": 1.8415609278150769
+     },
+     "speed_intervened_rate": 0.0010504201680672268,
+     "label_mismatch_rate": 0.0010504201680672268,
+     "stops": 8,
+     "stop_time_by_reason": {
+      "signal": 110.5,
+      "bus_stop": 25.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 1,
+     "steps": 810,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 405.0,
+     "progress": 0.9997864486544709,
+     "mean_speed": 5.5451773119605425,
+     "hard_brakes": 0,
+     "max_decel": 2.0,
+     "jerk_violation_rate": 0.020987654320987655,
+     "accel_violation_rate": 0.018518518518518517,
+     "lateral_accel_peak": 2.038488546147304,
+     "lateral_accel_violation_rate": 0.0012345679012345679,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J23": 1.845929176787816,
+      "R73": 1.9877330275957903,
+      "J82": 1.9311832117535905,
+      "R112": 1.6803006133814415,
+      "J83": 1.4404263862254596,
+      "-R96.64": 2.038488546147304,
+      "J42": 1.435474082366235,
+      "R54a": 1.848618064020154
+     },
+     "speed_intervened_rate": 0.011111111111111112,
+     "label_mismatch_rate": 0.0012345679012345679,
+     "stops": 6,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 82.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 2,
+     "steps": 736,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 368.0,
+     "progress": 0.9990757675724952,
+     "mean_speed": 6.112024966078699,
+     "hard_brakes": 0,
+     "max_decel": 2.0,
+     "jerk_violation_rate": 0.021739130434782608,
+     "accel_violation_rate": 0.012228260869565218,
+     "lateral_accel_peak": 1.974037905953878,
+     "lateral_accel_violation_rate": 0.0,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.6011197557588586,
+      "R69a": 1.6335679276102657,
+      "J23": 1.79698288207235,
+      "R73": 1.9287632795844398,
+      "J82": 1.8218500662193764,
+      "R112": 1.6009936225591528,
+      "J83": 1.6272347543279722,
+      "X_jandari7": 1.6664944156698054,
+      "-R96.64": 1.974037905953878,
+      "J42": 1.2742385924486792,
+      "R54a": 1.933827209990243,
+      "R42": 1.7912122622673565
+     },
+     "speed_intervened_rate": 0.024456521739130436,
+     "label_mismatch_rate": 0.001358695652173913,
+     "stops": 7,
+     "stop_time_by_reason": {
+      "bus_stop": 34.0,
+      "signal": 27.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 3,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 18,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 3,
+     "steps": 711,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 355.5,
+     "progress": 0.9990757230826315,
+     "mean_speed": 6.326726404494381,
+     "hard_brakes": 0,
+     "max_decel": 1.549999999999999,
+     "jerk_violation_rate": 0.012658227848101266,
+     "accel_violation_rate": 0.008438818565400843,
+     "lateral_accel_peak": 2.0393840072167957,
+     "lateral_accel_violation_rate": 0.0014064697609001407,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J82": 1.96206891948004,
+      "R112": 1.702559495289292,
+      "J83": 1.4455422948053092,
+      "-R96.64": 2.0393840072167957,
+      "J42": 1.7581288753912465,
+      "R54a": 1.5485474583645624,
+      "R42": 1.7911793137672032
+     },
+     "speed_intervened_rate": 0.0014064697609001407,
+     "label_mismatch_rate": 0.0014064697609001407,
+     "stops": 6,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 19.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 4,
+     "steps": 759,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 379.5,
+     "progress": 0.9990756785927678,
+     "mean_speed": 5.927103815789474,
+     "hard_brakes": 0,
+     "max_decel": 1.549999999999999,
+     "jerk_violation_rate": 0.015810276679841896,
+     "accel_violation_rate": 0.006587615283267457,
+     "lateral_accel_peak": 2.0348110278066818,
+     "lateral_accel_violation_rate": 0.0013175230566534915,
+     "lateral_accel_peak_by_place": {
+      "J23": 1.8793329001731076,
+      "R73": 1.9473857936521066,
+      "J82": 1.8936610501167246,
+      "R112": 1.574182868729556,
+      "J83": 1.4373366816869342,
+      "-R96.64": 2.0348110278066818,
+      "J42": 1.3294968058268026,
+      "R54a": 1.9301019305401008,
+      "R42": 1.7911793137672032
+     },
+     "speed_intervened_rate": 0.0013175230566534915,
+     "label_mismatch_rate": 0.0013175230566534915,
+     "stops": 7,
+     "stop_time_by_reason": {
+      "bus_stop": 34.0,
+      "signal": 24.0
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 5,
+     "steps": 788,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 394.0,
+     "progress": 0.9990778585960868,
+     "mean_speed": 5.709152344740177,
+     "hard_brakes": 0,
+     "max_decel": 2.0,
+     "jerk_violation_rate": 0.01649746192893401,
+     "accel_violation_rate": 0.015228426395939087,
+     "lateral_accel_peak": 2.039162023327094,
+     "lateral_accel_violation_rate": 0.0012690355329949238,
+     "lateral_accel_peak_by_place": {
+      "J82": 1.9402495235206134,
+      "R112": 1.7264102349356203,
+      "J83": 1.609379636748743,
+      "-R96.64": 2.039162023327094,
+      "J42": 1.0023828332222355,
+      "R54a": 1.9685143572267336,
+      "R42": 1.792275545820146
+     },
+     "speed_intervened_rate": 0.0038071065989847717,
+     "label_mismatch_rate": 0.0,
+     "stops": 7,
+     "stop_time_by_reason": {
+      "signal": 51.0,
+      "bus_stop": 25.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 6,
+     "steps": 697,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 348.5,
+     "progress": 0.9985020707807036,
+     "mean_speed": 6.450165759312321,
+     "hard_brakes": 0,
+     "max_decel": 1.5500000000000007,
+     "jerk_violation_rate": 0.01721664275466284,
+     "accel_violation_rate": 0.007173601147776184,
+     "lateral_accel_peak": 2.0382027606995905,
+     "lateral_accel_violation_rate": 0.0014347202295552368,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J82": 1.9301214148722692,
+      "R112": 1.6393394363114249,
+      "J83": 1.4412477900077307,
+      "-R96.64": 2.0382027606995905,
+      "J42": 1.758066301846902,
+      "R54a": 1.5486087787624994,
+      "R42": 1.4472431703467148
+     },
+     "speed_intervened_rate": 0.0014347202295552368,
+     "label_mismatch_rate": 0.0014347202295552368,
+     "stops": 5,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 21.0
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 7,
+     "steps": 882,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 441.0,
+     "progress": 0.9989165383504849,
+     "mean_speed": 5.095902944507362,
+     "hard_brakes": 0,
+     "max_decel": 2.0,
+     "jerk_violation_rate": 0.006802721088435374,
+     "accel_violation_rate": 0.007936507936507936,
+     "lateral_accel_peak": 2.011046353836433,
+     "lateral_accel_violation_rate": 0.0011337868480725624,
+     "lateral_accel_peak_by_place": {
+      "J84": 1.646347673277784,
+      "R69a": 1.5395065100713043,
+      "J82": 1.851678673745522,
+      "R112": 1.5185161043167954,
+      "J83": 1.609158496202125,
+      "X_jandari7": 1.2446894086451268,
+      "-R96.64": 2.011046353836433,
+      "J42": 1.4611132937092657,
+      "R54a": 1.836005676752873
+     },
+     "speed_intervened_rate": 0.005668934240362812,
+     "label_mismatch_rate": 0.0,
+     "stops": 6,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 96.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 8,
+     "steps": 934,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 467.0,
+     "progress": 0.9984149151378096,
+     "mean_speed": 4.814459251336898,
+     "hard_brakes": 0,
+     "max_decel": 1.5499999999999998,
+     "jerk_violation_rate": 0.009635974304068522,
+     "accel_violation_rate": 0.0032119914346895075,
+     "lateral_accel_peak": 2.0381837083364145,
+     "lateral_accel_violation_rate": 0.0010706638115631692,
+     "lateral_accel_peak_by_place": {
+      "J23": 1.872152645999129,
+      "R73": 1.9465979206118262,
+      "J82": 1.8395519424940272,
+      "R112": 1.442236405233519,
+      "J83": 1.44414324934889,
+      "-R96.64": 2.0381837083364145,
+      "J42": 1.2524266221670908,
+      "R54a": 1.9556377815649637,
+      "R42": 1.4291912611347386
+     },
+     "speed_intervened_rate": 0.0010706638115631692,
+     "label_mismatch_rate": 0.0010706638115631692,
+     "stops": 7,
+     "stop_time_by_reason": {
+      "bus_stop": 25.5,
+      "signal": 57.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 1,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 5,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    },
+    {
+     "episode": 9,
+     "steps": 952,
+     "termination": "arrived",
+     "arrived": true,
+     "lap_time_s": 476.0,
+     "progress": 0.9993313173493117,
+     "mean_speed": 4.718812486883525,
+     "hard_brakes": 0,
+     "max_decel": 1.5499999999999998,
+     "jerk_violation_rate": 0.015756302521008403,
+     "accel_violation_rate": 0.008403361344537815,
+     "lateral_accel_peak": 2.0382027606995905,
+     "lateral_accel_violation_rate": 0.0010504201680672268,
+     "lateral_accel_peak_by_place": {
+      "J23": 1.8718370304310428,
+      "R73": 1.9466373142638416,
+      "J82": 1.7871899694918958,
+      "R112": 1.5162758963801795,
+      "J83": 1.4412477900077307,
+      "-R96.64": 2.0382027606995905,
+      "J42": 1.47345946014617,
+      "R54a": 1.9123291209430604
+     },
+     "speed_intervened_rate": 0.004201680672268907,
+     "label_mismatch_rate": 0.0010504201680672268,
+     "stops": 9,
+     "stop_time_by_reason": {
+      "signal": 105.5,
+      "bus_stop": 25.5
+     },
+     "unexplained_stops": 0,
+     "stuck_events": 0,
+     "lane_changes": 2,
+     "lane_change_pingpong": 0,
+     "lane_change_requests": 10,
+     "lane_change_refused": 0,
+     "bus_stops_served": 4,
+     "bus_stops_missed": 0
+    }
+   ]
+  }
+ ]
+}

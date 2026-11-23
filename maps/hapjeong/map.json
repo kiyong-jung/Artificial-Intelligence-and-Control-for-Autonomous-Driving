@@ -1,12 +1,12 @@
 {
   "id": "hapjeong",
   "name": "합정역 · 양화로와 독막로",
-  "version": "3.15.0",
+  "version": "3.17.0",
   "description": "합정역 일대 실제 도로. 신호 교차로, 인도·횡단보도·보행자, 중앙버스차로, 연구 경로의 가로변 정류장 6곳과 신호 없는 횡단보도가 있다.",
   "source_status": "osm_generated",
   "network_source": {
     "path": "source/network.net.xml",
-    "sha256": "7341638b8d303d0a831a3c9eda9803d080b4a5b726b5b61afe67fa0666d8fa82",
+    "sha256": "3b845f095a87351df87c190880ba11ab5bb18e8d3f31156046cbc1ba192abfad",
     "base_path": "source/network.base.net.xml",
     "base_sha256": "3be54d491627c289497b936102eedfa307c547f4edc04a1e80756ba8f25b11c7",
     "generator": "generator/ (서예인, seogyo-hongdae 066e5b1)",
@@ -334,6 +334,47 @@
         "gate_m": 80.0,
         "detour": 4.0,
         "script": "scripts/drop_turnaround_flows.py"
+      },
+      "fringe_no_turnarounds": {
+        "removed": [
+          "R126 -> -R126 (J99)",
+          "R127 -> -R127 (J100)",
+          "R128 -> -R128 (J108)",
+          "R129 -> -R129 (J109)",
+          "R130 -> -R130 (J110)"
+        ],
+        "script": "scripts/remove_fringe_turnarounds.py"
+      },
+      "j42_tangent_left_turns": {
+        "turns": [
+          {
+            "connection": "R94_1 -> R54a_1",
+            "min_radius_m": 9.5,
+            "speed_mps": 7.2
+          },
+          {
+            "connection": "R94_2 -> R54a_2",
+            "min_radius_m": 6.8,
+            "speed_mps": 6.1
+          },
+          {
+            "connection": "R94_2 -> R54a_4",
+            "min_radius_m": 7.8,
+            "speed_mps": 6.5
+          },
+          {
+            "connection": "-R92.163_2 -> R53_2",
+            "min_radius_m": 7.8,
+            "speed_mps": 6.5
+          },
+          {
+            "connection": "-R92.163_2 -> R53_4",
+            "min_radius_m": 8.6,
+            "speed_mps": 6.8
+          }
+        ],
+        "a_lat": 5.5,
+        "script": "scripts/smooth_j42_left_turns.py"
       }
     },
     "pedestrians": {

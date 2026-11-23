@@ -113,3 +113,14 @@ def test_leaves_room_for_a_car_to_merge_in_front(expert):
     obs = observe(0.0, route_lane_offset=0.5, route_lane_continuation=9.0 / 300.0,
                   lane_cars={"left1": (0.0, 0.0, 0.0, 0.0)})
     assert (expert(obs)[0] > 0.0) == (not isinstance(expert, ExpertPolicyV5))
+
+
+def test_drops_behind_a_side_car_that_keeps_pace():
+    """R77~R111(dev busy 1603): 버스는 왼쪽 차로로, 바로 옆 왼쪽 차로의 승용차는 버스 차로로 가야 한다. SUMO는 그 차가
+    버스를 먼저 보내도록 버스 속도에 맞춰 달리게 한다. 제한속도의 0.6배(8.3m/s)로만 줄이던 v5는 그 차와 115m를 나란히
+    가다 차로 끝에서 서로 길을 막았다. 옆 차를 먼저 보내려면 버스가 그 차보다 느려야 한다."""
+    v5 = ExpertPolicyV5(VMAX, VIS, 1.0, 2.0)
+    obs = observe(8.0, route_lane_offset=0.5, route_lane_continuation=90.0 / 300.0,
+                  lane_cars={"left1": (0.0, 8.0, VIS, 8.0)})
+    accel, lane = v5(obs)
+    assert (lane, accel < 0.0) == (0.0, True)

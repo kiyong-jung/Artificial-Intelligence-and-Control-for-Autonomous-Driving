@@ -474,6 +474,19 @@ def scan_demand(map_id, net_path, flows, route_paths, avoid=frozenset()):
     return hits
 
 
+def fringe_turnarounds(net):
+    """지도 밖으로 나가는 도로가 끝점에서 같은 도로의 반대 방향으로만 이어지는 곳. 안쪽 길이 막히면 차가 여기까지 와서
+    유턴한다(3.15.0의 J110). 반환: [(도로 id, 끝점 id)]"""
+    out = []
+    for edge in net.getEdges():
+        if not edge.allows("passenger") or edge.getFunction() not in ("", "normal"):
+            continue
+        back = edge.getID()[1:] if edge.getID().startswith("-") else "-" + edge.getID()
+        if {e.getID() for e in edge.getOutgoing() if e.allows("passenger")} == {back}:
+            out.append((edge.getID(), edge.getToNode().getID()))
+    return out
+
+
 def scan_map(map_id="hapjeong"):
     from sumolib.net import readNet
     from maps import load_map
@@ -513,6 +526,8 @@ def scan_map(map_id="hapjeong"):
         if short:
             add("flow-lane-change-too-short", flow["id"], f"{flow['vehs_per_hour']}대/시간, "
                 + ", ".join(f"{e} {n}칸/{length:.1f}m" for e, n, length in short))
+    for edge_id, node in fringe_turnarounds(net):
+        add("fringe-turnaround", edge_id, f"{node}에서 반대 방향으로만 이어진다")
     # 다음 도로로 이어지지 않는 차로, 짧은데 차로마다 가는 길이 다른 도로
     for edge in car_edges(net.getEdges()):
         lanes = [lane for lane in edge.getLanes() if lane.allows("passenger")]

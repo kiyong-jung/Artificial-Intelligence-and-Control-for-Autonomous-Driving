@@ -132,6 +132,11 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
         # 버스가 끝나는 차로에서 요청한 차선변경은 SUMO가 급한 변경으로 다뤄 이 값과 무관하게 움직인다(0과 0.3의 결과가 같았다).
         lateral_model={"accel": 0.8, "max_speed": 1.0, "standing_speed": 0.0,
                        "speed_factor": 0.2, "roundabout_cooperation": 0.2},
+        # 배경 차는 앞차의 왼쪽으로만 앞지르고(도로교통법 제21조) 오른쪽 차로로 돌아가야 할 의무(keepRight)도 없다.
+        # 오른쪽으로 가려는 이 두 동기가 있으면, 대기열 앞에서 왼쪽으로 옮기던 차가 차로 경계를 넘자마자 오른쪽이 낫다고
+        # 보고 되돌아온다. 옆 속도는 속도의 0.2배라 그 사이 차가 서면 두 차로에 걸친 채 다음 녹색까지 섰다(R50 66초,
+        # 깜빡이 좌우 번갈아). 하나만 끄면 다른 하나가 되돌린다. 측정은 research/av_bc_rl/decisions.tsv.
+        background_lane_change={"lcSpeedGainRight": 0.0, "lcKeepRight": 0.0},
         # -1은 SUMO의 모델별 기본값(Krauss=1, IDM/EIDM/ACC=0.1)이다.
         # minGap 전체를 강제하면 몸체가 2.49m 떨어진 정지 차량도 삭제된다.
         collision_min_gap_factor=-1.0,

@@ -59,7 +59,7 @@ def _write_vehicle_types(routes: ET.Element, ego: dict, traffic: dict) -> None:
             tau=c["tau"], minGap=c["min_gap"], maxSpeed=traffic["max_speed"],
             speedDev=c["speed_dev"], color=c["color"], sigma=c.get("sigma"),
             collisionAvoidanceOverride=c.get("collision_avoidance_override"),
-            vClass="passenger", guiShape="passenger/sedan", **lateral)))
+            vClass="passenger", guiShape="passenger/sedan", **lateral, **traffic["background_lane_change"])))
 
 
 def _copy_into(output: Path, source: str) -> str:

@@ -217,6 +217,7 @@ class ExpertPolicyV5(ExpertPolicy):
     merge_floor = 4.0        # m. 옮기는 중이어도 정류장까지 이보다 가까우면 지나친다(옆 차로에 선 채 기다리지 않는다)
     creep_speed = 3.0        # m/s. 옮길 곳(정류장, 차로 끝)이 가까운데 옮길 수 없으면 이 속도로 기어간다
     creep_within = 40.0      # m
+    gap_search_margin = 1.5  # m/s. 틈을 찾을 때 옆 차로 앞차보다 이만큼 느리게 간다
     safe_follow_horizon = 1.0  # s. SUMO 안전 속도까지 남은 차이를 이 시간에 걸쳐 맞춘다
     safe_follow_margin = 1.0   # m
     # 옆 차로 끝에 선 차가 버스 앞으로 들어올 자리. 승용차 5m + 버스 최소 간격 3m + 그 차가 차로 끝 앞에 남긴 0.4m는 8.4m다.
@@ -302,10 +303,14 @@ class ExpertPolicyV5(ExpertPolicy):
 
     def _gap_search_candidates(self, obs, v, v0):
         """옮길 수 없으면 편안한 감속 안에서 줄여 옆 차를 먼저 보낸다. 끝이 가까우면 기어간다. 느릴수록 SUMO가
-        요구하는 간격이 짧아지고, 빠른 뒤차가 버스를 빨리 지나간다."""
+        요구하는 간격이 짧아지고, 빠른 뒤차가 버스를 빨리 지나간다. 옆 차로 앞차보다도 느리게 간다. 버스 차로로
+        가야 하는 그 차는 버스를 먼저 보내려고 버스 속도에 맞춰 달리므로, 제한속도 기준으로만 줄이면 나란히 간다."""
         direction, remaining = self._wanted_lane(obs)
         if direction and remaining < self.gap_search_within and not self._merge_ok(obs, _side(direction)):
             v_slow = self.creep_speed if remaining < self.creep_within else self.gap_search_speed * v0
+            lead, _follow = self._neighbors(obs, _side(direction))
+            if lead is not None:
+                v_slow = min(v_slow, max(lead[1] - self.gap_search_margin, self.creep_speed))
             if v > v_slow:
                 return [max(self._idm(v, v_slow, None, 0.0, 0.0), -self.comfortable_decel)]
         return []

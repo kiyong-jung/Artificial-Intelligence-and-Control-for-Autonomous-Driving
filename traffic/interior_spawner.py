@@ -18,7 +18,7 @@ class InteriorSpawner:
     """update(t)를 매 스텝 simulationStep() 앞에서 호출한다(runner의 extras)."""
 
     def __init__(self, traci, net, bus_id, route_edges, exit_edges, per_h, rng=None, min_dist=PRESENCE_RADIUS_M + SPAWN_MARGIN_M, min_len=60.0,
-                 dt=0.1, tries=6, avoid=frozenset()):
+                 dt=0.1, tries=6, avoid=frozenset(), weight_scale=None):
         self.tc, self.net, self.bus = traci, net, bus_id
         self.avoid = set(avoid)                 # 투입하지 않을 도로와 지나지 않을 도로(와우산로·잔다리로)
         self.rng = rng or random.Random(0)
@@ -26,7 +26,14 @@ class InteriorSpawner:
         self.p_step = per_h / 3600.0 * dt
         self.route_edges = set(route_edges)
         self.roads = [e for e in route_edges if net.hasEdge(e) and net.getEdge(e).getLength() >= min_len and e not in self.avoid]
-        self.weights = [net.getEdge(e).getLength() for e in self.roads]
+        # weight_scale: 도로 id -> 배율. 양화로·독막로는 밀도 유지기가 따로 채우므로 분산기가 넣는 대수를 줄인다(0.5 = 목표 2대 -> 1대)
+        scale = weight_scale or {}
+        base = [net.getEdge(e).getLength() for e in self.roads]
+        self.weights = [w * scale.get(e, 1.0) for e, w in zip(self.roads, base)]
+        # 도로를 고르는 확률은 상대 가중치라, 와우산로·잔다리로는 투입 대상이 아니어서 남은 도로가 모두 같은 배율이면 총 투입 수가 변하지 않는다.
+        # 그래서 가중 평균 배율만큼 투입 확률도 줄인다(다른 도로로 비중이 옮겨 가지 않는다).
+        if base and sum(base) > 0:
+            self.p_step *= sum(self.weights) / sum(base)
         self.exits = [e for e in exit_edges if net.hasEdge(e)]
         self._routes = {}
         self.n_spawned = self.n_skipped_near = self.n_failed = 0

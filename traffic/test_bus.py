@@ -10,8 +10,9 @@
   (다음 도로로 이어지지 않는 차로에서 도로 끝이 가까울 때만 예외).
 - 신호 교차로 정지선 앞(signal_areas)에서는 차선 변경을 요청하지 않는다. 창 끝까지 목표 차로에 못 가면 SUMO 기본
   차선 변경(1621)으로 넘기고 `missed`에 남긴다. 다음 도로에서 다시 512로 돌린다.
-- 상대 때문에 속도를 줄이지 않는다: 후행차를 기다리거나 비양보형을 먼저 보내려고 `setSpeed`를 쓰지 않는다. 차선 변경이 늦어도 도착 보장
-  (`_force_arrival`)이 정류장 차로·좌회전 차로 앞에서만 세운다(정류장 진입·좌회전 차로 진입을 위한 감속·정지만 한다).
+- 후행차를 기다리려고 속도를 줄이지는 않는다. 다만 **비양보형(막는 차)이 A1로 막고 있는 동안에는 버스가 `BLOCKER_PASS_SPEED`로 속도를
+  줄여** 그 차를 먼저 보낸다(버스는 차선 변경을 해야 하므로). 막는 차가 지나가거나 풀리면 다시 속도를 푼다. 차선 변경이 늦어도 도착 보장
+  (`_force_arrival`)이 정류장 차로·좌회전 차로 앞에서만 세운다.
 """
 from dataclasses import dataclass
 
@@ -27,6 +28,10 @@ STOP_LANE_LEAD_M = 10.0         # 정류장 차로에는 정류장 시작 이만
 EXTRA_PER_LANE_M = 40.0         # 차로를 한 칸 더 옮겨야 하면 창을 이만큼 늘린다
 BLINKER_RIGHT, BLINKER_LEFT = 1, 2
 LC_MANUAL, LC_SUMO = 512, 1621
+# 교차로별로 버스가 쓸 좌회전 차로를 정한다(사용자 결정). J82: 독막로 오른쪽에서 4번째 차로(R111b 차로 3) -> 와우산로 오른쪽에서 3번째 차로(R112 차로 2)
+LEFT_TURN_LANE = {"J82": 3}
+STOP_ARRIVE_LEAD_M = 20.0      # s4·s5·s6: 정류장 시작 이만큼 전까지 정류장 차로에 완전히 들어가 있어야 한다(도착 보장). s2는 위 STOP_LANE_LEAD_M
+BLOCKER_PASS_SPEED = 1.5      # 비양보형이 막는 동안 버스 속도 [m/s]. 막는 차는 최소 4 m/s로 달려 이 버스를 앞지른다
 FORCE_DECEL, FORCE_MARGIN_M = 2.5, 4.0   # 도착 보장: 이 감속도로 멈출 거리 + 여유 안에 창 끝이 들어오면 멈춰서 기다린다
 
 
@@ -38,6 +43,7 @@ class LanePlan:
     target_lane: int       # 창 끝 도로에서의 목표 차로
     length: float          # 창 길이(창 끝에서 거슬러)
     eff_length: float = None   # 감속 판단에 쓰는 길이: 창 안에 정류장이 있으면 정류장 끝부터 창 끝까지(J1 창은 s6 안에서 시작)
+    ok_lanes: frozenset = None  # S2: 창 끝 도로(edge)의 차로 중 좌회전 차로로 이어지는 차로 번호들
 
     def __post_init__(self):
         if self.eff_length is None:
@@ -72,6 +78,18 @@ def lane_plans(net, route, stops):
         edge, end = _back(net, route, route.index(s2["edge"]), s2["startPos"], STOP_LANE_LEAD_M)
     plans.append(LanePlan("S3", edge, end, s2["lane_idx"],
                           CHANGE_WINDOW_M + EXTRA_PER_LANE_M * max(0, top - s2["lane_idx"] - 1)))
+    for sid in STOP_AT[1:]:                            # s4·s5·s6도 정류장 차로 도착을 보장한다(상대 차 시나리오는 없다: kind "STOP")
+        s = next((x for x in stops if x["id"] == sid and x["edge"] in route), None)
+        if s is None:
+            continue
+        top = net.getEdge(s["edge"]).getLaneNumber() - 1
+        edge, end = s["edge"], s["startPos"] - STOP_ARRIVE_LEAD_M
+        ok, target = frozenset({s["lane_idx"]}), s["lane_idx"]
+        if end < 0:
+            edge, end = _back(net, route, route.index(s["edge"]), s["startPos"], STOP_ARRIVE_LEAD_M)
+            ok = _lanes_back(net, route, route.index(s["edge"]), route.index(edge), ok)
+            target = min(ok) if ok else s["lane_idx"]
+        plans.append(LanePlan("STOP", edge, end, target, CHANGE_WINDOW_M + EXTRA_PER_LANE_M * max(0, top - s["lane_idx"] - 1), ok_lanes=ok))
     for k, (a, b) in enumerate(zip(route, route[1:] + route[:1])):
         ea, eb = net.getEdge(a), net.getEdge(b)
         conns = ea.getConnections(eb)
@@ -80,12 +98,18 @@ def lane_plans(net, route, stops):
             continue
         if any(c.getFromLane().getIndex() == 1 for c in conns):
             continue                                   # 가로변 차로(1)에서 바로 돌 수 있으면 차선 변경이 없다
+        want = LEFT_TURN_LANE.get(node.getID())
+        if want is not None and any(c.getFromLane().getIndex() == want for c in conns):
+            conns = [c for c in conns if c.getFromLane().getIndex() == want]       # 정한 좌회전 차로 하나만 쓴다
         target = min(c.getFromLane().getIndex() for c in conns)
         end = ea.getLength() - no_change_m(node.getID())
-        edge = a
-        if end < 0:                                    # 창 끝이 앞 도로로 넘어가면 그 도로 기준(같은 차로 번호로 본다)
+        edge, ok, length = a, frozenset(c.getFromLane().getIndex() for c in conns), CHANGE_WINDOW_M + EXTRA_PER_LANE_M * max(0, target - 1)
+        if end < 0:                                    # 창 끝이 앞 도로로 넘어가면 그 도로 기준: 연결을 거슬러 그 도로에서 좌회전 차로로 이어지는 차로를 구한다
             edge, end = _back(net, route, k, ea.getLength(), no_change_m(node.getID()))
-        plans.append(LanePlan("S2", edge, end, target, CHANGE_WINDOW_M + EXTRA_PER_LANE_M * max(0, target - 1)))
+            ok = _lanes_back(net, route, k, route.index(edge), ok)
+            target = min(ok) if ok else target
+        plans.append(LanePlan("S2", edge, end, target, length, ok_lanes=ok))
+    plans = [p for p in plans if p.kind != "STOP"] + [p for p in plans if p.kind == "STOP"]   # S3·S2 순서(색인)를 그대로 두고 정류장 도착 창은 뒤에 둔다
     for p in plans:                                    # 창 안에 서는 정류장이 있으면 감속 판단은 정류장 끝부터 센다
         for s in stops:
             if s["id"] in STOP_AT and s["edge"] in route and "endPos" in s:
@@ -93,6 +117,14 @@ def lane_plans(net, route, stops):
                 if d is not None and 0 < d < p.length:
                     p.eff_length = min(p.eff_length, d)
     return plans
+
+
+def _lanes_back(net, route, k, j, lanes):
+    """route[k]의 차로 집합 lanes로 이어지는 route[j](j <= k)의 차로 번호 집합. 연결을 한 도로씩 거슬러 간다."""
+    for m in range(k - 1, j - 1, -1):
+        a, b = net.getEdge(route[m]), net.getEdge(route[m + 1])
+        lanes = frozenset(c.getFromLane().getIndex() for c in a.getConnections(b) if c.getToLane().getIndex() in lanes)
+    return lanes
 
 
 def _route_dist(net, route, e1, p1, e2, p2):
@@ -130,6 +162,7 @@ class TestBusPilot:
         self.changes = {}
         self.why = ""
         self.phase, self.t_phase, self.plan, self.target = "idle", 0.0, None, None
+        self._phase_road = None
         self._done = set()
         self._added = False
         self._last_road = None
@@ -137,6 +170,7 @@ class TestBusPilot:
         self._chain = None              # 방금 변경을 마친 창(같은 창의 다음 변경은 빠르게)
         self._signal_s = self.SIGNAL_S
         self.forced = []                    # 도착 보장으로 멈춘 창 (바퀴, 종류)
+        self.blocker_active = None          # callable() -> 비양보형이 지금 버스를 막고 있는가(A1). 있으면 버스가 속도를 줄여 먼저 보낸다
         self.speed_limit = None             # callable() -> 속도 제한(m/s) 또는 None. 골목 끝에서 기다리는 차를 본 버스의 감속(S5)
         self._limited = False
         self._forced_p, self._forced_t0 = None, 0.0
@@ -209,6 +243,8 @@ class TestBusPilot:
     def _apply_speed_limit(self, tc):
         """골목 차를 본 감속(`speed_limit`)을 건다. 정류장 정차 중이거나 도착 보장 정지 중이면 건드리지 않는다."""
         lim = self.speed_limit() if self.speed_limit is not None else None
+        if self.blocker_active is not None and self.blocker_active():
+            lim = BLOCKER_PASS_SPEED if lim is None else min(lim, BLOCKER_PASS_SPEED)
         busy = self._forced_p is not None or bool(tc.vehicle.getStopState(BUS) & 1)
         if lim is not None and not busy:
             tc.vehicle.setSpeed(BUS, lim)
@@ -252,6 +288,14 @@ class TestBusPilot:
         return None
 
     def _offset(self, tc, road, idx, p):
+        if p.kind == "S2":                        # 좌회전 차로 창: 왼쪽으로만 옮긴다(SUMO 최적 차로 오프셋이 오락가락해 오른쪽으로도 갔다)
+            good = self._lanes_reaching_target(tc, p)
+            if not good or idx in good:
+                return 0
+            return max(0, min(good, key=lambda k: (abs(k - idx), -k)) - idx)
+        if p.kind == "STOP":                      # 지금 도로에서 정류장 차로로 이어지는 차로 쪽으로(도로마다 차로 번호가 달라도 연결을 따른다)
+            good = self._lanes_reaching_target(tc, p)
+            return 0 if (not good or idx in good) else min(good, key=lambda k: (abs(k - idx), -k)) - idx
         if p.kind == "S3" or road == p.edge:
             return p.target_lane - idx
         lane = tc.vehicle.getLaneID(BUS)
@@ -260,10 +304,41 @@ class TestBusPilot:
                 return int(entry[3])
         return 0
 
+    def _remap_target(self, tc, t, road):
+        """차선 변경 요청 중 도로가 바뀌었다(R54b -> R54: 같은 차로가 번호는 다르다). 연결을 따라 목표 차로를 새 도로 번호로 바꾼다.
+        옛 번호 그대로 요청하면 오른쪽으로 되돌아가 처음부터 다시 시작했다. 이어지는 차로가 없으면 요청을 접는다."""
+        old, new = self._phase_road, road
+        mapped = None
+        if self.net.hasEdge(old) and self.net.hasEdge(new):
+            outs = [c.getToLane().getIndex() for c in self.net.getEdge(old).getConnections(self.net.getEdge(new))
+                    if c.getFromLane().getIndex() == self.target]
+            if outs:                                       # 한 차로가 여러 차로로 갈라지면 계획의 목표 차로로 이어지는 쪽을 고른다
+                good = self.plan.ok_lanes if (self.plan is not None and self.plan.edge == new and self.plan.ok_lanes) else ()
+                mapped = next((k for k in outs if k in good), outs[0])
+        if mapped is None:
+            self._reset(tc, t)
+            return
+        self.target, self._phase_road = mapped, new
+        if self.phase == "request":
+            tc.vehicle.changeLane(BUS, self.target, self.REQUEST_DURATION)
+
+    LATERAL_OK_M = 0.3         # 차선을 바꿨다고 보려면 차로 중심에서 이 안으로 완전히 들어와야 한다
+
+    def _centered(self, tc):
+        """버스가 지금 차로 중심 가까이에 있는가(차선 변경 중 차로 번호만 바뀌고 몸이 반쯤 걸친 상태를 제외한다)."""
+        try:
+            return abs(tc.vehicle.getLateralLanePosition(BUS)) <= self.LATERAL_OK_M
+        except Exception:
+            return True
+
     def _pilot(self, tc, t, road):
         idx, pos = tc.vehicle.getLaneIndex(BUS), tc.vehicle.getLanePosition(BUS)
         act = self._active(tc, road, idx, pos)
         forbidden = self._forbidden(road, pos) or self._handover
+        if self.phase in ("signal", "request") and self._phase_road not in (None, road):
+            self._remap_target(tc, t, road)                # 변경 도중 도로가 바뀌면 목표 차로 번호를 새 도로 번호로 옮긴다
+            if self.phase not in ("signal", "request"):
+                return
         if self._force_arrival(tc, t, act, idx):
             return                                       # 도착 보장 중(멈춰서 빈틈을 기다린다): 시나리오 단계는 건너뛴다
         if act is not None:
@@ -287,7 +362,7 @@ class TestBusPilot:
             self.plan, self.target, self.why = p, target, why
             self.changes[why] = self.changes.get(why, 0) + 1
             tc.vehicle.setSignals(BUS, BLINKER_LEFT if off > 0 else BLINKER_RIGHT)
-            self.phase, self.t_phase = "signal", t
+            self.phase, self.t_phase, self._phase_road = "signal", t, road
         elif self.phase == "signal":
             tc.vehicle.setSignals(BUS, BLINKER_LEFT if self.target > idx else BLINKER_RIGHT)
             if off == 0 or forbidden or (self.plan is not None and p is not self.plan):
@@ -299,11 +374,12 @@ class TestBusPilot:
             self.phase, self.t_phase = "request", t
         elif self.phase == "request":
             tc.vehicle.setSignals(BUS, BLINKER_LEFT if self.target > idx else BLINKER_RIGHT)
-            if idx == self.target and self.plan is not None and not forbidden:
+            arrived = idx == self.target and self._centered(tc)
+            if arrived and self.plan is not None and not forbidden:
                 # 한 칸 옮겼다. 같은 창에서 더 옮겨야 하면 방향지시등을 켠 채 바로 다음 변경으로 간다
                 self._chain, self.phase, self.t_phase = self.plan, "idle", t
                 self.plan = None
-            elif idx == self.target or t - self.t_phase > self.TIMEOUT_S or forbidden \
+            elif arrived or t - self.t_phase > self.TIMEOUT_S or forbidden \
                     or self.target >= tc.edge.getLaneNumber(road):
                 self._reset(tc, t)
             elif int(round((t - self.t_phase) * 10)) % 20 == 0:
@@ -327,6 +403,8 @@ class TestBusPilot:
         good = self._lanes_reaching_target(tc, p)
         if idx in good or not good:
             return self._end_forced(tc, t) if self._forced_p is not None else False
+        if p.kind == "S2" and min(good, key=lambda k: (abs(k - idx), -k)) < idx:
+            return self._end_forced(tc, t) if self._forced_p is not None else False   # 좌회전 창에서는 오른쪽으로 옮기려고 세우지 않는다
         v = tc.vehicle.getSpeed(BUS)
         if self._forced_p is None:
             if d > v * v / (2.0 * FORCE_DECEL) + FORCE_MARGIN_M:
@@ -357,7 +435,9 @@ class TestBusPilot:
                 lanes = {c.getToLane().getIndex() for c in a.getConnections(b) if c.getFromLane().getIndex() in lanes}
                 if not lanes:
                     break
-            if p.kind == "S2" and j + 1 < len(route) and self.net.hasEdge(route[j + 1]):
+            if p.ok_lanes and p.kind in ("S2", "STOP"):
+                ok = bool(lanes & p.ok_lanes)             # 창 끝 도로에서 좌회전 차로로 이어지는 차로에 닿으면 맞다(J1은 좌회전 차로가 2개)
+            elif p.kind == "S2" and j + 1 < len(route) and self.net.hasEdge(route[j + 1]):
                 # 좌회전 직전 창: 목표 차로 하나만이 아니라 다음 도로로 이어지는 차로면 맞다(J1은 좌회전 차로가 2개)
                 nxt = self.net.getEdge(route[j + 1])
                 ok = any(c.getFromLane().getIndex() in lanes for c in self.net.getEdge(p.edge).getConnections(nxt))

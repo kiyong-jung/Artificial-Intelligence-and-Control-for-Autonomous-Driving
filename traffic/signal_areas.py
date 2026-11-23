@@ -2,15 +2,15 @@
 
 - 교차로 내부와 정지선 앞 `no_change_m(교차로)` m가 영역이다. 시험용 버스는 이 안에서 차선을 바꾸지 않는다
   (좌회전 차선 변경 S2는 그 전에 끝난다).
-- 정지선 앞 거리는 기본 `SIGNAL_NO_CHANGE_M`이고, J1 앞은 차로를 3~4칸 옮겨야 해 빠듯하므로 10 m다(사용자가 정한 5~10 m
-  범위. 창을 놓치던 원인은 정류장에서 막 출발한 버스의 과한 감속이었고 고쳤다. 다시 놓치면 5 m). **두 값은 여기에만 둔다.**
+- 정지선 앞 거리는 모든 신호 교차로가 `SIGNAL_NO_CHANGE_M`(20 m)이다. 예전에는 J1만 10 m였으나 사용자 결정으로 20 m 전에
+  좌회전 차로에 도착하도록 예외를 없앴다. **값은 여기에만 둔다.**
 """
 import re
 
 from .yield_logic import Zone
 
 SIGNAL_NO_CHANGE_M = 20.0
-SIGNAL_NO_CHANGE_OVERRIDE = {"J1": 10.0}
+SIGNAL_NO_CHANGE_OVERRIDE = {}      # 사용자 결정: J1 앞 10 m 예외를 없애고 모든 신호 교차로를 20 m로 한다
 
 _CROSSING = re.compile(r"^:(.+)_c\d+_\d+$")
 

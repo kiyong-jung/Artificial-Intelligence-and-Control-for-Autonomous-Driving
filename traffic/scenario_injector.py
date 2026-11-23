@@ -3,13 +3,13 @@
 | 시나리오 | 바퀴마다 | 무엇을 | 어디에 |
 |---|---|---|---|
 | S1 뒤차 | **기본은 끔**(`inject_s1=False`). 켜면 무작위 정류장 하나에서 버스가 서고 뒤 200 m 안에 차가 없을 때 | 승용차 한 대 | 버스 뒤 `back_s1`(220 m), 같은 차로 |
-| S2·S3 후행차 | 차선 변경 창(test_bus.lane_plans: S3 s2 앞, S2 J82·J1 앞) 시작 `lane_lead`(60 m) 앞에서, **키퍼가 넣은 차 중** 목표 차로 뒤 가장 가까운 차를 상대로 고른다(없으면 키퍼가 한 대 만든다. 주입기는 직접 넣지 않는다) | 키퍼 차 한 대 | 버스 뒤 `back_lane`(버스 반경 + 15 m), 목표 차로. 창이 끝날 때까지 차로를 붙잡는다 |
+| S2·S3 후행차 | 차선 변경 창(test_bus.lane_plans: S3 s2 앞, S2 J82·J1 앞) 시작 `lane_lead`(60 m) 앞에서, **키퍼 차든 자연 후행차든** 목표 차로 뒤 가장 가까운 차를 상대로 고른다(없으면 키퍼가 한 대 만든다. 주입기는 직접 넣지 않는다) | 키퍼 차 한 대 | 버스 뒤 `back_lane`(버스 반경 + 15 m), 목표 차로. 창이 끝날 때까지 차로를 붙잡는다 |
 | S5 끼어들기 | 신호 없는 합류 골목 1~2곳(무작위). 버스가 합류점 90~300 m 앞일 때 차를 골목 끝에 세워 둔다. 버스가 45 m 안이면 시험용 버스가 그 차를 본 것으로 보고 줄인다. 버스가 합류점에 2.5~5초 안으로 닿고 버스와 합류점 사이·들어갈 차로가 비었을 때 풀어 끼어들게 한다(버스를 무시). 버스가 더 빠르면 지나간 뒤에 나온다 | 끼어들기 차 | 골목 끝 정지선(앞부분이 합류점 1.5 m 앞) |
 | S6 보행자 | 신호 없는 횡단보도 앞 | 보행자 한 명 | 횡단보도 바로 옆 인도 |
 
 - 바퀴는 시험용 버스 조종의 바퀴 번호(`lap_fn`)로 나눈다. 버스는 바퀴 사이에 사라지지 않는다.
-- 시험용 버스는 S2·S3 상대를 기다리지 않는다. 후행차가 따라잡는다(`_catch_up`): 버스 뒤 `follower_gap`(3~12 m) 밖이면
-  버스보다 빠르게 달려 다가오고, 안에 들어오면 버스와 같은 속도로 나란히 간다. A1 상호작용이 시작되면 손을 뗀다.
+- S2·S3 상대를 고른 뒤 기본(`catch_up=True`)은 상대를 버스 뒤 `follower_gap` 안(5 m + 최소 간격)으로 속도를 높여 붙인다. 버스가 방향지시등을
+  켠 순간 목표 차로 후행차가 5 m 안이면 A1이 시작된다. `catch_up=False`면 후행차의 속도를 건드리지 않아 5 m 안 도착을 보장하지 않는다.
 - 모든 생성은 시험용 버스 반경(`presence.PRESENCE_RADIUS_M`) 밖에서만 하고, 모든 주입 차량의 경로는 지도 경계에서 끝난다.
 - 투입한 것은 `log`에 따로 기록해 자연 발생과 구분한다. 투입된 차는 `carDist`라 주행 모델 4종과 양보 성격이 그대로 붙는다.
 """
@@ -23,7 +23,7 @@ from .signal_areas import is_signalized
 from .yield_logic import A1_TRIGGER_GAP_M
 
 CATCH_UP_DV, CATCH_UP_OVER_LIMIT, DROP_BACK_DV = 8.0, 8.0, 3.0   # 후행차 따라잡기: 버스 + 최대 8 m/s, 제한 속도 + 8 m/s까지
-# A1은 TraCI 후행차 간격(최소 간격을 뺀 값)이 3 m 안일 때 시작한다. 노선 거리(앞끝·뒤끝 사이)로는 최소 간격 2.5 m를 더한다
+# A1은 TraCI 후행차 간격(최소 간격을 뺀 값)이 5 m 안일 때 시작한다. 노선 거리(앞끝·뒤끝 사이)로는 최소 간격 2.5 m를 더한다
 FOLLOWER_MIN_GAP_M = 2.5
 # S5: 골목 끝에 끼어들기 차를 세워 두고, 버스가 합류점에 곧 닿을 때 풀어 준다(버스는 기다리지 않는다)
 S5_PLACE_MIN_M, S5_PLACE_MAX_M = 90.0, 300.0   # 버스가 합류점에서 이 거리 안일 때 골목 끝에 차를 세워 둔다
@@ -44,14 +44,17 @@ class ScenarioInjector:
                  follower_gap=(0.0, A1_TRIGGER_GAP_M + FOLLOWER_MIN_GAP_M),
                  lane_lead=300.0,
                  s6_edges=("-R112", "R112.112"), s6_edge_before="R112", s5_lead=60.0, follower_check=80.0,
-                 dwell_s=8.0, stop_ids=None, inject_s1=False, keeper=None):
+                 dwell_s=8.0, stop_ids=None, inject_s1=False, keeper=None, catch_up=True):
         # dwell_s: 시험용 버스의 정류장 정차 시간. stop_ids: 버스가 실제로 서는 정류장(없으면 stops 전부).
         # 끼어들기 출발 시점에 버스의 정차 시간을 넣는다(X_dongmak6은 s2 끝 바로 뒤에서 합류해 정차 중에 골목 차가 먼저 지나갔다)
         # inject_s1: False(기본)면 S1(정차 버스 뒤 차 한 대) 주입을 끈다. 정차 시각 기록은 S5 출발 시점에 쓰므로 그대로 한다.
         self.inject_s1 = inject_s1
-        # keeper: 버스 주변 차량 밀도 유지기(BusWindowKeeper). 있으면 S2·S3는 차를 주입하지 않고 키퍼가 넣은 차 중에서 버스 목표 차로 뒤 가장 가까운 차를
-        # 상대로 고른다(없으면 키퍼에게 한 대를 만들게 한다). 3 m 안으로 붙이는 것(_catch_up)과 A1은 그대로다. 없으면(None) 예전처럼 직접 투입한다.
+        # keeper: 버스 주변 차량 밀도 유지기(BusWindowKeeper). 있으면 S2·S3는 차를 주입하지 않고 키퍼 차든 자연 후행차든 버스 목표 차로 뒤 가장 가까운 차를
+        # 상대로 고른다(없으면 키퍼에게 한 대를 만들게 한다). 5 m 안으로 붙이는 것(_catch_up)과 A1은 그대로다. 없으면(None) 예전처럼 직접 투입한다.
         self.keeper = keeper
+        # catch_up: True(기본)면 상대 후행차를 버스 5 m 안으로 속도를 높여 붙인다. False면 상대는 고르기만 하고 속도를 건드리지 않는다
+        # (버스와 가까운 후행차가 자연스럽게 가까워질 때만 A1이 시작한다. 5 m 안 도착을 보장하지 않는다)
+        self.catch_up = catch_up
         self.platoon_n, self.platoon_gap = 3, 14.0       # 적색 대기 중 넣는 후행차 수와 간격(m)
         self.dwell_s = dwell_s
         self.stop_ids = set(stop_ids) if stop_ids is not None else {s["id"] for s in stops}
@@ -82,7 +85,7 @@ class ScenarioInjector:
         self._lap = {"t0": t, "s1_stop": self.rng.choice(stop_ids) if stop_ids else None, "s1": False,
                      "S3": next((p for p in self.plans if p.kind == "S3"), None),
                      "S2": [p for p in self.plans if p.kind == "S2"],
-                     "lane": {}, "lane_done": set(),
+                     "lane": {}, "lane_done": set(), "seen": set(),
                      "S5": self.rng.sample(self.alleys, k) if k else [], "s5_done": set(), "s5": {},
                      "S6": False}
 
@@ -274,6 +277,10 @@ class ScenarioInjector:
     def _is_keeper_car(self, vid):
         return self.keeper is not None and self.keeper.is_keeper_car(vid)
 
+    def _plan_seen(self, key):
+        """이번 바퀴에서 이 창에 한 번이라도 들어섰는가(창이 아직 오지 않은 것과 이미 지난 것을 가른다)."""
+        return key in self._lap["seen"]
+
     def _add_lane_car(self, path, lane, p):
         """S2·S3 상대 한 대를 만든다. 키퍼가 있으면 키퍼가 만든다(키퍼 차로 관리됨). (차 id, 이유)."""
         if self.keeper is not None:
@@ -289,8 +296,13 @@ class ScenarioInjector:
             if key in lap["lane"] or key in lap["lane_done"]:
                 continue
             d_end = self._dist_to(st, plan.edge, plan.end_pos)
+            if d_end is not None and d_end <= 0 and self._plan_seen(key):
+                lap["lane_done"].add(key)               # 창이 끝났는데 상대를 못 정했다: 놓친 것으로 기록한다(측정에서 보이게)
+                self._record(plan.kind, t, "missed")
+                continue
             if d_end is None or d_end <= 0:
                 continue
+            lap["seen"].add(key)
             d_start = d_end - plan.length
             if d_start > self.lane_lead:
                 continue
@@ -308,8 +320,6 @@ class ScenarioInjector:
             left = plan.kind == "S2"
             f = tc.vehicle.getLeftFollowers(self.bus) if left else tc.vehicle.getRightFollowers(self.bus)
             near = [(d, v) for v, d in f if v and 0 <= d <= self.follower_check]
-            if self.keeper is not None:
-                near = [(d, v) for d, v in near if self._is_keeper_car(v)]      # 키퍼가 넣은 차 중에서만 고른다
             if near:
                 self._track(plan, min(near)[1], t)
                 self._record(plan.kind, t, "natural", min(near)[1])
@@ -333,7 +343,7 @@ class ScenarioInjector:
             if vid:
                 self._track(plan, vid, t)
                 self._record(plan.kind, t, "injected", vid)
-            elif why == "near_bus":
+            elif why in ("near_bus", "failed"):
                 continue                                 # 버스가 출발 지점에서 멀어질 때까지 창이 끝나기 전까지 계속 다시 본다(S2·S3는 항상 일어나야 한다)
             else:
                 lap["lane_done"].add(key)
@@ -343,9 +353,15 @@ class ScenarioInjector:
         """route[k]에서 창 끝 도로(j_end)까지, 그 다음 도로(좌회전 도착 도로)까지 버스와 같은 길. 그래야 SUMO가 그 회전 차로로
         이어지는 차로를 고른다(J1: 곧장 나가는 경로였을 때 R54b 3 -> R54 4로 가 버스의 중간 목표 차로에 있었다)."""
         path = list(route[k:j_end + 1])
-        nxt = route[j_end + 1] if j_end + 1 < len(route) else route[0]         # 노선 끝이면 다음 바퀴 처음(R42 -> R68)
-        if self.net.getEdge(route[j_end]).getConnections(self.net.getEdge(nxt)):
+        m = j_end
+        for _ in range(3):                                                     # 창 끝 도로가 신호 앞이 아니면(J1: R54) 신호를 지나 회전 도착 도로까지 잇는다
+            nxt = route[(m + 1) % len(route)]                                  # 노선 끝이면 다음 바퀴 처음(R42 -> R68)
+            if not self.net.getEdge(route[m]).getConnections(self.net.getEdge(nxt)):
+                break
             path.append(nxt)
+            if is_signalized(self.net.getEdge(route[m]).getToNode()):
+                break
+            m = (m + 1) % len(route)
         return path
 
     def _queue_platoon(self, t, st, plan, j_end):
@@ -441,6 +457,8 @@ class ScenarioInjector:
             if partner is not None and partner[0] != vid:
                 self._release(rec)                       # 더 가까운 차가 있다: 그 차가 상대다. 주입한 차는 시나리오에서 빠진다
                 continue
+            if not self.catch_up:
+                continue                                 # 속도를 건드리지 않는다: 자연 주행하는 후행차를 상대로 추적만 한다
             if self._stop_t0 is not None and tc.vehicle.getLaneIndex(vid) != tc.vehicle.getLaneIndex(self.bus):
                 tc.vehicle.setSpeed(vid, -1)             # 버스가 정류장에 서 있다: 다른 차로의 차를 버스 뒤에 두려고 세우지 않는다
                 continue
@@ -455,7 +473,7 @@ class ScenarioInjector:
                     cap = tc.lane.getMaxSpeed(tc.vehicle.getLaneID(vid)) + CATCH_UP_OVER_LIMIT
                 except Exception:
                     cap = 22.0
-                target = min(max(v_bus + min(CATCH_UP_DV, (g - hi) / 2.0), v_bus + 2.0), cap)   # 최대한 빨리 3 m 안으로
+                target = min(max(v_bus + min(CATCH_UP_DV, (g - hi) / 2.0), v_bus + 2.0), cap)   # 최대한 빨리 5 m 안으로
             elif g < lo:
                 target = max(0.0, v_bus - DROP_BACK_DV)       # 버스 옆이나 앞에 있다: 확실히 뒤로 물러난다
             else:

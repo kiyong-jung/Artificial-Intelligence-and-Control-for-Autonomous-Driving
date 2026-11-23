@@ -99,15 +99,15 @@ def _step(mgr, tc, t0, t1):
     return t
 
 
-def test_a1_starts_only_when_follower_is_within_3m():
+def test_a1_starts_only_when_follower_is_within_5m():
     # 50 m 안이면 바로 A1이 켜져 비양보형이 먼 뒤에서 억지로 버스를 따라잡아 추월했다(부자연스럽다는 지적).
-    # 후행차가 버스 3 m 안에 들어왔을 때만 A1이 시작한다
+    # 후행차가 버스 5 m 안에 들어왔을 때만 A1이 시작한다
     tc = _FakeTC(8.0, "block")
     tc.gap = 10.0
     mgr = YieldManager(tc, "bus0")
     _step(mgr, tc, 0.0, 1.0)
     assert "f" not in mgr.inter and "f" not in tc.set_speed
-    tc.gap = 2.5
+    tc.gap = 4.5
     _step(mgr, tc, 1.0, 2.0)
     assert "f" in mgr.inter
 
@@ -189,3 +189,14 @@ def test_yielder_without_a_car_behind_or_with_a_moving_bus_keeps_yielding():
     mgr = YieldManager(tc, "bus0")
     _step(mgr, tc, 0.0, 4.0)
     assert tc.set_speed["f"] == pytest.approx(8.0 - YIELD_DV) and not mgr.inter["f"].overtook
+
+
+def test_a_yielder_always_follows_a_blocker():
+    # 비양보형(막기)이 나왔으면 다음 상호작용은 무조건 양보형으로 해 두 유형이 고르게 나오게 한다
+    tc = _FakeTC(8.0, "block")
+    mgr = YieldManager(tc, "bus0")
+    _step(mgr, tc, 0.0, 1.0)
+    assert mgr.inter["f"].action == "block"
+    mgr._finish("f", 1.0, True)
+    _step(mgr, tc, 1.0, 2.0)                                             # 같은 비양보형 차가 다시 상대로 잡혀도
+    assert mgr.inter["f"].action == "yield" and tc.params["driver.action"] == "yield"

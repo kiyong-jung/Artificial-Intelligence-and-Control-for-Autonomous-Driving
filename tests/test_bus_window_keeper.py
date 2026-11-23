@@ -12,6 +12,7 @@ from sumolib.geomhelper import positionAtShapeOffset  # noqa: E402
 from traffic.alleys import read_net  # noqa: E402
 from traffic.bus_window_keeper import DEFAULT_LANE_DENSITY, BusWindowKeeper  # noqa: E402
 from traffic.flow_balance import edges_named  # noqa: E402
+from traffic.signal_areas import is_signalized  # noqa: E402
 from traffic.presence import PRESENCE_RADIUS_M, SPAWN_MARGIN_M, ends_at_boundary  # noqa: E402
 from traffic.test_bus import lap_route  # noqa: E402
 
@@ -174,7 +175,7 @@ def test_keeper_cars_ahead_of_the_view_are_removed_but_others_stay():
     assert k.summary()["removed_ahead"] == 1
 
 
-def test_long_signal_queue_removes_one_stopped_keeper_car_behind_the_view_only():
+def test_long_signal_queue_removes_one_stopped_car_outside_the_view_farthest_first():
     tc = _Tc()
     _fill_window(tc, per_lane=2)
     tc.cars["win_q"] = {"road": "R54a", "pos": 60.0, "lane": 1, "speed": 0.0}      # 버스 뒤 90 m 대기열
@@ -183,12 +184,13 @@ def test_long_signal_queue_removes_one_stopped_keeper_car_behind_the_view_only()
     tc.cars["nat_q"] = {"road": "R54a", "pos": 50.0, "lane": 2, "speed": 0.0}
     k = _keeper(tc)
     k.cars |= {"win_q", "win_q2", "win_in"}
-    tc.halting["R54a"] = 5
+    tc.halting["R54a"] = 3
     k.update(0.0)
     assert tc.removed == []                                     # 대기열이 아직 짧다
-    tc.halting["R54a"] = 6
+    tc.halting["R54a"] = 4
     k.update(1.0)
-    assert tc.removed == ["win_q2"] and "win_in" in tc.cars and "nat_q" in tc.cars      # 가장 뒤 한 대만, 시야 안은 그대로
+    assert tc.removed == ["nat_q", "win_q2", "win_q"] or set(tc.removed) == {"nat_q", "win_q2", "win_q"}   # 시야 밖 세 대(기존 차 포함), 먼 차부터
+    assert "win_in" in tc.cars                                                 # 시야 안은 그대로
 
 
 def test_spawn_car_for_scenarios_refuses_inside_the_view_and_registers_the_car():
@@ -251,3 +253,68 @@ def test_keeper_does_not_remove_pending_cars_or_count_far_away_cars_as_pending()
     k.cars.add("win_far")
     k.update(0.0)
     assert any(int(a["departLane"]) == 1 for a in tc.added)             # 1차로는 여전히 부족으로 보고 만든다
+
+
+def test_long_signal_queue_also_removes_a_stopped_car_ahead_outside_the_view():
+    tc = _Tc()
+    _fill_window(tc, per_lane=2)
+    tc.cars["ahead_q"] = {"road": "R54a", "pos": 260.0, "lane": 1, "speed": 0.0}   # 버스 앞 110 m(시야 밖)
+    k = _keeper(tc)
+    tc.halting["R54a"] = 4
+    k.update(0.0)
+    assert tc.removed == ["ahead_q"]
+
+
+def test_queue_before_a_signal_is_removed_earlier_and_in_batches_of_three():
+    tc = _Tc()
+    _fill_window(tc, per_lane=2)
+    k = _keeper(tc)
+    bi, bpos = k.index[tc.bus[0]], tc.bus[1]
+    edge = next(e for e in _loop() if is_signalized(_net().getEdge(e).getToNode()) and _net().getEdge(e).getLength() > 60.0
+                and k._rel("x", k.index[e], 20.0, bi, bpos) > 120.0)             # 버스 앞 멀리(시야 밖)에 있는 신호 앞 도로
+    for n in range(5):
+        tc.cars[f"sq{n}"] = {"road": edge, "pos": 20.0 + 6.0 * n, "lane": 1, "speed": 0.0}
+    tc.halting[edge] = 2                                                           # 일반 도로 기준(4)에는 못 미치지만 신호 앞은 2대부터
+    k.update(0.0)
+    assert len(tc.removed) == 3 and all(v.startswith("sq") for v in tc.removed)    # 한 번에 세 대까지
+
+
+def test_car_still_waiting_to_be_inserted_is_cancelled_when_the_bus_comes_near_its_spot():
+    # 삽입이 늦어진 차가 버스가 가까이 온 뒤에 나타나면 반경 안 출현이 된다. 삽입 전에 취소한다
+    tc = _Tc()
+    k = _keeper(tc)
+    vid = k.spawn_car(["R54a", "R54b"], 2, 60.0)                 # 버스 뒤 90 m(시야 밖)
+    assert vid
+    tc.cars.pop(vid)                                              # 아직 삽입되지 않았다(자리가 막혀 대기 중)
+    k.update(0.0)
+    assert vid not in tc.removed and vid in k.cars                # 버스가 멀다: 계속 기다린다
+    tc.bus = (tc.bus[0], 60.0 + 20.0)                             # 버스가 그 자리 20 m 앞까지 왔다
+    k.update(1.0)
+    assert vid in tc.removed and vid not in k.cars and k.summary()["cancelled_late"] == 1
+
+
+def test_interior_spawner_weights_are_halved_on_yanghwaro_and_dongmakro():
+    from traffic.interior_spawner import InteriorSpawner
+
+    class _Tc:
+        pass
+    net = _net()
+    half = {e: 0.5 for e in edges_named(net, ("양화로", "독막로"))}
+    full = InteriorSpawner(_Tc(), net, "bus0", _loop(), [], 100.0)
+    scaled = InteriorSpawner(_Tc(), net, "bus0", _loop(), [], 100.0, weight_scale=half)
+    ratio = {e: s / f for e, f, s in zip(full.roads, full.weights, scaled.weights)}
+    assert any(r == 0.5 for r in ratio.values()) and all(r in (0.5, 1.0) for r in ratio.values())
+
+
+def test_interior_spawner_total_rate_drops_and_does_not_shift_to_other_roads():
+    from traffic.interior_spawner import InteriorSpawner
+
+    class _Tc:
+        pass
+    net = _net()
+    avoid = edges_named(net, ("와우산로", "잔다리로"))
+    half = {e: 0.5 for e in edges_named(net, ("양화로", "독막로"))}
+    full = InteriorSpawner(_Tc(), net, "bus0", _loop(), [], 100.0, avoid=avoid)
+    scaled = InteriorSpawner(_Tc(), net, "bus0", _loop(), [], 100.0, avoid=avoid, weight_scale=half)
+    assert scaled.p_step == pytest.approx(full.p_step * 0.5)                      # 투입 수가 절반으로 준다
+    assert set(scaled.roads).isdisjoint(avoid)                                    # 와우산로·잔다리로에는 넣지 않는다

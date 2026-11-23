@@ -131,6 +131,8 @@ class HapjeongTraffic:
         # interior_share: 입구 배경 차량 흐름 중 이 비율을 노선 위 임의의 지점에서 출발시킨다(0이면 끈다). 시험용 버스에서
         # interior_min_dist m(버스 반경 50 m + 여유 5 m) 안에서는 투입하지 않아 눈앞에 갑자기 생기지 않는다.
         self.interior_share, self.interior_min_dist = interior_share, interior_min_dist
+        # 밀도 분산기(InteriorSpawner)가 양화로·독막로에 넣는 대수의 배율. 키퍼가 이 도로를 채우므로 절반으로 줄인다(목표 2대 -> 1대)
+        self.interior_road_scale = {"양화로": 0.5, "독막로": 0.5}
         # right_on_red: True면 신호 교차로의 우회전이 신호와 무관하게 간다. 단 우회전 차가 지나는 횡단보도의 보행자 신호가
         # 적색이고 겹치는 직진·좌회전이 녹색이 아닌 위상에서만 열린다(신호 프로그램만 바꾼다). exclude는 합정역 사거리(J1)와
         # 상수역 사거리(J82). J82는 우회전을 연 뒤 교차로가 막히는 문제가 생겨 원래 신호 프로그램으로 되돌렸다(사용자 결정).
@@ -366,7 +368,8 @@ class HapjeongTraffic:
         net = read_net(os.path.join(self.out_dir, "network.net.xml"))
         return InteriorSpawner(traci, net, bus_id, m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}),
                                self.interior_per_h, rng=random.Random(self.seed + 6), min_dist=self.interior_min_dist,
-                               avoid=edges_named(net, self.avoid_roads))
+                               avoid=edges_named(net, self.avoid_roads),
+                               weight_scale={e: self.interior_road_scale[n] for n in self.interior_road_scale for e in edges_named(net, (n,))})
 
     def _make_keeper(self, bus_id):
         if self.lane_density is None:
@@ -405,7 +408,7 @@ class HapjeongTraffic:
         left, right = [], []
         if plans is not None:
             for p in plans:
-                if p.edge in route:
+                if p.edge in route and p.kind != "STOP":
                     zs = zones_before(route.index(p.edge), p.end_pos, p.length)
                     (left if p.kind == "S2" else right).extend(zs)
         else:
@@ -445,7 +448,7 @@ class HapjeongTraffic:
         mgr = YieldManager(traci, bus_id, rng=random.Random(self.seed), types=yield_types or DEFAULT_TYPES,
                            type_mix=self.yield_mix, mix_vtype_prefixes=("car_",), owner=self.owner, triggers=triggers,
                            vtype_aggr=getattr(self, "cutin_aggr", None),
-                           **mgr_kwargs)                  # A1은 후행차가 버스 3 m 안일 때 시작(yield_logic.A1_TRIGGER_GAP_M)
+                           **mgr_kwargs)                  # A1은 후행차가 버스 5 m 안일 때 시작(yield_logic.A1_TRIGGER_GAP_M)
         self.mgr = mgr
         if assign_existing:        # warmup 중에 투입된 차량에도 성격을 준다
             mgr.on_departed(traci.vehicle.getIDList())
@@ -460,6 +463,8 @@ class HapjeongTraffic:
         self.stop = (StopBypassManager(traci, bus_id, rng=random.Random(self.seed + 3), owner=self.owner)
                      if stop_bypass else None)
         self.ahead = None
+        if pilot is not None:
+            pilot.blocker_active = lambda: any(it.action == "block" and not it.acted for it in mgr.inter.values())
         if stop_ahead and pilot is not None:      # S4: 골목에서 나온 차가 정류장 근처에 선다(바퀴마다 1~2곳)
             m = load_map(MAP_ID)
             stops = [{"id": s["id"], "edge": s["lane"].rsplit("_", 1)[0], "lane": int(s["lane"].rsplit("_", 1)[1]),

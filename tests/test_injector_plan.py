@@ -247,7 +247,7 @@ def test_nearest_follower_is_the_partner_whoever_it_is():
     tc.f.left_followers = [("nat", 2.0)]                          # 자연 후행차가 버스 2 m 뒤(왼쪽 차로)
     assert inj._partner(plan, inj._lap["lane"].get(inj._key(plan)))[0] == "nat"   # 상대가 바뀌었다
     inj._catch_up(0.1)
-    assert tc.f.set_speed["inj"] == -1 and inj._lap["lane"][("S2", "R42")]["released"]   # 주입 차는 손을 뗀다
+    assert tc.f.set_speed["inj"] == -1 and inj._lap["lane"][("S2", "R54")]["released"]   # 주입 차는 손을 뗀다
 
 
 def test_injected_follower_stays_partner_when_it_is_the_nearest():
@@ -260,7 +260,7 @@ def test_injected_follower_stays_partner_when_it_is_the_nearest():
     inj._follower_gap = lambda vid, p: 8.0
     tc.f.left_followers = [("far", 25.0)]                         # 더 먼 자연 차
     inj._catch_up(0.1)
-    assert tc.f.set_speed["inj"] == pytest.approx(10.0) and not inj._lap["lane"][("S2", "R42")]["released"]
+    assert tc.f.set_speed["inj"] == pytest.approx(10.0) and not inj._lap["lane"][("S2", "R54")]["released"]
 
 
 def test_injector_has_no_gate():
@@ -376,7 +376,7 @@ def test_follower_that_passed_the_bus_is_let_go():
     inj._track(plan, "f", 0.0)
     inj._follower_gap = lambda vid, p: -15.0                     # 이미 버스를 지나 앞에 있다: 되돌아오게 하지 않는다
     inj._catch_up(0.1)
-    assert tc.f.set_speed["f"] == -1 and inj._lap["lane"][("S2", "R42")]["released"]
+    assert tc.f.set_speed["f"] == -1 and inj._lap["lane"][("S2", "R54")]["released"]
 
 
 def test_j1_follower_waits_until_bus_leaves_s6():
@@ -429,3 +429,34 @@ def test_near_bus_keeps_being_retried_until_the_window_ends():
     tc.f.bus_pos = 62.0
     inj._lanes(0.1, inj._state())
     assert ("S2", "R111b") not in inj._lap["lane_done"]
+
+
+def test_window_that_ended_without_a_partner_is_recorded_as_missed():
+    # S2·S3가 안 일어난 창은 조용히 지나가지 않고 'missed'로 남겨 측정에서 보이게 한다
+    tc = _TC2(bus_road="R77", bus_pos=25.0)
+    inj = _inj(tc, alleys=[])
+    inj.update(0.0)
+    plan = inj._lap["S2"][1]
+    key = inj._key(plan)
+    inj._lap["seen"].add(key)
+    orig = inj._dist_to
+    inj._dist_to = lambda st, edge, pos: -1.0 if (edge, pos) == (plan.edge, plan.end_pos) else orig(st, edge, pos)   # 이 창은 이미 끝났다
+    inj._lanes(5.0, inj._state())
+    assert key in inj._lap["lane_done"] and any(r["ok"] == "missed" and r["kind"] == "S2" for r in inj.log)
+
+
+def test_injector_with_catch_up_off_tracks_the_partner_without_touching_its_speed():
+    # catch_up=False: 상대는 고르기만 하고 속도를 건드리지 않는다. 5 m 안 도착을 보장하지 않는다
+    tc = _TC2(bus_road="R112.221", bus_pos=10.0, bus_speed=8.0)
+    plans = lane_plans(_net(), _route(), _stops())
+    from traffic.test_bus import STOP_AT
+    inj = ScenarioInjector(tc, _net(), "bus0", _stops(), [], "carDist", lap_fn=lambda: 1, plans=plans,
+                           rng=random.Random(0), stop_ids=STOP_AT, catch_up=False)
+    inj.update(0.0)
+    plan = inj._lap["S2"][1]
+    tc.f.cars.append("f")
+    inj._track(plan, "f", 0.0)
+    inj._follower_gap = lambda vid, p: 30.0                      # 30 m 뒤: catch_up이면 속도를 높였을 거리
+    tc.f.set_speed.pop("f", None)
+    inj._catch_up(0.1)
+    assert "f" not in tc.f.set_speed or tc.f.set_speed["f"] == -1

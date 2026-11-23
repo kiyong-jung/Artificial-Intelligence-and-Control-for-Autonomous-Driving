@@ -62,6 +62,12 @@ def main():
     net = read_net(os.path.join(out_dir, "network.net.xml"))
     bus = TestBusPilot(tc, net, loop, RS.map_stops(m))
     presence = PresenceMonitor(tc, net, "bus0")
+    probe = world.keeper                                 # 창 안 밀도를 재는 키퍼. 키퍼를 끈 실행에서는 갱신하지 않는 측정용 사본을 쓴다
+    if probe is None:
+        world.lane_density = dens
+        probe = world._make_keeper("bus0")
+        world.lane_density = None
+    win = collections.defaultdict(list)                  # 창 안 차로 번호 -> (대수, 목표) 표본
     sections = sections_of(net, bus.lap_edges)
     per_road = collections.defaultdict(list)          # 도로 이름 -> 구간 밀도 표본(대/100 m)
     queue = collections.defaultdict(list)             # 신호 끝 구간 -> 멈춘 차 수 표본
@@ -83,6 +89,13 @@ def main():
             halted = collections.Counter(tc.vehicle.getRoadID(v) for v in ids if tc.vehicle.getSpeed(v) < 0.1)
             print(f"t={t:.0f} 차량 {len(ids)} {dict(kinds)} 멈춤 {sum(halted.values())} 상위 {halted.most_common(5)} 바퀴 {len(bus.lap_times)} 경과 {time.time() - T0:.0f}s", flush=True)
         if int(round(t * 10)) % 10 == 0:
+            try:
+                road = tc.vehicle.getRoadID("bus0")
+                if road in probe.index:
+                    for k, (n, tgt) in probe.window_density(probe.index[road], tc.vehicle.getLanePosition("bus0")).items():
+                        win[k].append((n, tgt))
+            except Exception:
+                pass
             for s in sections:
                 per_road[s.name].append(tc.edge.getLastStepVehicleNumber(s.edge) / s.length * 100.0)
                 if s.signalized_end:
@@ -101,6 +114,9 @@ def main():
                          "p10_per_100m": round(sorted(v)[len(v) // 10], 2), "samples": len(v),
                          "target_per_lane_per_100m": None if a.no_density else dens.get(n)}
                      for n, v in per_road.items() if v},
+        "window": {str(k): {"mean_count": round(statistics.fmean(n for n, _ in v), 2), "mean_target": round(statistics.fmean(g for _, g in v), 2),
+                             "share_at_or_above_target": round(sum(1 for n, g in v if n >= g) / len(v), 3), "samples": len(v)}
+                   for k, v in sorted(win.items()) if v},
         "queue": {e: {"max_halting": max(v), "mean_halting": round(statistics.fmean(v), 2)} for e, v in queue.items() if v},
         "presence": presence.summary(),
         "safety": safety,
@@ -111,7 +127,7 @@ def main():
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         json.dump(res, f, ensure_ascii=False, indent=1)
-    print(json.dumps({k: res[k] for k in ("per_road", "presence", "safety", "bus", "density_summary")},
+    print(json.dumps({k: res[k] for k in ("per_road", "window", "presence", "safety", "bus", "density_summary")},
                      ensure_ascii=False, indent=1)[:3000])
     world.close()
 

@@ -29,7 +29,7 @@ PASS_MARGIN = 5.0       # 비양보형 뒤끝이 버스 앞끝보다 이만큼 �
 # A1은 목표 차로 후행차가 버스에 이만큼 다가왔을 때 시작한다(TraCI getLeft/RightFollowers 간격) [m].
 # 50 m 안이면 바로 켜던 때는 비양보형이 먼 뒤에서 억지로 따라와 버스를 추월해 부자연스러웠다. 후행차는 50 m 밖에서 들어와
 # 버스보다 빠르게 다가온다(scenario_injector).
-A1_TRIGGER_GAP_M = 3.0
+A1_TRIGGER_GAP_M = 5.0
 
 
 @dataclass
@@ -142,6 +142,7 @@ class YieldManager:
             if unknown or not self.mix_vtype_prefixes:
                 raise ValueError("type_mix의 유형은 types에 있어야 하고 mix_vtype_prefixes가 필요하다")
         self.inter = {}          # follower id -> _Interaction
+        self._last_action = None  # 직전 상호작용의 행동. 막기(block) 다음은 항상 양보(yield)로 고르게 섞는다
         self.pos_hist = []       # (t, lanePos, edge)
         self.log = []            # 종료된 상호작용 기록
 
@@ -230,7 +231,12 @@ class YieldManager:
                 key = tc.vehicle.getParameter(vid, "driver.type")
                 if key in self.types and self.owner.claim(vid, self.OWNER):
                     delay = float(tc.vehicle.getParameter(vid, "driver.delay"))
-                    self.inter[vid] = _Interaction(vid, self._pick_action(vid), delay, t,
+                    action = self._pick_action(vid)
+                    if self._last_action == "block" and action == "block":
+                        action = "yield"                       # 막는 차 다음은 무조건 양보하는 차
+                        tc.vehicle.setParameter(vid, "driver.action", action)
+                    self._last_action = action
+                    self.inter[vid] = _Interaction(vid, action, delay, t,
                                                    lane0=tc.vehicle.getLaneIndex(vid), side=side)
         for vid in list(self.inter):
             it = self.inter[vid]

@@ -44,14 +44,14 @@ def test_without_a_keeper_car_the_injector_asks_the_keeper_for_one_and_injects_n
     assert inj.tracked_ids() == {"win1"}                                            # 키퍼 차가 이번 창의 상대다
 
 
-def test_selects_the_nearest_keeper_car_in_the_target_lane_and_ignores_natural_cars():
+def test_selects_the_nearest_follower_whether_keeper_car_or_natural():
     tc = _in_s3_window()
     tc.f.right_followers = [("natural", 12.0), ("win7", 25.0), ("win9", 40.0)]     # S3는 오른쪽 차로
     kp = _FakeKeeper(cars={"win7", "win9"})
     inj = _inj(tc, kp)
     inj.update(0.0)
-    assert kp.spawned == [] and inj.tracked_ids() == {"win7"}                       # 가장 가까운 키퍼 차, 자연 차량은 고르지 않는다
-    assert inj.log[-1]["ok"] == "natural" and inj.log[-1]["id"] == "win7"
+    assert kp.spawned == [] and inj.tracked_ids() == {"natural"}                    # 키퍼 차든 자연 차량이든 가장 가까운 후행차를 고른다
+    assert inj.log[-1]["ok"] == "natural" and inj.log[-1]["id"] == "natural"
 
 
 def test_no_platoon_at_red_when_a_keeper_is_present():

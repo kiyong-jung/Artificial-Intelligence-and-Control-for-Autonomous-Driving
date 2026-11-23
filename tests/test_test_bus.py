@@ -8,7 +8,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from traffic.alleys import read_net  # noqa: E402
-from traffic.test_bus import BUS, STOP_AT, TestBusPilot, lane_plans, lap_route  # noqa: E402
+from traffic.test_bus import BLOCKER_PASS_SPEED, BUS, STOP_AT, TestBusPilot, lane_plans, lap_route  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "maps", "hapjeong")
 _cache = {}
@@ -158,16 +158,16 @@ def test_stop_set_is_s2_s4_s5_s6():
 
 def test_lane_plans_are_s3_then_two_s2_and_end_before_signals():
     p = lane_plans(_net(), lap_route(_net(), _loop()), _stops())
-    assert [x.kind for x in p] == ["S3", "S2", "S2"]
+    assert [x.kind for x in p] == ["S3", "S2", "S2", "STOP", "STOP", "STOP"]      # 뒤 셋은 s4·s5·s6 정류장 차로 도착 창
     # 정류장 차로에는 정류장 시작 10 m 전까지 들어가야 한다(성산중학교 13.31 m -> 3.31 m)
     assert (p[0].edge, p[0].target_lane) == ("R71.206", 1) and p[0].end_pos == pytest.approx(3.31, abs=0.01)
-    assert (p[1].edge, p[1].target_lane) == ("R111b", 2) and p[1].end_pos == pytest.approx(7.0, abs=0.5)
-    # J1은 3.7.0부터 R42 차로 3도 좌회전(R68 차로 1)이다. 버스는 더 가까운 차로 3을 목표로 한다
-    assert (p[2].edge, p[2].target_lane) == ("R42", 3) and p[2].end_pos == pytest.approx(6.0, abs=0.5)
-    assert all(x.length >= 120.0 for x in p) and p[2].length > p[1].length     # J1 앞은 차로를 더 많이 옮긴다
+    assert (p[1].edge, p[1].target_lane) == ("R111b", 3) and p[1].end_pos == pytest.approx(7.0, abs=0.5)
+    # J1은 R42 차로 3도 좌회전이다. 정지선 앞 20 m(R42 16 m 전체 + R54 끝 4 m)라 창 끝은 R54 163 m이고, 목표는 R42 차로 3으로 이어지는 R54 차로 4다
+    assert (p[2].edge, p[2].target_lane) == ("R54", 4) and p[2].end_pos == pytest.approx(163.0, abs=0.5)
+    assert all(x.length >= 120.0 for x in p) and p[2].length >= p[1].length     # J1 앞은 차로를 더 많이 옮긴다
     # J1 창은 합정역(s6, R54a 245.5~270.5 m) 안에서 시작한다. 감속 판단은 정류장 끝부터 센다
     net = _net()
-    eff = (net.getEdge("R54a").getLength() - 270.5 + net.getEdge("R54b").getLength() + net.getEdge("R54").getLength()
+    eff = (net.getEdge("R54a").getLength() - 270.5 + net.getEdge("R54b").getLength()
            + p[2].end_pos)
     # 3.7.0: 목표 차로가 4 -> 3이라 창이 240 -> 200 m로 줄어 s6 끝(창 끝 211.6 m 전)이 창 밖이다. 그래서 창 전체를 센다
     assert eff > p[2].length and p[2].eff_length == p[2].length
@@ -222,9 +222,9 @@ def test_pilot_hands_over_to_sumo_when_window_ends_in_wrong_lane():
     tc = _FakeTC()
     pilot = _pilot(tc)
     pilot.tick(tc, 0.0)
-    tc.road, tc.lane, tc.pos = "R42", 2, 6.5
+    tc.road, tc.lane, tc.pos = "R54", 2, 163.5
     pilot.tick(tc, 1.0)
-    assert tc.lc_mode[-1] == 1621 and pilot.missed == [(1, "S2", "R42")]
+    assert tc.lc_mode[-1] == 1621 and pilot.missed == [(1, "S2", "R54")]
     tc.road, tc.lane, tc.pos = "R68", 2, 1.0
     pilot.tick(tc, 2.0)
     assert tc.lc_mode[-1] == 512
@@ -390,3 +390,72 @@ def test_speed_limit_hook_does_not_touch_a_bus_that_is_stopped_at_a_stop():
     tc.vehicle.getStopState = lambda v: 1                    # 정류장에 서 있다
     _run(pilot, tc, 0.1, 0.5)
     assert tc.set_speed == []
+
+
+def test_lane_change_counts_only_when_the_bus_is_centered_in_the_new_lane():
+    tc = _FakeTC()
+    pilot = _pilot(tc)
+    tc.vehicle.getLateralLanePosition = lambda v: 0.9          # 차로 번호는 바뀌었지만 몸이 반쯤 걸쳐 있다
+    assert not pilot._centered(tc)
+    tc.vehicle.getLateralLanePosition = lambda v: 0.1
+    assert pilot._centered(tc)
+
+
+def test_j82_bus_uses_the_leftmost_lane_into_the_leftmost_lane_of_r112():
+    # 독막로 오른쪽에서 4번째 차로(R111b 3) -> 와우산로 오른쪽에서 3번째 차로(R112 2). 다른 좌회전 차로(2 -> 1)는 쓰지 않는다
+    p = lane_plans(_net(), lap_route(_net(), _loop()), _stops())[1]
+    assert p.ok_lanes == frozenset({3}) and p.target_lane == 3 and p.length >= 200.0
+    cons = _net().getEdge("R111b").getConnections(_net().getEdge("R112"))
+    assert any(c.getFromLane().getIndex() == 3 and c.getToLane().getIndex() == 2 for c in cons)
+
+
+def test_bus_slows_to_let_a_blocker_pass_and_releases_afterwards():
+    tc = _FakeTC(road="R71.135", lane=1, pos=10.0)
+    pilot = _pilot(tc)
+    pilot.tick(tc, 0.0)
+    active = {"v": True}
+    pilot.blocker_active = lambda: active["v"]
+    pilot.tick(tc, 1.0)
+    assert tc.set_speed[-1] == BLOCKER_PASS_SPEED                       # 막는 차가 있으면 버스가 줄인다
+    active["v"] = False
+    pilot.tick(tc, 2.0)
+    assert tc.set_speed[-1] == -1                                       # 지나가면 푼다
+
+
+def test_stop_arrival_windows_for_s4_s5_s6_end_20m_before_each_stop():
+    net = _net()
+    p = [x for x in lane_plans(net, lap_route(net, _loop()), _stops()) if x.kind == "STOP"]
+    assert len(p) == 3
+    by_edge = {x.edge: x for x in p}
+    s4 = next(s for s in _stops() if s["id"] == STOP_AT[1])
+    assert by_edge[s4["edge"]].end_pos == pytest.approx(s4["startPos"] - 20.0, abs=0.01)
+    assert all(x.length >= 120.0 and x.ok_lanes for x in p)
+
+
+def test_left_turn_window_never_requests_a_change_to_the_right():
+    # 좌회전 차로 창(S2)에서는 왼쪽으로만 옮긴다. 목표 차로보다 오른쪽 차로에 있으면 왼쪽으로, 이미 목표 차로에 있으면 아무것도 하지 않는다
+    net = _net()
+    plan = lane_plans(net, lap_route(net, _loop()), _stops())[2]
+    tc = _FakeTC(road="R54", lane=5, pos=plan.end_pos - 60.0)
+    pilot = _pilot(tc)
+    pilot.tick(tc, 0.0)
+    tc.road, tc.lane, tc.pos = "R54", 5, plan.end_pos - 60.0
+    _run(pilot, tc, 0.1, 8.0)
+    assert all(r >= tc.lane for r in tc.change_req)                 # 오른쪽(더 작은 번호) 요청이 없다
+
+
+def test_target_lane_is_remapped_when_the_road_changes_during_a_request():
+    # R54b -> R54에서 같은 차로가 번호가 다르다. 옛 번호로 요청하면 오른쪽으로 돌아가 처음부터 다시 시작했다
+    net = _net()
+    cons = net.getEdge("R54b").getConnections(net.getEdge("R54"))
+    outs = {}
+    for c in cons:
+        outs.setdefault(c.getFromLane().getIndex(), []).append(c.getToLane().getIndex())
+    old, new = next((f, t[0]) for f, t in outs.items() if len(t) == 1 and f != t[0])
+    tc = _FakeTC(road="R54", lane=new, pos=5.0)
+    pilot = _pilot(tc)
+    pilot.tick(tc, 0.0)
+    tc.road, tc.lane, tc.pos = "R54", new, 5.0
+    pilot.phase, pilot.target, pilot._phase_road, pilot.plan = "request", old, "R54b", None
+    pilot._remap_target(tc, 1.0, "R54")
+    assert pilot.target == new and pilot._phase_road == "R54" and pilot.phase == "request"

@@ -447,6 +447,33 @@ def scan_route_lanes(folder, prefix):
 # ---------------------------------------------------------------------------------------------------------------
 # 3) 지도의 수요와 도로망 모양
 # ---------------------------------------------------------------------------------------------------------------
+def scan_demand(map_id, net_path, flows, route_paths, avoid=frozenset()):
+    """배경 흐름이 되돌아가거나 크게 에돌고, 보행자 걸음이 끊긴 곳을 건너뛰거나 대기 중에 횡단보도를 바꿀 수 있는가(3.15.0)."""
+    from sumolib.net import readNet
+    from scripts.drop_turnaround_flows import fastest_routes, turnaround_reasons
+    from scripts.fix_pedestrian_walks import WalkGraph, fix_walk
+    net = readNet(str(net_path))
+    hits = []
+
+    def add(where, what, detail):
+        hits.append(dict(kind="data", file=map_id, where=where, what=what, target="", detail=detail))
+
+    routes = fastest_routes(net_path, flows)
+    for flow in flows:
+        reasons = turnaround_reasons(net, routes[flow["id"]])
+        if reasons:
+            add("flow-turnaround", flow["id"], f"{flow['vehs_per_hour']}대/시간, {', '.join(reasons)}")
+    graph = WalkGraph(net_path)
+    where = {"rerouted": "walk-disconnected", "pinned": "walk-crossing-unpinned"}
+    for path in route_paths:
+        for person in ET.parse(path).getroot():
+            for walk in person.iter("walk"):
+                _fixed, status = fix_walk(graph, walk.get("edges").split(), avoid)
+                if status != "same":
+                    add(where[status], person.get("id"), walk.get("edges"))
+    return hits
+
+
 def scan_map(map_id="hapjeong"):
     from sumolib.net import readNet
     from maps import load_map
@@ -477,6 +504,8 @@ def scan_map(map_id="hapjeong"):
     for flow in m["flows"]:
         if flow.get("via"):
             add("flow-forced-via", flow["id"], f"{flow['vehs_per_hour']}대/시간이 {flow['via']}를 거친다")
+    avoid = frozenset(f":{c}" for c in m["network_source"]["pedestrians"].get("removed_crossing_walkers", {}))
+    hits += scan_demand(map_id, Path(m["net_path"]), m["flows"], m.get("extra_route_paths", []), avoid)
     # 흐름이 SUMO의 가장 빠른 길로 가면서 짧은 도로에서 여러 칸을 옮겨야 하는가(정지선 앞 틀린 차로에 서는 차의 원인)
     for flow in m["flows"]:
         path, _ = net.getShortestPath(net.getEdge(flow["from"]), net.getEdge(flow["to"]), vClass="passenger")
@@ -590,6 +619,14 @@ BAD_BUS_ROUTES = ('<routes><vType id="bgbus" vClass="bus"/>'
                   '<route id="r_bgbus_B4" edges="-R126 R55a B4a B4b R55 R92"/>'
                   '<flow id="b1" type="bgbus" route="r_bgbus_B1" begin="0" end="1" number="1"/>'
                   '<flow id="b4" type="bgbus" route="r_bgbus_B4" begin="0" end="1" number="1"/></routes>')
+# 3.14.0의 흐름과 걸음: 같은 문으로 유턴(R125 -> R126 -R126 -> R124), 지도 경계 J110 유턴(G26 -> R129),
+# 북쪽 인도가 끊긴 cluster_J52_J56_J58을 건너뛰는 걸음(40.7m), 적색에 J1 횡단보도를 바꿔 10m 뛰는 대각선 걸음
+BAD_FLOWS = [{"id": "f_R125_to_R124", "from": "R125", "to": "R124", "vehs_per_hour": 6.636},
+             {"id": "f_G26_to_R129", "from": "G26", "to": "R129", "vehs_per_hour": 5.308}]
+BAD_WALKS = ('<routes><personFlow id="ped199" begin="0" end="3600" period="exp(0.00027778)">'
+             '<walk edges="-R111 -R77 R73"/></personFlow>'
+             '<personFlow id="ped592" begin="0" end="3600" period="exp(0.00027778)">'
+             '<walk edges="R45 R42 W4 R65 R54 R54b R54a"/></personFlow></routes>')
 
 
 def self_check():
@@ -607,13 +644,16 @@ def self_check():
         (lanes / "bus.rou.xml").write_text(BAD_BUS_ROUTES)
         bus = scan_route_lanes(lanes, "bad")
         hits += bus
+        (tmp / "walks.rou.xml").write_text(BAD_WALKS)
+        hits += scan_demand("bad", Path(load_map("hapjeong")["net_path"]), BAD_FLOWS, [tmp / "walks.rou.xml"])
     found = {(h["kind"], h["what"]) for h in hits}
     expected = {("call", "vehicle.setSpeed"), ("call", "vehicle.setLaneChangeMode"), ("call", "vehicle.moveToXY"),
                 ("call", "person.add"), ("call", "vehicle.<alias>"), ("call", "vehicle.<getattr>"),
                 ("lit", "time-to-teleport"), ("lit", "ignore-route-errors"), ("lit", "collision.action"),
                 ("lit", "jmIgnoreFoeProb"), ("lit", "jmDriveAfterRedTime"),
                 ("xml", "jmIgnoreFoeProb"), ("xml", "jmDriveAfterRedTime"), ("xml", "impatience"), ("xml", "sigma"),
-                ("xml", "departPos"), ("xml", "departLane"), ("xml", "value"), ("xml", "lane-change-too-short")}
+                ("xml", "departPos"), ("xml", "departLane"), ("xml", "value"), ("xml", "lane-change-too-short"),
+                ("data", "f_R125_to_R124"), ("data", "f_G26_to_R129"), ("data", "ped199"), ("data", "ped592")}
     missing = expected - found
     if {h["target"] for h in bus} != {"r_bgbus_B1", "r_bgbus_B4"}:
         missing.add(("xml", "lane-change-too-short: B1과 B4 둘 다"))

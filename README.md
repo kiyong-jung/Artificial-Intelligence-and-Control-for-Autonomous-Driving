@@ -43,7 +43,7 @@ python scripts/build_hapjeong.py
 python scripts/validate_road.py --map hapjeong --out maps/hapjeong/references/stability_validation.json
 ```
 
-> **알려진 한계 (나중에 작업):** 커밋된 도로망(3.14.0, 도로망 파일은 3.13.0과 같다)에는 `build_hapjeong.py`가 모르는 패치가 얹혀 있다. J1 좌회전 차로 추가(`scripts/add_j1_left_lane.py`, 3.7.0), J42 우회전 제거(`scripts/remove_j42_right_turn.py`, 3.8.0), cluster_J52_J56_J58 횡단보도·보행자 신호 제거와 보행자 15명 제외(`scripts/remove_cluster_crosswalks.py`, 3.9.0), J8 겹친 횡단보도 하나 제거(`scripts/remove_j8_duplicate_crosswalk.py`, 3.10.0), J23 겹친 횡단보도 하나 제거(`scripts/remove_j23_overlapping_crosswalk.py`, 3.11.0), J1 횡단보도 c2 시작점을 w2 섬에 붙임(`scripts/fix_j1_c2_start.py`, 3.12.0), J96 우회전 녹색이 보행자 녹색과 겹치지 않게 신호 수정(`scripts/separate_right_turns_from_crosswalks.py`, 3.13.0)이다. 보행자 경로 파일에서는 J1 횡단보도 c1을 건너는 보행자 129명을 뺐다(`scripts/remove_crosswalk_pedestrians.py`). 3.14.0은 도로망을 건드리지 않고 수요만 고쳤다. 보행자를 고정 출발 시각에서 포아송 도착으로 바꿨고(`scripts/randomize_pedestrians.py`), 간선 차를 독막로6길 고리로 돌리던 경유 흐름 15개를 `map.json`에서 없앴다(지도 README의 "수요를 자연스럽게 (3.14.0)"). 이 스크립트로 도로망을 다시 만들면 이 패치 결과가 일부 사라지고(횡단보도는 되살아난다) 보행자 경로·신호도 크게 달라진다. 그러니 원본을 바꿔야 하는 일이 아니면 다시 만들지 말고 커밋된 `source/network.net.xml`을 그대로 쓴다. 패치를 `build_hapjeong.py`에 모두 흡수해 다시 만들어도 같은 결과가 나오게 맞추는 일은 아직 하지 않았다. 학습·시뮬레이션은 `build_hapjeong.py`를 돌리지 않고 커밋된 도로망만 읽으므로 연결에는 영향이 없다.
+> **알려진 한계 (나중에 작업):** 커밋된 도로망(3.15.0, 도로망 파일은 3.13.0과 같다)에는 `build_hapjeong.py`가 모르는 패치가 얹혀 있다. J1 좌회전 차로 추가(`scripts/add_j1_left_lane.py`, 3.7.0), J42 우회전 제거(`scripts/remove_j42_right_turn.py`, 3.8.0), cluster_J52_J56_J58 횡단보도·보행자 신호 제거와 보행자 15명 제외(`scripts/remove_cluster_crosswalks.py`, 3.9.0), J8 겹친 횡단보도 하나 제거(`scripts/remove_j8_duplicate_crosswalk.py`, 3.10.0), J23 겹친 횡단보도 하나 제거(`scripts/remove_j23_overlapping_crosswalk.py`, 3.11.0), J1 횡단보도 c2 시작점을 w2 섬에 붙임(`scripts/fix_j1_c2_start.py`, 3.12.0), J96 우회전 녹색이 보행자 녹색과 겹치지 않게 신호 수정(`scripts/separate_right_turns_from_crosswalks.py`, 3.13.0)이다. 보행자 경로 파일에서는 J1 횡단보도 c1을 건너는 보행자 129명을 뺐다(`scripts/remove_crosswalk_pedestrians.py`). 3.14.0은 도로망을 건드리지 않고 수요만 고쳤다. 보행자를 고정 출발 시각에서 포아송 도착으로 바꿨고(`scripts/randomize_pedestrians.py`), 간선 차를 독막로6길 고리로 돌리던 경유 흐름 15개를 `map.json`에서 없앴다(지도 README의 "수요를 자연스럽게 (3.14.0)"). 3.15.0도 수요만 고쳤다. 출발지 뒤로 가 유턴하거나 크게 에도는 배경 흐름 17개를 지우고 그 양을 같은 진입로에 나눴고(`scripts/drop_turnaround_flows.py`), 끊긴 인도를 건너뛰던 걸음 2개를 다시 찾고 대각선으로 건너는 걸음 85개의 횡단보도를 고정했다(`scripts/fix_pedestrian_walks.py`, 지도 README의 "되돌아가는 차와 건너뛰는 보행자 없애기 (3.15.0)"). 이 스크립트로 도로망을 다시 만들면 이 패치 결과가 일부 사라지고(횡단보도는 되살아난다) 보행자 경로·신호도 크게 달라진다. 그러니 원본을 바꿔야 하는 일이 아니면 다시 만들지 말고 커밋된 `source/network.net.xml`을 그대로 쓴다. 패치를 `build_hapjeong.py`에 모두 흡수해 다시 만들어도 같은 결과가 나오게 맞추는 일은 아직 하지 않았다. 학습·시뮬레이션은 `build_hapjeong.py`를 돌리지 않고 커밋된 도로망만 읽으므로 연결에는 영향이 없다.
 
 같은 입력이면 같은 파일이 나온다. 두 점검 스크립트는 학습 환경처럼 순간이동을 끄고 돌며, 막힌 차는 300초 넘게 이어서 선 차로 센다. 도로망 3.13.0에서 다시 잰 검증(seed 0·7·42 × quiet·baseline·busy, 1,800초)에서 300초 넘게 선 차는 9회 모두 0대이고, 버스 ego는 9회 모두 `bus_loop`를 완주했다(401~430초). 배경 충돌은 quiet·baseline의 seed 7에서 1번씩 났다. 둘 다 양화로 `R50_3` 대기열의 측면 충돌이고, 순간이동을 켠 옛 설정으로 돌려도 같은 시각에 난다. `maps/hapjeong/references/stability_validation.json`과 지도 README의 수치는 순간이동을 켠 옛 실행의 값이다.
 
@@ -135,7 +135,7 @@ python train_bc.py --data data/paldalmun/run1.npz --epochs 50
 ```
 
 - ego의 기본 경로는 팔달문 `r0`다. 다른 경로는 `--ego-route s_left_turn`처럼 고른다.
-- ego는 0.5초마다 행동을 정하고 SUMO는 0.1초 간격으로 계산한다. 에피소드는 최대 1,000번 결정(500초)이다.
+- ego는 0.5초마다 행동을 정하고 SUMO는 0.1초 간격으로 계산한다. 에피소드는 최대 1,400번 결정(700초)이다. 수업 원본은 1,000번(500초)이지만 합정역 한 바퀴가 정류장 정차를 포함해 최대 약 490초라 늘렸다.
 - `test.py`는 같은 폴더에 `run_config.json`이 있는 모델만 평가한다. 옵션을 주지 않으면 학습 때의 설정으로 평가한다.
 
 수업 원본 코드와 다르게 동작하는 부분은 다음과 같다.

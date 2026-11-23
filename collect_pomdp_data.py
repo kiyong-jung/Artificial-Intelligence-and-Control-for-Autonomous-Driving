@@ -4,7 +4,7 @@
     (o_t, a_t, r_t, o_{t+1}, terminated, truncated, s_t, s_{t+1})
 
 - t: 에피소드 안의 RL 스텝 번호. 한 스텝은 metadata의 simulation.decision_interval초다.
-- o_t / o_{t+1}: agent가 실제로 보는 44차원 부분관측 (수업 원본 31 + 경로 정보 13, env/data_schema.py)
+- o_t / o_{t+1}: agent가 실제로 보는 46차원 부분관측 (수업 원본 31 + 경로 정보 15, env/data_schema.py)
 - a_t: [가감속 raw, 차선변경 raw]
 - lane_change: 정책이 요청한 {-1, 0, +1}. lane_change_applied는 그 명령의 실행 여부
   (수업 원본과 같은 뜻), lane_change_actual은 같은 edge에서 확인된 실제 이동이다.
@@ -299,6 +299,7 @@ def collect(args, sumocfg, episodes, worker_id, jsonl_path, npz_path, tag=""):
                             "simulation_collided": bool(info["simulation_collided"]),
                             "termination_reason": info["termination_reason"],
                             "teleporting_ids": list(info["teleporting_ids"]),
+                            "background_collisions": int(info["background_collisions"]),
                             "lane_before": info["lane_before"],
                             "lane_after": info["lane_after"],
                             "service_event": info.get("service_event"),

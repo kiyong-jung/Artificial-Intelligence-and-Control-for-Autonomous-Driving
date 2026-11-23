@@ -651,7 +651,7 @@ class SumoHighwayEnv(gym.Env):
         position = self._route_position()
 
         tl = [1.0, 0.0, 0.0, 0.0]
-        signals = traci.vehicle.getNextTLS(ego)
+        signals = self._next_tls(lane_id, position)
         if signals and signals[0][2] <= TL_RANGE:
             light = signals[0][3]
             tl = [signals[0][2] / TL_RANGE, float(light in "rRu"), float(light in "yY"), float(light in "gs")]
@@ -687,6 +687,21 @@ class SumoHighwayEnv(gym.Env):
         limit, limit_distance = self._next_speed_limit(lane_id, allowed)
         return tl + stop + lane + crossing + [allowed / self.vmax, limit / self.vmax, limit_distance / LIMIT_RANGE,
                                               float(np.clip(self._acceleration / 2.0, -1.0, 1.0))]
+
+    def _next_tls(self, lane_id, position):
+        """getNextTLS 형식의 다음 신호들. getNextTLS는 경로 끝을 넘어 보지 않아, 순환 노선이 끝나는 마지막 도로 끝
+        신호(합정역 J1)가 빠졌다. 버스는 경로 끝에서 서지 않고 그 신호를 지나 계속 달리므로(arrivalSpeed=current)
+        경로 끝 차로의 신호를 직접 읽는다."""
+        signals = traci.vehicle.getNextTLS(self.ego_id)
+        if signals:
+            return signals
+        links = traci.vehicle.getNextLinks(self.ego_id)
+        lane = links[-1][0] if links else lane_id
+        while lane.startswith(":"):
+            lane = traci.lane.getLinks(lane)[0][0]
+        distance = self.route_map.length - position
+        return tuple((tls, index, distance, traci.trafficlight.getRedYellowGreenState(tls)[index])
+                     for tls, index in self.route_map.end_signals.get(lane, ()))
 
     def _lane_length(self, lane_id):
         length = self._lane_lengths.get(lane_id)
@@ -928,14 +943,15 @@ class SumoHighwayEnv(gym.Env):
         inside = road_id.startswith(":")
         edge_index = int(traci.vehicle.getRouteIndex(self.ego_id))
         route = self.route_map
-        ahead = route.ahead(route.position(edge_index, lane_id, lane_position))
+        position = route.position(edge_index, lane_id, lane_position)
+        ahead = route.ahead(position)
         state["navigation"] = {
             "route_id": route.route_id, "route_edge_index": edge_index,
             "drivable_lane_ids": [lane_id] if inside else route.drivable_lane_ids[edge_index],
             "target_lane_ids": [lane_id] if inside else route.target_lane_ids[edge_index],
             **ahead,
         }
-        signals = traci.vehicle.getNextTLS(self.ego_id)
+        signals = self._next_tls(lane_id, position)
         if signals:
             tls_id, link_index, distance, light = signals[0]
             state["traffic_light"] = {"id": tls_id, "link_index": int(link_index), "state": light,

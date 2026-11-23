@@ -2,7 +2,7 @@
 
 한 행은 판단 한 번의 전이다: 현재 관측·실제 상태 → 행동 → 보상·사건·종료 → 다음 관측·실제 상태.
 """
-SCHEMA_VERSION = "hapjeong_bus_v2"
+SCHEMA_VERSION = "hapjeong_bus_v3"
 
 SCHOOL, TEAM = "학교 기본", "팀 추가"
 # (컬럼, 형태, 구분, 의미). 점(.)은 JSONL에서 한 단계 안쪽 키다.
@@ -26,7 +26,8 @@ COLUMNS = [
     ("event.arrived", "Boolean", SCHOOL, "목적지 도착 여부"),
     ("event.lane_before", "Integer / String", SCHOOL, "Action 적용 전 AV 차선"),
     ("event.lane_after", "Integer / String", SCHOOL, "Action 적용 후 AV 차선"),
-    ("event.termination_reason", "String", TEAM, "종료 원인 (arrived, collision, time_limit, teleport, missing). 종료가 아니면 빈 값"),
+    ("event.termination_reason", "String", TEAM, "종료 원인 (arrived, collision, time_limit, teleport, missing, stuck). stuck은 ego가 stuck_timeout초 동안 stuck_progress_m도 못 간 것. 종료가 아니면 빈 값"),
+    ("event.background_collisions", "Integer", TEAM, "이 step 동안 ego가 끼지 않은 배경 차량끼리의 충돌 수"),
     ("event.service_event", "String", TEAM, "이 step에 정차할 정류장을 마쳤으면 served, 서지 않고 지나쳤으면 missed, 아니면 빈 값"),
     ("event.stops_served", "Integer", TEAM, "에피소드에서 지금까지 정차를 마친 정류장 수"),
     ("event.stops_missed", "Integer", TEAM, "에피소드에서 지금까지 서지 않고 지나친 정차 정류장 수"),

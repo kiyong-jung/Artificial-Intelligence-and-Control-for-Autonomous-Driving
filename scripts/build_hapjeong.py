@@ -33,12 +33,14 @@ if str(BASE) not in sys.path:
 from scripts.build_road import ALLEY, ARTERIAL_PER_LANE, publish, shortest_route
 from scripts.patch_network import digest
 from scripts.prune_network import OPTIONS
+from scripts.drop_turnaround_flows import keep_natural
+from scripts.fix_pedestrian_walks import fix_walks
 from scripts.randomize_pedestrians import randomize
 from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "3.14.0"   # 3.14.0: 보행자를 포아송 도착(personFlow)으로, 독막로6길 고리 경유 흐름 제거(도로망은 3.13.0 그대로). 3.13.0: J96 우회전 녹색이 보행자 녹색과 겹치지 않게 신호 수정(scripts/separate_right_turns_from_crosswalks.py). 3.12.0: J1 c2 시작점을 w2 섬에 붙임(scripts/fix_j1_c2_start.py). 3.11.0: J23 겹친 횡단보도(-R71 R71.256) 제거(scripts/remove_j23_overlapping_crosswalk.py). 3.10.0: J8 겹친 횡단보도(-R69a R69a) 제거(scripts/remove_j8_duplicate_crosswalk.py). 3.9.0: cluster_J52_J56_J58 횡단보도 두 개와 보행자 신호 제거(scripts/remove_cluster_crosswalks.py, 보행자 15명 제외). 3.8.0: J42 잔다리로 R94 우회전 제거(scripts/remove_j42_right_turn.py). 3.7.0: J1 양화로 R42 차로 3도 좌회전(scripts/add_j1_left_lane.py로 커밋된 3.6.0에 더했다)
+VERSION = "3.15.0"   # 3.15.0: 되돌아가거나 크게 에도는 배경 흐름 17개 제거(scripts/drop_turnaround_flows.py), 끊긴 걸음 2개 다시 찾기와 대각선 횡단보도 고정(scripts/fix_pedestrian_walks.py), 도로망은 3.13.0 그대로. 3.14.0: 보행자를 포아송 도착(personFlow)으로, 독막로6길 고리 경유 흐름 제거(도로망은 3.13.0 그대로). 3.13.0: J96 우회전 녹색이 보행자 녹색과 겹치지 않게 신호 수정(scripts/separate_right_turns_from_crosswalks.py). 3.12.0: J1 c2 시작점을 w2 섬에 붙임(scripts/fix_j1_c2_start.py). 3.11.0: J23 겹친 횡단보도(-R71 R71.256) 제거(scripts/remove_j23_overlapping_crosswalk.py). 3.10.0: J8 겹친 횡단보도(-R69a R69a) 제거(scripts/remove_j8_duplicate_crosswalk.py). 3.9.0: cluster_J52_J56_J58 횡단보도 두 개와 보행자 신호 제거(scripts/remove_cluster_crosswalks.py, 보행자 15명 제외). 3.8.0: J42 잔다리로 R94 우회전 제거(scripts/remove_j42_right_turn.py). 3.7.0: J1 양화로 R42 차로 3도 좌회전(scripts/add_j1_left_lane.py로 커밋된 3.6.0에 더했다)
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]
@@ -660,6 +662,7 @@ def build_pedestrians(net_path: Path, output: Path, temporary: Path) -> None:
         root.remove(person)
     root.extend(people)
     randomize(root, PEDESTRIANS["end"])   # 고정 출발 시각을 seed를 따르는 포아송 도착(personFlow)으로 바꾼다
+    fix_walks(root, net_path)   # 끊긴 걸음은 다시 찾고, 대각선으로 건너는 걸음은 횡단보도를 고정한다
     ET.ElementTree(root).write(output, encoding="utf-8", xml_declaration=True)
 
 
@@ -782,7 +785,7 @@ def build() -> dict:
             "assumptions": ["제한속도는 안전속도 5030 기준이다. 간선 50km/h, 연결로와 이름이 ~길인 이면도로 30km/h이고 OSM의 독막로 50km/h와 같다.",
                             "배경 차량 유입량은 팔달문과 같은 규칙으로 나눈 합성 수요다. quiet·baseline·busy는 0.5·1·1.25배다.",
                             "배경 차량 baseline 합계는 생성기 설정의 시간당 900대다."],
-            "routes": routes, "route_design": route_design, "flows": scaled_flows(net), "flow_arrivals": FLOW_ARRIVALS,
+            "routes": routes, "route_design": route_design, "flows": keep_natural(net_path, scaled_flows(net))[0], "flow_arrivals": FLOW_ARRIVALS,
             "max_lane_speed_mps": max(lane.getSpeed() for edge in net.getEdges() for lane in edge.getLanes()
                                       if lane.allows("passenger")),
             "ego_route": EGO_ROUTE, "bus_stops": curb_stops(net),

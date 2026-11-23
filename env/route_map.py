@@ -45,6 +45,9 @@ class RouteMap:
             turns.append((self.end[index], TURNS[connections[0].getDirection()]))
         self.turns = [turn for turn in turns if turn[1] != "straight"]
         self.length = self.end[-1]
+        # 경로 끝 도로의 차로 → 그 차로 끝 신호의 (신호 id, 연결 번호). SUMO는 경로 끝 너머의 신호를 알려 주지 않는다.
+        self.end_signals = {lane.getID(): [(c.getTLSID(), c.getTLLinkIndex()) for c in lane.getOutgoing() if c.getTLSID()]
+                            for lane in usable[-1]}
 
         crossed = {}
         for edge in ET.parse(net_path).getroot().iter("edge"):

@@ -72,6 +72,7 @@ def build_metadata(args, world, pilot, ctx, recorder, tc, *, vtype: str, net_cop
                   "bus_stops": bus_stops, "service_stop_ids": list(STOP_IDS), "service_stops": ctx.service_stops,
                   "lane_plans": plans, "forbidden_intervals": {k: list(v) for k, v in pilot.forbidden.items()},
                   "lane_allowed": ctx.lane_allowed, "crossings": ctx.route_map.crossings,
+                  "s6_crossings": ctx.s6_crossings,
                   "s5_feeders": list(recorder.feeders)},
         "tls_programs": tls_programs(tc, recorder.tls_seen),
         "net_sha256": sha256(net_copy),

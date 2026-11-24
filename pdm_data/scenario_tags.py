@@ -255,7 +255,7 @@ class ScenarioTracker:
             if veh.get("role") == "S5" and math.hypot(veh["x"] - ex, veh["y"] - ey) <= NEAR_M:
                 out["s5"].append(veh["id"])
         if pos is not None:
-            ahead = next(((at, cid) for at, cid in ctx.route_map.crossings if 0 <= at - pos <= NEAR_M), None)
+            ahead = next(((at, cid) for at, cid in ctx.s6_crossings if 0 <= at - pos <= NEAR_M), None)
             if ahead is not None:
                 peds = [q["id"] for q in snap["pedestrians"] if q["road_id"] == ahead[1] or q["next_edge"] == ahead[1]]
                 out["s6"] = {"crossing": ahead[1], "distance": ahead[0] - pos, "peds": peds}

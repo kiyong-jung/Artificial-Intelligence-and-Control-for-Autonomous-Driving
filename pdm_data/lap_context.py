@@ -18,6 +18,7 @@ class LapContext:
     crossing_ids: frozenset
     service_stops: list          # (start, end, stop_id, lane_id), 노선 순서
     net_path: str
+    s6_crossings: list = None    # S6 대상: 노선 위 횡단보도 중 신호 없는 교차로의 것 (노선 위치, 횡단보도 id)
 
 
 def _crossings(net_path):
@@ -27,7 +28,21 @@ def _crossings(net_path):
 def build_lap_context(net_path: str, lap_edges: list, bus_stops: list, vmax: float, lane_allowed: dict) -> LapContext:
     rm = RouteMap(net_path, "lap", list(lap_edges), bus_stops, "bus")
     service = [s for s in rm.stops if s[2] in STOP_IDS]
-    return LapContext(list(lap_edges), rm, float(vmax), dict(lane_allowed), _crossings(net_path), service, net_path)
+    return LapContext(list(lap_edges), rm, float(vmax), dict(lane_allowed), _crossings(net_path), service, net_path,
+                      _unsignalized(net_path, rm.crossings))
+
+
+def _unsignalized(net_path, crossings):
+    """신호 교차로의 횡단보도는 보행자 신호가 순서를 정하므로 S6(신호 없는 횡단보도)이 아니다."""
+    from traffic.alleys import read_net
+    from traffic.signal_areas import is_signalized
+    net = read_net(net_path)
+    out = []
+    for at, cid in crossings:
+        node = cid[1:].rsplit("_c", 1)[0]
+        if net.hasNode(node) and not is_signalized(net.getNode(node)):
+            out.append((at, cid))
+    return out
 
 
 def load_lap_context(run_dir: str) -> LapContext:

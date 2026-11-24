@@ -184,8 +184,8 @@ def test_calltap_restores_class_level_methods():
 
 
 def _bus_before_crossing(back=10.0):
-    """첫 횡단보도 back m 앞의 버스 자리: (도로, 차로 위치, 횡단보도 id)."""
-    at, cid = CTX.route_map.crossings[0]
+    """S6 횡단보도(신호 없는 곳) back m 앞의 버스 자리: (도로, 차로 위치, 횡단보도 id)."""
+    at, cid = CTX.s6_crossings[0]
     pos = at - back
     i = max(k for k, s in enumerate(CTX.route_map.start) if s <= pos)
     return CTX.lap_edges[i], pos - CTX.route_map.start[i], cid
@@ -201,6 +201,28 @@ def test_substep_records_crossing_peds():
     run_steps_from(rec, 2, 11)
     sub = w.steps[0]["window"]["substeps"][-1]
     assert sub["crossings"] == {cid: ["p1"]}
+
+
+def test_signalized_crossing_not_recorded():
+    rec, w = make_recorder()
+    at, cid = next((a, c) for a, c in CTX.route_map.crossings if c.startswith(":J82_"))
+    i = max(k for k, s in enumerate(CTX.route_map.start) if s <= at - 10.0)
+    edge = CTX.lap_edges[i]
+    rec.tc.edge.table["getLastStepPersonIDs"] = lambda c: ["p1"]
+    run_steps(rec, 1)
+    rec.tc.vehicle.items["bus0"].update(road=edge, lane=f"{edge}_1", lane_pos=at - 10.0 - CTX.route_map.start[i])
+    rec.last_road = edge
+    run_steps_from(rec, 2, 11)
+    assert w.steps[0]["window"]["substeps"][-1]["crossings"] == {}
+
+
+def test_s6_tag_only_for_unsignalized_crossing():
+    from pdm_data.scenario_tags import ScenarioTracker
+    tr = ScenarioTracker(FakeTC(), FakeWorld(), FakePilot(), CTX)
+    j82 = next(a for a, c in CTX.route_map.crossings if c.startswith(":J82_"))
+    s6_at, s6_id = CTX.s6_crossings[0]
+    assert tr.tags(make_row(lap_position=j82 - 20.0))["s6"] is None
+    assert tr.tags(make_row(lap_position=s6_at - 20.0))["s6"]["crossing"] == s6_id
 
 
 def test_no_per_step_person_scan_near_crossing():

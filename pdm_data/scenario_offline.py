@@ -3,7 +3,7 @@
 
 S5: 골목 도로(feeder)에서 보였던 차가 S5_WINDOW_S(15 s) 안에 버스와 같은 도로의 앞 NEAR_M(50 m) 안에 들어오면 끼어들기 한 번.
     수집 중 판정처럼 0.5 s마다 본다(원시 행 간격). 원시 행은 버스 반경 150 m 안 차량만 담는다: 끼어드는 차는 합류 직전에 이 반경 안이다.
-S6: 버스가 횡단보도 50 m 앞부터 버스 뒤끝이 횡단보도를 벗어날 때까지, 그 횡단보도에 있던 보행자가 있으면 통과 한 번.
+S6: 신호 없는 횡단보도(ctx.s6_crossings, 합정역 노선에서는 와우산로 하나)만 본다. 버스가 횡단보도 50 m 앞부터 버스 뒤끝이 횡단보도를 벗어날 때까지, 그 횡단보도에 있던 보행자가 있으면 통과 한 번.
     보행자 점유 구간은 substep의 crossings(0.1 s), 버스 점유 구간은 substep의 lap_position(0.1 s)으로 잰다.
 """
 from __future__ import annotations
@@ -77,7 +77,7 @@ def s6_events(rows: list, ctx: LapContext) -> list:
             if pos is None:
                 continue
             on_now = s.get("crossings") or {}
-            for at, cid in ctx.route_map.crossings:
+            for at, cid in ctx.s6_crossings:
                 st = state.get(cid)
                 if st is None and -S6_BEFORE_M <= pos - at <= S6_AFTER_M and pos <= at:
                     st = state[cid] = {"t": t, "bus_in": None, "bus_out": None, "peds": {}, "min_speed": s["speed"]}

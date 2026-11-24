@@ -51,13 +51,22 @@ def _passing_rows(cid, at, peds_on):
     return rows
 
 
+def test_s6_crossings_are_unsignalized_only():
+    assert [cid for _, cid in CTX.s6_crossings] == [":S6_wausanro_c0"]
+
+
 def test_s6_pass_with_pet():
-    at, cid = CTX.route_map.crossings[0]
+    at, cid = CTX.s6_crossings[0]
     ev = s6_events(_passing_rows(cid, at, lambda k: ["p1"] if k < 5 else []), CTX)
     assert len(ev) == 1 and ev[0]["ids"] == ["p1"] and ev[0]["detail"]["crossing"] == cid
     assert ev[0]["detail"]["pet"]["p1"] == pytest.approx(1.5)        # 보행자 100.5에 나감, 버스 앞이 102.0에 진입
 
 
+def test_s6_ignores_signalized_crossing():
+    at, cid = next((a, c) for a, c in CTX.route_map.crossings if c.startswith(":J82_"))
+    assert s6_events(_passing_rows(cid, at, lambda k: ["p1"] if k < 5 else []), CTX) == []
+
+
 def test_s6_no_event_without_pedestrians():
-    at, cid = CTX.route_map.crossings[0]
+    at, cid = CTX.s6_crossings[0]
     assert s6_events(_passing_rows(cid, at, lambda k: []), CTX) == []

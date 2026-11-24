@@ -302,7 +302,7 @@ class Recorder:
         if lap_pos is None:
             return {}
         out = {}
-        for at, cid in self.ctx.route_map.crossings:
+        for at, cid in self.ctx.s6_crossings:
             if -S6_BEFORE_M <= lap_pos - at <= S6_AFTER_M:
                 try:
                     out[cid] = list(self.tc.edge.getLastStepPersonIDs(cid))

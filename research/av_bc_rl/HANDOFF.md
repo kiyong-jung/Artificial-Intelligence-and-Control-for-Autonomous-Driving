@@ -3,6 +3,17 @@
 이 문서는 다른 컴퓨터의 에이전트가 `git clone` 한 번으로 이 연구를 이어받기 위한 것이다. 브랜치는
 `research/av-bc-rl`이고, 모든 결과와 결정은 이 폴더(`research/av_bc_rl/`)에 있다.
 
+
+## 2026-11-24 상태(먼저 읽기)
+
+아래 본문은 11/22까지의 기록이라 지금과 다른 곳이 많다. 지금 상태와 과정은 `reports/progress_log.md`에 있다.
+
+- 환경은 수업 기준으로 바뀌었다. ego 안전장치 끔(speedMode 0, laneChangeMode 0), 관측 43개, 지도 3.20.0.
+- 제출할 버스는 규칙 없는 신경망이다. 규칙 운전사(`expert-v6`)는 정답을 만들 때만 쓴다. 학습 방법과 명령은 `research/av_bc_rl/bc_redlight.md`.
+- 지금 가장 좋은 모델: `research/av_bc_rl/models/v6_bins_dagger_s{0,1,2}/`. 최종 seed 180번 중 176번 완주(충돌 1, 신호 위반 3). 새 seed 60번 직접 확인에서는 56번.
+- 끊긴 추가 학습을 잇는 명령: `bash research/av_bc_rl/resume_dagger.sh`.
+- 예전 46차원 모델(bc_s*, dagger_s*, ppo_s*, residual_s*)은 더는 불러올 수 없다. Residual RL은 수업 규칙에 맞지 않아 결과에서 뺀다.
+
 ## 지금까지 한 일
 
 1. **측정부터.** 버스 행동 지표(`behavior_metrics.py`)를 만들고 옛 규칙 정책을 쟀다. 적색 정지선 앞에서

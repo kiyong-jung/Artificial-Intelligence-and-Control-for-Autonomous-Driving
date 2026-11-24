@@ -92,7 +92,7 @@ def run(args, scenario):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--policy", required=True, choices=["route-follow", "expert", "expert-v5", "bc", "ppo"])
+    parser.add_argument("--policy", required=True, choices=["route-follow", "expert", "expert-v5", "expert-v6", "bc", "ppo"])
     parser.add_argument("--model", default=None, help="bc 또는 ppo(Residual 포함) model.pt")
     parser.add_argument("--split", choices=tuple(SPLITS), default="dev")
     parser.add_argument("--scenarios", nargs="+", default=["quiet", "baseline", "busy"], choices=tuple(SCENARIO_OFFSET))

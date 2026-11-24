@@ -8,6 +8,7 @@ numpy만 쓴다. 도로만 다시 만드는 사람에게 torch를 요구하지 �
   같은 관측이면 같은 행동이다.
 - ExpertPolicyV5: v4의 차선변경 판단과 앞차 추종을 버스 제원으로 설 수 있는 간격에 맞춘 판(--policy expert-v5).
   데이터 수집 정책이다. 무엇을 쓰고 무엇을 쓰지 않는지는 research/av_bc_rl/collection_policy.md에 있다.
+- ExpertPolicyV6: v5에서 신호 앞에 서는 방법만 따라 배우기 쉽게 바꾼 판(--policy expert-v6). 신경망의 정답을 만든다.
 
 두 전문가가 쓰는 것은 정책 입력(관측 43개)과 생성자가 받는 고정 값(차량 제원, 관측 정규화 거리, 환경 게이트 값)뿐이다.
 SUMO 내부 상태, 도로 id, 위치, 차로 번호, 지난 관측은 쓰지 않는다. 환경도 버스를 돕지 않는다(speedMode 0,
@@ -109,10 +110,13 @@ class ExpertPolicy:
         room = limit_distance - self.limit_approach_margin - v * self.limit_approach_time
         v0 = min(v0, np.sqrt(limit * limit + 2.0 * self.limit_approach_decel * max(room, 0.0)))
         red, yellow = self._f(obs, "tl_red") > 0.5, self._f(obs, "tl_yellow") > 0.5
-        if tl_distance < self.tl_range and not red:
-            v0 = min(v0, self._signal_approach_speed(tl_distance))
         current = self._f(obs, "ego_acceleration") * 2.0
-        candidates = [self._idm(v, v0, None, 0.0, 0.0)]
+        candidates = []
+        if tl_distance < self.tl_range and not red:
+            approach = self._signal_approach_speed(tl_distance)
+            v0 = min(v0, approach)
+            candidates += self._signal_approach_candidates(v, approach)
+        candidates.append(self._idm(v, v0, None, 0.0, 0.0))
 
         leader_gap = self._f(obs, "current_leader_gap")
         if leader_gap < 1.0:
@@ -121,9 +125,11 @@ class ExpertPolicy:
         candidates += self._safe_speed_candidates(obs, v)
 
         # 적색이면 정지선에 선다. 황색은 정지선 앞에 설 수 있으면 서고, 못 서면 지나간다.
-        if red or (yellow and self._stops_for_yellow(v, current, tl_distance)):
-            gap = max(tl_distance - self.stop_line_gap, 0.0) + self.target_gap
-            candidates.append(self._idm(v, v0, gap, v, self.target_gap))
+        stopping = red or (yellow and self._stops_for_yellow(v, current, tl_distance))
+        if stopping:
+            if self._holds_at_signal(v, tl_distance):
+                return -self.max_decel
+            candidates.append(self._signal_stop(v, v0, tl_distance, yellow))
 
         # 이미 빠르면 그 자리까지 필요한 감속으로 줄인다
         if v > limit:
@@ -148,7 +154,23 @@ class ExpertPolicy:
         target = min(candidates)
         # 가속도 변화 제한(승차감). 급한 감속이 필요하면 제한을 두 배로 푼다.
         step = self.jerk_step * (2.0 if target < current - self.jerk_step and target < -self.comfortable_decel else 1.0)
-        return float(np.clip(target, current - step, current + step))
+        rise = float("inf") if yellow and not stopping and self.clears_yellow_at_once else step
+        return float(np.clip(target, current - step, current + rise))
+
+    clears_yellow_at_once = False   # 황색을 지나가기로 했을 때 가속도 변화 제한을 푸는지
+
+    def _signal_approach_candidates(self, v, approach):
+        """신호에 다가가는 속도의 상한을 넘었을 때 더하는 감속. v4와 v5는 목표 속도만 낮춘다(IDM)."""
+        return []
+
+    def _holds_at_signal(self, v, distance):
+        """신호 앞에 이미 섰으면 그대로 서 있을지. v4와 v5는 정지점까지 다시 다가간다."""
+        return False
+
+    def _signal_stop(self, v, v0, distance, yellow):
+        """정지선 앞에 서는 가속도. 정지점에 선 가상의 차를 IDM으로 따라간다."""
+        gap = max(distance - self.stop_line_gap, 0.0) + self.target_gap
+        return self._idm(v, v0, gap, v, self.target_gap)
 
     def _stops_for_yellow(self, v, acceleration, distance):
         """황색에 설지. 여유 있는 감속(yellow_decel)으로 정지선 앞에 설 수 있으면 선다. 최대 감속으로만 설 수 있으면,
@@ -371,7 +393,70 @@ class ExpertPolicyV5(ExpertPolicy):
         return []
 
 
-EXPERT_VERSIONS = {4: ExpertPolicy, 5: ExpertPolicyV5}
+class ExpertPolicyV6(ExpertPolicyV5):
+    """v5에서 신호 앞에 서는 방법만 따라 배우기 쉽게 바꾼 판(--policy expert-v6). 신경망에 붙일 정답을 만드는 데 쓴다.
+
+    v5를 따라 배운 신경망은 적색 앞에서 두 가지로 정지선을 넘었다. 하나는 정지선 4m 앞에 선 뒤 다시 다가가다 넘은
+    것이다. v5가 정지점(정지선 2m 앞)까지 조금씩 다가가므로 "적색에 서 있다가 가속"이 정답에 들어 있었다. 다른 하나는
+    황색에 설 때 최대 감속에 가까운 값(1.7m/s²)이 필요한 속도로 다가가서, 조금만 덜 줄여도 못 서게 된 것이다.
+
+    v6은 정지점을 정지선 4m 앞으로 당기고, 그 앞 8m 안에서는 가속하지 않고, 서면 신호가 바뀔 때까지 그대로 선다.
+    서는 감속은 정지점까지 필요한 감속(v²/2d) 그대로다. 그 값이 1m/s²에 이르면 줄이기 시작하므로 늦게 따라가도
+    최대 감속(2m/s²)까지 여유가 있다. 황색에 서기로 했으면 멀리서도 가속하지 않는다. 내부 상태는 여전히 없다.
+
+    황색에 서지도 지나가지도 못하는 속도도 막는다. v5는 다가가는 속도 상한을 "황색 2.5초 동안 정지선까지 갈 수 있다"로
+    세고, 지나갈지는 "정지선을 3m 넘게 지나갈 수 있다"로 정해 둘 사이에 빈틈이 있었다. 상한도 IDM의 목표 속도로만
+    써서 10%쯤 넘겨 달렸다. 신경망은 그 빈틈에서 황색을 만나 덜 줄이다가 적색에 넘었다(R111b). v6은 두 곳에 같은
+    여유(1m)를 쓰고, 상한을 넘으면 넘은 만큼 바로 줄이고, 지나가기로 했으면 가속도 변화 제한 없이 바로 가속한다.
+
+    앞이 비어 보여도 보이는 거리(50m) 끝에 설 수 있는 속도(12m/s)를 넘지 않는다.
+    """
+
+    stop_line_gap = 4.0       # m. 적색 정지선 앞에 설 간격
+    hold_within = 8.0         # m. 정지점 앞 이 거리 안에서는 적색에 가속하지 않고, 섰으면 그대로 선다
+    hold_speed = 0.3          # m/s. 이보다 느리면 선 것으로 본다
+    signal_decel = 1.0        # m/s². 정지점까지 필요한 감속이 이 값이 되면 그 감속으로 줄인다
+    signal_decel_onset = 0.5  # m/s². 필요한 감속이 이 값을 넘으면 줄이기 시작한다(사이는 비례)
+    yellow_decel = 0.75       # 황색에 설지 정할 때 쓰는 감속(최대 감속의 비율). v5의 0.85보다 낮춰 여유를 둔다
+    yellow_clear_margin = 1.0 # m. 황색 2.5초는 판단 한 번(0.5초, 7m/s면 3.5m)을 이미 뺀 값이라 v5의 3m보다 줄인다
+    approach_horizon = 1.0    # s. 신호에 다가가는 속도 상한을 넘은 만큼을 이 시간에 줄인다
+    clears_yellow_at_once = True
+    sight_headway = 1.0       # s. 보이는 거리 끝에 설 수 있는 속도를 셀 때의 반응 시간(판단 0.5초 + 감속이 따라오는 시간)
+
+    def _signal_approach_speed(self, distance):
+        """황색이 언제 켜져도 여유 있는 감속으로 서거나 정지선을 yellow_clear_margin만큼 넘게 지나갈 수 있는 속도."""
+        b, t = self.yellow_decel * self.max_decel, self.yellow_time
+        either = b * t + np.sqrt((b * t) ** 2 - 2.0 * b * (self.yellow_margin + self.yellow_clear_margin))
+        beyond = distance - (either * t - self.yellow_clear_margin)
+        return float("inf") if beyond <= 0.0 else float(np.sqrt(either * either + 2.0 * self.limit_approach_decel * beyond))
+
+    def _signal_approach_candidates(self, v, approach):
+        return [(approach - v) / self.approach_horizon] if v > approach else []
+
+    def _safe_speed_candidates(self, obs, v):
+        """앞차가 안 보여도 보이는 거리 끝에 선 차가 있다고 보고 그 앞에 설 수 있는 속도를 넘지 않는다. 버스는
+        13.9m/s에서 서는 데 48m가 들어, 50m 밖에 선 대기열 끝이 보이기 시작한 뒤에는 못 선다(train busy 2606, R54)."""
+        if self._f(obs, "current_leader_gap") < 1.0:
+            return super()._safe_speed_candidates(obs, v)
+        b, tau = self.max_decel, self.sight_headway
+        v_safe = -b * tau + np.sqrt(b * b * tau * tau + 2.0 * b * (self.visibility - self.safe_follow_margin))
+        return [(v_safe - v) / self.safe_follow_horizon]
+
+    def _holds_at_signal(self, v, distance):
+        return v < self.hold_speed and distance - self.stop_line_gap < self.hold_within
+
+    def _signal_stop(self, v, v0, distance, yellow):
+        room = max(distance - self.stop_line_gap, 0.0)
+        needed = v * v / (2.0 * max(room, 0.1))
+        onset, full = self.signal_decel_onset, self.signal_decel
+        brake = -min(needed, self.max_decel) * float(np.clip((needed - onset) / (full - onset), 0.0, 1.0))
+        if needed > onset or yellow or room < self.hold_within:
+            return brake
+        # 멀리 있는 적색에는 줄이기 시작할 속도까지만 다가간다
+        return self._idm(v, min(v0, np.sqrt(2.0 * onset * room)), None, 0.0, 0.0)
+
+
+EXPERT_VERSIONS = {4: ExpertPolicy, 5: ExpertPolicyV5, 6: ExpertPolicyV6}
 
 
 def make_expert(env, version=4):

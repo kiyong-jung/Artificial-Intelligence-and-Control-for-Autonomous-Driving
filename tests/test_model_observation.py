@@ -12,7 +12,13 @@ torch = pytest.importorskip("torch")
 from collect_pomdp_data import check_model_observation  # noqa: E402
 from env.data_schema import OBSERVATION_FEATURES, ROUTE_FEATURES  # noqa: E402
 
-OLD_MODELS = sorted(glob.glob(os.path.join(REPO, "research", "av_bc_rl", "models", "*", "model.pt")))
+def _observation_dim(path):
+    checkpoint = torch.load(path, map_location="cpu", weights_only=True)
+    return int(checkpoint["state_dim"]) if checkpoint.get("algorithm") == "bc" else int(checkpoint["trunk.0.weight"].shape[1])
+
+
+MODELS = sorted(glob.glob(os.path.join(REPO, "research", "av_bc_rl", "models", "*", "model.pt")))
+OLD_MODELS = [path for path in MODELS if _observation_dim(path) == 46]
 
 
 def test_the_observation_has_no_lane_instruction():

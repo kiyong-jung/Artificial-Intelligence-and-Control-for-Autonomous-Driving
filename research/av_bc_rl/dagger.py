@@ -5,9 +5,16 @@
 
     python research/av_bc_rl/dagger.py --data data/research/bc_train.npz --model results/research/bc_s0/model.pt \
         --iterations 2 --episodes 30 --out results/research/dagger_s0 --seed 0
+
+모르는 인자는 train_bc.py로 넘긴다(예: --loss bins --decode local). 처음 BC를 학습한 인자와 같게 준다.
+
+정답을 다른 판의 전문가로 다시 붙이려면(관측은 그대로다) 먼저 한 번 실행한다. metadata의 policy도 그 판으로 바뀐다.
+
+    python research/av_bc_rl/dagger.py --data data/research/v4/demo_clean.npz --relabel-to data/research/v6/demo_v6.npz \
+        --expert-version 6
 """
 import argparse
-import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +24,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(HERE))
 from env import sumo_env  # noqa: E402
 from env.route_policy import EXPERT_VERSIONS  # noqa: E402
 
@@ -25,8 +33,9 @@ SCENARIO_SEEDS = {"quiet": 2100, "baseline": 2400, "busy": 2700}   # train 집�
 
 
 def expert_from_metadata(meta):
-    """데이터를 모은 판의 전문가. metadata의 policy가 expert-v5면 v5, 아니면 v4다."""
-    expert = EXPERT_VERSIONS[5 if meta.get("policy") == "expert-v5" else 4]
+    """데이터에 정답을 붙인 판의 전문가. metadata의 policy가 expert-vN이면 그 판, 아니면 v4다."""
+    policy = str(meta.get("policy"))
+    expert = EXPERT_VERSIONS[int(policy.removeprefix("expert-v")) if policy.startswith("expert-v") else 4]
     return expert(meta["road"]["speed_limit"], meta["observation"]["visibility"], meta["ego"]["accel"],
                   meta["ego"]["decel"], sumo_env.TL_RANGE, sumo_env.STOP_RANGE, meta["observation"]["connectivity_range"],
                   sumo_env.CROSSING_RANGE, sumo_env.LIMIT_RANGE)
@@ -44,19 +53,37 @@ def main():
     import json
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--data", required=True, help="전문가 시연 NPZ(merge_datasets.py 출력)")
-    parser.add_argument("--model", required=True, help="처음 BC model.pt")
+    parser.add_argument("--model", help="처음 BC model.pt")
+    parser.add_argument("--relabel-to", help="롤아웃 없이 --data의 정답만 --expert-version 전문가로 다시 붙여 이 NPZ로 쓴다")
+    parser.add_argument("--expert-version", type=int, choices=sorted(EXPERT_VERSIONS), help="--relabel-to에 쓸 전문가 판")
     parser.add_argument("--iterations", type=int, default=2)
     parser.add_argument("--episodes", type=int, default=30, help="반복마다 교통량별 롤아웃 수")
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--workers", type=int, default=5)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--out", required=True)
-    args = parser.parse_args()
+    parser.add_argument("--augment-signals", action="store_true",
+                        help="반복마다 합본에 신호만 황색·적색으로 바꾼 관측을 더해 학습한다(augment_signals.py). "
+                             "합본 자체에는 넣지 않는다. 처음 BC도 그렇게 늘린 데이터로 학습한 것이어야 한다")
+    parser.add_argument("--out")
+    args, train_args = parser.parse_known_args()
 
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
     data_path = Path(args.data)
     meta = json.loads(data_path.with_name(data_path.name.removesuffix(".npz") + ".metadata.json").read_text(encoding="utf-8"))
+    if args.relabel_to:
+        if args.expert_version is None or train_args:
+            parser.error("--relabel-to에는 --expert-version이 필요하고 다른 인자는 받지 않습니다.")
+        target = Path(args.relabel_to)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        meta = {**meta, "policy": f"expert-v{args.expert_version}", "relabelled_from": str(data_path)}
+        np.savez_compressed(target, **relabel(data_path, expert_from_metadata(meta)))
+        target.with_name(target.name.removesuffix(".npz") + ".metadata.json").write_text(
+            json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(target)
+        return
+    if not args.model or not args.out:
+        parser.error("--model과 --out이 필요합니다.")
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
     expert = expert_from_metadata(meta)
     model = Path(args.model)
     for iteration in range(1, args.iterations + 1):
@@ -86,9 +113,16 @@ def main():
         data_path.with_name(data_path.name.removesuffix(".npz") + ".metadata.json").write_text(
             json.dumps({**meta, "dagger_iteration": iteration, "dagger_rollouts": [str(p) for p in rollouts]},
                        ensure_ascii=False, indent=1), encoding="utf-8")
+        train_path = data_path
+        if args.augment_signals:
+            from augment_signals import KEYS, augment
+            train_path = out / f"dagger_s{args.seed}_it{iteration}_train.npz"
+            np.savez_compressed(train_path, **augment({key: merged[key] for key in KEYS}, expert, args.seed))
+            shutil.copyfile(data_path.with_name(data_path.name.removesuffix(".npz") + ".metadata.json"),
+                            train_path.with_name(train_path.name.removesuffix(".npz") + ".metadata.json"))
         run_dir = out / f"bc_it{iteration}"
-        subprocess.run([PY, str(REPO / "train_bc.py"), "--data", str(data_path), "--epochs", str(args.epochs),
-                        "--seed", str(args.seed), "--device", "cpu", "--out-dir", str(run_dir)],
+        subprocess.run([PY, str(REPO / "train_bc.py"), "--data", str(train_path), "--epochs", str(args.epochs),
+                        "--seed", str(args.seed), "--device", "cpu", "--out-dir", str(run_dir), *train_args],
                        cwd=REPO, check=True, stdout=subprocess.DEVNULL)
         model = run_dir / "model.pt"
         print(f"iteration {iteration}: {len(merged['observation'])} samples -> {model}")

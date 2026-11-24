@@ -9,8 +9,9 @@
     observation -> action_raw
 
 BCPolicy는 algorithms/bc.py에 정의된
-state_dim -> 256 -> 256 -> action_dim MLP를 사용하며,
-전체 action vector에 대해 MSE loss로 학습함.
+state_dim -> 256 -> 256 -> 출력 MLP를 사용한다.
+--loss mse(기본)는 전체 action vector를 MSE loss로 학습한다.
+--loss bins는 가감속을 칸 중 고르기, 차선변경을 셋 중 고르기로 보고 cross-entropy로 학습한다.
 
 TensorBoard 이벤트 파일은 model.pt와 같은 run 폴더(results/bc_월일_시분/)에
 바로 저장되므로, train.py의 run_* 결과와 나란히 비교할 수 있다.
@@ -27,7 +28,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
 from algorithms.bc import BCPolicy
@@ -142,6 +142,18 @@ def split_episodes(episodes, val_fraction, seed):
     return train_idx, val_idx
 
 
+def standstill_middles(obs, episodes, keep):
+    """에피소드 안에서 이어서 서 있는 구간마다 처음 keep개와 마지막 keep개 판단을 뺀 가운데를 True로 표시한다.
+    관측 첫 값이 속도(제한속도로 나눈 값)다. 신호와 정류장에서 서 있는 판단은 서로 거의 같아 수만 많다."""
+    standing = obs[:, 0] < 1e-3
+    starts = np.r_[True, (standing[1:] != standing[:-1]) | (episodes[1:] != episodes[:-1])]
+    run = np.cumsum(starts) - 1
+    first = np.flatnonzero(starts)
+    position = np.arange(len(obs)) - first[run]
+    remaining = np.diff(np.r_[first, len(obs)])[run] - 1 - position
+    return standing & (position >= keep) & (remaining >= keep)
+
+
 def make_loader(obs, actions, indices, batch_size, shuffle):
     """Numpy array를 PyTorch DataLoader로 변환함."""
     dataset = TensorDataset(
@@ -170,10 +182,7 @@ def run_epoch(model, loader, device, optimizer=None):
             state = state.to(device)
             target_action = target_action.to(device)
 
-            pred_action = model(state)
-
-            # 기존 BC 코드와 동일하게 전체 action vector를 MSE로 학습함.
-            loss = F.mse_loss(pred_action, target_action)
+            loss = model.loss(state, target_action)
 
             if not torch.isfinite(loss):
                 raise ValueError(
@@ -222,6 +231,18 @@ def main():
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--val-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--loss", choices=["mse", "bins"], default="mse",
+                        help="mse: 행동 값 회귀(수업 원본). bins: 가감속 칸과 차선변경 셋 중 고르기")
+    parser.add_argument("--accel-bins", type=int, default=11, help="--loss bins의 가감속 칸 수([-1, 1]을 같은 간격으로)")
+    parser.add_argument("--decode", choices=["mean", "mode", "local"], default="mean",
+                        help="--loss bins에서 칸 점수를 가감속 값으로 바꾸는 방법. 모델 파일에 적힌다")
+
+    parser.add_argument("--thin-standstill", type=int, default=None, metavar="STEPS",
+                        help="학습 데이터에서 이어서 서 있는 구간마다 처음과 마지막 STEPS개 판단만 남긴다. 검증 데이터는 그대로다")
+
+    parser.add_argument("--blind", nargs="+", default=[], metavar="FEATURE",
+                        help="신경망이 보지 않을 관측 항목 이름(env/data_schema.OBSERVATION_FEATURES). 그 항목의 정규화 "
+                             "표준편차를 무한대로 두어 입력이 늘 0이 되게 한다. 관측 차원은 그대로다")
 
     parser.add_argument(
         "--device",
@@ -286,6 +307,8 @@ def main():
         args.val_fraction,
         args.seed,
     )
+    if args.thin_standstill is not None:
+        train_idx = train_idx[~standstill_middles(obs, episodes, args.thin_standstill)[train_idx]]
 
     train_loader = make_loader(
         obs,
@@ -307,6 +330,9 @@ def main():
     model = BCPolicy(
         state_dim=state_dim,
         action_dim=action_dim,
+        head=args.loss,
+        accel_bins=args.accel_bins,
+        decode=args.decode,
     ).to(device)
 
     # 검증 데이터가 통계에 섞이지 않도록 학습 관측만으로 정규화한다.
@@ -314,6 +340,12 @@ def main():
     obs_mean = obs[train_idx].mean(axis=0)
     obs_std = obs[train_idx].std(axis=0)
     obs_std = np.where(obs_std < 1e-6, 1.0, obs_std)
+    if args.blind:
+        from env.data_schema import OBSERVATION_FEATURES
+        unknown = sorted(set(args.blind) - set(OBSERVATION_FEATURES))
+        if unknown or state_dim != len(OBSERVATION_FEATURES):
+            parser.error(f"--blind: 지금 관측에 없는 항목입니다: {unknown or state_dim}")
+        obs_std[[OBSERVATION_FEATURES.index(name) for name in args.blind]] = np.inf
     model.obs_mean.copy_(torch.as_tensor(obs_mean, device=device))
     model.obs_std.copy_(torch.as_tensor(obs_std, device=device))
 
@@ -344,6 +376,11 @@ def main():
         "lr": args.lr,
         "val_fraction": args.val_fraction,
         "seed": args.seed,
+        "loss": args.loss,
+        "accel_bins": args.accel_bins,
+        "decode": args.decode,
+        "thin_standstill": args.thin_standstill,
+        "blind": args.blind,
         "device": device,
         "state_dim": state_dim,
         "action_dim": action_dim,

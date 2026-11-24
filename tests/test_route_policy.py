@@ -8,7 +8,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from env import sumo_env  # noqa: E402
 from env.data_schema import OBSERVATION_FEATURES  # noqa: E402
-from env.route_policy import ExpertPolicy, ExpertPolicyV5  # noqa: E402
+from env.route_policy import ExpertPolicy, ExpertPolicyV5, ExpertPolicyV6  # noqa: E402
 
 VMAX, VIS, REACH = 13.89, 50.0, 200.0
 LANES = ("left2", "left1", "current", "right1", "right2")
@@ -46,6 +46,11 @@ def expert(request):
 @pytest.fixture
 def v5():
     return make(ExpertPolicyV5)
+
+
+@pytest.fixture
+def v6():
+    return make(ExpertPolicyV6)
 
 
 # ---- 차로 고르기: 차로별 연결성만 본다 ----
@@ -236,3 +241,130 @@ def test_brakes_for_a_person_on_the_crosswalk(v5):
 def test_same_observation_same_action(v5):
     obs = observe(9.0, stop_distance=80.0 / 300.0, reach={"right1": 400.0}, lane_cars={"current": (25.0, 7.0, 30.0, 9.0)})
     assert np.array_equal(v5(obs), v5(obs.copy()))
+
+
+# ---- v6: 신호 앞에서 따라 배우기 쉽게 선다 ----
+
+def red(speed, line, **features):
+    return observe(speed, tl_distance=line / 100.0, tl_red=1.0, **features)
+
+
+def test_v6_does_not_creep_once_stopped_at_a_red_light(v5, v6):
+    """적색에 정지선 6m 앞에 섰다. v5는 정지선 2m 앞까지 다시 다가가고, v6은 최대 제동으로 그대로 선다."""
+    assert v5(red(0.0, 6.0))[0] > 0.0
+    assert v6(red(0.0, 6.0))[0] == -1.0
+    assert v6(red(0.0, 11.0))[0] == -1.0
+
+
+def test_v6_leaves_when_the_light_turns_green(v6):
+    assert v6(observe(0.0, tl_distance=6.0 / 100.0))[0] > 0.0
+
+
+def test_v6_does_not_speed_up_close_to_a_red_line(v6):
+    """정지선 10m 앞을 1m/s로 굴러간다. 정지점(정지선 4m 앞)까지 가속하지 않는다."""
+    assert v6(red(1.0, 10.0))[0] <= 0.0
+
+
+def test_v6_still_drives_up_to_a_far_red_light(v6):
+    assert v6(red(2.0, 80.0))[0] > 0.0
+
+
+def test_v6_brakes_with_the_deceleration_the_stop_point_needs(v6):
+    """10m/s, 정지점까지 50m면 1m/s²가 필요하다(가감속 raw -0.5). 25m면 2m/s²다(raw -1)."""
+    assert v6(red(10.0, 54.0, ego_acceleration=-1.0 / 2.0))[0] == pytest.approx(-0.5, abs=0.01)
+    assert v6(red(10.0, 29.0, ego_acceleration=-2.0 / 2.0))[0] == pytest.approx(-1.0, abs=0.01)
+
+
+def test_v6_does_not_speed_up_towards_a_yellow_light_it_will_stop_for(v5, v6):
+    """황색을 50m 앞에서 6m/s로 봤다. 설 수 있으므로 선다. v5는 정지점까지 가속했다가 줄이고, v6은 가속하지 않는다."""
+    obs = observe(6.0, tl_distance=50.0 / 100.0, tl_yellow=1.0)
+    assert v5(obs)[0] > 0.0
+    assert v6(obs)[0] <= 0.0
+
+
+@pytest.mark.parametrize("speed, line", [(13.0, 100.0), (8.0, 40.0), (3.0, 20.0), (0.5, 9.0)])
+def test_v6_stops_short_of_the_red_line_and_stays(v6, speed, line):
+    """v6의 행동만으로 버스를 굴린다(판단 0.5초, 가속 1m/s², 감속 2m/s²). 정지선 앞에 서고, 60초 동안 다시 움직이지 않는다."""
+    acceleration, standing_at = 0.0, None
+    for _ in range(240):
+        raw = float(v6(red(speed, line, ego_acceleration=acceleration / 2.0))[0])
+        acceleration = raw * (1.0 if raw >= 0.0 else 2.0)
+        new_speed = max(speed + acceleration * 0.5, 0.0)
+        line -= 0.5 * (speed + new_speed) * 0.5
+        speed = new_speed
+        if speed == 0.0:
+            acceleration = 0.0
+            standing_at = line if standing_at is None else standing_at
+            assert line == standing_at
+    assert standing_at is not None and 1.0 < standing_at < 13.0
+
+
+def test_v6_goes_through_a_yellow_light_at_once_when_it_cannot_stop(v5, v6):
+    """황색에 7.5m/s, 정지선 10m. 설 수 없으니 지나간다. 줄이던 중이었어도(-1.2m/s²) v6은 바로 가속하고,
+    v5는 가속도 변화 제한 때문에 한동안 계속 줄인다."""
+    obs = observe(7.5, tl_distance=10.0 / 100.0, tl_yellow=1.0, ego_acceleration=-1.2 / 2.0)
+    assert v5(obs)[0] < 0.0
+    assert v6(obs)[0] > 0.5
+
+
+@pytest.mark.parametrize("line", [15.0, 20.0, 30.0, 45.0, 60.0, 80.0])
+def test_v6_approach_speed_leaves_no_yellow_dilemma(v6, line):
+    """녹색 신호에 v6이 허용하는 가장 빠른 속도로 다가가다 황색을 본다. 어느 거리에서든 여유 있는 감속(1.5m/s²)으로
+    서거나, 황색 2.5초 안에 정지선을 1m 넘게 지나간다."""
+    speed = min(v6._signal_approach_speed(line), VMAX)
+    can_stop = speed * speed / (2.0 * (line - 0.5)) <= 1.5 + 1e-6
+    can_clear = speed * 2.5 >= line + 1.0 - 1e-6
+    assert can_stop or can_clear
+
+
+def test_v6_slows_at_once_when_above_the_approach_speed(v5, v6):
+    """녹색 신호 22m 앞에서 상한(v6 7.4m/s)보다 1.2m/s 빠르다. v6은 넘은 만큼(1.2m/s²) 줄이고, v5는 거의 줄이지 않는다."""
+    obs = observe(8.6, tl_distance=22.0 / 100.0, ego_acceleration=-0.7 / 2.0)
+    assert v6(obs)[0] < -0.5
+    assert v5(obs)[0] > -0.2
+
+
+def test_v6_does_not_outdrive_what_it_can_see(v5, v6):
+    """빈 도로를 13m/s로 달린다. 보이는 거리 50m 끝에 선 차가 나타나면 못 서는 속도다. v6은 줄이고 v5는 더 낸다.
+    11m/s면 설 수 있으므로 v6도 가속한다."""
+    assert v5(observe(13.0))[0] > 0.0
+    assert v6(observe(13.0))[0] < 0.0
+    assert v6(observe(11.0))[0] > 0.0
+
+
+def test_v6_can_stop_for_a_queue_that_comes_into_view(v6):
+    """v6이 빈 도로에서 스스로 고른 속도로 달리다 50m 앞에 선 차를 처음 본다. 그 차 뒤에 선다."""
+    speed, acceleration = 0.0, 0.0
+    for _ in range(120):
+        raw = float(v6(observe(speed, ego_acceleration=acceleration / 2.0))[0])
+        acceleration = raw * (1.0 if raw >= 0.0 else 2.0)
+        speed = max(speed + acceleration * 0.5, 0.0)
+    assert speed > 11.0
+    gap = 50.0
+    for _ in range(60):
+        raw = float(v6(observe(speed, ego_acceleration=acceleration / 2.0, lane_cars={"current": (gap, 0.0, 50.0, 0.0)}))[0])
+        acceleration = raw * (1.0 if raw >= 0.0 else 2.0)
+        new_speed = max(speed + acceleration * 0.5, 0.0)
+        gap -= 0.5 * (speed + new_speed) * 0.5
+        speed = new_speed
+    assert speed == 0.0 and gap > 0.5
+
+
+# ---- 신호만 바꾼 관측으로 학습 데이터 늘리기 ----
+
+def test_signal_flips_ask_the_expert_what_if_the_light_changed_now(v6):
+    """녹색 20m 앞 7.8m/s, 신호가 안 보이는 줄, 이미 적색인 줄. 첫 줄만 신호를 바꾼 사본이 생기고, 신호 값 말고는 그대로다.
+    정답은 그 관측에서 v6이 내는 행동이다: 황색이든 적색이든 세게 줄인다."""
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "research", "av_bc_rl"))
+    from augment_signals import signal_flips
+    green = observe(7.8, tl_distance=20.0 / 100.0, tl_yield=1.0)
+    data = np.stack([green, observe(7.8), red(7.8, 20.0)])
+    for seed in range(4):
+        rows, flipped, actions = signal_flips(data, v6, np.random.default_rng(seed))
+        assert rows.tolist() == [0] and flipped.shape == (1, len(OBSERVATION_FEATURES))
+        lights = {name: flipped[0][OBSERVATION_FEATURES.index(name)] for name in ("tl_red", "tl_yellow", "tl_yield")}
+        assert lights["tl_red"] + lights["tl_yellow"] == 1.0 and lights["tl_yield"] == 0.0
+        changed = {OBSERVATION_FEATURES[i] for i in np.flatnonzero(flipped[0] != green)}
+        assert changed <= {"tl_red", "tl_yellow", "tl_yield"}
+        assert np.array_equal(actions[0], v6(flipped[0])) and actions[0][0] < -0.7
+    assert v6(observe(7.8, tl_distance=20.0 / 100.0))[0] > -0.5

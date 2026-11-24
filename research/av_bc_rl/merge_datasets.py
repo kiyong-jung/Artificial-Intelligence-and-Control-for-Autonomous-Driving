@@ -28,13 +28,26 @@ def arrived_episodes(npz_path):
             if ep[-1]["event"].get("termination_reason") == "arrived"}
 
 
-def main(out, sources, keep_failed=False):
+def kept_by_filter(report, npz_path):
+    """filter_episodes.py --report가 남긴 에피소드 번호. 같은 이름의 .jsonl.gz 항목을 찾는다."""
+    name = Path(npz_path).name.removesuffix(".npz") + ".jsonl.gz"
+    for path, episodes in report.items():
+        if Path(path).name == name:
+            return {int(episode) for episode, entry in episodes.items() if entry["keep"]}
+    raise SystemExit(f"걸러낸 기록에 {name}이 없다")
+
+
+def main(out, sources, keep_failed=False, filter_report=None):
     parts = {key: [] for key in KEYS + ("episode",)}
     dropped = {}
+    report = json.loads(Path(filter_report).read_text(encoding="utf-8")) if filter_report else None
     for index, source in enumerate(sources):
         with np.load(source, allow_pickle=False) as data:
             keep = np.ones(len(data["episode"]), dtype=bool)
-            if not keep_failed:
+            if report is not None:
+                keep = np.isin(data["episode"], sorted(kept_by_filter(report, source)))
+                dropped[str(source)] = sorted({int(e) for e in data["episode"][~keep]})
+            elif not keep_failed:
                 keep = np.isin(data["episode"], sorted(arrived_episodes(source)))
                 dropped[str(source)] = sorted({int(e) for e in data["episode"][~keep]})
             for key in KEYS:
@@ -66,5 +79,7 @@ if __name__ == "__main__":
     parser.add_argument("out")
     parser.add_argument("sources", nargs="+")
     parser.add_argument("--keep-failed", action="store_true", help="완주하지 못한 에피소드도 넣는다")
+    parser.add_argument("--filter-report", default=None,
+                        help="filter_episodes.py --report 파일. 주면 거기서 남긴 에피소드만 넣는다")
     args = parser.parse_args()
-    main(args.out, args.sources, args.keep_failed)
+    main(args.out, args.sources, args.keep_failed, args.filter_report)

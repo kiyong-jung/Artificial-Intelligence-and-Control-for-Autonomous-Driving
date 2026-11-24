@@ -6,6 +6,12 @@
     python research/av_bc_rl/dagger.py --data data/research/bc_train.npz --model results/research/bc_s0/model.pt \
         --iterations 2 --episodes 30 --out results/research/dagger_s0 --seed 0
 
+같은 --out으로 다시 돌리면 끝난 반복(합본과 모델이 다 있는 것)은 건너뛰고 이어서 돈다.
+
+--overlap을 주면 수집과 학습을 겹쳐 돌린다. 반복 k를 학습하는 동안 반복 k+1의 롤아웃을 그때 가진 모델(반복 k-1의 것)로
+미리 모은다. 롤아웃이 한 반복 뒤진 모델의 것이 되는 대신 CPU가 쉬지 않아, 반복 하나가 수집+학습 시간이 아니라 둘 중 긴
+쪽만큼 걸린다.
+
 모르는 인자는 train_bc.py로 넘긴다(예: --loss bins --decode local). 처음 BC를 학습한 인자와 같게 준다.
 
 정답을 다른 판의 전문가로 다시 붙이려면(관측은 그대로다) 먼저 한 번 실행한다. metadata의 policy도 그 판으로 바뀐다.
@@ -17,6 +23,7 @@ import argparse
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -64,6 +71,8 @@ def main():
     parser.add_argument("--augment-signals", action="store_true",
                         help="반복마다 합본에 신호만 황색·적색으로 바꾼 관측을 더해 학습한다(augment_signals.py). "
                              "합본 자체에는 넣지 않는다. 처음 BC도 그렇게 늘린 데이터로 학습한 것이어야 한다")
+    parser.add_argument("--overlap", action="store_true",
+                        help="학습하는 동안 다음 반복의 롤아웃을 그때 가진 모델로 미리 모은다")
     parser.add_argument("--out")
     args, train_args = parser.parse_known_args()
 
@@ -86,8 +95,9 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     expert = expert_from_metadata(meta)
     model = Path(args.model)
-    for iteration in range(1, args.iterations + 1):
-        rollouts = []
+    def collect(iteration, model):
+        """반복 하나의 롤아웃을 교통량마다 모은다. 이미 있는 것은 건너뛴다."""
+        paths = []
         for scenario, base in SCENARIO_SEEDS.items():
             name = f"dagger_s{args.seed}_it{iteration}_{scenario}"
             # 반복마다 rollout seed가 겹치지 않게 episodes만큼 띄운다. 학습 seed(args.seed)는 100씩 띄운다.
@@ -97,7 +107,22 @@ def main():
                                 "--seed", str(seed), "--policy", "bc", "--model", str(model), "--episodes",
                                 str(args.episodes), "--workers", str(args.workers), "--max-steps", "1400",
                                 "--out-dir", str(out), "--name", name], cwd=REPO, check=True, stdout=subprocess.DEVNULL)
-            rollouts.append(out / f"{name}.npz")
+            paths.append(out / f"{name}.npz")
+        return paths
+
+    ahead = None   # --overlap: 다음 반복의 롤아웃을 미리 모으는 스레드와 그 실패
+    for iteration in range(1, args.iterations + 1):
+        done_data, done_model = out / f"dagger_s{args.seed}_it{iteration}.npz", out / f"bc_it{iteration}" / "model.pt"
+        if done_data.exists() and done_model.exists():   # 끊긴 실행을 이어 돌릴 때 끝난 반복은 건너뛴다
+            data_path, model = done_data, done_model
+            continue
+        shutil.rmtree(out / f"bc_it{iteration}", ignore_errors=True)   # 학습 도중 끊긴 폴더
+        if ahead is not None:
+            thread, failure = ahead
+            thread.join()
+            if failure:
+                raise failure[0]
+        rollouts = collect(iteration, model)
         merged = {}
         with np.load(data_path, allow_pickle=False) as data:
             base_arrays = {key: data[key] for key in data.files}
@@ -121,6 +146,18 @@ def main():
             shutil.copyfile(data_path.with_name(data_path.name.removesuffix(".npz") + ".metadata.json"),
                             train_path.with_name(train_path.name.removesuffix(".npz") + ".metadata.json"))
         run_dir = out / f"bc_it{iteration}"
+        ahead = None
+        if args.overlap and iteration < args.iterations:
+            failure = []
+
+            def collect_ahead(next_iteration=iteration + 1, current=model, failure=failure):
+                try:
+                    collect(next_iteration, current)
+                except Exception as error:   # 스레드 안의 실패를 다음 반복 머리에서 다시 던진다
+                    failure.append(error)
+            thread = threading.Thread(target=collect_ahead)
+            thread.start()
+            ahead = (thread, failure)
         subprocess.run([PY, str(REPO / "train_bc.py"), "--data", str(train_path), "--epochs", str(args.epochs),
                         "--seed", str(args.seed), "--device", "cpu", "--out-dir", str(run_dir), *train_args],
                        cwd=REPO, check=True, stdout=subprocess.DEVNULL)

@@ -19,6 +19,7 @@
 ego는 수업 원본처럼 SUMO 안전 보조 없이 달린다(speedMode 0, laneChangeMode 0). 앞차, 적색 신호, 보행자를
 SUMO가 대신 피해 주지 않는다. 충돌(차, 보행자)과 적색 신호 통과는 환경이 찾아 에피소드를 끝낸다.
 """
+import math
 import os
 import sys
 
@@ -58,7 +59,7 @@ if "SUMO_HOME" not in os.environ:
 sys.path.append(os.path.join(os.environ["SUMO_HOME"], "tools"))
 
 import traci
-from sumolib import checkBinary
+from sumolib import checkBinary, geomhelper
 
 from env.route_map import RouteMap
 from env.data_schema import NEAR_FEATURES, ROUTE_FEATURES
@@ -456,6 +457,9 @@ class SumoHighwayEnv(gym.Env):
             res = (traci.vehicle.getLeader(self.ego_id, reach) if leader
                    else traci.vehicle.getFollower(self.ego_id, self.visibility))
             side = self._in_path_side_leader(reach) if leader else None
+            fork = self._fork_leader(reach) if leader else None
+            if fork is not None and (side is None or fork[0] < side[0]):
+                side = fork
             if not res or not res[0]:
                 return side
             vid, gap = res
@@ -511,6 +515,36 @@ class SumoHighwayEnv(gym.Env):
                         gap = max(0.0, distance + position - start - traci.vehicle.getLength(vid) - min_gap)
                         if gap <= reach and (best is None or gap < best[0]):
                             best = (float(gap), float(traci.vehicle.getSpeed(vid)))
+        return best
+
+    def _fork_leader(self, reach):
+        """버스가 지날 교차로 안 길과 같은 진입 차로에서 갈라지는 길에 있으면서 차체가 버스 길에 걸친 차.
+
+        getLeader는 갈라지는 연결의 차를 보지 않는다. 좌회전하려고 교차로 안에 선 차의 꼬리가 직진 길 시작에
+        걸치면 버스가 못 보고 들이받는다(도로망 3.22.0 J74). 차체를 1m 간격으로 짚어 버스 길 중심선에
+        (두 차 반폭 + IN_PATH_CLEARANCE)보다 가까운 점이 있으면 앞차로 본다. 간격은 그 점까지의 길 거리다.
+        """
+        best, prev = None, None
+        min_gap = traci.vehicle.getMinGap(self.ego_id)
+        half = traci.vehicle.getWidth(self.ego_id) / 2.0
+        for lane, start, _end, distance in self._forward_segments(0, reach):
+            if lane.startswith(":") and prev is not None and not prev.startswith(":"):
+                shape = traci.lane.getShape(lane)
+                for _next, via in self._geometry(prev)[1]:
+                    if not via or via == lane:
+                        continue
+                    for vid in traci.lane.getLastStepVehicleIDs(via):
+                        x, y = traci.vehicle.getPosition(vid)
+                        angle = math.radians(traci.vehicle.getAngle(vid))
+                        near = half + traci.vehicle.getWidth(vid) / 2.0 + IN_PATH_CLEARANCE
+                        for back in range(int(traci.vehicle.getLength(vid)) + 1):
+                            point = (x - back * math.sin(angle), y - back * math.cos(angle))
+                            if geomhelper.distancePointToPolygon(point, shape) < near:
+                                along = geomhelper.polygonOffsetWithMinimumDistanceToPoint(point, shape)
+                                gap = max(0.0, distance + along - start - min_gap)
+                                if gap <= reach and (best is None or gap < best[0]):
+                                    best = (float(gap), float(traci.vehicle.getSpeed(vid)))
+            prev = lane
         return best
 
     def _lane_connectivity(self, offset: int) -> float:

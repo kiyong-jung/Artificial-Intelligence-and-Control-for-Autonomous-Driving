@@ -22,7 +22,9 @@ from env.bus_task import LAYOUT, REWARDS  # noqa: E402
 from env.data_schema import COLUMNS  # noqa: E402
 from pdm_data.features import FEATURE_NAMES  # noqa: E402
 from pdm_data.labels import accel_mps2, accel_report  # noqa: E402
+from pdm_data.lap_context import load_lap_context  # noqa: E402
 from pdm_data.recorder import _round, read_events, read_steps  # noqa: E402
+from pdm_data.scenario_offline import s5_events, s6_events  # noqa: E402
 from pdm_data.ssm import parse_ssm  # noqa: E402
 from pdm_data.transitions import COMFORT_LIMITS, build_transitions, load_meta, obs_online_check  # noqa: E402
 
@@ -117,7 +119,11 @@ def main(argv=None):
                                   with_replay=True)
     meta = load_meta(a.run_dir)
     ssm = parse_ssm(os.path.join(a.run_dir, "ssm.xml"))
-    events = read_events(a.run_dir) + derived_events(stats) + [
+    # S5·S6은 수집 중에 판정하지 않고 여기서 원시 행으로 판정한다(pdm_data/scenario_offline.py)
+    all_rows = list(read_steps(a.run_dir))
+    offline = s5_events(all_rows, meta.get("route", {}).get("s5_feeders", [])) + \
+        s6_events(all_rows, load_lap_context(a.run_dir))
+    events = read_events(a.run_dir) + derived_events(stats) + offline + [
         {"kind": "ssm_conflict", "lap": None, "t_start": c["begin"], "t_end": c["end"], "ids": [c["foe"]],
          "injected": False, "detail": c} for c in ssm]
     stats.pop("_replays")

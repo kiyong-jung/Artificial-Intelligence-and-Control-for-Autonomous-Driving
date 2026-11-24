@@ -34,7 +34,7 @@ def substep(t, edge, lane_index, lane_pos, speed, phase="idle", direction=0, lap
     return {"t": t, "edge": edge, "lane_id": lane_id or f"{edge}_{lane_index}", "lane_index": lane_index,
             "lane_position": lane_pos, "lap_index": lap_index, "lap_position": lap_position, "distance": distance,
             "speed": speed, "acceleration": acceleration, "tls0": tls0, "phase": phase, "request_direction": direction,
-            "forced": False}
+            "forced": False, "crossings": {}}
 
 
 def make_row(episode=1, t=0, speed=5.0, edge="R69", lane_index=1, x=0.0, y=0.0, phase="idle", heading=0.0,

@@ -66,6 +66,27 @@ def test_expert_columns_from_window(tmp_path):
     assert tr[1]["expert"]["pdm_fraction"] is None
 
 
+def test_preprocess_adds_offline_s5_events(tmp_path):
+    import gzip
+    import json
+    d = make_run_dir(tmp_path)
+    path = os.path.join(d, "steps.jsonl.gz")
+    rows = [json.loads(x) for x in gzip.open(path, "rt", encoding="utf-8")]
+    car = {"id": "inj_S51", "x": 0.0, "y": 0.0, "speed": 5.0, "heading": 0.0}
+    rows[0]["vehicles"] = [dict(car, road_id="G23", lane_position=30.0)]
+    rows[1]["vehicles"] = [dict(car, road_id="R69", lane_position=rows[1]["ego"]["lane_position"] + 20.0)]
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r) + "\n")
+    meta_path = os.path.join(d, "metadata.json")
+    meta = json.load(open(meta_path, encoding="utf-8"))
+    meta["route"]["s5_feeders"] = ["G23"]
+    json.dump(meta, open(meta_path, "w", encoding="utf-8"))
+    subprocess.run([sys.executable, SCRIPT, d, "--accel-pos", "1.5", "--accel-neg", "3.0"], check=True, capture_output=True)
+    events = [json.loads(x) for x in open(os.path.join(d, "processed", "events.jsonl"), encoding="utf-8")]
+    assert [e["ids"] for e in events if e["kind"] == "s5_cutin"] == [["inj_S51"]]
+
+
 def test_max_lap_s_truncates(tmp_path):
     tr, stats = build_transitions(make_run_dir(tmp_path), 1.5, 3.0, max_lap_s=2.0)
     assert len(tr) == 4 and tr[-1]["truncated"] and tr[-1]["event"]["termination_reason"] == "time_limit"

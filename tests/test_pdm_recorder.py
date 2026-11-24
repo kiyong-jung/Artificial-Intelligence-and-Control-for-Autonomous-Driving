@@ -183,6 +183,39 @@ def test_calltap_restores_class_level_methods():
     assert Dom.changeLane("bus0", 1, 1.0) == "orig"
 
 
+def _bus_before_crossing(back=10.0):
+    """첫 횡단보도 back m 앞의 버스 자리: (도로, 차로 위치, 횡단보도 id)."""
+    at, cid = CTX.route_map.crossings[0]
+    pos = at - back
+    i = max(k for k, s in enumerate(CTX.route_map.start) if s <= pos)
+    return CTX.lap_edges[i], pos - CTX.route_map.start[i], cid
+
+
+def test_substep_records_crossing_peds():
+    rec, w = make_recorder()
+    edge, lane_pos, cid = _bus_before_crossing()
+    rec.tc.edge.table["getLastStepPersonIDs"] = lambda c: ["p1"] if c == cid else []
+    run_steps(rec, 1)
+    rec.tc.vehicle.items["bus0"].update(road=edge, lane=f"{edge}_1", lane_pos=lane_pos)
+    rec.last_road = edge
+    run_steps_from(rec, 2, 11)
+    sub = w.steps[0]["window"]["substeps"][-1]
+    assert sub["crossings"] == {cid: ["p1"]}
+
+
+def test_no_per_step_person_scan_near_crossing():
+    """S6 판정은 전처리로 옮겼다: 횡단보도 근처에서도 보행자 전체를 0.1 s마다 훑지 않는다(스냅숏 때만 읽는다)."""
+    rec, w = make_recorder()
+    edge, lane_pos, cid = _bus_before_crossing()
+    rec.tc.person.items["p1"] = dict(road=cid)
+    run_steps(rec, 1)
+    rec.tc.vehicle.items["bus0"].update(road=edge, lane=f"{edge}_1", lane_pos=lane_pos)
+    rec.last_road = edge
+    run_steps_from(rec, 2, 11)
+    n = sum(1 for name, args in rec.tc.calls if name == "person.getRoadID" and args == ("p1",))
+    assert n <= 2 and not [e for e in w.events if e["kind"] in ("s5_cutin", "s6_pass")]
+
+
 def run_steps_from(rec, start, end):
     for i in range(start, end + 1):
         rec.tc.now = round(i * 0.1, 6)

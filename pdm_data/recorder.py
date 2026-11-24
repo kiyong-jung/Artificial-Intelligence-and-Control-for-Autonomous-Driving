@@ -11,7 +11,7 @@ import os
 
 from .lap_context import LapContext, lap_route_index
 from .scenario_tags import RoleBook, ScenarioTracker
-from .schema import BUS, DECISION_STEPS, DETECT_RADIUS_M, DT
+from .schema import BUS, DECISION_STEPS, DETECT_RADIUS_M, DT, S6_AFTER_M, S6_BEFORE_M
 from .snapshot import take_snapshot
 
 
@@ -111,7 +111,8 @@ class Recorder:
         self.tap = CallTap(tc, BUS)
         self.tap.install()
         self.roles = RoleBook(world, lap_fn=lambda: pilot.lap)
-        self.scen = ScenarioTracker(tc, world, pilot, ctx, {a.feeder for a in getattr(world, "alleys", [])})
+        self.scen = ScenarioTracker(tc, world, pilot, ctx)
+        self.feeders = sorted({a.feeder for a in getattr(world, "alleys", [])})    # S5 판정(전처리)에 쓰는 골목 도로
         self.sim_step, self.started, self.pending, self._win = 0, False, None, None
         self.episode, self.t_ep, self.t_start = None, 0, None
         self.last_road, self.stopped_since = None, None
@@ -266,7 +267,7 @@ class Recorder:
                               "lap_index": idx, "lap_position": lap_pos, "distance": v.getDistance(BUS),
                               "speed": v.getSpeed(BUS), "acceleration": acc, "tls0": list(tls[0]) if tls else None,
                               "phase": p.phase, "request_direction": self._direction(lane_idx),
-                              "forced": p._forced_p is not None})
+                              "forced": p._forced_p is not None, "crossings": self._crossing_peds(lap_pos)})
         w["peak_acceleration"] = max(w["peak_acceleration"], abs(acc))
         w["peak_jerk"] = max(w["peak_jerk"], abs(acc - w["last_acc"]) / DT)
         w["last_acc"] = acc
@@ -294,6 +295,20 @@ class Recorder:
         if lp is not None and lp.get("sim_time", -1e18) >= w["t0"] - 1e-9 and \
                 (not w["pdm_plans"] or w["pdm_plans"][-1].get("sim_time") != lp.get("sim_time")):
             w["pdm_plans"].append(lp)
+
+    def _crossing_peds(self, lap_pos) -> dict:
+        """버스가 횡단보도 50 m 앞부터 지나갈 때까지(S6 구역) 그 횡단보도 위 보행자 id. 횡단보도마다 조회 한 번이라 싸다.
+        S6 판정과 PET는 전처리가 이 값으로 0.1 s 정밀도로 계산한다."""
+        if lap_pos is None:
+            return {}
+        out = {}
+        for at, cid in self.ctx.route_map.crossings:
+            if -S6_BEFORE_M <= lap_pos - at <= S6_AFTER_M:
+                try:
+                    out[cid] = list(self.tc.edge.getLastStepPersonIDs(cid))
+                except Exception:
+                    out[cid] = None
+        return out
 
     def _close_window(self, lap_done):
         v, w = self.tc.vehicle, self._win

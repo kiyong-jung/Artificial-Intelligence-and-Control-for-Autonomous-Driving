@@ -1,18 +1,19 @@
-"""역할(주입·시나리오·A1/A3)과 시나리오 사건(설계 7.11, 8절). 판정 규칙은 scripts/measure_s1_s6.py와 같다."""
+"""역할(주입·시나리오·A1/A3)과 시나리오 사건(설계 7.11, 8절). 판정 규칙은 scripts/measure_s1_s6.py와 같다.
+
+S5(골목 끼어들기)와 S6(횡단보도 통과)은 수집 중에 판정하지 않고 전처리(pdm_data/scenario_offline.py)에서 판정한다.
+"""
 from __future__ import annotations
 
 import math
 
-from traffic.metrics import pet
 from traffic.sumo_conn import traci
 
-from .lap_context import LapContext, lap_route_index
-from .schema import BUS, DETECT_RADIUS_M, DT, INDUCED_BRAKE_MPS2, NEAR_M, S5_WINDOW_S, STATE_RADIUS_M
+from .lap_context import LapContext
+from .schema import BUS, DETECT_RADIUS_M, DT, INDUCED_BRAKE_MPS2, NEAR_M, STATE_RADIUS_M
 
 TraCIException = traci.exceptions.TraCIException
 VEH_PREFIX = (("inj_s5", "S5"), ("inj_S5", "S5"), ("stopahead", "S4"), ("stopped", "S4"), ("taxi0", "S4"))
 PED_PREFIX = (("inj_s6_", "S6_injected"), ("s6ped", "S6_background"))
-BUS_LENGTH_M, CROSSING_WIDTH_M = 12.0, 4.0
 
 
 def _event(kind, lap, t_start, t_end=None, ids=(), injected=False, detail=None):
@@ -117,17 +118,13 @@ class RoleBook:
 class ScenarioTracker:
     """0.1 s마다 step()을 부른다. 사건은 new_events()로 꺼낸다."""
 
-    def __init__(self, tc, world, pilot, ctx: LapContext, feeders):
-        self.tc, self.world, self.pilot, self.ctx, self.feeders = tc, world, pilot, ctx, set(feeders)
+    def __init__(self, tc, world, pilot, ctx: LapContext):
+        self.tc, self.world, self.pilot, self.ctx = tc, world, pilot, ctx
         self._events = []
         self._prev_phase, self._attempt = "idle", None
         self._stop = None
-        self._alley_seen, self._cut = {}, set()
-        self._s6 = {}
         self._nearby, self._prev_speed, self._braking = (), {}, {}
         self._follower = None
-        self._last_road = None
-        self._n = 0
 
     def _lap(self):
         return self.pilot.lap
@@ -145,22 +142,13 @@ class ScenarioTracker:
 
     # ---- 매 0.1 s ----
     def step(self, t, collisions=(), teleports=(), emergency=()):
-        tc, v = self.tc, self.tc.vehicle
-        self._n += 1
+        """S5(골목 끼어들기)·S6(횡단보도 통과)은 여기서 판정하지 않는다: 매 스텝 전체 차량·보행자를 훑지 않도록
+        원시 행으로 전처리에서 판정한다(pdm_data/scenario_offline.py)."""
+        v = self.tc.vehicle
         bx, by = v.getPosition(BUS)
-        road, lane, lane_pos, lane_idx = v.getRoadID(BUS), v.getLaneID(BUS), v.getLanePosition(BUS), v.getLaneIndex(BUS)
-        if not road.startswith(":"):
-            self._last_road = road
-        try:
-            pos = self.ctx.route_map.position(lap_route_index(road, self._last_road, self.ctx.lap_edges), lane, lane_pos)
-        except ValueError:
-            pos = None
         self._sim_events(t, bx, by, collisions, teleports, emergency)
-        self._lane_window(t, lane_idx)
-        self._s1(t, road, lane_pos)
-        self._s5(t, road, lane_pos)
-        if pos is not None:
-            self._s6_step(t, pos, v.getSpeed(BUS))
+        self._lane_window(t, v.getLaneIndex(BUS))
+        self._s1(t, v.getRoadID(BUS), v.getLanePosition(BUS))
         self._induced(t)
 
     def _near(self, oid, bx, by, radius):
@@ -218,66 +206,6 @@ class ScenarioTracker:
                                                "follower_start": s["follower"], "follower_end": end,
                                                "follower_overtook": s["follower"] is not None and end != s["follower"]}))
             self._stop = None
-
-    def _s5(self, t, road, lane_pos):
-        if not self.feeders or self._n % 5:
-            return
-        v = self.tc.vehicle
-        for vid in v.getIDList():
-            if vid == BUS:
-                continue
-            try:
-                r = v.getRoadID(vid)
-                if r in self.feeders:
-                    self._alley_seen[vid] = (t, r)
-                elif vid in self._alley_seen and vid not in self._cut and t - self._alley_seen[vid][0] <= S5_WINDOW_S \
-                        and r == road and 0 < v.getLanePosition(vid) - lane_pos <= NEAR_M:
-                    self._cut.add(vid)
-                    self._events.append(_event("s5_cutin", self._lap(), self._alley_seen[vid][0], t, ids=[vid],
-                                               injected=vid.lower().startswith("inj_s5"),
-                                               detail={"alley": self._alley_seen[vid][1],
-                                                       "gap": v.getLanePosition(vid) - lane_pos,
-                                                       "bus_speed": v.getSpeed(BUS)}))
-            except TraCIException:
-                continue
-
-    def _s6_step(self, t, pos, speed):
-        for at, cid in self.ctx.route_map.crossings:
-            st = self._s6.get(cid)
-            zone = -NEAR_M <= pos - at <= BUS_LENGTH_M + CROSSING_WIDTH_M
-            if st is None and zone and pos <= at:
-                st = self._s6[cid] = {"t": t, "at": at, "bus_in": None, "bus_out": None, "peds": {}, "min_speed": speed}
-            if st is None:
-                continue
-            st["min_speed"] = min(st["min_speed"], speed)
-            if st["bus_in"] is None and pos >= at:
-                st["bus_in"] = t
-            for pid in self.tc.person.getIDList():
-                try:
-                    on = self.tc.person.getRoadID(pid) == cid
-                except TraCIException:
-                    continue
-                iv = st["peds"].get(pid)
-                if on and iv is None:
-                    st["peds"][pid] = [t, None]
-                elif not on and iv is not None and iv[1] is None:
-                    iv[1] = t
-            if pos - BUS_LENGTH_M > at + CROSSING_WIDTH_M or not (-NEAR_M - 1.0 <= pos - at <= 100.0):
-                st["bus_out"] = t
-                self._close_s6(cid, t)
-
-    def _close_s6(self, cid, t):
-        st = self._s6.pop(cid)
-        if not st["peds"]:
-            return
-        bus_iv = (st["bus_in"], st["bus_out"]) if st["bus_in"] is not None else None
-        pets = {pid: pet((iv[0], iv[1] if iv[1] is not None else t), bus_iv) for pid, iv in st["peds"].items()}
-        vals = [p for p in pets.values() if p is not None]
-        self._events.append(_event("s6_pass", self._lap(), st["t"], t, ids=list(st["peds"]),
-                                   injected=any(p.startswith("inj_s6_") for p in st["peds"]),
-                                   detail={"crossing": cid, "bus_interval": bus_iv, "ped_intervals": st["peds"],
-                                           "pet": pets, "min_pet": min(vals) if vals else None,
-                                           "bus_min_speed": st["min_speed"]}))
 
     def _induced(self, t):
         v = self.tc.vehicle

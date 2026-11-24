@@ -21,7 +21,7 @@ sys.path.insert(0, HERE)
 from behavior_metrics import episode_metrics, load_episodes, summarize  # noqa: E402
 
 SPLITS = {"dev": 1000, "train": 2000, "final": 9000}
-SCENARIO_OFFSET = {"quiet": 0, "baseline": 300, "busy": 600}   # 교통량마다 다른 seed를 쓴다
+SCENARIO_OFFSET = {"quiet": 0, "baseline": 300, "busy": 600, "heavy": 900}   # 교통량마다 다른 seed를 쓴다
 MAX_STEPS = 1400   # 700초. 전문가의 busy 한 바퀴(정차 포함)는 330~480초다
 
 

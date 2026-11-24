@@ -10,7 +10,9 @@ from copy import deepcopy
 from maps import DEFAULT_MAP, load_map
 
 # baseline 자체가 혼잡한 수요다. busy는 내부 차량이 더 늘어나는 범위에서 1.25배를 쓴다.
-SCENARIOS = {"quiet": 0.5, "baseline": 1.0, "busy": 1.25}
+# heavy(1.5배)는 상호작용을 늘리려고 나중 단계에 더하는 교통량이다. 규칙 운전사 v7이 10바퀴를 모두 완주했고
+# 1.75배부터는 서교동사거리 앞 끼어들기에서 멈춰 선다(reports/progress_log.md 30번).
+SCENARIOS = {"quiet": 0.5, "baseline": 1.0, "busy": 1.25, "heavy": 1.5}
 
 # ego 차량 제원. 지도마다 map.json의 ego_vehicle이 고른다(없으면 car).
 # 가감속 한계는 행동 a=±1의 크기다. 실제 한 스텝의 가감속은 mdp_config의 행동 정의가 결정한다.

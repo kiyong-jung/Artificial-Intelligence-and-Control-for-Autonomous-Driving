@@ -75,6 +75,24 @@ def body(x, y, heading, length, width):
             (x - fx * length + lx, y - fy * length + ly)]
 
 
+def standing_reason(row):
+    """버스가 서 있을 때 그 이유를 기록에서 짐작한다. 달리는 중이면 빈 문자열."""
+    state = row["state"]
+    if state["ego"].get("speed", 1.0) > 0.1:
+        return ""
+    nav, light = state.get("navigation") or {}, state.get("traffic_light") or {}
+    stop = nav.get("distance_to_stop")
+    if stop is not None and stop < 3.0:
+        return "정류장 정차"
+    ahead = [v["route_distance"] for v in row.get("detected_vehicles", ())
+             if v.get("lane_relation") == "same" and (v.get("route_distance") or -1) > 0]
+    if ahead and min(ahead) < 20.0:
+        return "앞차 뒤 대기"
+    if light.get("state") in tuple("rRyYu") and (light.get("distance_to_stop_line") or 99) < 15.0:
+        return "신호 대기"
+    return "이유 없음(끼어들 틈 대기 등)"
+
+
 def read_episode(path, episode):
     rows = []
     with gzip.open(path, "rt", encoding="utf-8") as f:
@@ -163,12 +181,13 @@ def main():
                      ("다음 회전", f"{TURN.get(nav.get('next_turn'), nav.get('next_turn'))} {nav.get('distance_to_turn') or 0:.0f} m"),
                      ("다음 정류장", f"{nav.get('distance_to_stop'):.0f} m" if nav.get("distance_to_stop") is not None else "-"),
                      ("정차한 정류장", f"{event.get('stops_served', 0)} / 4"),
-                     ("놓친 정류장", str(event.get("stops_missed", 0)))]
-            y = 70
+                     ("놓친 정류장", str(event.get("stops_missed", 0))),
+                     ("서 있는 이유", standing_reason(row) or "-")]
+            y = 64
             for label, value in lines:
                 draw.text((x, y), label, font=font(19), fill=(170, 170, 176))
                 draw.text((VIEW + PANEL - 24, y), value, font=font(21, True), fill="white", anchor="ra")
-                y += 40
+                y += 37
             draw.text((x, y + 6), "다음 신호", font=font(19), fill=(170, 170, 176))
             if light.get("state"):
                 color = SIGNAL.get(light["state"], (140, 140, 140))

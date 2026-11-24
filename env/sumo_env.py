@@ -61,6 +61,7 @@ sys.path.append(os.path.join(os.environ["SUMO_HOME"], "tools"))
 import traci
 from sumolib import checkBinary, geomhelper
 
+from env import traci_memo
 from env.route_map import RouteMap
 from env.data_schema import NEAR_FEATURES, ROUTE_FEATURES
 
@@ -266,6 +267,7 @@ class SumoHighwayEnv(gym.Env):
             # --start가 없으면: 창이 뜬 뒤 ▶(플레이)를 눌러야 진행된다.
             #   매 에피소드가 reset()에서 SUMO를 새로 띄우므로,
             #   에피소드마다 ▶를 눌러 시작하게 된다.
+        traci_memo.install()   # 같은 계산 스텝 안의 중복 조회를 한 번만 보낸다(값은 같다)
         traci.start(cmd)   # SUMO를 자식 프로세스로 띄우고 소켓 연결
         self._started = True
 

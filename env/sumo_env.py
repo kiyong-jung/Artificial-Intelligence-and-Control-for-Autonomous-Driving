@@ -939,17 +939,28 @@ class SumoHighwayEnv(gym.Env):
         if self._lane_change is not None:
             origin, direction = self._lane_change
             self._segment_cache.clear()
-            if traci.vehicle.getLaneID(self.ego_id) != origin or not (moving or requested):
+            lane = traci.vehicle.getLaneID(self.ego_id)
+            if lane != origin or not (moving or requested):
                 self._lane_change = None
             elif self.lc_safety_enabled and not self._lane_change_is_safe(direction):
                 self._lane_change, self._centring, aborted = None, True, True
             else:
                 return False
-            if requested:
+            stayed = lane == origin
+            if requested or stayed:
                 # SUMO에 남은 요청을 지운다. 남겨 두면 가운데로 돌아온 뒤나 다음 도로에서 SUMO가 다시 옮기기 시작하고,
                 # 그 차선변경은 게이트가 보지 않는다(train baseline 2300, 되돌린 0.5초 뒤 다시 넘어가 부딪혔다).
+                # SUMO는 요청을 끝 시각의 계산까지 쓰므로(MSVehicle::Influencer::influenceChangeDecision) 환경이 끝났다고
+                # 보는 계산에도 지운다.
                 traci.vehicle.changeLane(self.ego_id, traci.vehicle.getLaneIndex(self.ego_id), 0.0)
                 self._lane_request_until = -1.0
+            if stayed:
+                # 출발 차로에서 끝난 차선변경(요청 시간 안에 옆으로 못 움직였거나 되돌렸다)은 남은 옆 거리도 지운다. SUMO는
+                # 시작한 TraCI 차선변경의 남은 거리를 따로 옆 이동 요청으로 들고 있어(MSLaneChangerSublane::startChangeSublane)
+                # 요청 시간이 지나도 끝까지 옮긴다. 선 채로 받은 요청은 서 있는 동안 못 움직이다가, 정책이 요청을 거둔 뒤
+                # 출발하자 게이트 없이 옮겨 가 옆 차로 차와 부딪혔다(J83·J42 가로변 좌회전을 지운 도로망, dev baseline 1305·1307).
+                # 옮기는 중에 교차로에 들어선 차선변경은 정책이 낸 그대로 교차로 안에서 마저 옮긴다(J87).
+                traci.vehicle.changeSublane(self.ego_id, 0.0)
         lateral = float(traci.vehicle.getLateralLanePosition(self.ego_id))
         if abs(lateral) < 0.01:
             self._centring = False

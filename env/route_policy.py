@@ -9,6 +9,8 @@ numpy만 쓴다. 도로만 다시 만드는 사람에게 torch를 요구하지 �
 - ExpertPolicyV5: v4의 차선변경 판단과 앞차 추종을 버스 제원으로 설 수 있는 간격에 맞춘 판(--policy expert-v5).
   데이터 수집 정책이다. 무엇을 쓰고 무엇을 쓰지 않는지는 research/av_bc_rl/collection_policy.md에 있다.
 - ExpertPolicyV6: v5에서 신호 앞에 서는 방법만 따라 배우기 쉽게 바꾼 판(--policy expert-v6). 신경망의 정답을 만든다.
+- ExpertPolicyV7: v6에서 경로가 이어지는 차로가 보이는 범위 밖에 있을 때 그쪽으로 옮기게 한 판(--policy expert-v7).
+  도로망 3.22.0부터 쓴다.
 
 두 전문가가 쓰는 것은 정책 입력(관측 43개)과 생성자가 받는 고정 값(차량 제원, 관측 정규화 거리, 환경 게이트 값)뿐이다.
 SUMO 내부 상태, 도로 id, 위치, 차로 번호, 지난 관측은 쓰지 않는다. 환경도 버스를 돕지 않는다(speedMode 0,
@@ -456,7 +458,31 @@ class ExpertPolicyV6(ExpertPolicyV5):
         return self._idm(v, min(v0, np.sqrt(2.0 * onset * room)), None, 0.0, 0.0)
 
 
-EXPERT_VERSIONS = {4: ExpertPolicy, 5: ExpertPolicyV5, 6: ExpertPolicyV6}
+class ExpertPolicyV7(ExpertPolicyV6):
+    """v6에서 경로가 이어지는 차로가 보이는 범위(양옆 두 칸) 밖에 있을 때 그쪽으로 옮기게 한 판(--policy expert-v7).
+
+    관측은 지금 차로와 양옆 두 칸씩만 본다. 3.22.0부터 합정역 사거리(J1)는 양화로 R42 4번 차로에서만 좌회전하고, 그
+    차로는 R54 5번 차로에서 이어진다. 버스는 J87을 지나 R54 2번 차로로 들어오므로 보이는 차로(1~4번)가 모두 J1 정지선에서
+    끝난다. v6은 더 멀리 이어지는 차로가 보이지 않으면 옮기지 않고 차로 끝에 서서, dev quiet 20회가 모두 R42에서 stuck이
+    됐다. 경로는 이어지므로 이어지는 차로는 어딘가에 있다. 한쪽은 길 끝(그 옆 차로가 없다)이 보이고 다른 쪽은 두 칸 옆에도
+    차로가 있으면 그 차로는 열린 쪽 시야 밖에 있다. 그쪽으로 한 칸씩 옮긴다. 양쪽이 다 열려 있으면 어느 쪽인지 알 수 없어
+    v6과 같다. v6이 차로 끝에 서서 움직이지 못하던 상태에서만 행동이 다르다. 내부 상태는 없다.
+    """
+
+    def _wanted_lane(self, obs):
+        direction, remaining = super()._wanted_lane(obs)
+        lane_end = self._reach(obs, "current")
+        stop_distance = self._f(obs, "stop_distance") * self.stop_range
+        if direction or lane_end == float("inf") or stop_distance < min(self.stop_lane_ahead, lane_end):
+            return direction, remaining
+        visible = max(self._reach(obs, lane) for lane in ("left1", "left2", "right1", "right2"))
+        open_left, open_right = self._reach(obs, "left2") >= 0.0, self._reach(obs, "right2") >= 0.0
+        if visible <= lane_end + self.lane_reach_margin and open_left != open_right:
+            return (1 if open_left else -1), lane_end
+        return direction, remaining
+
+
+EXPERT_VERSIONS = {4: ExpertPolicy, 5: ExpertPolicyV5, 6: ExpertPolicyV6, 7: ExpertPolicyV7}
 
 
 def make_expert(env, version=4):

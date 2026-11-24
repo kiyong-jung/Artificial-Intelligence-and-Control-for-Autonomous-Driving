@@ -155,7 +155,7 @@ def make_policy(args, env, worker_seed: int):
     if args.policy == "expert":
         return make_expert(env)
 
-    if args.policy in ("expert-v5", "expert-v6"):
+    if args.policy in ("expert-v5", "expert-v6", "expert-v7"):
         return make_expert(env, version=int(args.policy[-1]))
 
     # random: 가감속은 연속 uniform[-1,1], 차선변경은 {-1,0,+1} 직접 샘플링 (유지를 더 자주)
@@ -404,7 +404,7 @@ def merge_parts(parts, jsonl_path, npz_path):
 def main():
     parser = argparse.ArgumentParser(description="SUMO POMDP trajectory collector")
     parser.add_argument("--episodes", type=int, default=50)
-    parser.add_argument("--policy", choices=["random", "keep-lane", "route-follow", "expert", "expert-v5", "expert-v6", "ppo", "bc"],
+    parser.add_argument("--policy", choices=["random", "keep-lane", "route-follow", "expert", "expert-v5", "expert-v6", "expert-v7", "ppo", "bc"],
                         default=None,
                         help="행동 정책. route-follow는 학습 없이 경로를 완주하는 규칙. 생략 시 "
                              "--model이 있으면 파일을 보고 ppo/bc 자동 판별, 없으면 random")

@@ -8,7 +8,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from env import sumo_env  # noqa: E402
 from env.data_schema import OBSERVATION_FEATURES  # noqa: E402
-from env.route_policy import ExpertPolicy, ExpertPolicyV5, ExpertPolicyV6  # noqa: E402
+from env.route_policy import ExpertPolicy, ExpertPolicyV5, ExpertPolicyV6, ExpertPolicyV7  # noqa: E402
 
 VMAX, VIS, REACH = 13.89, 50.0, 200.0
 LANES = ("left2", "left1", "current", "right1", "right2")
@@ -348,6 +348,29 @@ def test_v6_can_stop_for_a_queue_that_comes_into_view(v6):
         gap -= 0.5 * (speed + new_speed) * 0.5
         speed = new_speed
     assert speed == 0.0 and gap > 0.5
+
+
+# ---- v7: 경로가 이어지는 차로가 보이는 범위 밖에 있을 때 ----
+
+def test_v7_heads_for_a_lane_beyond_view_when_the_other_side_is_the_kerb(v6):
+    """5차로 R54의 2번 차로. J1 좌회전 차로(5번)는 세 칸 왼쪽이라 보이지 않고, 보이는 네 차로는 모두 150m 뒤 끝나며,
+    오른쪽은 1번 차로 다음이 길 끝이다. v6은 머물러 차로 끝에 서고, v7은 왼쪽으로 옮긴다. 좌우를 바꿔도 같다."""
+    v7 = make(ExpertPolicyV7)
+    obs = observe(8.0, reach={"current": 150.0, "left1": 150.0, "left2": 150.0, "right1": 150.0, "right2": None})
+    assert v6(obs)[1] == 0.0 and v7(obs)[1] == 1.0
+    assert v7(observe(8.0, reach={"current": 150.0, "left1": None, "right1": 150.0, "right2": 150.0}))[1] == -1.0
+
+
+def test_v7_stays_when_the_lane_could_be_on_either_side():
+    obs = observe(8.0, reach={"current": 150.0, "left1": 150.0, "left2": 150.0, "right1": 150.0, "right2": 150.0})
+    assert make(ExpertPolicyV7)(obs)[1] == 0.0
+
+
+@pytest.mark.parametrize("reach", [{"current": 120.0}, {"current": 120.0, "left1": 120.0, "left2": 400.0},
+                                   {"current": 120.0, "left1": 124.0}, {"current": 120.0, "left1": None, "right1": 400.0}])
+def test_v7_drives_like_v6_when_the_continuing_lane_is_in_view_or_there_is_none(v6, reach):
+    obs = observe(8.0, reach=reach)
+    assert np.array_equal(make(ExpertPolicyV7)(obs), v6(obs))
 
 
 # ---- 신호만 바꾼 관측으로 학습 데이터 늘리기 ----

@@ -11,8 +11,8 @@ from .schema import (BUS, FOES_LOOKAHEAD_M, FOLLOWER_LOOKBACK_M, LEADER_LOOKAHEA
 
 TraCIException = traci.exceptions.TraCIException
 MODEL_NAME = {"car_krauss": "Krauss", "car_idm": "IDM", "car_eidm": "EIDM", "car_acc": "ACC"}
-# getNeighbors 모드 비트: 1 왼쪽(0 오른쪽), 2 선행(0 후행)
-NEIGHBOR_MODES = {"left_leader": 3, "right_leader": 2, "left_follower": 1, "right_follower": 0}
+# 옆 차로 슬롯 이름(값은 getNeighbors 모드 비트였다. getNeighbors는 쓰지 않는다: _side_slots 참고)
+NEIGHBOR_MODES ={"left_leader": 3, "right_leader": 2, "left_follower": 1, "right_follower": 0}
 STOP_FIELDS = ("lane", "startPos", "endPos", "stoppingPlaceID", "stopFlags", "duration", "until", "intendedArrival",
                "arrival", "depart")
 FOE_FIELDS = ("foe_id", "ego_dist", "foe_dist", "ego_exit_dist", "foe_exit_dist", "ego_lane", "foe_lane",
@@ -96,7 +96,31 @@ def _follower_slot(tc, fid, gap, v_ego):
     return {"id": fid, "gap_raw": gap, "secure_gap": v.getSecureGap(fid, v_f, v_ego, v.getDecel(BUS), BUS)}
 
 
-def neighbors_block(tc) -> dict:
+def _side_slots(tc, ego, vehicles) -> dict:
+    """옆 차로(같은 도로, 차로 번호 ±1)의 가장 가까운 선행·후행. getNeighbors는 SUMO 1.27.1에서 시뮬레이션을 죽여서
+    (합정역 한 바퀴 수집에서 재현, simulationStep 중 연결 끊김) 쓰지 않는다. 간격 정의는 TraCI와 같다:
+    선행 = 앞차 뒤끝 - ego 앞끝 - ego minGap, 후행 = ego 뒤끝 - 뒤차 앞끝 - 뒤차 minGap. 다른 도로에 있는 옆 차로 차는 못 잡는다."""
+    if ego["road_id"].startswith(":"):
+        return {name: None for name in NEIGHBOR_MODES}
+    ego_len, ego_gap = tc.vehicle.getLength(BUS), tc.vehicle.getMinGap(BUS)
+    front, back = ego["lane_position"], ego["lane_position"] - ego_len
+    best = {name: None for name in NEIGHBOR_MODES}
+    for o in vehicles:
+        if o["road_id"] != ego["road_id"]:
+            continue
+        side = {ego["lane_index"] + 1: "left", ego["lane_index"] - 1: "right"}.get(o["lane_index"])
+        if side is None:
+            continue
+        if o["lane_position"] > front:
+            name, gap, limit = f"{side}_leader", o["lane_position"] - o["length"] - front - ego_gap, LEADER_LOOKAHEAD_M
+        else:
+            name, gap, limit = f"{side}_follower", back - o["lane_position"] - o["min_gap"], FOLLOWER_LOOKBACK_M
+        if gap <= limit and (best[name] is None or gap < best[name][1]):
+            best[name] = (o["id"], gap)
+    return best
+
+
+def neighbors_block(tc, ego=None, vehicles=()) -> dict:
     v = tc.vehicle
     v_ego = v.getSpeed(BUS)
     found = {}
@@ -104,9 +128,7 @@ def neighbors_block(tc) -> dict:
     found["leader"] = (ld[0], ld[1]) if ld and ld[0] else None
     fo = v.getFollower(BUS, FOLLOWER_LOOKBACK_M)
     found["follower"] = (fo[0], fo[1]) if fo and fo[0] else None
-    for name, mode in NEIGHBOR_MODES.items():
-        cand = list(v.getNeighbors(BUS, mode))
-        found[name] = min(cand, key=lambda c: abs(c[1])) if cand else None
+    found.update(_side_slots(tc, ego, vehicles) if ego is not None else {name: None for name in NEIGHBOR_MODES})
     out = {}
     for name in ("leader", "follower", *NEIGHBOR_MODES):
         hit = found[name]
@@ -189,7 +211,7 @@ def pedestrians_block(tc, ctx: LapContext, ego_xy, roles: dict) -> list:
 def take_snapshot(tc, ctx: LapContext, last_road, roles: dict, now: float) -> dict:
     ego = ego_block(tc, ctx, last_road)
     xy = (ego["x"], ego["y"])
+    vehicles = vehicles_block(tc, ctx, xy, ego["lap_position"], roles.get("vehicles", {}))
     return {"ego": ego, "route": route_block(tc, ctx, ego), "tls": tls_block(tc, now), "stops": stops_block(tc),
-            "neighbors": neighbors_block(tc), "junction_foes": junction_foes_block(tc),
-            "vehicles": vehicles_block(tc, ctx, xy, ego["lap_position"], roles.get("vehicles", {})),
-            "pedestrians": pedestrians_block(tc, ctx, xy, roles.get("pedestrians", {}))}
+            "neighbors": neighbors_block(tc, ego, vehicles), "junction_foes": junction_foes_block(tc),
+            "vehicles": vehicles, "pedestrians": pedestrians_block(tc, ctx, xy, roles.get("pedestrians", {}))}

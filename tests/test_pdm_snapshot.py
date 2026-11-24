@@ -60,12 +60,26 @@ def test_leader_secure_gap_uses_leader_decel(ctx):
     assert snap["neighbors"]["leader"]["follow_speed"] == 9.0
 
 
-def test_left_follower_picks_nearest_and_uses_follower_frame(ctx):
-    ego = dict(EGO, neighbors=lambda mode: (("f1", 12.0), ("f2", 4.0)) if mode == 1 else ())
-    tc = FakeTC({"bus0": ego, "f1": dict(pos=(-3.0, -12.0), speed=9.0), "f2": dict(pos=(-3.0, -4.0), speed=10.0)})
-    slot = take_snapshot(tc, ctx, "R68", ROLES, 10.0)["neighbors"]["left_follower"]
-    assert slot["id"] == "f2" and slot["gap_raw"] == 4.0
+def test_side_slots_from_vehicle_list_without_getneighbors(ctx):
+    """getNeighbors는 SUMO 1.27.1에서 시뮬레이션을 죽인다(한 바퀴 수집에서 재현). 옆 차로 슬롯은 같은 도로의 차량 목록으로 찾는다.
+    버스 앞끝 lane_pos 30, 길이 12, minGap 1. 간격은 TraCI처럼 뒤차 minGap을 뺀 값이다."""
+    ego = dict(EGO, lane_pos=30.0, length=12.0, min_gap=1.0)
+    others = {
+        "f1": dict(pos=(-3.0, -12.0), road="R69", lane="R69_2", lane_index=2, lane_pos=10.0, length=4.5, min_gap=2.5),
+        "f2": dict(pos=(-3.0, -4.0), road="R69", lane="R69_2", lane_index=2, lane_pos=14.0, length=4.5, min_gap=2.5,
+                   speed=10.0),
+        "l1": dict(pos=(-3.0, 20.0), road="R69", lane="R69_2", lane_index=2, lane_pos=50.0, length=4.5, speed=6.0,
+                   decel=4.5),
+        "r1": dict(pos=(3.0, 20.0), road="R69", lane="R69_0", lane_index=0, lane_pos=45.0, length=4.5),
+        "x1": dict(pos=(-3.0, 30.0), road="R69a", lane="R69a_2", lane_index=2, lane_pos=5.0, length=4.5),
+    }
+    tc = FakeTC({"bus0": ego, **others})
+    nb = take_snapshot(tc, ctx, "R68", ROLES, 10.0)["neighbors"]
+    assert nb["left_follower"]["id"] == "f2" and nb["left_follower"]["gap_raw"] == pytest.approx(18.0 - 14.0 - 2.5)
+    assert nb["left_leader"]["id"] == "l1" and nb["left_leader"]["gap_raw"] == pytest.approx(50.0 - 4.5 - 30.0 - 1.0)
+    assert nb["right_leader"]["id"] == "r1" and nb["right_follower"] is None
     assert ("vehicle.getSecureGap", ("f2", 10.0, 8.0, 4.5, "bus0")) in tc.calls
+    assert not any(name == "vehicle.getNeighbors" for name, _ in tc.calls)
 
 
 def test_tls_time_to_switch_relative(ctx):

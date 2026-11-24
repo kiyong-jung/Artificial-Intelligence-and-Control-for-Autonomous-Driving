@@ -78,7 +78,8 @@ def build_metadata(args, world, pilot, ctx, recorder, tc, *, vtype: str, net_cop
         "result": {"recorder": recorder.summary(), "pdm": pilot.summary(), "lap_times_s": list(pilot.lap_times),
                    "lane_change_requests": dict(pilot.changes), "missed_windows": [list(x) for x in pilot.missed],
                    "forced_stops": [list(x) for x in pilot.forced]},
-        "conventions": {"gap_raw": "TraCI getLeader/getFollower/getNeighbors 간격: 앞차와는 ego minGap을, 뒤차와는 뒤차 minGap을 뺀 값",
+        "conventions": {"gap_raw": "앞차와는 ego minGap을, 뒤차와는 뒤차 minGap을 뺀 간격. 현재 차로는 TraCI getLeader/getFollower. "
+                                   "옆 차로는 getNeighbors가 SUMO 1.27.1을 죽여서 같은 도로의 차량 목록으로 계산한다(다른 도로의 옆 차로 차는 빠진다)",
                         "signals": "1 오른쪽, 2 왼쪽, 8 제동", "lane_index": "오른쪽 0, 합정역 0번은 인도",
                         "coordinate": "SUMO 도로망 좌표 m, heading 북쪽 0도 시계 방향", "missing": "null"},
         "column_doc": COLUMN_DOC,

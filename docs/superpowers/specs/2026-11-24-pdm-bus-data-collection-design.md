@@ -214,7 +214,7 @@ getJunctionFoes(BUS, 100 m)의 원시 튜플 전체: foeId, egoDist, foeDist, eg
 | episode, t | `meta.episode`, `meta.t` |
 | observation | 행 t 스냅숏으로 `BusTask.observation`과 같은 식의 93차원을 계산한다. 노선 관련 값(navigation 블록, 남은 노선 obs[80], 정류장 블록)은 한 바퀴 노선(R68 + `bus_loop`)으로 만든 RouteMap 기준이다. vmax는 지도 `route_design.bus_loop.max_speed_mps`(13.89)다(12절 시험) |
 | action_raw | [action.accel_raw, action.lane_change_raw] |
-| action.accel_raw | a = (v(t+0.5) − v(t)) / 0.5이다. a ≥ 0이면 a / A⁺, 아니면 a / A⁻이고 [−1, 1]로 자른다. A⁺/A⁻는 인자이며 기본값은 배포 환경의 버스 ego 값(`env/road_config.py` bus: 1.0 / 2.0)이다. 잘린 비율을 메타데이터에 남긴다. 잘리기 전의 a는 `action_extra.accel_mps2`에 남긴다 |
+| action.accel_raw | a = (v(t+0.5) − v(t)) / 0.5이다. a ≥ 0이면 a / A⁺, 아니면 a / A⁻이고 [−1, 1]로 자른다. **A⁺/A⁻는 수집 뒤 전처리에서 정한다(사용자 결정).** 수집기는 정규화하지 않고 원시 값(`window.substeps`의 속도·가속도, 전문가 vType의 accel·decel·emergencyDecel)만 남긴다. 전처리는 A⁺/A⁻를 반드시 인자로 받으며 기본값이 없다. 배포 환경 값을 묵시적으로 쓰지 않는다. 정하는 데 도움이 되도록 전처리에는 a의 분포 보고 모드를 둔다(백분위, 최댓값, 후보 상수별 잘림 비율). 쓴 상수와 잘린 비율은 `processed/metadata.json`에 남기고, 정규화 전의 a는 `action_extra.accel_mps2`에 남긴다 |
 | action.lane_change_raw | 아래 lane_change와 같은 값의 float |
 | action.lane_change | 전문가가 요청 단계(`phase == "request"`)에 있는 구간에서는 요청 방향, 아니면 0이다(+1 왼쪽). `TestBusPilot`은 changeLane을 요청 단계 처음과 그 뒤 2초(도착 보장 정차 중에는 1초)마다만 부른다. 하지만 배포 환경은 정책이 매 판단마다 ±1을 내야 변경이 유지되므로, 요청 단계 전체를 ±1로 둔다. 도착 보장 정차 중의 요청과 `_emergency` 요청도 포함한다. 방향지시등만 켠 `signal` 단계는 0이다. 실제 changeLane 호출 시각은 `window`에 남아 다른 규칙으로도 다시 만들 수 있다 |
 | action.lane_change_applied | lane_change가 0이면 참이다. 아니면 구간 안에 같은 도로에서 그 방향으로 차로가 실제로 바뀌었을 때 참이다 |

@@ -34,7 +34,9 @@ def test_crosswalk_on_the_way_out_of_a_left_turn_starts_inside_the_junction(rout
     들어선다(3.20.0까지 바깥 좌회전 R111b 2 -> R112 1은 8.7m)."""
     crossings = {name: at for at, name in route_map.crossings}
     assert _road_start(route_map, "R112") - crossings[":J82_c0"] == pytest.approx(3.75, abs=0.2)
-    assert _road_start(route_map, "R54a") - crossings[":J42_c2"] == pytest.approx(14.6, abs=0.2)   # 3.17.0 곡선 좌회전, 3.18.0에서 0.5m 옮김(전 15m)
+    # J42도 3.22.0부터 안쪽 차로끼리(R94 2 -> R54a 2) 돌아 R54a 앞 횡단보도 띠에 R54a 시작 9.7m 앞에서 들어선다
+    # (3.21.0까지 가로변 좌회전 R94 1 -> R54a 1은 14.6m. 3.17.0 곡선 좌회전, 3.18.0에서 0.5m 옮김)
+    assert _road_start(route_map, "R54a") - crossings[":J42_c2"] == pytest.approx(9.7, abs=0.2)
 
 
 def test_bus_on_the_crosswalk_no_longer_sees_it_ahead(route_map):

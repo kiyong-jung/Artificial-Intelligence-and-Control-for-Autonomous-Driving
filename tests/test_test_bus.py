@@ -179,16 +179,20 @@ def test_stop_set_is_s2_s4_s5_s6():
     assert STOP_AT == ("osm_stop_357920024", "osm_stop_5930628870", "osm_stop_3446267493", "osm_stop_3424857165")
 
 
-def test_lane_plans_are_s3_then_two_s2_and_end_before_signals():
+def test_lane_plans_are_s3_then_four_s2_and_end_before_signals():
     p = lane_plans(_net(), lap_route(_net(), _loop()), _stops())
-    assert [x.kind for x in p] == ["S3", "S2", "S2"]
+    assert [x.kind for x in p] == ["S3", "S2", "S2", "S2", "S2"]
     # 정류장 차로에는 정류장 시작 10 m 전까지 들어가야 한다(성산중학교 13.31 m -> 3.31 m)
     assert (p[0].edge, p[0].target_lane) == ("R71.206", 1) and p[0].end_pos == pytest.approx(3.31, abs=0.01)
-    # J82는 3.21.0부터 안쪽 R111b 차로 3에서만 좌회전한다(R112 차로 2로)
+    # 좌회전은 가장 왼쪽 차로에서만 한다. J82는 3.21.0부터 R111b 차로 3, J83·J42·J1은 3.22.0부터 R112.221 차로 2,
+    # R94 차로 2, R42 차로 4에서만 좌회전한다
     assert (p[1].edge, p[1].target_lane) == ("R111b", 3) and p[1].end_pos == pytest.approx(7.0, abs=0.5)
-    # J1은 3.7.0부터 R42 차로 3도 좌회전(R68 차로 1)이다. 버스는 더 가까운 차로 3을 목표로 한다
-    assert (p[2].edge, p[2].target_lane) == ("R42", 3) and p[2].end_pos == pytest.approx(6.0, abs=0.5)
-    assert all(x.length >= 120.0 for x in p) and p[2].length == p[1].length > 120.0     # 두 좌회전 모두 두 칸을 옮긴다
+    net = _net()
+    for plan, edge, lane in ((p[2], "R112.221", 2), (p[3], "R94", 2)):
+        assert (plan.edge, plan.target_lane) == (edge, lane)
+        assert plan.end_pos == pytest.approx(net.getEdge(edge).getLength() - 20.0, abs=0.5)   # 정지선 20 m 앞
+    assert (p[4].edge, p[4].target_lane) == ("R42", 4) and p[4].end_pos == pytest.approx(6.0, abs=0.5)
+    assert all(x.length >= 120.0 for x in p) and p[4].length > p[1].length > p[2].length   # J1 앞은 세 칸, J82 앞은 두 칸
 
 
 def test_pilot_departs_once_from_r68_and_sets_stops():
@@ -298,10 +302,10 @@ def test_bus_hands_over_to_sumo_near_window_end_instead_of_stopping():
     assert tc.lc_mode[-1] == LC_MANUAL
 
 
-@pytest.mark.parametrize("lane, hands_over", [(3, True), (4, False), (5, False)])
+@pytest.mark.parametrize("lane, hands_over", [(3, True), (4, True), (5, False)])
 def test_handover_compares_lanes_through_the_connections_not_by_number(lane, hands_over):
-    # R54 차로 4는 R42 차로 3(좌회전 차로)으로, 차로 5는 R42 차로 4로 이어진다. 차로 3은 R42 차로 2(직진)로 간다. 창 끝 도로(R42)의
-    # 목표 차로 번호(3)와 지금 차로 번호를 그대로 비교하면 이미 맞는 차로(4, 5)의 버스를 넘기고 틀린 차로(3)는 그냥 둔다
+    # R54 차로 5는 R42 차로 4(3.22.0부터 하나뿐인 좌회전 차로)로, 차로 4는 R42 차로 3(직진)으로, 차로 3은 R42 차로 2(직진)로 이어진다.
+    # 창 끝 도로(R42)의 목표 차로 번호(4)와 지금 차로 번호를 그대로 비교하면 이미 맞는 차로(5)의 버스를 넘기고 틀린 차로(4)는 그냥 둔다
     L = _net().getEdge("R54").getLength()
     tc = _FakeTC(speed=12.0)
     pilot = _pilot(tc)

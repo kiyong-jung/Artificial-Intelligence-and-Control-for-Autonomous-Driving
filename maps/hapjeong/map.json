@@ -1,12 +1,12 @@
 {
   "id": "hapjeong",
   "name": "합정역 · 양화로와 독막로",
-  "version": "3.21.0",
+  "version": "3.22.0",
   "description": "합정역 일대 실제 도로. 신호 교차로, 인도·횡단보도·보행자, 중앙버스차로, 연구 경로의 가로변 정류장 6곳과 신호 없는 횡단보도가 있다.",
   "source_status": "osm_generated",
   "network_source": {
     "path": "source/network.net.xml",
-    "sha256": "141a03fd4127e6d302d9f7d331f78413f07676ffc18e146064e30e8df62a302f",
+    "sha256": "21f9e756897c7fb7991fc007471dba02a39d1ac4046e833882ea075dc8873a79",
     "base_path": "source/network.base.net.xml",
     "base_sha256": "3be54d491627c289497b936102eedfa307c547f4edc04a1e80756ba8f25b11c7",
     "generator": "generator/ (서예인, seogyo-hongdae 066e5b1)",
@@ -418,6 +418,39 @@
             "2"
           ]
         ],
+        "script": "scripts/inner_lane_left_turns.py"
+      },
+      "j83_inner_lane_left_turn": {
+        "removed": [
+          "R112.221",
+          "1",
+          "R113",
+          "1"
+        ],
+        "link_index": 4,
+        "kept_shapes": [],
+        "script": "scripts/inner_lane_left_turns.py"
+      },
+      "j42_inner_lane_left_turn": {
+        "removed": [
+          "R94",
+          "1",
+          "R54a",
+          "1"
+        ],
+        "link_index": 8,
+        "kept_shapes": [],
+        "script": "scripts/inner_lane_left_turns.py"
+      },
+      "j1_inner_lane_left_turn": {
+        "removed": [
+          "R42",
+          "3",
+          "R68",
+          "1"
+        ],
+        "link_index": 18,
+        "kept_shapes": [],
         "script": "scripts/inner_lane_left_turns.py"
       }
     },

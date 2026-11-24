@@ -40,7 +40,7 @@ from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "3.21.0"   # 3.21.0: J82 독막로 좌회전을 안쪽 3번 차로 하나로, R112 2번 차로로(scripts/inner_lane_left_turns.py). 3.20.0: 배경 흐름 전체 1.25배(scripts/scale_demand.py). 3.19.0: bus_loop를 J1 좌회전 뒤 R68까지 늘려 순환을 닫음(scripts/close_bus_loop.py). 3.18.0: J42·J82 우회전 모서리 횡단보도 네 개를 바깥쪽으로 0.5 m 옮기고 그 앞 정지선을 1 m 물림(scripts/move_crosswalks_outward.py). 3.17.0: J42 좌회전 다섯 연결을 앞뒤 차로에 접하는 곡선으로(scripts/smooth_j42_left_turns.py). 3.16.0: 지도 경계 J99·J100·J108·J109·J110의 유턴 연결 제거(scripts/remove_fringe_turnarounds.py). 3.15.0: 되돌아가거나 크게 에도는 배경 흐름 17개 제거(scripts/drop_turnaround_flows.py), 끊긴 걸음 2개 다시 찾기와 대각선 횡단보도 고정(scripts/fix_pedestrian_walks.py), 도로망은 3.13.0 그대로. 3.14.0: 보행자를 포아송 도착(personFlow)으로, 독막로6길 고리 경유 흐름 제거(도로망은 3.13.0 그대로). 3.13.0: J96 우회전 녹색이 보행자 녹색과 겹치지 않게 신호 수정(scripts/separate_right_turns_from_crosswalks.py). 3.12.0: J1 c2 시작점을 w2 섬에 붙임(scripts/fix_j1_c2_start.py). 3.11.0: J23 겹친 횡단보도(-R71 R71.256) 제거(scripts/remove_j23_overlapping_crosswalk.py). 3.10.0: J8 겹친 횡단보도(-R69a R69a) 제거(scripts/remove_j8_duplicate_crosswalk.py). 3.9.0: cluster_J52_J56_J58 횡단보도 두 개와 보행자 신호 제거(scripts/remove_cluster_crosswalks.py, 보행자 15명 제외). 3.8.0: J42 잔다리로 R94 우회전 제거(scripts/remove_j42_right_turn.py). 3.7.0: J1 양화로 R42 차로 3도 좌회전(scripts/add_j1_left_lane.py로 커밋된 3.6.0에 더했다)
+VERSION = "3.22.0"   # 3.22.0: J83·J42·J1 좌회전도 가장 왼쪽 차로 하나에서만(scripts/inner_lane_left_turns.py). 3.21.0: J82 독막로 좌회전을 안쪽 3번 차로 하나로, R112 2번 차로로(scripts/inner_lane_left_turns.py). 3.20.0: 배경 흐름 전체 1.25배(scripts/scale_demand.py). 3.19.0: bus_loop를 J1 좌회전 뒤 R68까지 늘려 순환을 닫음(scripts/close_bus_loop.py). 3.18.0: J42·J82 우회전 모서리 횡단보도 네 개를 바깥쪽으로 0.5 m 옮기고 그 앞 정지선을 1 m 물림(scripts/move_crosswalks_outward.py). 3.17.0: J42 좌회전 다섯 연결을 앞뒤 차로에 접하는 곡선으로(scripts/smooth_j42_left_turns.py). 3.16.0: 지도 경계 J99·J100·J108·J109·J110의 유턴 연결 제거(scripts/remove_fringe_turnarounds.py). 3.15.0: 되돌아가거나 크게 에도는 배경 흐름 17개 제거(scripts/drop_turnaround_flows.py), 끊긴 걸음 2개 다시 찾기와 대각선 횡단보도 고정(scripts/fix_pedestrian_walks.py), 도로망은 3.13.0 그대로. 3.14.0: 보행자를 포아송 도착(personFlow)으로, 독막로6길 고리 경유 흐름 제거(도로망은 3.13.0 그대로). 3.13.0: J96 우회전 녹색이 보행자 녹색과 겹치지 않게 신호 수정(scripts/separate_right_turns_from_crosswalks.py). 3.12.0: J1 c2 시작점을 w2 섬에 붙임(scripts/fix_j1_c2_start.py). 3.11.0: J23 겹친 횡단보도(-R71 R71.256) 제거(scripts/remove_j23_overlapping_crosswalk.py). 3.10.0: J8 겹친 횡단보도(-R69a R69a) 제거(scripts/remove_j8_duplicate_crosswalk.py). 3.9.0: cluster_J52_J56_J58 횡단보도 두 개와 보행자 신호 제거(scripts/remove_cluster_crosswalks.py, 보행자 15명 제외). 3.8.0: J42 잔다리로 R94 우회전 제거(scripts/remove_j42_right_turn.py). 3.7.0: J1 양화로 R42 차로 3도 좌회전(scripts/add_j1_left_lane.py로 커밋된 3.6.0에 더했다)
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]
@@ -97,16 +97,14 @@ WIDENED_EDGES: dict[str, int] = {"R111b": 3}
 REPLACED_CONNECTIONS: dict[str, list[tuple[str, str, str]]] = {
     "R111": [("1", "R111b", "1"), ("2", "R111b", "2"), ("3", "R111b", "3")],
     "R111b": [("1", "R129", "1"), ("1", "R128", "1"), ("2", "R128", "2"), ("3", "R112", "2")],
-    # 삼거리포차 앞과 서교동사거리의 좌회전은 2차로에서만 됐다. 가로변 차로를 달리는 버스가 좌회전 줄에 끼어들지 못하고
-    # 300초를 서 있다 순간이동했다(규칙 버스 12회 중 1회). 가로변 차로에서도 좌회전해 가로변 차로로 들어가게 한다.
-    "R112.221": [("1", "R130", "1"), ("1", "R113", "1"), ("2", "R113", "2")],
-    "R94": [("1", "R92", "1"), ("1", "R54a", "1"), ("2", "R54a", "2"), ("2", "R54a", "4")],   # 우회전(R53) 없음(3.8.0)
-    # 합정역 사거리 J1: 양화로 R42 차로 3도 직진 또는 좌회전(독막로 R68 차로 1). 합정역 정류장에서 출발한 시험용 버스가
-    # 좌회전 차로까지 옮기기 빠듯했다(3.7.0).
-    "R42": [("1", "R40", "1"), ("2", "R40", "2"), ("3", "R40", "3"), ("3", "R68", "1"), ("4", "R68", "2")]}
+    # 좌회전은 가장 왼쪽 차로에서만 한다(사용자 결정, 3.22.0). 삼거리포차 앞(R112.221)과 서교동사거리(R94)는 3.4.0부터
+    # 가로변 1차로에서도 좌회전했고(규칙 버스가 좌회전 줄에 끼어들지 못하고 300초를 서 있었다), 합정역 사거리(R42)는
+    # 3.7.0부터 3차로도 좌회전했다. 3.22.0에서 이 셋을 지웠다(scripts/inner_lane_left_turns.py).
+    "R112.221": [("1", "R130", "1"), ("2", "R113", "2")],
+    "R94": [("1", "R92", "1"), ("2", "R54a", "2"), ("2", "R54a", "4")],   # 우회전(R53) 없음(3.8.0)
+    "R42": [("1", "R40", "1"), ("2", "R40", "2"), ("3", "R40", "3"), ("4", "R68", "2")]}
 MOVED_LINKS: dict[tuple[str, str, str, str], tuple[str, str, str, str]] = {
-    ("R111b", "3", "R112", "2"): ("R111b", "2", "R112", "2"), ("R112", "1", "R113", "1"): ("R112", "2", "R113", "1"),
-    ("R94", "1", "R54a", "1"): ("R94", "2", "R54a", "2"), ("R42", "3", "R68", "1"): ("R42", "4", "R68", "2")}
+    ("R111b", "3", "R112", "2"): ("R111b", "2", "R112", "2")}
 # 배경 차량 baseline 합계. 생성기 설정(generator/road_config.py OSM_ROAD traffic)의 값이다.
 BASELINE_VEHS_PER_HOUR = 900
 # 흐름을 모두 나눈 뒤(골목 3배 등 포함, 합계 1,061대/시간) 전체에 곱하는 배율. 3.20.0에서 버스와 배경 차의 상호작용을

@@ -63,7 +63,7 @@ def _back(net, route, k, pos, back):
 
 
 def lane_plans(net, route, stops):
-    """한 바퀴의 차선 변경 창: S3(s2 정류장 앞) 하나와, 가로변 차로로는 돌 수 없는 신호 교차로 좌회전 앞 S2들(J82, J1)."""
+    """한 바퀴의 차선 변경 창: S3(s2 정류장 앞) 하나와, 가로변 차로로는 돌 수 없는 신호 교차로 좌회전 앞 S2들(J82, J83, J42, J1)."""
     plans = []
     s2 = next(s for s in stops if s["id"] == STOP_AT[0])
     top = net.getEdge(s2["edge"]).getLaneNumber() - 1

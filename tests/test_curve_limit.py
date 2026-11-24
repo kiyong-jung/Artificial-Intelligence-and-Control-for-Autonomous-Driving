@@ -64,12 +64,12 @@ def route_map():
 
 def test_hapjeong_left_turns_are_limited_below_the_network_speed(route_map):
     """J82 좌회전(3.21.0부터 안쪽 차로끼리 R111b 3 -> R112 2, 대기 위치 뒤 :J82_23_0)의 도로망 제한은 9.21m/s,
-    J42 좌회전 끝은 13.89m/s다."""
+    J42 좌회전(3.22.0부터 안쪽 차로끼리 R94 2 -> R54a 2, 대기 위치 뒤 :J42_23_0)은 6.1m/s다."""
     assert 5.0 < route_map.curve_speed(":J82_23_0", 11.0) < 6.5
-    assert 4.0 < route_map.curve_speed(":J42_24_0", 6.0) < 6.5
+    assert 4.0 < route_map.curve_speed(":J42_23_0", 2.0) < 6.5
     # 좌회전을 마친 뒤에도 뒤범퍼가 교차로를 벗어날 때까지는 제한이 이어지고, 그 뒤 곧은 도로에는 제한이 없다.
-    assert route_map.curve_speed("R54a_1", 5.0) < 6.5
-    assert route_map.curve_speed("R54a_1", 100.0) == math.inf
+    assert route_map.curve_speed("R54a_2", 5.0) < 6.5
+    assert route_map.curve_speed("R54a_2", 100.0) == math.inf
     assert route_map.curve_speed("R71_2", 50.0) == math.inf
 
 

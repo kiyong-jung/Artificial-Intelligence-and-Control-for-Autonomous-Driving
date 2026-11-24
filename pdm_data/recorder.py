@@ -112,12 +112,18 @@ class Recorder:
         self.collisions_total, self.ego_collisions, self.ego_teleports = 0, 0, 0
         self.end, self._finished = None, False
         self.event_counts = {}
+        self.time_offset = None
 
     # ---- 매 0.1 s ----
-    def on_step(self, t):
+    def on_step(self, runner_t):
+        """runner_t는 runner의 시계(실행 시작 0). 기록은 모두 SUMO 시각(getTime)으로 한다. 관리자 로그 시각은 offset만큼 옮긴다."""
         tc = self.tc
         self.sim_step += 1
         sim = tc.simulation
+        t = sim.getTime()
+        if self.time_offset is None:
+            self.time_offset = t - runner_t
+            self.roles.offset = self.time_offset
         coll = list(sim.getCollisions())
         tele = list(sim.getStartingTeleportIDList())
         emerg = list(sim.getEmergencyStoppingVehiclesIDList())
@@ -134,7 +140,7 @@ class Recorder:
         self.roles.update()
         self.scen.step(t, coll, tele, emerg)
         self._flush_events()
-        if self.check is not None:
+        if self.check is not None and self.started:
             self.check.tick()
         if self.pending is not None:
             self._accumulate(t, coll, tele, emerg)

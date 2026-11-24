@@ -48,6 +48,10 @@ class RoleBook:
         self.world, self.lap_fn = world, lap_fn
         self._veh, self._ped, self._events = {}, {}, []
         self._seen = {"injector": 0, "mgr": 0, "ped": 0, "ahead": 0}
+        self.offset = 0.0              # 관리자 로그 시각(runner 시계) + offset = SUMO 시각
+
+    def _ts(self, x):
+        return x + self.offset if isinstance(x, (int, float)) and not isinstance(x, bool) else x
 
     @staticmethod
     def _prefix(oid, table):
@@ -76,22 +80,22 @@ class RoleBook:
                 cur = self._veh.setdefault(r["id"], {})
                 cur["role"] = r["kind"]
                 cur["injected"] = cur.get("injected", False) or injected
-            self._events.append(_event("injection", r.get("lap"), r.get("t"), ids=[r["id"]] if r.get("id") else [],
+            self._events.append(_event("injection", r.get("lap"), self._ts(r.get("t")), ids=[r["id"]] if r.get("id") else [],
                                        injected=injected, detail=_jsonable(r)))
         mgr = getattr(w, "mgr", None)
         for r in self._new("mgr", getattr(mgr, "log", []) if mgr is not None else []):
-            self._events.append(_event("a1", self.lap_fn(), r.get("t_start"), r.get("t_end"), ids=[r.get("follower")],
+            self._events.append(_event("a1", self.lap_fn(), self._ts(r.get("t_start")), self._ts(r.get("t_end")), ids=[r.get("follower")],
                                        injected=self._veh.get(r.get("follower"), {}).get("injected", False),
                                        detail=_jsonable(r)))
         ped = getattr(w, "ped", None)
         for r in self._new("ped", getattr(ped, "log", []) if ped is not None else []):
             self._ped.setdefault(r["ped"], {})["a3_decision"] = bool(r.get("cross"))
-            self._events.append(_event("a3", self.lap_fn(), r.get("t"), ids=[r["ped"]], detail=_jsonable(r)))
+            self._events.append(_event("a3", self.lap_fn(), self._ts(r.get("t")), ids=[r["ped"]], detail=_jsonable(r)))
         ahead = getattr(w, "ahead", None)
         if ahead is not None:
             for r in self._new("ahead", getattr(ahead, "log", [])):
                 ids = [b.get("vid") for b in r.get("blocks", []) if b.get("vid")]
-                self._events.append(_event("s4_block", self.lap_fn(), r.get("t0"), r.get("t1"), ids=ids, injected=True,
+                self._events.append(_event("s4_block", self.lap_fn(), self._ts(r.get("t0")), self._ts(r.get("t1")), ids=ids, injected=True,
                                            detail={"planned": r.get("planned"), "blocks": r.get("blocks")}))
             for b in (getattr(ahead, "plan", {}) or {}).values():
                 if getattr(b, "vid", None):

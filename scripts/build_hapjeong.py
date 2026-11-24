@@ -40,7 +40,7 @@ from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "3.20.0"   # 3.20.0: 배경 흐름 전체 1.25배(scripts/scale_demand.py). 3.19.0: bus_loop를 J1 좌회전 뒤 R68까지 늘려 순환을 닫음(scripts/close_bus_loop.py). 3.18.0: J42·J82 우회전 모서리 횡단보도 네 개를 바깥쪽으로 0.5 m 옮기고 그 앞 정지선을 1 m 물림(scripts/move_crosswalks_outward.py). 3.17.0: J42 좌회전 다섯 연결을 앞뒤 차로에 접하는 곡선으로(scripts/smooth_j42_left_turns.py). 3.16.0: 지도 경계 J99·J100·J108·J109·J110의 유턴 연결 제거(scripts/remove_fringe_turnarounds.py). 3.15.0: 되돌아가거나 크게 에도는 배경 흐름 17개 제거(scripts/drop_turnaround_flows.py), 끊긴 걸음 2개 다시 찾기와 대각선 횡단보도 고정(scripts/fix_pedestrian_walks.py), 도로망은 3.13.0 그대로. 3.14.0: 보행자를 포아송 도착(personFlow)으로, 독막로6길 고리 경유 흐름 제거(도로망은 3.13.0 그대로). 3.13.0: J96 우회전 녹색이 보행자 녹색과 겹치지 않게 신호 수정(scripts/separate_right_turns_from_crosswalks.py). 3.12.0: J1 c2 시작점을 w2 섬에 붙임(scripts/fix_j1_c2_start.py). 3.11.0: J23 겹친 횡단보도(-R71 R71.256) 제거(scripts/remove_j23_overlapping_crosswalk.py). 3.10.0: J8 겹친 횡단보도(-R69a R69a) 제거(scripts/remove_j8_duplicate_crosswalk.py). 3.9.0: cluster_J52_J56_J58 횡단보도 두 개와 보행자 신호 제거(scripts/remove_cluster_crosswalks.py, 보행자 15명 제외). 3.8.0: J42 잔다리로 R94 우회전 제거(scripts/remove_j42_right_turn.py). 3.7.0: J1 양화로 R42 차로 3도 좌회전(scripts/add_j1_left_lane.py로 커밋된 3.6.0에 더했다)
+VERSION = "3.21.0"   # 3.21.0: J82 독막로 좌회전을 안쪽 3번 차로 하나로, R112 2번 차로로(scripts/inner_lane_left_turns.py). 3.20.0: 배경 흐름 전체 1.25배(scripts/scale_demand.py). 3.19.0: bus_loop를 J1 좌회전 뒤 R68까지 늘려 순환을 닫음(scripts/close_bus_loop.py). 3.18.0: J42·J82 우회전 모서리 횡단보도 네 개를 바깥쪽으로 0.5 m 옮기고 그 앞 정지선을 1 m 물림(scripts/move_crosswalks_outward.py). 3.17.0: J42 좌회전 다섯 연결을 앞뒤 차로에 접하는 곡선으로(scripts/smooth_j42_left_turns.py). 3.16.0: 지도 경계 J99·J100·J108·J109·J110의 유턴 연결 제거(scripts/remove_fringe_turnarounds.py). 3.15.0: 되돌아가거나 크게 에도는 배경 흐름 17개 제거(scripts/drop_turnaround_flows.py), 끊긴 걸음 2개 다시 찾기와 대각선 횡단보도 고정(scripts/fix_pedestrian_walks.py), 도로망은 3.13.0 그대로. 3.14.0: 보행자를 포아송 도착(personFlow)으로, 독막로6길 고리 경유 흐름 제거(도로망은 3.13.0 그대로). 3.13.0: J96 우회전 녹색이 보행자 녹색과 겹치지 않게 신호 수정(scripts/separate_right_turns_from_crosswalks.py). 3.12.0: J1 c2 시작점을 w2 섬에 붙임(scripts/fix_j1_c2_start.py). 3.11.0: J23 겹친 횡단보도(-R71 R71.256) 제거(scripts/remove_j23_overlapping_crosswalk.py). 3.10.0: J8 겹친 횡단보도(-R69a R69a) 제거(scripts/remove_j8_duplicate_crosswalk.py). 3.9.0: cluster_J52_J56_J58 횡단보도 두 개와 보행자 신호 제거(scripts/remove_cluster_crosswalks.py, 보행자 15명 제외). 3.8.0: J42 잔다리로 R94 우회전 제거(scripts/remove_j42_right_turn.py). 3.7.0: J1 양화로 R42 차로 3도 좌회전(scripts/add_j1_left_lane.py로 커밋된 3.6.0에 더했다)
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]
@@ -90,12 +90,13 @@ REMOVED_CONNECTIONS: list[tuple[str, str, str, str]] = []
 # 차도 차로 수를 바꾸는 도로(도로 → 차도 차로 수)와, 그 때문에 통째로 다시 적는 연결(나가는 도로 → [(차로, 들어가는 도로, 차로)]).
 # MOVED_LINKS는 새 연결이 원본의 어느 연결의 신호를 받는지 적는다.
 # 상수역 사거리 앞 27m 구간 R111b는 차도가 3차로에서 2차로로 줄었다. 정지선 바로 앞에서 두 차가 한 차로에 나란히 끼인 채
-# 우회전하다 교차로 안에서 서로를 막아 300초 뒤 순간이동했다. 3차로로 넓혀 차로를 1:1로 잇는다. 2차로는 직진과 좌회전,
-# 3차로는 좌회전이다. 2차로에서도 좌회전이 되어야 가로변 차로를 달리던 버스가 한 번만 옮기고 좌회전한다.
+# 우회전하다 교차로 안에서 서로를 막아 300초 뒤 순간이동했다. 3차로로 넓혀 차로를 1:1로 잇는다. 2차로는 직진, 3차로는
+# 좌회전이다. 3.20.0까지는 2차로도 R112 1차로로 좌회전해, 버스가 한 칸만 옮기고 좌회전 뒤 바로 정류장 차로에 들어섰다.
+# 실제 도로처럼 안쪽 차로에서 좌회전해 안쪽 차로(R112 2차로)로 나오게 했다(사용자 결정, scripts/inner_lane_left_turns.py).
 WIDENED_EDGES: dict[str, int] = {"R111b": 3}
 REPLACED_CONNECTIONS: dict[str, list[tuple[str, str, str]]] = {
     "R111": [("1", "R111b", "1"), ("2", "R111b", "2"), ("3", "R111b", "3")],
-    "R111b": [("1", "R129", "1"), ("1", "R128", "1"), ("2", "R128", "2"), ("2", "R112", "1"), ("3", "R112", "2")],
+    "R111b": [("1", "R129", "1"), ("1", "R128", "1"), ("2", "R128", "2"), ("3", "R112", "2")],
     # 삼거리포차 앞과 서교동사거리의 좌회전은 2차로에서만 됐다. 가로변 차로를 달리는 버스가 좌회전 줄에 끼어들지 못하고
     # 300초를 서 있다 순간이동했다(규칙 버스 12회 중 1회). 가로변 차로에서도 좌회전해 가로변 차로로 들어가게 한다.
     "R112.221": [("1", "R130", "1"), ("1", "R113", "1"), ("2", "R113", "2")],

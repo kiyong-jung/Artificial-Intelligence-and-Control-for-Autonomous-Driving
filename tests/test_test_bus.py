@@ -184,10 +184,11 @@ def test_lane_plans_are_s3_then_two_s2_and_end_before_signals():
     assert [x.kind for x in p] == ["S3", "S2", "S2"]
     # 정류장 차로에는 정류장 시작 10 m 전까지 들어가야 한다(성산중학교 13.31 m -> 3.31 m)
     assert (p[0].edge, p[0].target_lane) == ("R71.206", 1) and p[0].end_pos == pytest.approx(3.31, abs=0.01)
-    assert (p[1].edge, p[1].target_lane) == ("R111b", 2) and p[1].end_pos == pytest.approx(7.0, abs=0.5)
+    # J82는 3.21.0부터 안쪽 R111b 차로 3에서만 좌회전한다(R112 차로 2로)
+    assert (p[1].edge, p[1].target_lane) == ("R111b", 3) and p[1].end_pos == pytest.approx(7.0, abs=0.5)
     # J1은 3.7.0부터 R42 차로 3도 좌회전(R68 차로 1)이다. 버스는 더 가까운 차로 3을 목표로 한다
     assert (p[2].edge, p[2].target_lane) == ("R42", 3) and p[2].end_pos == pytest.approx(6.0, abs=0.5)
-    assert all(x.length >= 120.0 for x in p) and p[2].length > p[1].length     # J1 앞은 차로를 더 많이 옮긴다
+    assert all(x.length >= 120.0 for x in p) and p[2].length == p[1].length > 120.0     # 두 좌회전 모두 두 칸을 옮긴다
 
 
 def test_pilot_departs_once_from_r68_and_sets_stops():

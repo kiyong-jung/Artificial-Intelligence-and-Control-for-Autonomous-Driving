@@ -63,8 +63,9 @@ def route_map():
 
 
 def test_hapjeong_left_turns_are_limited_below_the_network_speed(route_map):
-    """J82 좌회전(반지름 약 17m)의 도로망 제한은 10.27m/s(횡가속도 약 6m/s²), J42 좌회전 끝은 13.89m/s다."""
-    assert 5.0 < route_map.curve_speed(":J82_15_0", 11.0) < 6.5
+    """J82 좌회전(3.21.0부터 안쪽 차로끼리 R111b 3 -> R112 2, 대기 위치 뒤 :J82_23_0)의 도로망 제한은 9.21m/s,
+    J42 좌회전 끝은 13.89m/s다."""
+    assert 5.0 < route_map.curve_speed(":J82_23_0", 11.0) < 6.5
     assert 4.0 < route_map.curve_speed(":J42_24_0", 6.0) < 6.5
     # 좌회전을 마친 뒤에도 뒤범퍼가 교차로를 벗어날 때까지는 제한이 이어지고, 그 뒤 곧은 도로에는 제한이 없다.
     assert route_map.curve_speed("R54a_1", 5.0) < 6.5
@@ -73,9 +74,9 @@ def test_hapjeong_left_turns_are_limited_below_the_network_speed(route_map):
 
 
 def test_curve_speeds_ahead_lists_the_rest_of_the_lane(route_map):
-    ahead = list(route_map.curve_speeds_ahead(":J82_15_0", 8.4))
-    assert ahead[0] == (8.4, route_map.curve_speed(":J82_15_0", 8.4))
-    assert [at for at, _speed in ahead[1:]] == [9.0, 10.0, 11.0]
+    ahead = list(route_map.curve_speeds_ahead(":J82_23_0", 12.4))
+    assert ahead[0] == (12.4, route_map.curve_speed(":J82_23_0", 12.4))
+    assert [at for at, _speed in ahead[1:]] == [13.0, 14.0, 15.0]
     assert list(route_map.curve_speeds_ahead("R71_2")) == []
 
 
@@ -85,4 +86,4 @@ def test_no_limit_without_a_comfort_limit():
     network = ROAD["network"]
     plain = RouteMap(network["net_path"], ROAD["ego_route"], network["routes"][ROAD["ego_route"]],
                      network.get("bus_stops", []), EGO["vclass"])
-    assert plain.curve_speed(":J82_15_0", 11.0) == math.inf
+    assert plain.curve_speed(":J82_23_0", 11.0) == math.inf

@@ -20,6 +20,8 @@ BASE = Path(__file__).resolve().parents[1]
 
 
 def add_run_arguments(parser, episode_limit=True):
+    parser.add_argument("--learning-profile", choices=["legacy", "bus_service_v1"], default=None,
+                        help="bus_service_v1: policy-only Hapjeong bus task; legacy preserves previous runs")
     parser.add_argument("--map", choices=available_maps(), default=None,
                         help=f"지도 id(maps/ 아래 폴더 이름); 생략하면 {DEFAULT_MAP}")
     parser.add_argument("--scenario", choices=tuple(SCENARIOS), default="baseline",
@@ -35,7 +37,11 @@ def add_run_arguments(parser, episode_limit=True):
 def configure_execution(args):
     """지도와 교통 조건을 적용한다. ValueError는 호출자가 CLI 오류로 바꾼다."""
     configure_map(args.scenario, args.seed, args.ego_route, args.map or DEFAULT_MAP)
+    from env.bus_task import apply_profile
+    apply_profile(ROAD, EGO, OBSERVATION, ACTION, getattr(args, "learning_profile", None) or "legacy")
     max_steps = getattr(args, "max_steps", None)
+    if max_steps is None and EGO.get("learning_profile") == "bus_service_v1":
+        max_steps = 1800  # 900s includes four services; old 500s demo lap can exceed the limit.
     if max_steps is not None:
         if max_steps < 1:
             raise ValueError("--max-steps는 1 이상이어야 합니다.")
@@ -86,6 +92,7 @@ def write_run_config(directory, *, hparams=None, reward=None, settings=None, **e
         **deepcopy(settings), "reward": deepcopy(reward), "hparams": deepcopy(hparams),
         "git": _git_state(), "versions": versions,
         "created_at": datetime.now().astimezone().isoformat(),
+        "reward_source": "ego.task_rewards" if settings["ego"].get("learning_profile") == "bus_service_v1" else "reward",
         **extra,
     }
     (directory / "run_config.json").write_text(

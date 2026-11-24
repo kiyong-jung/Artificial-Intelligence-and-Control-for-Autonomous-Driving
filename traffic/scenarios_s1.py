@@ -1,7 +1,7 @@
 """S1 검증용 합성 도로: 2차로 직선, 1차로(0번)의 차로 정차형 정류장에 버스가 선다.
 
 버스가 서 있는 동안 바로 뒤에 후행차 한 대가 접근한다. 후행차는 car_* 배경 차량이고(주행 모델 4종),
-운전자 성향은 YieldManager.on_departed가 붙인다. 기다릴지 추월할지는 SUMO 차선 변경 모델이 정한다.
+공격성 값은 YieldManager.on_departed가 붙인다.
 """
 import os
 import random
@@ -10,7 +10,8 @@ import subprocess
 from .scenarios import NET_DIR, _write
 from .sumo_conn import traci, sumo_cmd, checkBinary
 from .stop_bypass import StopBypassManager
-from .yield_logic import YieldManager
+from .common import Ownership
+from .yield_logic import YieldManager, DEFAULT_TYPES
 
 STOP_POS = (300.0, 320.0)
 MODELS = (("krauss", "Krauss"), ("idm", "IDM"), ("eidm", "EIDM"), ("acc", "ACC"))
@@ -41,13 +42,18 @@ def build_s1_net(stop_s=40, n_lanes=2):
     return os.path.join(d, "s1.sumocfg")
 
 
-def run_s1_episode(cfg, model, seed, *, stop_s=40.0, t_end=90.0, mgr_kwargs=None):
+def run_s1_episode(cfg, model, seed, *, p_overtake=None, lock_wait=True, stop_s=40.0, t_end=90.0,
+                   mgr_kwargs=None):
     """버스가 정류장에 서고(stop_s초), 바로 뒤에 후행차가 접근한다. 반환: 결과 dict."""
     tc = traci
     cmd = sumo_cmd(cfg, seed=seed)
     tc.load(cmd[1:]) if tc.isLoaded() else tc.start(cmd)
-    ymgr = YieldManager(tc, "bus0", rng=random.Random(seed + 1), **(mgr_kwargs or {}))
-    smgr = StopBypassManager(tc, "bus0")
+    rng = random.Random(seed)
+    own = Ownership()
+    ymgr = YieldManager(tc, "bus0", rng=random.Random(seed + 1), types=DEFAULT_TYPES,
+                        type_mix={"yielder": 0.5, "nonyielder": 0.5}, mix_vtype_prefixes=("car_",),
+                        owner=own, **(mgr_kwargs or {}))
+    smgr = StopBypassManager(tc, "bus0", rng=rng, owner=own, p_overtake=p_overtake, lock_wait=lock_wait)
     tc.vehicle.add("bus0", "r0", typeID="bus_test", departLane="0", departPos="230", departSpeed="8")
     tc.vehicle.setBusStop("bus0", "bs0", duration=stop_s)
     added = False
@@ -72,4 +78,4 @@ def run_s1_episode(cfg, model, seed, *, stop_s=40.0, t_end=90.0, mgr_kwargs=None
             break
     ev = smgr.log[0] if smgr.log else None
     return {"model": model, "seed": seed, "event": ev, "changed_lane": 1 in lanes_seen,
-            "a": None if ev is None else ev["aggressiveness"], "n_events": len(smgr.log)}
+            "a": None if ev is None else ev["p"], "n_events": len(smgr.log), "owner_left": own.owner("f0")}

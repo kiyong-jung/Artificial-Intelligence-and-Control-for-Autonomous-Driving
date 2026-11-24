@@ -17,7 +17,9 @@ source/signals.base.add.xml)이다. 임시 폴더에서 다음을 모두 마친 
 from __future__ import annotations
 
 import json
+import math
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -40,7 +42,7 @@ from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "3.22.0"   # 3.22.0: J83·J42·J1 좌회전도 가장 왼쪽 차로 하나에서만(scripts/inner_lane_left_turns.py). 3.21.0: J82 독막로 좌회전을 안쪽 3번 차로 하나로, R112 2번 차로로(scripts/inner_lane_left_turns.py). 3.20.0: 배경 흐름 전체 1.25배(scripts/scale_demand.py). 3.19.0: bus_loop를 J1 좌회전 뒤 R68까지 늘려 순환을 닫음(scripts/close_bus_loop.py). 3.18.0: J42·J82 우회전 모서리 횡단보도 네 개를 바깥쪽으로 0.5 m 옮기고 그 앞 정지선을 1 m 물림(scripts/move_crosswalks_outward.py). 3.17.0: J42 좌회전 다섯 연결을 앞뒤 차로에 접하는 곡선으로(scripts/smooth_j42_left_turns.py). 3.16.0: 지도 경계 J99·J100·J108·J109·J110의 유턴 연결 제거(scripts/remove_fringe_turnarounds.py). 3.15.0: 되돌아가거나 크게 에도는 배경 흐름 17개 제거(scripts/drop_turnaround_flows.py), 끊긴 걸음 2개 다시 찾기와 대각선 횡단보도 고정(scripts/fix_pedestrian_walks.py), 도로망은 3.13.0 그대로. 3.14.0: 보행자를 포아송 도착(personFlow)으로, 독막로6길 고리 경유 흐름 제거(도로망은 3.13.0 그대로). 3.13.0: J96 우회전 녹색이 보행자 녹색과 겹치지 않게 신호 수정(scripts/separate_right_turns_from_crosswalks.py). 3.12.0: J1 c2 시작점을 w2 섬에 붙임(scripts/fix_j1_c2_start.py). 3.11.0: J23 겹친 횡단보도(-R71 R71.256) 제거(scripts/remove_j23_overlapping_crosswalk.py). 3.10.0: J8 겹친 횡단보도(-R69a R69a) 제거(scripts/remove_j8_duplicate_crosswalk.py). 3.9.0: cluster_J52_J56_J58 횡단보도 두 개와 보행자 신호 제거(scripts/remove_cluster_crosswalks.py, 보행자 15명 제외). 3.8.0: J42 잔다리로 R94 우회전 제거(scripts/remove_j42_right_turn.py). 3.7.0: J1 양화로 R42 차로 3도 좌회전(scripts/add_j1_left_lane.py로 커밋된 3.6.0에 더했다)
+VERSION = "3.22.0"   # 3.22.0: J83·J42·J1 좌회전도 가장 왼쪽 차로 하나에서만(scripts/inner_lane_left_turns.py). 3.21.0: J82 독막로 좌회전을 안쪽 3번 차로 하나로, R112 2번 차로로(scripts/inner_lane_left_turns.py). 3.20.0: 배경 흐름 전체 1.25배(scripts/scale_demand.py). 3.19.0: bus_loop를 J1 좌회전 뒤 R68까지 늘려 순환을 닫음(scripts/close_bus_loop.py). 3.18.0: J42·J82 우회전 모서리 횡단보도 네 개를 바깥쪽으로 0.5 m 옮기고 그 앞 정지선을 1 m 물림(scripts/move_crosswalks_outward.py). 3.17.0: J42 좌회전 다섯 연결을 앞뒤 차로에 접하는 곡선으로(scripts/smooth_j42_left_turns.py). 3.16.0: 지도 경계 J99·J100·J108·J109·J110의 유턴 연결 제거(scripts/remove_fringe_turnarounds.py). 3.15.0: 되돌아가거나 크게 에도는 배경 흐름 17개 제거(scripts/drop_turnaround_flows.py), 끊긴 걸음 2개 다시 찾기와 대각선 횡단보도 고정(scripts/fix_pedestrian_walks.py), 도로망은 3.13.0 그대로. 3.14.0: 보행자를 포아송 도착(personFlow)으로, 독막로6길 고리 경유 흐름 제거(도로망은 3.13.0 그대로). 3.7.0~3.13.0은 아래 설정(REPLACED_CONNECTIONS, REMOVED_CONNECTIONS, CLOSED_CROSSINGS, CROSSING_STARTS, RIGHT_TURNS_AFTER_WALK, NO_WALKERS_ON)이다. 3.16.0~3.18.0과 3.21.0·3.22.0의 모양·신호 수정은 커밋된 도로망에 스크립트로 직접 얹었고 이 빌드는 다시 만들지 못한다(루트 README의 "알려진 한계").
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]
@@ -52,6 +54,22 @@ JOINED_CROSSINGS = [("R73", "-R73"), ("R77", "-R77")]
 # 중앙버스차로가 일반 차로로 합류하는 연결(신호 교차로 → [(나가는 도로, 들어가는 도로)])
 YIELD_CONNECTIONS = {"J1": [("B2", "R40"), ("B1", "R41")]}
 DROP_PROGRAMS = {"J56"}
+# 보행자 수요를 만든 뒤 닫는 횡단보도(교차로, 건너는 도로). 보행자는 모든 횡단보도가 있는 도로망에서 만들고, 닫은 뒤
+# 갈 길이 없어진 보행자는 뺀다.
+CLOSED_CROSSINGS: list[tuple[str, str]] = [
+    # 독막로·어울마당로 교차로. 보행자 녹색이 차량 양보 녹색과 겹쳐, 차가 양보하지 못하면 보행자와 부딪혔다(3.9.0).
+    (JOINED, "R77 -R77"), (JOINED, "-R73 R73"),
+    # 독막로 J8. 3.4.0 정리 뒤 c0과 0.1m 간격으로 겹쳤다(3.10.0).
+    ("J8", "-R69a R69a"),
+    # 독막로 J23. 3.4.0 정리 뒤 c0과 한쪽 끝에서 V자로 겹쳤다. 직각이고 짧은 c0을 남긴다(3.11.0).
+    ("J23", "-R71 R71.256"),
+]
+# 이 횡단보도를 건너는 보행자를 뺀다. J1 대기 구역에 선 보행자 때문에 버스가 J1 좌회전 끝에서 900초 넘게 섰다(3.13.0).
+NO_WALKERS_ON = [":J1_c1"]
+# 횡단보도 → 시작점을 붙일 보행자 섬. 자동 위치에서는 시작선이 섬에 모서리 한 점으로만 닿았다(3.12.0).
+CROSSING_STARTS = {":J1_c2": ":J1_w2"}
+# 보행자 녹색과 겹치는 우회전 녹색을 적색으로 바꾸는 신호 교차로. 우회전 차가 건너는 보행자와 부딪혔다(3.13.0).
+RIGHT_TURNS_AFTER_WALK = ["J96"]
 # 독막로·어울마당로 교차로(JOINED)의 신호. netconvert에 맡기면 R122가 붙을 때 보행 전용 단계가 생겨 주기가 90초에서
 # 100초가 되고, 상수역 사거리(J82)와 맞던 녹색 시점이 어긋나 버스가 R111b에서 한 바퀴마다 30초쯤 더 섰다.
 # (초, {들어오는 도로 또는 "crossing": 신호}). 적지 않은 연결은 빨강이다.
@@ -86,7 +104,9 @@ CUTS = {"CUT_worldcup": ("R61", "-R61", 200.0, "J49"),    # 월드컵로, 합정
         "CUT_jandari": ("R92", "-R92", 130.0, "J64")}     # 잔다리로, 서교동사거리 북서쪽
 # (나가는 도로, 차로, 들어가는 도로, 차로). 합정역 R42 1·2번 차로가 둘 다 R40 1번 차로로 직진해 부딪히던 것은
 # 생성기에서 R40을 일반 3차로로 넓혀 R42 직진 세 차로를 1:1로 이어 풀었다.
-REMOVED_CONNECTIONS: list[tuple[str, str, str, str]] = []
+# 서교동사거리 J42 잔다리로 R94 차로 1의 우회전(R53). 우회전 차가 횡단보도 보행자를 기다리면 같은 차로의 직진·좌회전까지
+# 막혀 없앴다(3.8.0).
+REMOVED_CONNECTIONS: list[tuple[str, str, str, str]] = [("R94", "1", "R53", "1")]
 # 차도 차로 수를 바꾸는 도로(도로 → 차도 차로 수)와, 그 때문에 통째로 다시 적는 연결(나가는 도로 → [(차로, 들어가는 도로, 차로)]).
 # MOVED_LINKS는 새 연결이 원본의 어느 연결의 신호를 받는지 적는다.
 # 상수역 사거리 앞 27m 구간 R111b는 차도가 3차로에서 2차로로 줄었다. 정지선 바로 앞에서 두 차가 한 차로에 나란히 끼인 채
@@ -141,7 +161,7 @@ STUB_ENDS: list[str] = []   # 원본 골목 토막의 끝 가운데 골목이 �
 REMOVED_EDGES = ["R116", "-R116", "R117", "-R117", "R118", "-R118", "R119", "-R119", "R121", "R123", "-R123"]
 # 토막을 떼어 냈거나 차로를 바꾼 신호 교차로. netconvert는 읽어 온 신호의 연결 번호를 그대로 두어 번호에 빈칸이 생기고, 다시 놓는
 # 횡단보도가 남은 번호와 겹친다. 첫 단계에서 신호를 떼었다가 둘째 단계에서 다시 달아 번호를 새로 매기게 한다.
-RESIGNALED = ["J8", "J23", "J82", "J83", "J42"]
+RESIGNALED = ["J8", "J23", "J82", "J83", "J42", "J1"]
 SERVICE_KMH = 20   # maps/paldalmun/source/speed_defaults.json의 service
 # (도로 id, 이름, OSM 길 id, 시작, 끝, km/h, 일방통행). 시작·끝은 위의 노드 id다. 굽은 점은 source/area.osm.xml의
 # 그 길에서 시작과 끝 사이의 점을 쓴다. OSM 길이 area.osm.xml에 없으면(None) 직선이다. 양방향이면 "-" + id도 만든다.
@@ -592,6 +612,7 @@ def build_signals(net_path: Path, output: Path) -> dict[str, list[int]]:
             raise ValueError(f"신호 프로그램 {tls}의 교차로가 도로망에 없습니다.")
         original = {key: index for index, key in base[tls].items()}
         gone = {key for key in original if key[0] != "crossing" and {key[0], key[2]} & set(REMOVED_EDGES)}
+        gone |= {("crossing", frozenset(map(original_id, edges.split()))) for node, edges in CLOSED_CROSSINGS if node == tls}
         changed = (set(original) ^ set(built[tls].values())) - set(REMOVED_CONNECTIONS) - gone
         if changed or len(original) != len(base[tls]):
             raise ValueError(f"신호 교차로 {tls}의 연결이 원본과 다릅니다: {sorted(map(str, changed))}")
@@ -637,6 +658,122 @@ def build_signals(net_path: Path, output: Path) -> dict[str, list[int]]:
         ET.SubElement(joined, "phase", duration=str(seconds), state="".join(state))
     ET.ElementTree(root).write(output, encoding="utf-8", xml_declaration=True)
     return {tls: indexes for tls, indexes in yielded.items() if indexes}
+
+
+def close_crossings(net_path: Path, temporary: Path) -> Path:
+    """CLOSED_CROSSINGS를 닫은 도로망을 만들고, 도로망 안 신호 프로그램을 줄어든 연결 번호에 맞춘다.
+
+    netconvert는 연결 번호만 다시 매기고 프로그램은 원래 길이로 둬 SUMO가 연결 번호 오류로 멈춘다. 남은 연결이 원래 받던
+    신호를 그대로 옮긴다. 닫은 횡단보도가 없는 신호 교차로의 연결이 바뀌면 멈춘다.
+    """
+    connections = ET.Element("connections")
+    for node, edges in CLOSED_CROSSINGS:
+        ET.SubElement(connections, "crossing", node=node, edges=edges, discard="true")
+    ET.ElementTree(connections).write(temporary / "closed.con.xml", encoding="utf-8")
+    output = temporary / "closed.net.xml"
+    netconvert(["--sumo-net-file", str(net_path), "--connection-files", str(temporary / "closed.con.xml")], output)
+    old, new = signal_links(net_path), signal_links(output)
+    touched = {node for node, _ in CLOSED_CROSSINGS}
+    for tls in old:
+        if tls not in touched and old[tls] != new.get(tls):
+            raise ValueError(f"횡단보도를 닫지 않은 {tls}의 신호 연결이 바뀌었습니다.")
+    tree = ET.parse(output)
+    for logic in tree.getroot().iter("tlLogic"):
+        tls = logic.get("id")
+        if tls not in touched:
+            continue
+        index_of = {key: index for index, key in old[tls].items()}
+        order = [index_of[new[tls][index]] for index in sorted(new[tls])]
+        for phase in logic.iter("phase"):
+            if len(phase.get("state")) == len(old[tls]):
+                phase.set("state", "".join(phase.get("state")[index] for index in order))
+    for crossing, area in CROSSING_STARTS.items():
+        attach_crossing_start(tree.getroot(), crossing, area)
+    tree.write(output, encoding="utf-8", xml_declaration=True)
+    return output
+
+
+def attach_crossing_start(root: ET.Element, crossing: str, area: str) -> None:
+    """횡단보도의 시작점을 보행자 섬의 도로 쪽 가장자리(모양의 마지막 점 → 첫 점) 가운데로 옮긴다. 끝점은 그대로다."""
+    edges = {edge.get("id"): edge for edge in root.iter("edge")}
+    lane = edges[crossing].find("lane")
+    points = lambda text: [tuple(map(float, point.split(","))) for point in text.split()]
+    island = points(edges[area].find("lane").get("shape"))
+    _, end = points(lane.get("shape"))
+    (x0, y0), (x1, y1) = island[-1], island[0]
+    start = ((x0 + x1) / 2, (y0 + y1) / 2)
+    length = math.hypot(end[0] - start[0], end[1] - start[1])
+    half = float(lane.get("width")) / 2
+    nx, ny = -(end[1] - start[1]) / length * half, (end[0] - start[0]) / length * half
+    text = lambda pts: " ".join(f"{x:.3f},{y:.3f}" for x, y in pts)
+    lane.set("shape", text([start, end]))
+    lane.set("length", f"{length:.3f}")
+    lane.set("outlineShape", text([(start[0] + nx, start[1] + ny), (end[0] + nx, end[1] + ny),
+                                   (end[0] - nx, end[1] - ny), (start[0] - nx, start[1] - ny)]))
+
+
+def separate_right_turns(net_path: Path, paths: list[Path]) -> None:
+    """RIGHT_TURNS_AFTER_WALK 교차로에서 충돌하는 횡단보도가 녹색인 단계의 우회전 녹색을 적색으로 바꾼다."""
+    text = net_path.read_text(encoding="utf-8")
+    root = ET.fromstring(text.encode("utf-8"))
+    crossings = {edge.get("id") for edge in root.iter("edge") if edge.get("function") == "crossing"}
+    for tls in RIGHT_TURNS_AFTER_WALK:
+        links = {int(c.get("linkIndex")): (c.get("dir"), c.get("to") in crossings) for c in root.iter("connection") if c.get("tl") == tls}
+        walks = {index for index, (_, crossing) in links.items() if crossing}
+        rights = [index for index, (direction, crossing) in sorted(links.items()) if direction == "r" and not crossing]
+        junction = re.search(rf'<junction id="{re.escape(tls)}".*?</junction>', text, re.S).group(0)
+        foes = {int(index): [k for k in range(len(bits)) if bits[len(bits) - 1 - k] == "1" and k in walks]
+                for index, bits in re.findall(r'<request index="(\d+)" response="[01]+" foes="([01]+)"', junction)}
+        for path in paths:
+            tree = ET.parse(path)
+            for logic in tree.getroot().iter("tlLogic"):
+                if logic.get("id") != tls:
+                    continue
+                for phase in logic.iter("phase"):
+                    state = list(phase.get("state"))
+                    if len(state) != len(links):
+                        continue
+                    for index in rights:
+                        if state[index] in "Gg" and any(state[walk] in "Gg" for walk in foes.get(index, [])):
+                            state[index] = "r"
+                    phase.set("state", "".join(state))
+            tree.write(path, encoding="utf-8", xml_declaration=True)
+
+
+def prune_walkers(net_path: Path, signals: Path, routes: Path) -> int:
+    """닫은 횡단보도 때문에 갈 길이 없는 보행자와 NO_WALKERS_ON을 건너는 보행자를 뺀다. 뺀 수를 돌려준다.
+
+    보행자는 출발할 때 길을 찾고, 다른 보행자의 대기 시간에 따라 길을 바꾼다. 그래서 SUMO를 보행자만 넣고 돌려 찾고,
+    더 찾을 보행자가 없을 때까지 되풀이한다.
+    """
+    import traci
+
+    def drop(ids: set[str]) -> None:
+        text = routes.read_text(encoding="utf-8")
+        for pid in ids:
+            text = re.sub(rf'<person id="{re.escape(pid)}"[^>]*>.*?</person>', "", text, flags=re.S)
+        routes.write_text(text, encoding="utf-8")
+
+    end = int(max(float(x) for x in re.findall(r'depart="([0-9.]+)"', routes.read_text(encoding="utf-8"))))
+    done = subprocess.run([sumolib.checkBinary("sumo"), "-n", str(net_path), "-r", str(routes), "--end", str(end + 60),
+                           "--ignore-route-errors", "true", "--no-step-log", "true"], capture_output=True, text=True, timeout=600)
+    lost = set(re.findall(r"[Pp]erson '([^']+)'", done.stdout + done.stderr))
+    drop(lost)
+    removed = len(lost)
+    while True:
+        traci.start([sumolib.checkBinary("sumo"), "-n", str(net_path), "-r", str(routes), "-a", str(signals),
+                     "--end", str(end + 400), "--no-step-log", "true", "--no-warnings", "true", "--ignore-route-errors", "true"])
+        found: set[str] = set()
+        try:
+            while traci.simulation.getTime() < end + 400:
+                traci.simulationStep()
+                found |= {pid for pid in traci.person.getIDList() if traci.person.getRoadID(pid) in NO_WALKERS_ON}
+        finally:
+            traci.close()
+        if not found:
+            return removed
+        drop(found)
+        removed += len(found)
 
 
 def build_pedestrians(net_path: Path, output: Path, temporary: Path) -> None:
@@ -745,8 +882,12 @@ def build() -> dict:
     with tempfile.TemporaryDirectory(prefix="hapjeong_build_") as name:
         temporary = Path(name)
         net_path = build_network(temporary)
-        yield_links = build_signals(net_path, temporary / "signals.add.xml")
+        # 보행자는 모든 횡단보도가 있는 도로망에서 만든 뒤, 횡단보도를 닫고 갈 길이 없어진 보행자를 뺀다.
         build_pedestrians(net_path, temporary / "pedestrians.rou.xml", temporary)
+        net_path = close_crossings(net_path, temporary)
+        yield_links = build_signals(net_path, temporary / "signals.add.xml")
+        separate_right_turns(net_path, [net_path, temporary / "signals.add.xml"])
+        removed_walkers = prune_walkers(net_path, temporary / "signals.add.xml", temporary / "pedestrians.rou.xml")
         net = sumolib.net.readNet(str(net_path))
         routes, route_design = {}, {}
         for route_id, (description, anchors) in ROUTES.items():
@@ -780,8 +921,12 @@ def build() -> dict:
                                            "cuts": {node: {"edges": [outward, inward], "distance_m": distance}
                                                     for node, (outward, inward, distance, _) in CUTS.items()},
                                            "removed_connections": [list(item) for item in REMOVED_CONNECTIONS],
-                                           "through_alleys": THROUGH_ALLEYS},
-                               "pedestrians": {**PEDESTRIANS, "s6_walkers_per_hour": S6_WALKERS_PER_HOUR, "arrivals": "poisson"}},
+                                           "through_alleys": THROUGH_ALLEYS,
+                                           "closed_crossings": [list(item) for item in CLOSED_CROSSINGS],
+                                           "crossing_starts": CROSSING_STARTS, "right_turns_after_walk": RIGHT_TURNS_AFTER_WALK},
+                               "pedestrians": {**PEDESTRIANS, "s6_walkers_per_hour": S6_WALKERS_PER_HOUR,
+                                               "no_walkers_on": NO_WALKERS_ON, "removed_walkers": removed_walkers,
+                                               "arrivals": "poisson"}},
             "extra_files": EXTRA_FILES,
             "ego_vehicle": "bus",
             "focus_bbox": [round(west, 7), round(south, 7), round(east, 7), round(north, 7)],

@@ -7,7 +7,7 @@ import os
 import subprocess
 
 from .sumo_conn import traci, sumo_cmd, checkBinary
-from .yield_logic import YieldManager, BLINKER_LEFT
+from .yield_logic import YieldManager, DEFAULT_TYPES, BLINKER_LEFT
 
 NET_DIR = os.path.join(os.path.dirname(__file__), "_build")
 SUMO_BIN_NETCONVERT = checkBinary("netconvert")
@@ -73,18 +73,19 @@ class ScriptedBus:
 
 
 def _param_float(tc, vid, key):
-    """차량이 없거나 파라미터가 비어 있으면(운전자 성향을 못 받은 차량) None."""
+    """차량이 없거나 파라미터가 비어 있으면(양보 성격을 못 받은 차량) None."""
     if vid not in tc.vehicle.getIDList():
         return None
     v = tc.vehicle.getParameter(vid, key)
     return float(v) if v != "" else None
 
 
-def run_a1_episode(cfg, vtype, seed, bus_lc_mode=None, t_end=30.0,
-                   follower_x0=21.5, record=False, bus_kwargs=None, lanes=(0, 1), edge="E0", warmup=0.0, mgr_kwargs=None):
-    """버스가 옆 차로로 옮기려 할 때 그 차로 후행차(vType vtype, 운전자 성향은 YieldManager가 뽑는다)가 한 일을 본다.
+def run_a1_episode(cfg, driver_type, seed, bus_lc_mode=None, t_end=30.0,
+                   follower_x0=21.5, p_override=None, pc_override=None, record=False, bus_kwargs=None, lanes=(0, 1), edge="E0", warmup=0.0, mgr_kwargs=None):
+    """한 번의 상호작용을 돌려 결과 dict를 돌려준다.
 
-    아무것도 조종하지 않는다. mgr_kwargs: YieldManager에 더 넘길 인자(예: follower_range).
+    p_override: 양보 확률을 고정(예: 0)해 누출 검사에 쓴다.
+    mgr_kwargs: YieldManager에 더 넘길 인자(예: type_mix, mix_vtype_prefixes).
     """
     import random
     tc = traci
@@ -98,9 +99,15 @@ def run_a1_episode(cfg, vtype, seed, bus_lc_mode=None, t_end=30.0,
     rng = random.Random(seed)
     bus = ScriptedBus("bus0", **{"bus_lane": lanes[0], "target_lane": lanes[1], **(bus_kwargs or {})})
     bus.add(tc)
-    mgr = YieldManager(tc, "bus0", rng=rng, stop_exit_pos=(edge, 100.0), exit_max_dist=60.0,
-                       driver_prefixes=(vtype,), **{"follower_range": 50.0, **(mgr_kwargs or {})})
-    tc.vehicle.add("f0", "r0", typeID=vtype, departPos=str(follower_x0),
+    types = DEFAULT_TYPES
+    if p_override is not None:
+        import copy
+        types = copy.deepcopy(DEFAULT_TYPES)
+        types[driver_type].p_yield = (p_override, p_override)
+        types[driver_type].yields = p_override >= 0.5     # 행동은 투입 때 확정된다: 0이면 양보하지 않는 차량
+    mgr = YieldManager(tc, "bus0", rng=rng, types=types, stop_exit_pos=(edge, 100.0),
+                       exit_max_dist=60.0, **(mgr_kwargs or {}))
+    tc.vehicle.add("f0", "r0", typeID=driver_type, departPos=str(follower_x0),
                    departLane=str(lanes[1]), departSpeed="9")
     if bus_lc_mode is not None:
         tc.vehicle.setLaneChangeMode("bus0", bus_lc_mode)
@@ -127,14 +134,22 @@ def run_a1_episode(cfg, vtype, seed, bus_lc_mode=None, t_end=30.0,
                            "f_pos": tc.vehicle.getLanePosition("f0"),
                            "gap": tc.vehicle.getLanePosition("bus0") - 12.0
                                   - tc.vehicle.getLanePosition("f0")})
-    ob = mgr.log[0] if mgr.log else None
-    out = {"type": vtype, "seed": seed,
-           "outcome": None if ob is None else ob["outcome"],
-           "observing": bool(mgr.inter),
-           "n_observations": len(mgr.log) + len(mgr.inter),
-           "aggressiveness": _param_float(tc, "f0", "driver.aggressiveness"),
-           "lcCooperative": _param_float(tc, "f0", "laneChangeModel.lcCooperative"),
-           "max_decel": None if ob is None else ob["max_decel"],
+    inter = mgr.log[0] if mgr.log else None
+    if inter is None and mgr.inter:
+        inter = {"yield": next(iter(mgr.inter.values())).yields,
+                 "action": next(iter(mgr.inter.values())).action,
+                 "max_decel": next(iter(mgr.inter.values())).max_decel,
+                 "t_open": next(iter(mgr.inter.values())).t_open}
+    out = {"type": driver_type, "seed": seed,
+           "action": None if inter is None else inter.get("action", "yield" if inter["yield"] else "block"),
+           "assigned_type": tc.vehicle.getParameter("f0", "driver.type") if "f0" in tc.vehicle.getIDList() else None,
+           "vtype": tc.vehicle.getTypeID("f0") if "f0" in tc.vehicle.getIDList() else None,
+           "n_interactions": len(mgr.log) + len(mgr.inter),
+           "p_yield": _param_float(tc, "f0", "driver.pYield"),
+           "new_tau": _param_float(tc, "f0", "driver.newTau"),
+           "decision": None if inter is None else inter["yield"],
+           "t_open": None if inter is None else inter["t_open"],
+           "max_decel": None if inter is None else inter["max_decel"],
            "changed": changed_at is not None, "changed_at": changed_at, "f_ahead_at_change": f_ahead_at_change}
     if record:
         out["series"] = series

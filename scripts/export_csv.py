@@ -20,7 +20,7 @@ if str(BASE) not in sys.path:
 
 from collect_pomdp_data import iter_transitions
 from env.data_schema import (COLUMNS, DETECTED_PEDESTRIAN_KEYS, DETECTED_VEHICLE_KEYS, OBSERVATION_FEATURES,
-                             STATE_KEYS, lookup)
+                             STATE_KEYS, lookup, observation_features)
 
 
 def check(records: list[dict], ego: dict, step_length: float) -> dict:
@@ -46,7 +46,7 @@ def check(records: list[dict], ego: dict, step_length: float) -> dict:
         if len(errors) > before:
             continue
         for name in ("observation", "next_observation"):
-            if len(record[name]) != len(OBSERVATION_FEATURES):
+            if len(record[name]) != len(observation_features(ego.get("learning_profile", "legacy"))):
                 errors.append(f"{where}: {name}이 {len(record[name])}차원입니다.")
         for name in ("state", "next_state"):
             state = record[name]

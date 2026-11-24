@@ -1,20 +1,16 @@
 """시험용 버스가 노선을 3바퀴 도는 동안 시나리오 S1~S6이 몇 번 일어나는지 센다(사건 단위, 바퀴별).
 
     python scripts/measure_s1_s6.py baseline 0 route   # 인자: 수요(quiet|baseline|busy) 시드(기본 0) 꼬리표
-    python scripts/summarize_s1_s6.py busy             # 여러 시드 결과를 바퀴당 비율(평균, 표준편차, 범위)로 모은다
 
-시험용 버스는 traffic/test_bus.py(R68 출발, 끊김 없는 바퀴, 정해진 차선 변경 창)로 달린다. 배경 교통은 수요와 SUMO 운전자
-모델만으로 움직인다(버스 위치에 맞춰 넣거나 조종하는 차·사람이 없다). 결과는
+시험용 버스는 traffic/test_bus.py(R68 출발, 끊김 없는 바퀴, 정해진 차선 변경 창)로 달리고, 시나리오 주입기와 정류장 앞
+정차(S4)가 켜져 있다(꼬리표에 noinject·noahead를 넣으면 끈다). 결과는
 results/traffic_verification/s1_s6_<수요>_<시드>_<꼬리표>.json 에 쓴다.
 
-사건 정의(모두 위치로만 판정한다. 누가 넣은 차인지 보지 않는다)
-  S1  시험용 버스가 정류장에 서서 출발한 횟수(stops) / 그때 같은 차로 버스 뒤 100 m 안에 차가 있던 정차 횟수(rear_events)와
-      그 차가 기다렸는지 추월했는지(rear_outcomes, StopBypassManager 관찰)
-  S2  J82·J1 앞 창에서 왼쪽 차선변경을 시도한 횟수(attempts) / 그중 목표 차로 버스 뒤 30 m 안에 후행차가 있던 횟수
-      (with_a1_follower, YieldManager 관찰)
-  S3  s2 앞 창에서 오른쪽 차선변경을 시도한 횟수 / 같은 후행차가 있던 횟수
-  S4  시험용 버스가 서는 정류장 150 m 앞까지 왔을 때, 가로변 차로의 정류장 30 m 앞(정류장이 도로 시작 가까이면 노선 앞 도로
-      끝까지)~끝 20 m 뒤에 정차 중(stop)인 차가 있던 정류장 수(바퀴·정류장마다 한 번). 누가 세웠는지 보지 않는다
+사건 정의
+  S1  시험용 버스가 정류장에 서서 출발한 횟수(stops) / 그때 정차 버스 바로 뒤 후행차에 대한 S1 판정이 일어난 횟수(rear_events)
+  S2  J82·J1 앞 창에서 왼쪽 차선변경을 시도한 횟수(attempts) / 그중 목표 차로 후행차 A1 상호작용이 있었던 횟수(a1)
+  S3  s2 앞 창에서 오른쪽 차선변경을 시도한 횟수 / 같은 A1 상호작용 횟수
+  S4  정류장 앞 정차로 시험용 버스를 막은 횟수
   S5  골목에서 나온 차가 15초 안에 버스와 같은 도로의 앞 50 m에 들어온 횟수
   S6  신호 없는 횡단보도 50 m 앞에서 보행자가 건너고 있던 통과 횟수(버스 한 번 지날 때 한 번)
 """
@@ -29,77 +25,52 @@ sys.path.insert(0, os.path.dirname(__file__))
 import run_hapjeong_scenario as RS  # noqa: E402
 from maps import load_map  # noqa: E402
 from traffic.alleys import read_net  # noqa: E402
+from traffic.bus_window_keeper import DEFAULT_LANE_DENSITY  # noqa: E402
 from traffic.hapjeong import HapjeongTraffic  # noqa: E402
-from traffic.lane_route import reachable_next  # noqa: E402
 from traffic.presence import PresenceMonitor  # noqa: E402
 from traffic.signal_areas import forbidden_intervals, is_signalized  # noqa: E402
-from traffic.test_bus import STOP_AT, TestBusPilot  # noqa: E402
+from traffic.test_bus import TestBusPilot  # noqa: E402
 
 SCEN = sys.argv[1] if len(sys.argv) > 1 else "baseline"
 SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 0
-TAG = sys.argv[3] if len(sys.argv) > 3 else ""          # 결과 파일 이름 꼬리표(hiped, noror, noped, nolr)
+TAG = sys.argv[3] if len(sys.argv) > 3 else ""          # 결과 파일 이름 꼬리표
+OLD_PED = "old" in TAG                                  # 꼬리표에 old가 있으면 보행자 수정 전 설정으로 잰다
 PED_X = 4 if "hiped" in TAG else 1                      # 꼬리표에 hiped가 있으면 횡단보도 보행자를 4배로 늘린다
 LAPS, T_MAX = int(os.environ.get("MEASURE_LAPS", "3")), float(os.environ.get("MEASURE_TMAX", "2600"))
 CUT_WINDOW, NEAR = 15.0, 50.0
 S6_CROSS, S6_EDGE = ":S6_wausanro_c", "R112.112"      # 횡단보도는 R112.112의 끝(116 m)에 있다. 예전 값 R112는 횡단보도 116 m 전이라 건너는 사람을 놓쳤다
 S6_APPROACH = ["-R112_0", "-R112_1", "-R112_2", "R112.112_0", "R112.112_1", "R112.112_2"]   # 횡단보도로 들어오는 차로
 S6_QUEUE_M = 40.0                                       # 횡단보도 앞 이 거리 안에 서 있는 차를 대기 차로 센다
-S4_APPROACH_M, S4_BEFORE_M, S4_AFTER_M = 150.0, 30.0, 20.0
-STILL_GAP_M, STILL_RED_M, STILL_LINE_M = 15.0, 25.0, 3.0
 
 
 class Done(Exception):
     pass
 
 
-def s4_zones(net, lap_edges, s):
-    """정류장 s 근처의 (차로 id, 시작, 끝) 구간들. 정류장 시작이 S4_BEFORE_M보다 도로 시작에 가까우면 노선 앞 도로의 가로변
-    차로 끝도 넣는다."""
-    zones = [(f"{s['edge']}_{s['lane_idx']}", s["startPos"] - S4_BEFORE_M, s["endPos"] + S4_AFTER_M)]
-    short = S4_BEFORE_M - s["startPos"]
-    if short > 0 and s["edge"] in lap_edges and lap_edges.index(s["edge"]) > 0:
-        prev = net.getEdge(lap_edges[lap_edges.index(s["edge"]) - 1])
-        curb = next(ln.getIndex() for ln in prev.getLanes() if ln.allows("taxi"))
-        zones.append((f"{prev.getID()}_{curb}", prev.getLength() - short, prev.getLength()))
-    return zones
-
-
-def rewrite_persons(path, k):
-    """보행자 경로 파일을 고친다. k=0이면 보행자를 모두 빼고, k>1이면 신호 없는 횡단보도를 건너는 흐름(s6ped*)의 도착률을
-    k배로 늘린다. 보행자는 personFlow(period="exp(초당 인원)")로 적혀 있다."""
-    import xml.etree.ElementTree as ET
-    tree = ET.parse(path)
-    root = tree.getroot()
-    for flow in list(root.iter("personFlow")):
-        if k == 0:
-            root.remove(flow)
-        elif flow.get("id").startswith("s6ped"):
-            flow.set("period", f"exp({float(flow.get('period')[4:-1]) * k:.8f})")
-    tree.write(path, encoding="utf-8", xml_declaration=True)
-
-
-def wrong_lane_waits(tc, net, near_m=5.0):
-    """끝난 시각에 다음 도로로 못 가는 차로의 정지선에 서 있는 배경 차들의 대기 시간(초, 큰 순)."""
-    out = []
-    for v in tc.vehicle.getIDList():
-        road = tc.vehicle.getRoadID(v)
-        route, i = tc.vehicle.getRoute(v), tc.vehicle.getRouteIndex(v)
-        if v == "bus0" or road.startswith(":") or not net.hasEdge(road) or i + 1 >= len(route):
-            continue
-        if net.getEdge(road).getLength() - tc.vehicle.getLanePosition(v) > near_m:
-            continue
-        if route[i + 1] not in reachable_next(net, road, tc.vehicle.getLaneIndex(v)):
-            out.append(round(tc.vehicle.getWaitingTime(v)))
-    return sorted(out, reverse=True)
+def multiply_s6_persons(path, k, seed):
+    """신호 없는 횡단보도를 건너는 보행자(s6ped*)를 k배로 늘린다(persons.json). 사본은 출발 시각을 0~40초 흩뜨린다."""
+    import json
+    import random
+    rng = random.Random(seed + 77)
+    with open(path, encoding="utf-8") as f:
+        persons = json.load(f)
+    extra = [dict(p, id=f"{p['id']}x{j}", depart=round(p["depart"] + rng.uniform(0, 40), 2))
+             for p in persons if p["id"].startswith("s6ped") for j in range(1, k)]
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(sorted(persons + extra, key=lambda p: p["depart"]), f, ensure_ascii=False)
 
 
 def main():
     out_dir = os.path.join(tempfile.gettempdir(), f"occ_{SCEN}_{SEED}{'_' + TAG if TAG else ''}")
     world = HapjeongTraffic(out_dir, scenario=SCEN, seed=SEED, bus_traffic=True,
-                            right_on_red="noror" not in TAG)
+                            right_on_red="noror" not in TAG, interior_share=0.0 if "nointer" in TAG else 0.3,
+                            lane_density=None if "nodensity" in TAG else DEFAULT_LANE_DENSITY)
     world.build()
-    if PED_X > 1 or "noped" in TAG:                     # 꼬리표에 noped가 있으면 배경 보행자를 모두 뺀다(J82 정지 원인 가리기)
-        rewrite_persons(os.path.join(out_dir, "pedestrians.rou.xml"), 0 if "noped" in TAG else PED_X)
+    if PED_X > 1:
+        multiply_s6_persons(os.path.join(out_dir, "persons.json"), PED_X, SEED)
+    if "noped" in TAG:                                  # 꼬리표에 noped가 있으면 배경 보행자를 모두 뺀다(J82 정지 원인 가리기)
+        with open(os.path.join(out_dir, "persons.json"), "w", encoding="utf-8") as f:
+            json.dump([], f)
     tc = world.start(warmup=120)
     m = load_map("hapjeong")
     loop = m["routes"]["bus_loop"]
@@ -107,11 +78,9 @@ def main():
     bus = TestBusPilot(tc, read_net(os.path.join(out_dir, "network.net.xml")), loop, stops)
     feeders = {a.feeder for a in world.alleys}
     ev = {k: collections.Counter() for k in ("S1_stops", "S2_attempts", "S2_done", "S2_a1", "S3_attempts", "S3_done",
-                                             "S3_a1", "S4", "S5", "S6", "other_attempts", "S2_J82_attempts", "S2_J82_a1",
+                                             "S3_a1", "S5", "S6", "other_attempts", "S2_J82_attempts", "S2_J82_a1",
                                              "S2_J1_attempts", "S2_J1_a1")}
     net = read_net(os.path.join(out_dir, "network.net.xml"))
-    served = [s for s in stops if s["id"] in STOP_AT]
-    s4 = {"seen": set(), "events": [], "zones": {s["id"]: s4_zones(net, bus.lap_edges, s) for s in served}}
     presence = PresenceMonitor(tc, net, "bus0")
     forbidden = forbidden_intervals(net, bus.lap_edges)
     sig = {"seen": set(), "in_area": [], "stops": collections.defaultdict(list)}
@@ -125,33 +94,6 @@ def main():
     stop_edges = {s["edge"] for s in stops}
     timing = {}                                        # 바퀴 -> 시간 구성
     bw = {"cur": 0.0, "long": [], "s3_trace": []}      # 시험용 버스가 정류장 밖에서 15초 넘게 선 곳, S3 시도 중 궤적
-    still = {"cur": None, "events": {"midblock": [], "stopline": [], "junction": []}}
-
-    def still_kind(road, pos, stopstate):
-        """정류장 밖에서 앞차도 적색도 없이 선 곳의 종류. 앞 STILL_GAP_M 안에 차가 있거나 적색·황색 정지선이 STILL_RED_M 안이면
-        줄 서기라 None이다. 녹색 정지선 STILL_GAP_M 안이거나 차로 끝 STILL_LINE_M 안(신호 없는 횡단보도·교차로에서 양보)이면
-        stopline, 교차로 안이면 junction, 나머지는 길 가운데(midblock)다."""
-        if tc.vehicle.getSpeed("bus0") >= 0.1 or stopstate & 1:
-            return None
-        if road.startswith(":"):
-            return "junction"
-        tls = tc.vehicle.getNextTLS("bus0")
-        ld = tc.vehicle.getLeader("bus0", STILL_GAP_M)          # 더 먼 앞차를 돌려줄 수도 있다
-        if (tls and tls[0][3] in "rRyY" and tls[0][2] < STILL_RED_M) or (ld and ld[0] and ld[1] <= STILL_GAP_M):
-            return None
-        at_line = (tls and tls[0][2] <= STILL_GAP_M) or tc.lane.getLength(tc.vehicle.getLaneID("bus0")) - pos <= STILL_LINE_M
-        return "stopline" if at_line else "midblock"
-
-    def track_still(t, kind, road="", idx=0, pos=0.0):
-        cur = still["cur"]
-        if cur and cur["kind"] != kind:
-            cur["s"] = round(t - cur["t0"], 1)
-            if cur["s"] >= 1.0:
-                still["events"][cur.pop("kind")].append(cur)
-            still["cur"] = cur = None
-        if kind and cur is None:
-            still["cur"] = {"kind": kind, "t0": round(t, 1), "lap": lap(), "road": road, "lane": idx, "pos": round(pos, 1),
-                            "phase": bus.phase, "why": bus.why, "handover": bus._handover is not None}
 
     def on_step(t):
         ids = tc.vehicle.getIDList()
@@ -161,7 +103,6 @@ def main():
             pos = tc.vehicle.getLanePosition("bus0")
             # 정류장 밖에서 오래 서 있는 곳(한 바퀴가 길어지는 원인 찾기)
             stopstate = tc.vehicle.getStopState("bus0")
-            track_still(t, still_kind(road, pos, stopstate), road, idx, pos)
             # 바퀴 시간을 나눠 센다(0.1초 단위): 정류장 정차 / 적색 대기 / 그 밖의 정지 / 주행. 긴 바퀴가 신호 주기 때문인지 본다
             tm = timing.setdefault(lap(), {"stop": 0.0, "red": 0.0, "other": 0.0, "moving": 0.0})
             if stopstate & 1 and stopstate & 16:
@@ -224,23 +165,6 @@ def main():
                         ev[f"S2_{a['win']}_a1"][a["lap"]] += 1
                 st["attempt"] = None
             st["prev_phase"] = bus.phase
-            # S4: 서는 정류장에 다가갈 때 정류장 차로의 정류장 근처에 정차 중인 차가 있다(누가 세웠는지와 무관)
-            for s in (served if int(round(t * 10)) % 5 == 0 and not at_stop else ()):
-                if (lap(), s["id"]) in s4["seen"]:
-                    continue
-                dd = tc.vehicle.getDrivingDistance("bus0", s["edge"], s["startPos"])
-                if not 0 < dd <= S4_APPROACH_M:
-                    continue
-                hit = next(((v, lane) for lane, lo, hi in s4["zones"][s["id"]]
-                            for v in tc.lane.getLastStepVehicleIDs(lane)
-                            if v != "bus0" and tc.vehicle.isStopped(v) and lo <= tc.vehicle.getLanePosition(v) <= hi),
-                           None)
-                if hit:
-                    v, lane = hit
-                    s4["seen"].add((lap(), s["id"]))
-                    ev["S4"][lap()] += 1
-                    s4["events"].append((round(t), lap(), s["id"], v, tc.vehicle.getTypeID(v).split("@")[0], lane,
-                                         round(tc.vehicle.getLanePosition(v), 1), round(dd)))
             # S5: 골목에서 나온 차가 버스 앞 50 m에 들어옴
             for v in (ids if int(round(t * 10)) % 5 == 0 else ()):          # 0.5초마다만 훑는다(속도)
                 if v == "bus0":
@@ -308,7 +232,7 @@ def main():
                 if d < 100:
                     safety["popin_100m"].append((round(t), v, round(d)))
 
-    trace = {"a1": []}                                           # 방향지시등이 켜진 동안의 목표 차로 후행차(원인 확인용)
+    trace = {"s6": [], "s5": [], "s2": [], "a1": []}             # 주입한 보행자·끼어들기 차·후행차가 실제로 무엇을 하는지(원인 확인용)
 
     def sample_trace(t):
         ids = tc.vehicle.getIDList()
@@ -321,9 +245,22 @@ def main():
             tf = mgr._target_follower(side)
             trace["a1"].append((round(t, 1), lap(), busr, side, bus.phase,
                                 [(i, round(d)) for i, d in f if i][:3], tf,
-                                tc.vehicle.getParameter(tf, "driver.aggressiveness") if tf else None,
+                                tc.vehicle.getParameter(tf, "driver.type") if tf else None,
+                                mgr.owner.owner(tf) if tf else None,
                                 any(tr.matches(side, busr[0], busr[1]) for tr in (mgr.triggers or [])),
                                 len(mgr.inter)))
+        for v in ids:
+            if v.startswith("inj_s5") and len(trace["s5"]) < 900:
+                trace["s5"].append((round(t, 1), lap(), v, tc.vehicle.getRoadID(v), round(tc.vehicle.getLanePosition(v)),
+                                    round(tc.vehicle.getSpeed(v), 1), busr))
+            elif v.startswith("inj_lane") and len(trace["s2"]) < 1500:
+                trace["s2"].append((round(t, 1), lap(), v, tc.vehicle.getRoadID(v), tc.vehicle.getLaneIndex(v),
+                                    round(tc.vehicle.getLanePosition(v)), round(tc.vehicle.getSpeed(v), 1), busr,
+                                    tc.vehicle.getSignals("bus0") if busr else None, bus.phase))
+        for p in tc.person.getIDList():
+            if p.startswith("inj_s6") and len(trace["s6"]) < 1200:
+                trace["s6"].append((round(t, 1), lap(), p, tc.person.getRoadID(p), round(tc.person.getLanePosition(p), 1),
+                                    round(tc.person.getSpeed(p), 2), busr))
 
     def sample_s6(t):
         """신호 없는 횡단보도 앞 대기: 가장 오래 기다린 차, 20·30초 넘게 기다린 차 수, 대기 줄 길이, 보행자 점유."""
@@ -391,7 +328,7 @@ def main():
                              "route_idx": tc.vehicle.getRouteIndex("bus0"), "route_tail": tc.vehicle.getRoute("bus0")[max(0, tc.vehicle.getRouteIndex("bus0") - 1):][:4],
                              "next_stops": [(getattr(s, "stoppingPlaceID", ""), round(float(getattr(s, "endPos", 0.0)), 1))
                                             for s in tc.vehicle.getStops("bus0")[:2]] if hasattr(tc.vehicle, "getStops") else None,
-                             "pilot_phase": bus.phase, "pilot_handover": bus._handover is not None,
+                             "pilot_phase": bus.phase, "pilot_forced": bus._forced_p is not None,
                              "tls": {node: [tc.trafficlight.getRedYellowGreenState(node), tc.trafficlight.getPhase(node),
                                             round(tc.trafficlight.getNextSwitch(node) - t, 1)]}
                              if node in tc.trafficlight.getIDList() else None,
@@ -406,14 +343,20 @@ def main():
         presence.update(t)                             # 시험용 버스 반경 안 출현·소멸·순간이동
         _on_step(t)
 
+    ped_cfg = None
+    if OLD_PED:                                       # 보행자 수정 전 설정: 서 있는 차 = 10초, 차량 대기 계수 없음
+        from traffic.ped_defiance import DefianceCfg
+        ped_cfg = DefianceCfg(standing_speed=1e9, standing_ttc=10.0,
+                              use=("ttc", "wait", "group", "width", "size", "momentum", "age", "distract"))
     try:
         world.run(tc.simulation.getTime() + T_MAX + 10, bus_id="bus0", bus_hook=bus.tick, on_step=on_step,
-                  pilot=bus, triggers="scenario",
-                  lane_route="nolr" not in TAG)       # 꼬리표에 nolr가 있으면 정지선에서 포기하는 운전자(lane_route.py)를 끈다
+                  ped_cfg=ped_cfg, stop_ahead="noahead" not in TAG, scenario_inject="noinject" not in TAG,
+                  pilot=bus, triggers="scenario")
     except Done:
         pass
-    # S1 후행차 판정은 관찰 기록에서 센다(바퀴는 시험용 버스 한 바퀴)
-    track_still(tc.simulation.getTime(), None)
+    # S4, S1 후행차 판정은 관리자 기록에서 센다(바퀴는 시험용 버스 한 바퀴)
+    s4 = (world.ahead.summary() if world.ahead is not None else
+          {"blocks_per_lap": [0] * LAPS, "direct": 0, "none": 0})      # noahead 변형도 끝까지 돈다
     laps_done = len(bus.lap_times)
     per_lap = lambda c: [c.get(i, 0) for i in range(1, LAPS + 1)]
     bounds, acc = [], st["t0"] or 0.0
@@ -421,22 +364,26 @@ def main():
         acc += d
         bounds.append(acc)
     s1_rear = collections.Counter()
-    for r in world.stop.log:                     # S1 판정이 일어난 시각 -> 바퀴
+    for r in (world.stop.log if world.stop else []):       # S1 판정이 일어난 시각 -> 바퀴
         s1_rear[sum(1 for b in bounds if b < r["t_decide"]) + 1] += 1
     res = {"scenario": SCEN, "seed": SEED, "laps_done": laps_done, "lap_seconds": [round(x) for x in bus.lap_times],
            "S1": {"bus_stops_then_departs": per_lap(ev["S1_stops"]), "rear_vehicle_events": per_lap(s1_rear),
-                  "rear_outcomes": world.stop.summary()},
+                  "rear_outcomes": world.stop.summary() if world.stop else None},
            "S2": {"attempts": per_lap(ev["S2_attempts"]), "done": per_lap(ev["S2_done"]), "with_a1_follower": per_lap(ev["S2_a1"])},
            "S3": {"attempts": per_lap(ev["S3_attempts"]), "done": per_lap(ev["S3_done"]), "with_a1_follower": per_lap(ev["S3_a1"])},
            "S2_by_junction": {j: {"attempts": per_lap(ev[f"S2_{j}_attempts"]), "with_a1": per_lap(ev[f"S2_{j}_a1"])}
                               for j in ("J82", "J1")},
-           "S4": {"blocks_per_lap": per_lap(ev["S4"]), "total": sum(per_lap(ev["S4"])), "events": s4["events"]},
+           "S4": {"blocks_per_lap": s4["blocks_per_lap"][:LAPS], "total": sum(s4["blocks_per_lap"][:LAPS]),
+                  "direct": s4["direct"], "none": s4["none"], "bus_arrived": s4.get("bus_arrived"),
+                  "actually_stopped": s4.get("actually_stopped"), "log": getattr(world.ahead, "log", None)},
            "presence": presence.summary(),
            "a1_in_signal_area": len(sig["in_area"]), "a1_in_signal_area_examples": sig["in_area"][:8],
            "stops_by_lap": {k: v for k, v in sig["stops"].items()},
-           "bus": {"missed": bus.missed, "handed": bus.handed, "slowed": bus.slowed, "changes": bus.changes},
+           "bus": {"missed": bus.missed, "forced": bus.forced, "changes": bus.changes},
+           "persons": world.persons.summary() if getattr(world, "persons", None) else None,
+           "arrival_guard_extended": len(world.arrival_guard.extended) if getattr(world, "arrival_guard", None) else None,
            "S5": {"per_lap": per_lap(ev["S5"])},
-           "S6": {"per_lap": per_lap(ev["S6"])},
+           "S6": {"per_lap": per_lap(ev["S6"]), "ped_decisions": world.ped.summary()},
            "S6_vehicle_waiting": {"max_wait_s": round(wait["max_wait"], 1), "vehicles_over_20s": len(wait["over20"]),
                                   "vehicles_over_30s": len(wait["over30"]), "max_queue": wait["max_queue"],
                                   "crossing_occupied_share": round(wait["occ_steps"] / max(1, wait["steps"]), 3),
@@ -448,15 +395,15 @@ def main():
                       "new_vehicles_within_200m_of_bus": safety["popin_200m"],
                       "new_vehicles_within_100m_of_bus": len(safety["popin_100m"]),
                       "within_100m_examples": safety["popin_100m"][:8]},
-           "ped_x": PED_X, "variant": TAG, "trace": trace,
+           "ped_x": PED_X, "ped_cfg": "old" if OLD_PED else "new", "variant": TAG, "trace": trace,
+           "injector": ({**world.injector.summary(), "log": world.injector.log} if world.injector else None),
+           "ped_revoked": world.ped.revoked if world.ped else None,
            "lap_time_breakdown": {k: {kk: round(v, 1) for kk, v in d.items()} for k, d in timing.items()},
-           "bus_long_waits_outside_stops": bw["long"], "bus_still": still["events"], "bus_stuck_probe": probe["log"], "s3_trace": bw["s3_trace"],
+           "bus_long_waits_outside_stops": bw["long"], "bus_stuck_probe": probe["log"], "s3_trace": bw["s3_trace"],
+           "interior": world.interior.summary() if world.interior else None,
            "right_on_red": world.summary.get("right_on_red"),
            "other_lane_change_attempts": per_lap(ev["other_attempts"]),
-           "a1_interactions_total": len(world.mgr.log),
-           "lane_route": {"changed": world.lane_route.changed, "errors": len(world.lane_route.errors)}
-           if world.lane_route else None,
-           "wrong_lane_waits_at_end": wrong_lane_waits(tc, net)}
+           "a1_interactions_total": len(world.mgr.log)}
     path = os.path.join(os.path.dirname(__file__), "..", "results", "traffic_verification", f"s1_s6_{SCEN}_{SEED}{'_' + TAG if TAG else ''}.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     json.dump(res, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)

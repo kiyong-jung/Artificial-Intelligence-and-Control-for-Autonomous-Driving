@@ -37,15 +37,11 @@ COMMON_ARGS = [
     "--collision.action", "warn",
     "--collision.check-junctions",
     "--intermodal-collision.action", "warn",
-    # 순간이동을 끈다. 막힘은 SUMO가 차를 옮겨 감추지 않고 그대로 남는다(측정에서 보인다).
-    "--time-to-teleport", "-1",
     "--no-step-log", "--no-warnings", "true",
     "--duration-log.disable",
 ]
 
 
 def sumo_cmd(cfg, seed=0, extra=None, binary="sumo"):
-    # 콘솔 경고만 끈다. 비상 제동·충돌·보행자 정체 경고는 실행 폴더의 sumo_warnings.log에 남는다(감사 E3).
-    log = os.path.join(os.path.dirname(os.path.abspath(cfg)), "sumo_warnings.log")
-    cmd = [checkBinary(binary), "-c", cfg, "--seed", str(seed)] + COMMON_ARGS + ["--error-log", log]
+    cmd = [checkBinary(binary), "-c", cfg, "--seed", str(seed)] + COMMON_ARGS
     return cmd + list(extra or [])

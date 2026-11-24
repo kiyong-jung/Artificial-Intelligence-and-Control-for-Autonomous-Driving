@@ -1,14 +1,11 @@
-"""신호 교차로의 적색 우회전: 직진·좌회전은 신호를 따르고, 우회전은 적색에서도 일시정지한 뒤 갈 수 있게 한다. 단 우회전 차가
-지나는 횡단보도에 사람이 없을 때만 연다.
+"""신호 교차로의 우회전: 직진·좌회전은 신호를 따르지만, 우회전은 신호와 무관하게 갈 수 있게 한다. 단 우회전 차가 지나는
+횡단보도에 사람이 없을 때만 연다.
 
 확인 결과(합정역 3.6.0 도로망의 신호 프로그램을 직접 읽음): 신호 교차로의 우회전 링크가 주기의 54~69% 동안 적색(r)이다.
-한국 도로교통법은 적색 우회전 전에 정지선에서 일시정지하게 한다. 그래서 시작할 때 신호 프로그램에서 우회전 링크를
-적색 위상에서 's'로 바꾼다. 황색은 그대로 둔다(설 수 있으면 서고, 못 서면 지난다). 황색에서 's'로 열면 황색이 켜지는
-순간 정지선 가까이 온 차가 비상 제동을 했다(busy seed 0~2, J96 `-R126_1` 2번에서 6번). SUMO의 링크 상태 's'는 "정지 후 진행"이다(netconvert가 traffic_light_right_on_red
-교차로에 만드는 상태와 같다). 차는 정지선에서 반드시 멈춘 뒤, 우선하는 상대 흐름이 없을 때 지난다. 예전에는 'g'(양보하며
-진행)로 열어 서지 않고 지났다. 어느 위상에서 열지는 **신호 프로그램만으로** 정한다(런타임에 링크 상태를 바꾸지 않는다).
+즉 우회전도 신호를 기다린다. 그래서 시작할 때 신호 프로그램에서 우회전 링크를 적색·황색 위상에서도 'g'(녹색, 양보하며 진행)로
+바꾼다. 어느 위상에서 열지는 **신호 프로그램만으로** 정한다(런타임에 링크 상태를 바꾸지 않는다).
 
-우회전 링크를 위상에서 's'로 여는 조건 (둘 다 만족해야 한다):
+우회전 링크를 위상에서 'g'로 여는 조건 (둘 다 만족해야 한다):
 1. 겹치는(`getInternalFoes`) 다른 차량 링크 중 **우회전이 양보하도록 만들어지지 않은** 링크가 모두 적색 또는 황색이다.
    양보하도록 만들어지지 않은 링크와 녹색이 겹치게 열면 교차로 안에서 부딪힌다(처음 시도에서 J74·J82 충돌 13건). 반대로 우회전이
    양보하도록 도로망에 만들어진 링크(`yields_to`, request의 response)는 녹색이어도 SUMO가 우회전 차를 양보시키므로 상관없다
@@ -79,12 +76,12 @@ def _foes(traci, tid, links):
 
 
 def apply_right_on_red(traci, net, exclude=("J1",), foe_ok="ry"):
-    """exclude 말고 신호가 있는 모든 교차로에서 우회전을 가능한 위상에서 's'(일시정지 후 진행)로 바꾼다.
+    """exclude 말고 신호가 있는 모든 교차로에서 우회전을 가능한 위상에서 'g'로 바꾼다.
 
     foe_ok: 겹치는 차량 링크가 이 상태들뿐일 때 연다("r" 적색, "y" 황색). 직진·좌회전 녹색("G", "g")이 겹치면 열지 않는다.
     겹치는 횡단보도의 보행자 신호는 반드시 적색이어야 한다.
 
-    반환: {신호 id: {"links": 우회전 링크 수, "opened_share": 원래 적색이던 시간 중 열린 비율,
+    반환: {신호 id: {"links": 우회전 링크 수, "opened_share": 원래 적색·황색이던 시간 중 열린 비율,
                     "blocked_by_ped": 보행자 신호 때문에 열지 못한 시간 비율}}.
     """
     changed = {}
@@ -105,7 +102,7 @@ def apply_right_on_red(traci, net, exclude=("J1",), foe_ok="ry"):
                 prev = origs[pi - 1]                           # 직전 위상(처음이면 마지막 위상 = 주기가 이어진다)
                 s = list(orig)
                 for i in links:
-                    if i >= len(orig) or orig[i] not in "ru":
+                    if i >= len(orig) or orig[i] not in "ryu":
                         continue
                     total += phase.duration
                     veh, cross = foes.get(i, (set(), set()))
@@ -116,7 +113,7 @@ def apply_right_on_red(traci, net, exclude=("J1",), foe_ok="ry"):
                     if not all(orig[c] == "r" and prev[c] == "r" for c in cross if c < len(orig)):
                         by_ped += phase.duration
                         continue
-                    s[i] = "s"
+                    s[i] = "g"
                     opened += phase.duration
                 phase.state = "".join(s)
             traci.trafficlight.setProgramLogic(tid, logic)

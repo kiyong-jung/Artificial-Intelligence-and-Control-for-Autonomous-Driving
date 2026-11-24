@@ -29,7 +29,7 @@ BASE = Path(__file__).resolve().parents[1]
 if str(BASE) not in sys.path:
     sys.path.insert(0, str(BASE))
 
-from scripts.add_j1_left_lane import tls_links  # noqa: E402
+from scripts.patch_network import tls_links  # noqa: E402
 from scripts.patch_network import digest  # noqa: E402
 from scripts.prune_network import OPTIONS  # noqa: E402
 

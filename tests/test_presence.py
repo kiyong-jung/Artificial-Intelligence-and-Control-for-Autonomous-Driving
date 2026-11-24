@@ -1,4 +1,5 @@
-"""시험용 버스 반경 안 출현·소멸 지표와 지도 경계 도우미(traffic/presence.py)."""
+"""시험용 버스 반경 안에서 물체가 순간이동으로 생기거나 사라지지 않게 하는 규칙(traffic/presence.py)."""
+import importlib
 import os
 import sys
 
@@ -7,8 +8,8 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from traffic.alleys import read_net  # noqa: E402
-from traffic.presence import (PRESENCE_RADIUS_M, PresenceMonitor, boundary_nodes,  # noqa: E402
-                              ends_at_boundary, nearest_boundary_exit, starts_at_boundary)
+from traffic.presence import (PRESENCE_RADIUS_M, PresenceMonitor, VehicleArrivalGuard, boundary_nodes,  # noqa: E402
+                              ends_at_boundary, far_from_bus, nearest_boundary_exit, starts_at_boundary)
 
 NET = os.path.join(os.path.dirname(__file__), "..", "maps", "hapjeong", "source", "network.net.xml")
 R = PRESENCE_RADIUS_M
@@ -39,6 +40,12 @@ class _Vehicle:
 
     def getRouteIndex(self, vid):
         return self.tc.routes[vid].index(self.tc.vehicles[vid][0])
+
+    def changeTarget(self, vid, edge):
+        self.tc.targets[vid] = edge
+
+    def remove(self, vid, *a):
+        self.tc.removed.append(vid)
 
     def subscribeContext(self, *a, **k):
         self.tc.subscribed = True
@@ -87,6 +94,7 @@ class _FakeTC:
         self.vehicles = dict(vehicles or {})       # id -> (road, pos, (x, y))
         self.routes = dict(routes or {})
         self.persons = dict(persons or {})         # id -> (road, (x, y))
+        self.targets, self.removed = {}, []
         self.departed, self.departed_p, self.arrived, self.arrived_p, self.teleports = [], [], [], [], []
         self.vehicle, self.person, self.simulation = _Vehicle(self), _Person(self), _Sim(self)
 
@@ -101,9 +109,29 @@ def test_boundary_nodes_are_map_cuts_not_junctions():
     assert not ends_at_boundary(net, "R71.206")
 
 
+def test_far_from_bus_uses_straight_distance():
+    tc = _FakeTC(bus_xy=(0.0, 0.0))
+    assert not far_from_bus(tc, "bus0", (0.8 * R, 0.0))
+    assert far_from_bus(tc, "bus0", (0.6 * R, 0.9 * R))     # 1.08 R
+    assert far_from_bus(_FakeTC(bus_xy=None), "bus0", (0.0, 0.0))
+
+
 def test_nearest_boundary_exit_starts_at_edge_and_ends_at_boundary():
     path = nearest_boundary_exit(_net(), "R71.206")
     assert path[0] == "R71.206" and ends_at_boundary(_net(), path[-1])
+
+
+def test_arrival_guard_extends_route_ending_inside_map():
+    tc = _FakeTC(vehicles={"v1": ("R71.206", 10.0, (0.5 * R, 0.0))}, routes={"v1": ["R71.135", "R71.206"]})
+    VehicleArrivalGuard(tc, _net(), "bus0").update(0.0)
+    assert ends_at_boundary(_net(), tc.targets["v1"])
+
+
+def test_arrival_guard_leaves_far_or_boundary_bound_vehicles():
+    tc = _FakeTC(vehicles={"far": ("R71.206", 10.0, (5 * R, 0.0)), "edge": ("R48", 10.0, (0.5 * R, 0.0))},
+                 routes={"far": ["R71.135", "R71.206"], "edge": ["R44", "R47", "R48"]})
+    VehicleArrivalGuard(tc, _net(), "bus0").update(0.0)
+    assert tc.targets == {}
 
 
 def test_monitor_counts_vanish_inside_radius_but_not_at_boundary():
@@ -129,11 +157,33 @@ def test_monitor_counts_appear_and_teleport_inside_radius():
     assert s["appear"] == 2 and s["teleport"] == 1 and s["radius"] == R
 
 
-def test_departure_inside_a_hidden_alley_is_not_counted():
-    # 골목 안은 건물에 가려 학습 차량이 못 본다(입구에 닿아야 보이고, 차는 골목 끝에서 출발한다)
+def test_radius_has_single_definition():
+    for name in ("traffic.person_spawner", "traffic.scenario_injector", "traffic.stop_ahead"):
+        try:
+            mod = importlib.import_module(name)
+        except ImportError:
+            continue                      # 아직 없는 모듈(이후 태스크에서 생긴다)
+        assert getattr(mod, "PRESENCE_RADIUS_M", PRESENCE_RADIUS_M) is PRESENCE_RADIUS_M
+
+
+def test_arrival_guard_removes_flow_car_that_departs_inside_radius():
+    # 골목 입구에서 나오는 배경 흐름 차가 버스 반경 안에서 출발하면 눈앞에 갑자기 나타난 것이다(busy 측정 1건, 41 m). 막는다
+    tc = _FakeTC(vehicles={"f_G31_to_R126.0": ("R71.206", 10.0, (0.4 * R, 0.0)),
+                           "f_far": ("R71.206", 10.0, (3 * R, 0.0)),
+                           "inj_s51": ("R71.206", 10.0, (0.4 * R, 0.0))},
+                 routes={k: ["R71.206"] for k in ("f_G31_to_R126.0", "f_far", "inj_s51")})
+    tc.departed = ["f_G31_to_R126.0", "f_far", "inj_s51"]
+    VehicleArrivalGuard(tc, _net(), "bus0").update(0.0)
+    assert tc.removed == ["f_G31_to_R126.0"]                      # 먼 차, 주입기가 일부러 넣은 차는 그대로
+
+
+def test_departure_inside_a_hidden_alley_is_neither_counted_nor_removed():
+    # 골목 안은 건물에 가려 학습 차량이 못 본다. S5 후보 골목(G23)도 같다(입구에 닿아야 보이고, 차는 골목 끝에서 출발한다)
     tc = _FakeTC(vehicles={"f_G31_to_R126.0": ("G31", 5.0, (0.4 * R, 0.0)), "f_G23_to_R1.0": ("G23", 5.0, (0.4 * R, 0.0))},
                  routes={"f_G31_to_R126.0": ["G31"], "f_G23_to_R1.0": ["G23"]})
     tc.departed = ["f_G31_to_R126.0", "f_G23_to_R1.0"]
+    VehicleArrivalGuard(tc, _net(), "bus0",).update(0.0)
+    assert tc.removed == []
     mon = PresenceMonitor(tc, _net(), "bus0",)
     mon.update(0.0)
     assert mon.summary()["appear"] == 0

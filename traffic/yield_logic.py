@@ -1,60 +1,58 @@
-"""A1 (R1). 운전자 성향 분포와, 버스가 차로를 바꾸려 할 때 목표 차로 후행차가 한 일의 관찰.
+"""A1 (R1). 목표 차로 후행차의 속도 조절 로직.
 
-배경 차량은 투입될 때 운전자 성향 하나(`a`, 0~1)를 받고, 그 값과 차량마다의 흔들림으로 SUMO 차선 변경 파라미터
-(`lcCooperative`, `lcCooperativeSpeed`, `lcSpeedGain`, `lcAssertive`, `lcImpatience`)와 `speedFactor`를 연속 분포에서
-뽑는다(`draw_driver`). 양보할지는 이 값들을 받은 SUMO 차선 변경 모델(SL2015)이 스스로 정한다.
-
-`YieldManager`는 아무것도 조종하지 않는다. 버스가 방향지시등을 켜고 진입 의사(`Trigger` 구간 + 직전 2초 전진)를 보이면
-들어가려는 차로에서 버스에 가장 가까운 후행차 한 대를 골라, 누가 먼저 그 차로의 앞자리를 차지했는지 기록한다.
-- `bus_first`: 버스가 후행차 앞으로 들어갔다(후행차의 선행차가 버스가 됐다).
-- `follower_first`: 후행차가 버스 옆을 지나 앞서 갔다.
-- `ended`: 진입 의사가 끝났거나(창을 벗어남, 방향지시등 끔) `MAX_OBSERVE_S`가 지났다 / `gone`: 후행차가 사라졌다.
+버스가 지금 들어가려는 차로 하나에서 버스에 가장 가까운 후행차 한 대만 대상이다. 그 한 대에 대해 차량 투입 때 정해진
+행동(`driver.action`)을 한다.
+- 양보형(`yield`): 반응 지연 뒤 버스보다 `YIELD_DV` 느리게 달려 길을 터 준다(`setSpeed`).
+- 비양보형(`block`): 반응 지연 뒤 버스보다 `BLOCK_DV` 빠르게(최저 `BLOCK_MIN_SPEED`) 달려 버스가 못 들어오게 막는다. 그 차의
+  뒤끝이 버스 앞끝보다 `PASS_MARGIN` 앞서거나 `BLOCK_MAX_S`가 지나면 놓는다. 버스는 속도를 줄여 이 차를 먼저 보낸 뒤 옮긴다
+  (traffic/test_bus.py).
+상호작용 동안 그 차는 changeLane으로 현재 차로에 고정한다(기본 모델의 속도 이득 차선변경이 뒤차를 옆 차로로 보내는 것을 막는다).
+연속 차선변경은 변경마다 따로 켜졌다 꺼진다. 상호작용이 끝나면 속도 지정(`setSpeed(-1)`)과 차로 고정을 해제한다.
+진입 의사는 `Trigger`(구간 목록 + 방향)로 정한다. S2(좌회전 직전 구간, 좌측), S3(정류장 접근 구간, 우측) 모두 받는다.
 """
 import random
 from dataclasses import dataclass, field
 
+from .common import AGGRESSION, LaneLock, Ownership
+
 BLINKER_RIGHT = 1    # SUMO signal 비트
 BLINKER_LEFT = 2
 
-# 목표 차로 후행차로 보는 거리[m]. 도시 속도(14 m/s)에서 2초 간격이 28 m라 이보다 먼 차는 버스의 차선 변경과 상관이 없다.
-FOLLOWER_RANGE_M = 30.0
-MAX_OBSERVE_S = 30.0
-LC_ATTRS = ("lcCooperative", "lcCooperativeSpeed", "lcSpeedGain", "lcAssertive", "lcImpatience")
+YIELD_DV = 2.0          # 양보형: 버스보다 이만큼 느리게 [m/s]
+BLOCK_DV = 2.0          # 비양보형: 버스보다 이만큼 빠르게 [m/s]
+BLOCK_MIN_SPEED = 4.0   # 비양보형 목표 속도의 바닥(버스가 서 있어도 지나가게) [m/s]
+BLOCK_MAX_S = 20.0      # 비양보형이 막는 최대 시간 [s]
+BOXED_BUS_SPEED = 0.5   # 버스가 이 속도 미만이면 좌회전·정류장 진입을 기다리며 서 있는 것으로 본다 [m/s]
+BOXED_WAIT_S = 1.5      # 양보하려는 차가 뒤차에 막힌 채 이만큼 기다리면 양보를 접고 추월한다 [s]
+BOXED_GAP_M = 12.0      # 양보형 바로 뒤 이 거리 안에 차가 있으면 뒤차에 막힌 것이다(길을 터 주려 서도 못 선다) [m]
+PASS_MARGIN = 5.0       # 비양보형 뒤끝이 버스 앞끝보다 이만큼 앞서면 지나간 것으로 본다 [m]
+# A1은 목표 차로 후행차가 버스에 이만큼 다가왔을 때 시작한다(TraCI getLeft/RightFollowers 간격) [m].
+# 50 m 안이면 바로 켜던 때는 비양보형이 먼 뒤에서 억지로 따라와 버스를 추월해 부자연스러웠다. 후행차는 50 m 밖에서 들어와
+# 버스보다 빠르게 다가온다(scenario_injector).
+A1_TRIGGER_GAP_M = 5.0
 
 
-@dataclass(frozen=True)
-class DriverDist:
-    """운전자 성향 분포. 값은 자리표시다(현장 자료로 바꿔야 한다).
-
-    a ~ Beta(alpha, beta). 파라미터마다 a에 N(0, trait_sd) 흔들림을 더해 [0, 1]로 자른 값을 선형으로 옮긴다.
-    공격적일수록(a가 클수록) 덜 협조하고, 속도 이득 차선 변경을 더 하고, 좁은 간격도 받아들이고, 조금 빨리 달린다.
-    """
-    alpha: float = 2.0
-    beta: float = 2.0
-    trait_sd: float = 0.15
-    cooperative: tuple = (1.0, 0.2)     # a=0일 때, a=1일 때 (SUMO 범위 0~1, 기본 1)
-    speed_gain: tuple = (0.5, 2.0)      # (0~, 기본 1)
-    assertive: tuple = (0.8, 1.6)       # (양수, 기본 1. 필요 간격을 이 값으로 나눈다)
-    impatience: tuple = (-0.5, 0.5)     # (-1~1, 기본 0. SL2015만)
-    speed_factor: tuple = (0.92, 1.08)  # 원하는 속도 = 제한 속도 x speedFactor
-    speed_factor_sd: float = 0.05
-    speed_factor_clip: tuple = (0.8, 1.2)
+@dataclass
+class DriverTypeCfg:
+    p_yield: tuple          # 양보 성향 U(lo, hi) — 투입 시 1회 샘플. 공격성 값(1-p)의 원천이고 행동은 yields가 정한다
+    delay: tuple            # 반응 지연 U(lo, hi) [s]
+    new_tau: tuple          # openGap newTau U(lo, hi) [s]
+    yields: bool = False    # True면 투입 때 '양보(yield)', False면 '막기(block)'로 확정된다
+    lc_params: dict = field(default_factory=dict)   # laneChangeModel.<속성>
 
 
-def draw_driver(rng, dist=DriverDist()):
-    """운전자 한 명의 파라미터 dict. 'aggressiveness'는 기록용이고 나머지는 SUMO에 그대로 넣는다."""
-    a = rng.betavariate(dist.alpha, dist.beta)
-
-    def trait(lo_hi):
-        x = min(1.0, max(0.0, a + rng.gauss(0.0, dist.trait_sd)))
-        return lo_hi[0] + (lo_hi[1] - lo_hi[0]) * x
-
-    coop = trait(dist.cooperative)
-    sf = trait(dist.speed_factor) + rng.gauss(0.0, dist.speed_factor_sd)
-    return {"aggressiveness": a, "lcCooperative": coop, "lcCooperativeSpeed": coop,
-            "lcSpeedGain": trait(dist.speed_gain), "lcAssertive": trait(dist.assertive),
-            "lcImpatience": trait(dist.impatience),
-            "speedFactor": min(dist.speed_factor_clip[1], max(dist.speed_factor_clip[0], sf))}
+DEFAULT_TYPES = {
+    # 양보형 차선변경 파라미터를 SUMO 기본값으로 두면(lcCooperative=1) SUMO가
+    # 양보 결정과 무관하게 간격을 내줘 실측 양보율이 100%가 된다(검증으로 확인).
+    # 양보 여부를 A1만 정하도록 양보형도 내장 협조를 끈다.
+    "yielder": DriverTypeCfg(p_yield=(0.70, 0.95), yields=True, delay=(0.5, 1.5),
+                             new_tau=(2.0, 3.0),
+                             lc_params={"lcCooperative": -1, "lcCooperativeSpeed": 0}),
+    "nonyielder": DriverTypeCfg(
+        p_yield=(0.05, 0.30), delay=(0.5, 1.5), new_tau=(2.0, 3.0),
+        # lcCooperativeHelpTime은 SUMO 1.27.1 LC2013에서 지원되지 않아 뺐다.
+        lc_params={"lcCooperative": -1, "lcCooperativeSpeed": 0}),
+}
 
 
 @dataclass
@@ -85,25 +83,40 @@ class Trigger:
 
 
 @dataclass
-class _Observation:
+class _Interaction:
     follower: str
-    side: int
+    action: str               # "yield" 버스보다 느리게 | "block" 버스보다 빠르게
+    delay: float
     t_start: float
-    aggressiveness: float = None     # 후행차의 운전자 성향(배경 차량이 아니면 None)
-    max_decel: float = 0.0           # 관찰 중 후행차의 최대 감속 [m/s²] (양수)
+    t_open: float = None      # 속도 지정을 처음 한 시각
+    v0: float = 0.0           # 그때 후행차 속도(막는 차는 이보다 느려지지 않는다)
+    acted: bool = False       # 행동을 마쳤는가(비양보형을 놓은 뒤 True)
+    max_decel: float = 0.0    # 관측된 최대 감속 [m/s²] (양수)
     prev_speed: float = None
+    lane0: int = None         # 상호작용 시작 때 차로
+    boxed_since: float = None  # 서 있는 버스 앞에서 뒤차에 막힌 채 양보하려 한 시작 시각
+    overtook: bool = False    # 뒤차에 막혀 양보를 접고 추월으로 바꿨는가
+    side: int = 0
+
+    @property
+    def yields(self):
+        return self.action == "yield"
 
 
 class YieldManager:
-    """update(t)를 매 스텝 simulationStep() 앞에서 호출한다. on_departed(ids)는 투입된 차량마다 부른다."""
+    """update(t)를 매 스텝 simulationStep() 앞에서 호출한다."""
 
-    def __init__(self, traci, bus_id, rng=None, triggers=None, stop_exit_pos=None, exit_max_dist=30.0,
-                 advance_window=2.0, advance_min=0.5, follower_range=FOLLOWER_RANGE_M, dt=0.1,
-                 driver_prefixes=("car_",), driver_dist=DriverDist()):
+    OWNER = "A1"
+
+    def __init__(self, traci, bus_id, rng=None, types=None, stop_exit_pos=None,
+                 exit_max_dist=30.0, advance_window=2.0, advance_min=0.5,
+                 follower_range=A1_TRIGGER_GAP_M, dt=0.1, type_mix=None, mix_vtype_prefixes=None,
+                 triggers=None, owner=None, lock_lane=True, aggression=None, vtype_aggr=None):
         self.traci = traci
         self.bus = bus_id
         self.rng = rng or random.Random(0)
-        # triggers: [Trigger]. 주지 않으면 stop_exit_pos(정류장 출구, 좌측) 하나로 만든다.
+        self.types = types or DEFAULT_TYPES
+        # triggers: [Trigger]. 주지 않으면 stop_exit_pos(정류장 출구, 좌측) 하나로 만든다(예전 방식 그대로).
         # 둘 다 없으면 방향지시등만 본다(어느 쪽이든, 구간 조건 없음).
         if triggers is None and stop_exit_pos is not None:
             e, ep = stop_exit_pos
@@ -113,32 +126,54 @@ class YieldManager:
         self.advance_min = advance_min
         self.follower_range = follower_range
         self.dt = dt
-        self.driver_prefixes = tuple(driver_prefixes)    # 이 이름으로 시작하는 vType의 차량에 운전자 성향을 준다
-        self.driver_dist = driver_dist
-        self._lc2013_types = set()   # lcImpatience를 받지 않는 vType(SL2015 전용 값이다)
-        self.inter = {}          # 후행차 id -> _Observation (관찰 중)
+        self.owner = owner or Ownership()
+        self.lock = LaneLock(traci) if lock_lane else None
+        self.aggression = aggression or AGGRESSION
+        # vType 이름 -> 공격성 값. 양보 성격이 없는 차량(예: S5 끼어들기 vType)에도 공격성 값을 기록해 둔다.
+        self.vtype_aggr = dict(vtype_aggr or {})
+        # 주행 모델과 양보 성격을 독립으로 붙인다. type_mix = {유형: 가중치}를 주면,
+        # vType 이름이 유형 이름으로 시작하지 않는 차량 중 mix_vtype_prefixes로 시작하는
+        # 차량(예: 배경 차량 "car_")에 투입 시 유형을 뽑아 준다. 주행 모델(vType)은 그대로다.
+        # 주지 않으면 기존처럼 이름이 유형으로 시작하는 차량만 대상이다.
+        self.type_mix = dict(type_mix) if type_mix else None
+        self.mix_vtype_prefixes = tuple(mix_vtype_prefixes or ())
+        if self.type_mix:
+            unknown = set(self.type_mix) - set(self.types)
+            if unknown or not self.mix_vtype_prefixes:
+                raise ValueError("type_mix의 유형은 types에 있어야 하고 mix_vtype_prefixes가 필요하다")
+        self.inter = {}          # follower id -> _Interaction
+        self._last_action = None  # 직전 상호작용의 행동. 막기(block) 다음은 항상 양보(yield)로 고르게 섞는다
         self.pos_hist = []       # (t, lanePos, edge)
-        self.log = []            # 끝난 관찰 기록
+        self.log = []            # 종료된 상호작용 기록
 
-    # ---- 투입 시점 운전자 성향 ------------------------------------------------------------------
+    # ---- 투입 시점 유형 확정 -------------------------------------------------
     def on_departed(self, ids):
         tc = self.traci
         for vid in ids:
-            vtype = tc.vehicle.getTypeID(vid)
-            if vid == self.bus or not vtype.startswith(self.driver_prefixes):
+            vt = tc.vehicle.getTypeID(vid)
+            base = vt.split("@")[0]
+            if base in self.vtype_aggr:
+                tc.vehicle.setParameter(vid, "driver.aggressiveness", f"{self.vtype_aggr[base]:.4f}")
                 continue
-            d = draw_driver(self.rng, self.driver_dist)
-            tc.vehicle.setParameter(vid, "driver.aggressiveness", f"{d['aggressiveness']:.4f}")
-            for attr in LC_ATTRS:
-                if attr == "lcImpatience" and vtype in self._lc2013_types:
-                    continue
-                try:
-                    tc.vehicle.setParameter(vid, f"laneChangeModel.{attr}", f"{d[attr]:.4f}")
-                except Exception:
-                    if attr != "lcImpatience":
-                        raise
-                    self._lc2013_types.add(vtype)          # 합성 도로의 LC2013 차량
-            tc.vehicle.setSpeedFactor(vid, d["speedFactor"])
+            key = next((k for k in self.types if vt.startswith(k)), None)
+            if key is None and self.type_mix and vid != self.bus and vt.startswith(self.mix_vtype_prefixes):
+                key = self.rng.choices(list(self.type_mix), weights=list(self.type_mix.values()))[0]
+            if key is None:
+                continue
+            cfg = self.types[key]
+            p = self.rng.uniform(*cfg.p_yield)
+            d = self.rng.uniform(*cfg.delay)
+            tau = self.rng.uniform(*cfg.new_tau)
+            tc.vehicle.setParameter(vid, "driver.type", key)
+            tc.vehicle.setParameter(vid, "driver.pYield", f"{p:.4f}")
+            # 행동은 투입 때 확정한다: 양보형은 버스보다 느리게, 비양보형은 버스보다 빠르게(막기)
+            action = "yield" if cfg.yields else "block"
+            tc.vehicle.setParameter(vid, "driver.action", action)
+            tc.vehicle.setParameter(vid, "driver.aggressiveness", f"{1.0 - p:.4f}")   # 시나리오 확률은 이 값에서 나온다
+            tc.vehicle.setParameter(vid, "driver.delay", f"{d:.4f}")
+            tc.vehicle.setParameter(vid, "driver.newTau", f"{tau:.4f}")
+            for attr, val in cfg.lc_params.items():
+                tc.vehicle.setParameter(vid, f"laneChangeModel.{attr}", str(val))
 
     # ---- 진입 의사 (방향지시등 + 구간 + 직전 2 s 전진) -----------------------------
     def _intent(self, t):
@@ -154,14 +189,15 @@ class YieldManager:
         if self.triggers is not None and not any(tr.matches(side, edge, pos) for tr in self.triggers):
             return 0
         old = self.pos_hist[0]
-        # 직전 2 s 사이 도로가 바뀌었으면 앞으로 간 것이다(짧은 도로 R111b 27 m는 진입 2 s 안에 항상 이전 도로가 이력에 남는다).
-        # 같은 도로에서만 전진 거리를 본다.
+        # 직전 2 s 사이 도로가 바뀌었으면 앞으로 간 것이다(짧은 도로 R111b 27 m는 진입 2 s 안에 항상 이전 도로가 이력에 남아
+        # 예전에는 여기서 거부되어 S2 A1이 켜지지 않았다). 같은 도로에서만 전진 거리를 본다.
         if old[2] == edge and pos - old[1] < self.advance_min and not self._waiting_at_line(edge, pos):
             return 0
         return side
 
     def _waiting_at_line(self, edge, pos, within=5.0):
-        """정지선(도로 끝) 앞에서 신호를 기다리며 방향지시등을 켠 버스인가. 이때는 서 있어도 진입 의사로 본다."""
+        """정지선(도로 끝) 앞에서 신호를 기다리며 방향지시등을 켠 버스인가. 이때는 서 있어도 진입 의사로 본다
+        (신호 대기 중 뒤차가 다가오는 S2 상황이 A1에서 빠지던 원인)."""
         try:
             lane = self.traci.vehicle.getLaneID(self.bus)
             return self.traci.lane.getLength(lane) - pos <= within
@@ -176,50 +212,100 @@ class YieldManager:
         cand = [(d, i) for i, d in f if i and 0 <= d <= self.follower_range]
         return min(cand)[1] if cand else None
 
-    def _aggressiveness(self, vid):
-        a = self.traci.vehicle.getParameter(vid, "driver.aggressiveness")
-        return float(a) if a else None
+    def _pick_action(self, vid):
+        """투입 때 확정된 행동(driver.action)을 읽는다. 상호작용마다 새로 뽑지 않는다."""
+        return self.traci.vehicle.getParameter(vid, "driver.action")
 
     # ---- 매 스텝 ------------------------------------------------------------
     def update(self, t):
         tc = self.traci
         ids = set(tc.vehicle.getIDList())
-        if self.bus not in ids:        # 버스가 아직 없거나 나갔다: 진행 중 관찰을 끝내고 쉰다
+        if self.bus not in ids:        # 버스가 아직 없거나 나갔다: 진행 중 상호작용을 끝내고 쉰다
             for vid in list(self.inter):
-                self._finish(vid, t, "ended")
+                self._finish(vid, t, vid in ids)
             return
         side = self._intent(t)
         if side:
             vid = self._target_follower(side)
-            if vid is not None and vid in ids and vid not in self.inter and not self.inter:
-                self.inter[vid] = _Observation(vid, side, t, self._aggressiveness(vid))
+            if vid is not None and vid in ids and vid not in self.inter:
+                key = tc.vehicle.getParameter(vid, "driver.type")
+                if key in self.types and self.owner.claim(vid, self.OWNER):
+                    delay = float(tc.vehicle.getParameter(vid, "driver.delay"))
+                    action = self._pick_action(vid)
+                    if self._last_action == "block" and action == "block":
+                        action = "yield"                       # 막는 차 다음은 무조건 양보하는 차
+                        tc.vehicle.setParameter(vid, "driver.action", action)
+                    self._last_action = action
+                    self.inter[vid] = _Interaction(vid, action, delay, t,
+                                                   lane0=tc.vehicle.getLaneIndex(vid), side=side)
         for vid in list(self.inter):
-            ob = self.inter[vid]
-            if vid not in ids:
-                self._finish(vid, t, "gone")
+            it = self.inter[vid]
+            alive = vid in ids
+            passed = False
+            if alive:
+                sp = tc.vehicle.getSpeed(vid)
+                if it.prev_speed is not None:
+                    it.max_decel = max(it.max_decel, (it.prev_speed - sp) / self.dt)
+                it.prev_speed = sp
+                passed = self._passed_by(vid, PASS_MARGIN) if it.action == "block" else self._passed(vid)
+            if (not alive) or passed or side == 0:
+                self._finish(vid, t, alive)
                 continue
-            sp = tc.vehicle.getSpeed(vid)
-            if ob.prev_speed is not None:
-                ob.max_decel = max(ob.max_decel, (ob.prev_speed - sp) / self.dt)
-            ob.prev_speed = sp
-            outcome = self._outcome(ob)
-            if outcome is None and (side != ob.side or t - ob.t_start > MAX_OBSERVE_S):
-                outcome = "ended"
-            if outcome is not None:
-                self._finish(vid, t, outcome)
+            if self.lock is not None:
+                self.lock.hold(vid, t)          # 자발적 차선변경 방지(상호작용 내내)
+            if t - it.t_start < it.delay or it.acted:
+                continue
+            v_bus = tc.vehicle.getSpeed(self.bus)
+            if it.t_open is None:
+                it.t_open, it.v0 = t, tc.vehicle.getSpeed(vid)
+            if it.action == "yield" and self._boxed_in(vid, it, t, v_bus):
+                it.action, it.overtook = "block", True        # 양보를 접고 버스를 먼저 지나간다(아래 막기와 같은 속도 지정)
+            if it.action == "yield":
+                tc.vehicle.setSpeed(vid, max(0.0, v_bus - YIELD_DV))
+            elif t - it.t_open > BLOCK_MAX_S:
+                tc.vehicle.setSpeed(vid, -1)      # 오래 막았다: 놓는다
+                it.acted = True
+            else:
+                # 막는 차는 감속하지 않는다: 버스가 막 출발해 느릴 때 '버스 + 2'로 맞추면 오던 속도보다 느려져 간격이 열렸다
+                tc.vehicle.setSpeed(vid, max(v_bus + BLOCK_DV, BLOCK_MIN_SPEED, it.v0))
 
-    def _outcome(self, ob):
-        """후행차와 버스 중 누가 그 차로의 앞자리를 차지했는가. 아직이면 None."""
+    def _boxed_in(self, vid, it, t, v_bus):
+        """버스가 진입을 기다리며 서 있는데 양보하려는 차가 바로 뒤차 때문에 길을 터 줄 수 없는 상태가 `BOXED_WAIT_S` 넘게 이어졌는가.
+        양보하고 싶어도 뒤에 차가 붙어 있으면 둘 다 서서 교착되므로 양보를 무시하고 추월하게 한다."""
+        if v_bus >= BOXED_BUS_SPEED:
+            it.boxed_since = None
+            return False
+        try:
+            rear, _gap = self.traci.vehicle.getFollower(vid, BOXED_GAP_M)
+        except Exception:
+            rear = ""
+        if not rear:
+            it.boxed_since = None
+            return False
+        it.boxed_since = t if it.boxed_since is None else it.boxed_since
+        return t - it.boxed_since >= BOXED_WAIT_S
+
+    def _passed(self, vid):
         tc = self.traci
-        leader = tc.vehicle.getLeader(ob.follower, 2.0 * self.follower_range)
-        if leader and leader[0] == self.bus:
-            return "bus_first"
-        leaders = tc.vehicle.getLeftLeaders(self.bus) if ob.side > 0 else tc.vehicle.getRightLeaders(self.bus)
-        if any(v == ob.follower for v, _ in leaders):
-            return "follower_first"
-        return None
+        same = tc.vehicle.getRoadID(vid) == tc.vehicle.getRoadID(self.bus)
+        return same and (tc.vehicle.getLanePosition(vid)
+                         > tc.vehicle.getLanePosition(self.bus) + 1.0)
 
-    def _finish(self, vid, t, outcome):
-        ob = self.inter.pop(vid)
-        self.log.append({"follower": vid, "outcome": outcome, "side": ob.side, "t_start": ob.t_start, "t_end": t,
-                         "aggressiveness": ob.aggressiveness, "max_decel": ob.max_decel})
+    def _passed_by(self, vid, margin):
+        """후행차 뒤끝이 버스 앞끝보다 margin 넘게 앞섰는가(같은 도로)."""
+        tc = self.traci
+        if tc.vehicle.getRoadID(vid) != tc.vehicle.getRoadID(self.bus):
+            return False
+        rear = tc.vehicle.getLanePosition(vid) - tc.vehicle.getLength(vid)
+        return rear > tc.vehicle.getLanePosition(self.bus) + margin
+
+    def _finish(self, vid, t, alive):
+        it = self.inter.pop(vid)
+        if alive and it.t_open is not None:
+            self.traci.vehicle.setSpeed(vid, -1)              # 속도 지정 해제
+        if alive and self.lock is not None:
+            self.lock.release(vid)
+        self.owner.release(vid, self.OWNER)
+        self.log.append({"follower": vid, "yield": it.yields, "action": it.action, "t_start": it.t_start,
+                         "delay": it.delay, "t_open": it.t_open, "t_end": t,
+                         "max_decel": it.max_decel, "side": it.side})

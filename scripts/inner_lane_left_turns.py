@@ -21,7 +21,7 @@
 서 있었기 때문이다(build_hapjeong.py REPLACED_CONNECTIONS). 지금 버스는 정책이 차로를 고르고, 틈이 없으면 줄여 옆 차를
 먼저 보낸다.
 
-커밋된 도로망에 연결 하나만 빼는 방식은 remove_j42_right_turn.py와 같고, netconvert가 다른 교차로까지 다시 계산하므로
+커밋된 도로망에 연결 하나만 빼는 방식은 3.8.0의 J42 우회전 제거(옛 remove_j42_right_turn.py)와 같고, netconvert가 다른 교차로까지 다시 계산하므로
 smooth_j42_left_turns.py처럼 결과에서 그 교차로의 교차로·교차로 안 도로·연결만 가져와 원래 도로망에 끼운다. 연결 하나가
 빠지면 그 교차로의 교차로 안 도로와 신호 연결 번호가 당겨지므로 그 집합을 통째로 바꾸고, 그 신호 프로그램(도로망 안과
 signals.add.xml)의 상태 문자열에서 지운 연결의 글자를 뺀다. 다른 신호 교차로의 연결 번호가 바뀌면 멈춘다.
@@ -49,7 +49,7 @@ BASE = Path(__file__).resolve().parents[1]
 if str(BASE) not in sys.path:
     sys.path.insert(0, str(BASE))
 
-from scripts.add_j1_left_lane import tls_links  # noqa: E402
+from scripts.patch_network import tls_links  # noqa: E402
 from scripts.patch_network import digest  # noqa: E402
 from scripts.prune_network import OPTIONS  # noqa: E402
 

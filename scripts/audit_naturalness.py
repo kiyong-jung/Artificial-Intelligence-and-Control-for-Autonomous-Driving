@@ -137,12 +137,8 @@ RULES = [
     # ---- 주변 교통 경로: 배경 교통에 닿는 것 ----
     ("call", "traffic/yield_logic.py", "YieldManager.on_departed", "vehicle.setParameter", "vid", A,
      "투입 때 한 번, 버스와 무관한 분포에서 뽑은 운전자 성향(차선 변경 파라미터)"),
-    ("call", "traffic/yield_logic.py", "YieldManager.on_departed", "vehicle.setSpeedFactor", "vid", A,
-     "투입 때 한 번, 운전자마다 다른 희망 속도(0.8~1.2)"),
     ("call", "traffic/lane_route.py", "LaneRouteAdapter.update", "vehicle.setRoute", "vid", A,
      "정지선 맨 앞에 200초(가장 긴 신호 주기보다 길게) 선 차만, 회차 없이 지금 차로가 가는 길로. 운전자의 포기 행동"),
-    ("call", "traffic/lane_route.py", "LaneRouteAdapter._stuck", "vehicle.<alias>", "v", A,
-     "읽기 전용 별칭(getSpeed, getWaitingTime, getLanePosition)"),
     ("call", "traffic/right_turn.py", "apply_right_on_red", "trafficlight.setProgramLogic", "tid", A,
      "팀 결정(traffic/README '우회전과 보행자'). 시작할 때 한 번, 적색 우회전을 일시정지 후 진행(s)으로 연다. 버스를 보지 않는다. "
      "traffic 경로에만 있는 차이(X3)라 S1~S6 발생률은 학습 환경의 값이 아니다(traffic/README)"),
@@ -153,8 +149,6 @@ RULES = [
     ("lit", "traffic/cutin.py", "cutin_vtype_xml", "jmTimegapMinor", "*", A, "골목 운전자 최소 시간 간격 1.0~0.3초, 위와 같다"),
     ("lit", "traffic/cutin.py", "parking_area_xml", "onRoad", "*", A,
      "차로를 막는 택시 정차 구역(정차 공간이 없는 가로변 정류장 앞에 서는 택시). 도로망의 가로변 정류장 전부에 둔다"),
-    ("lit", "traffic/pedestrian.py", "ped_dist_xml", "*", "*", O + "T8",
-     "보행자 분포: impatience 0~1, jmTimegapMinor. jmIgnoreFoeProb는 0으로 적는다"),
     ("lit", "traffic/pedestrian.py", "*", "*", "*", A, "합성 T자로 검증 장면의 보행자 유형(합정역 실행과 무관)"),
     ("lit", "traffic/sumo_conn.py", "", "no-warnings", "true", A,
      "콘솔만 끈다. 경고는 sumo_cmd의 --error-log로 실행 폴더의 sumo_warnings.log에 남는다(감사 2회차)"),
@@ -166,8 +160,6 @@ RULES = [
     ("xml", "gen:traffic/traffic.rou.xml", "vType", "jmTimegapMinor", "cutin_#", A, "골목 운전자 0.3~0.86초, 위와 같다"),
     ("xml", "gen:traffic/traffic.rou.xml", "vType", "impatience", "ped_*", O + "T8", "보행자 P1·P2 구간 impatience"),
     ("xml", "gen:traffic/traffic.rou.xml", "vType", "sigma", "bus_test", A, "시험용 버스는 규칙으로 몬다"),
-    ("xml", "gen:traffic/traffic.add.xml", "parkingArea", "onRoad", "pa_curb_*", A,
-     "가로변 정류장 8곳 앞 차로를 막는 택시 정차 구역(시간당 12대씩). 시험용 버스 노선과 무관하게 도로망의 정류장 전부"),
     # ---- 합성 도로 검증 장면과 시연: 각본대로 움직이는 것이 목적이다. 합정역 학습·측정에는 들어가지 않는다 ----
     ("call", "traffic/scenarios.py", "*", "*", "*", A, "합성 2차로 직선 검증 장면(각본 버스와 후행차 한 대)"),
     ("call", "traffic/scenarios_a2.py", "*", "*", "*", A, "합성 합류 교차로 검증 장면"),
@@ -181,11 +173,9 @@ RULES = [
     ("lit", "scripts/audit_naturalness.py", "*", "*", "*", A, "이 검사기 자신의 표"),
     ("call", "traffic/presence.py", "PresenceMonitor.update", "simulation.<alias>", "sim", A,
      "측정용 읽기(출발·도착·순간이동 목록)만 한다"),
-    ("xml", "gen:traffic/traffic.rou.xml", "vType", "minGap", "ped_#", A, "보행자 유형(SUMO 보행자 기본 0.25m와 비슷)"),
-    ("lit", "scripts/remove_crosswalk_pedestrians.py", "pedestrians_on", "*", "*", A,
-     "지도 패치 도구가 보행자만 넣고 누가 그 횡단보도를 밟는지 읽는다(실행에 쓰는 설정이 아니다)"),
-    ("lit", "scripts/remove_cluster_crosswalks.py", "unroutable_persons", "ignore-route-errors", "true", A,
-     "지도 패치 도구가 경로가 끊긴 보행자를 찾아내려고 오류를 경고로 받는다"),
+    ("lit", "scripts/build_hapjeong.py", "prune_walkers", "ignore-route-errors", "true", A,
+     "지도 빌드가 횡단보도를 닫은 뒤 경로가 끊긴 보행자를 찾아내려고 오류를 경고로 받는다(실행에 쓰는 설정이 아니다)"),
+    ("lit", "scripts/build_hapjeong.py", "prune_walkers", "no-warnings", "true", A, "위와 같은 지도 빌드 단계의 콘솔 출력만 끈다"),
     ("lit", "scripts/road_usage.py", "run", "no-warnings", "true", A, "도로 사용량 측정(읽기만)"),
     ("lit", "scripts/scenario_supply.py", "run", "no-warnings", "true", A, "시나리오 공급 측정(읽기만)"),
     ("xml", "maps/paldalmun/source/network.net.xml", "connection", "uncontrolled", "*", A,
@@ -219,6 +209,13 @@ RULES = [
      "충돌·순간이동 0과 전문가 v5 완주를 지킨 가장 큰 배율이다(지도 README 3.20.0)"),
     ("data", "hapjeong", "demand-multiplier", "*", "*", A,
      "팀 밀도 설정(골목 3배, S6 보행자 4배, 상수역 출구 2배). 켜고 끈 발생률은 지도 README 3.14.0의 결정 표에 있다"),
+    # ---- main 병합(PR #8·#11·#12)으로 되살아난 팀원 시나리오 실행 경로. 위의 줄에 맞지 않은 것만 여기 온다 ----
+    ("call", "traffic/*.py", "*", "*", "*", O + "MERGE",
+     "팀원(박신후·주현진) 시나리오 실행 경로가 배경 차·보행자를 조종한다(주입기, 밀도 유지기, 정류장 앞 정차, 양보 조종). "
+     "학습 환경(env/)은 traffic/를 import하지 않는다. 이 경로를 남길지는 팀이 정한다"),
+    ("lit", "traffic/*.py", "*", "*", "*", O + "MERGE", "위와 같다"),
+    ("xml", "gen:traffic/*", "*", "*", "*", O + "MERGE", "위와 같다(traffic 경로가 만드는 vType·경로)"),
+    ("call", "scripts/view_scenarios.py", "*", "*", "*", O + "MERGE", "팀원 시나리오 시연 스크립트(main에서 되살림)"),
 ]
 
 

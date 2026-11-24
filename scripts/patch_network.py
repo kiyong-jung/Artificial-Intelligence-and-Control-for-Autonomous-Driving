@@ -48,6 +48,20 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def tls_links(net_path: Path) -> dict[str, dict[int, tuple]]:
+    """신호 교차로 -> {연결 번호: (from, fromLane, to, toLane) 또는 ("crossing", to)}."""
+    root = ET.parse(net_path).getroot()
+    crossing = {e.get("id") for e in root.iter("edge") if e.get("function") == "crossing"}
+    out: dict[str, dict[int, tuple]] = {}
+    for c in root.iter("connection"):
+        if c.get("tl") is None:
+            continue
+        key = ("crossing", c.get("to")) if c.get("to") in crossing else \
+            (c.get("from"), c.get("fromLane"), c.get("to"), c.get("toLane"))
+        out.setdefault(c.get("tl"), {})[int(c.get("linkIndex"))] = key
+    return out
+
+
 def signature(element: ET.Element) -> tuple:
     """들여쓰기만 무시하고 모든 속성·자식 정보를 비교한다."""
     return (element.tag, tuple(sorted(element.attrib.items())), (element.text or "").strip(),

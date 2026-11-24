@@ -144,6 +144,13 @@ def snapshot_configs(run_dir: str):
     이 파일 안에 있으므로, 나중에 "이 결과가 어떤 설정이었나"를
     정확히 되짚을 수 있다.
     """
+    if EGO.get("learning_profile") == "bus_service_v1":
+        from pathlib import Path
+        for name in ("env/bus_task.py", "env/sumo_env.py", "env/experiment.py", "env/data_schema.py",
+                     "env/road_builder.py", "env/route_map.py", "algorithms/ppo.py", "utils/networks.py"):
+            dest = Path(run_dir) / "source" / name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(Path(BASE) / name, dest)
     write_run_config(run_dir, hparams=HPARAMS, reward=REWARD,
                      kind="residual_training" if RESIDUAL_SCALE > 0 else "ppo_training",
                      residual_scale=RESIDUAL_SCALE,
@@ -235,6 +242,9 @@ if __name__ == "__main__":
     parser.add_argument("--eval-interval", type=int, default=EVAL_INTERVAL, help="평가 주기; 0이면 비활성")
     parser.add_argument("--device", default=HPARAMS["device"], choices=["auto", "cpu", "cuda", "mps"])
     parser.add_argument("--lr", type=float, default=None, help="이번 실행의 학습률")
+    parser.add_argument("--gamma", type=float, default=None, help="이번 실행의 미래 보상 할인율")
+    parser.add_argument("--incomplete-end-penalty", type=float, default=None,
+                        help="bus_service_v1 시간초과·차량제거 등 미완료 종료 감점(양수 입력)")
     parser.add_argument("--run-label", default=None, help="실제 시작 시각 뒤에 붙일 실험 이름")
     parser.add_argument("--results-dir", default=None, help="이번 실행의 결과 저장 폴더")
     parser.add_argument("--residual-scale", type=float, default=RESIDUAL_SCALE,
@@ -251,6 +261,14 @@ if __name__ == "__main__":
         parser.error("--residual-scale은 0 이상이어야 합니다.")
     RESIDUAL_SCALE = args.residual_scale
     HPARAMS.update(n_steps=args.n_steps, seed=args.seed, device=args.device)
+    if args.incomplete_end_penalty is not None:
+        if EGO.get("learning_profile") != "bus_service_v1" or not 0 < args.incomplete_end_penalty < float("inf"):
+            parser.error("미완료 종료 감점은 bus_service_v1에서 유한한 양수여야 합니다.")
+        EGO["task_rewards"]["incomplete_end"] = -args.incomplete_end_penalty
+    if args.gamma is not None:
+        if not 0 < args.gamma <= 1:
+            parser.error("--gamma는 0보다 크고 1 이하여야 합니다.")
+        HPARAMS["gamma"] = args.gamma
     if args.lr is not None:
         if not 0 < args.lr < float("inf"):
             parser.error("--lr는 유한한 양수여야 합니다.")

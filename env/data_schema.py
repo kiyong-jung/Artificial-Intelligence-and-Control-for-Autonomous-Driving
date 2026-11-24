@@ -109,14 +109,31 @@ CONVENTIONS = {
 }
 
 
-def metadata() -> dict:
+def observation_features(profile="legacy"):
+    if profile != "bus_service_v1":
+        return list(OBSERVATION_FEATURES)
+    return (["ego_speed"] + [f"{lane}_drivable" for lane in _LANES]
+            + [f"{kind}_{slot}_{field}" for kind, count in [("vehicle",8),("pedestrian",6)]
+               for slot in range(count) for field in ("present","longitudinal","lateral","relative_v_long","relative_v_lat")]
+            + ["nav_left","nav_right","nav_uturn","nav_distance","remaining_route"]
+            + ["tls_present","tls_distance","tls_red","tls_yellow","tls_green","tls_other"]
+            + ["stop_present","stop_longitudinal","stop_lateral","dwell_fraction","serviced_fraction","stop_distance"])
+
+
+def metadata(profile="legacy") -> dict:
     """실행마다 한 번 남기는 데이터 설명."""
-    return {"schema_version": SCHEMA_VERSION,
+    conventions = dict(CONVENTIONS)
+    if profile == "bus_service_v1":
+        conventions["observation"] = ("93D [-1,1]; nearest objects sorted by squared distance then ID. "
+            "Missing object/TLS/stop blocks have present=0. Object/TLS distance divided by visibility; "
+            "speed by vmax; navigation/stop distance by 200m; remaining route by route length. "
+            "No target-lane or prescribed maneuver timing. Ideal sensing without occlusion.")
+    return {"schema_version": SCHEMA_VERSION if profile == "legacy" else "hapjeong_bus_service_v1",
             "columns": [{"name": name, "type": kind, "origin": origin, "meaning": meaning}
                         for name, kind, origin, meaning in COLUMNS],
             "state_keys": STATE_KEYS, "detected_vehicle_keys": DETECTED_VEHICLE_KEYS,
             "detected_pedestrian_keys": DETECTED_PEDESTRIAN_KEYS,
-            "observation_feature_names": OBSERVATION_FEATURES, "conventions": CONVENTIONS}
+            "observation_feature_names": observation_features(profile), "conventions": conventions}
 
 
 def lookup(record: dict, column: str):

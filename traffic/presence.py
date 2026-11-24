@@ -1,14 +1,24 @@
-"""시험용 버스 반경 안에서 물체가 생기거나 사라지는지 재는 지표와 지도 경계 도우미.
+"""시험용 버스 주변에서 물체가 순간이동해서 생기거나 사라지지 않게 하는 규칙.
 
-- 반경 `PRESENCE_RADIUS_M`(직선거리) 안에서 차·버스·택시·보행자가 새로 생기거나 사라진 횟수를 센다(`PresenceMonitor`).
-  측정만 한다. 버스 가까이에서 출발을 미루거나 차를 지우거나 목적지를 바꾸지 않는다.
-- 지도 경계(도로가 끊긴 곳, 막다른 골목 끝)와 골목 안에서 생기고 사라지는 것은 세지 않는다.
-- SUMO의 정체 순간이동은 켜 두고, 반경 안에서 일어나면 센다.
+- 반경 `PRESENCE_RADIUS_M`(직선거리) 안에서는 차·버스·택시·보행자가 새로 생기거나 사라지면 안 된다.
+  **이 값은 여기에만 둔다.** 생성 거리 검사, 도착 보호, 보행자, 주입기, 정차 차량, 측정이 모두 이 상수를 import해 쓴다.
+- 지도 경계(도로가 끊긴 곳, 막다른 골목 끝)에서 생기고 사라지는 것은 위반이 아니다.
+- SUMO의 정체 순간이동은 켜 두고, 반경 안에서 일어나면 위반으로 센다.
 """
 import heapq
 import math
 
 PRESENCE_RADIUS_M = 50.0      # 학습 차량의 관측 거리(env/mdp_config.py visibility 50 m)와 같게 둔다
+SPAWN_MARGIN_M = 5.0          # 차 투입·제거 검사 거리 여유: 한 스텝(0.1 s)에 버스와 차가 합쳐 3 m 가까이 움직여 검사 직후 반경 안에 들 수 있다
+PERSON_MARGIN_M = 5.0         # 보행자 출발 거리 여유: 인도 위치로 재도 버스가 그 스텝에 다가오면 반경 안에서 보였다
+
+
+def sidewalk_xy(net, edge_id, pos=0.0):
+    """보행자가 실제로 걷는 인도 차로(보행자 허용 차로) 위 pos 지점의 좌표. 없으면 도로 중심선."""
+    from sumolib.geomhelper import positionAtShapeOffset
+    e = net.getEdge(edge_id)
+    lane = next((ln for ln in e.getLanes() if ln.allows("pedestrian")), None)
+    return positionAtShapeOffset((lane or e).getShape(), pos)
 
 
 # ---- 지도 경계 ---------------------------------------------------------------------------------
@@ -54,12 +64,21 @@ def hidden_in_alley(road):
     return road.startswith("G")
 
 
+def far_from_bus(tc, bus_id, xy, radius=PRESENCE_RADIUS_M):
+    """xy가 시험용 버스에서 radius 이상 떨어졌는가. 버스가 없으면 True."""
+    if bus_id not in tc.vehicle.getIDList():
+        return True
+    bx, by = tc.vehicle.getPosition(bus_id)
+    return math.hypot(xy[0] - bx, xy[1] - by) >= radius
+
+
 _exit_cache = {}
 
 
-def nearest_boundary_exit(net, from_edge, vclass="passenger"):
-    """from_edge에서 경계로 끝나는 도로까지 가장 짧은 경로(도로 id 목록, from_edge 포함). 없으면 None."""
-    key = (id(net), from_edge, vclass)
+def nearest_boundary_exit(net, from_edge, vclass="passenger", avoid=frozenset()):
+    """from_edge에서 경계로 끝나는 도로까지 가장 짧은 경로(도로 id 목록, from_edge 포함). 없으면 None.
+    avoid(도로 id의 frozenset)의 도로는 지나지 않는다."""
+    key = (id(net), from_edge, vclass, avoid)
     if key in _exit_cache:
         return _exit_cache[key]
     if not net.hasEdge(from_edge):
@@ -78,7 +97,7 @@ def nearest_boundary_exit(net, from_edge, vclass="passenger"):
             found = eid
             break
         for nxt in e.getOutgoing():
-            if nxt.getFunction() == "internal" or not nxt.allows(vclass):
+            if nxt.getFunction() == "internal" or not nxt.allows(vclass) or nxt.getID() in avoid:
                 continue
             nd = d + nxt.getLength()
             if nd < best.get(nxt.getID(), math.inf):
@@ -93,6 +112,70 @@ def nearest_boundary_exit(net, from_edge, vclass="passenger"):
         path.reverse()
     _exit_cache[key] = path
     return path
+
+
+# ---- 도착 보호 ---------------------------------------------------------------------------------
+class VehicleArrivalGuard:
+    """지도 안쪽에서 끝나는 경로의 차가 시험용 버스 가까이에서 사라지지 않게 목적지를 경계 도로로 늘린다.
+
+    update(t)를 매 스텝 부르되 `period` 초마다 본다. 마지막 도로에 있는 차 중 마지막 도로가 경계로 끝나지 않고
+    버스에서 `radius + margin` m 안인 차의 목적지를 `nearest_boundary_exit`의 끝으로 바꾼다.
+    """
+
+    def __init__(self, tc, net, bus_id, radius=PRESENCE_RADIUS_M, margin=30.0, period=1.0):
+        self.tc, self.net, self.bus = tc, net, bus_id
+        self.reach = radius + margin
+        self.radius, self.suppressed = radius, 0
+        self.period, self._t_next = period, -1e9
+        self.extended = {}
+
+    def _suppress_departures(self, ids, bx, by):
+        """버스 반경 안에서 막 출발한 배경 흐름 차(id가 f_로 시작)를 없앤다. 골목 입구에서 나오는 흐름 차는 SUMO가 제 시각에
+        넣어 버스 눈앞에 갑자기 나타나기 때문이다. 아직 보이지 않던 차를 넣지 않는 것이라 사라짐으로 세지 않는다."""
+        tc = self.tc
+        for vid in tc.simulation.getDepartedIDList():
+            if not vid.startswith("f_") or vid not in ids:
+                continue
+            x, y = tc.vehicle.getPosition(vid)
+            road = tc.vehicle.getRoadID(vid)
+            if (math.hypot(x - bx, y - by) < self.radius and not starts_at_boundary(self.net, road)
+                    and not hidden_in_alley(road)):
+                try:
+                    tc.vehicle.remove(vid)
+                except Exception:
+                    continue
+                self.suppressed += 1
+
+    def update(self, t):
+        tc = self.tc
+        ids = tc.vehicle.getIDList()
+        if self.bus in ids:
+            self._suppress_departures(ids, *tc.vehicle.getPosition(self.bus))
+        if t < self._t_next:
+            return
+        self._t_next = t + self.period
+        ids = tc.vehicle.getIDList()
+        if self.bus not in ids:
+            return
+        bx, by = tc.vehicle.getPosition(self.bus)
+        for vid in ids:
+            if vid == self.bus or vid in self.extended:
+                continue
+            x, y = tc.vehicle.getPosition(vid)
+            if math.hypot(x - bx, y - by) > self.reach:
+                continue
+            road = tc.vehicle.getRoadID(vid)
+            route = tc.vehicle.getRoute(vid)
+            if road.startswith(":") or not route or road != route[-1] or ends_at_boundary(self.net, road):
+                continue
+            path = nearest_boundary_exit(self.net, road)
+            if not path or path[-1] == road:
+                continue
+            try:
+                tc.vehicle.changeTarget(vid, path[-1])
+            except Exception:
+                continue
+            self.extended[vid] = path[-1]
 
 
 # ---- 측정 --------------------------------------------------------------------------------------

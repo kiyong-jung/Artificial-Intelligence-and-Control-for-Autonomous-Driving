@@ -37,13 +37,15 @@ from env.experiment import write_run_config
 BASE = Path(__file__).resolve().parent
 
 
-def load_data(path):
+def load_data(path, action_key='action_raw', valid_key=None):
     """observation/action_raw/episode를 불러온다."""
     path = Path(path)
+    if action_key != 'action_raw' and not valid_key:
+        raise ValueError('Explicit labels require an explicit validity mask')
 
     if path.suffix == ".npz":
         with np.load(path, allow_pickle=False) as data:
-            required = ("observation", "action_raw", "episode")
+            required = ("observation", action_key, "episode") + ((valid_key,) if valid_key else ())
             missing = [key for key in required if key not in data]
 
             if missing:
@@ -53,10 +55,17 @@ def load_data(path):
                 )
 
             obs = data["observation"]
-            actions = data["action_raw"]
+            actions = data[action_key]
             episodes = data["episode"]
+            if valid_key:
+                mask = data[valid_key]
+                if mask.dtype != np.bool_ or mask.shape != (len(obs),):
+                    raise ValueError('Validity mask must be boolean shape(N,)')
+                obs, actions, episodes = obs[mask], actions[mask], episodes[mask]
 
     elif path.suffix == ".jsonl" or path.name.endswith(".jsonl.gz"):
+        if action_key != 'action_raw' or valid_key:
+            raise ValueError('Explicit labels/masks currently require NPZ')
         obs, actions, episodes = [], [], []
 
         opener = gzip.open if path.name.endswith(".gz") else open

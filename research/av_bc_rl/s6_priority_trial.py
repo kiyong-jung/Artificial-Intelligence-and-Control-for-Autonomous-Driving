@@ -40,7 +40,7 @@ if str(BASE) not in sys.path:
 import sumolib  # noqa: E402
 
 from env.data_schema import OBSERVATION_FEATURES  # noqa: E402
-from scripts.add_j1_left_lane import tls_links  # noqa: E402
+from scripts.patch_network import tls_links  # noqa: E402
 from scripts.patch_network import digest  # noqa: E402
 from scripts.prune_network import OPTIONS  # noqa: E402
 

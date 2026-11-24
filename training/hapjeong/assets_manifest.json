@@ -1,0 +1,75 @@
+{
+  "purpose": "Local-only optional assets for code preparation; not uploaded. BC teacher-derived data, not evidence of school compliance. No selected pure-PPO checkpoint available.",
+  "files": [
+    {
+      "path": "data/hapjeong_bc/training_view.npz",
+      "bytes": 6201838,
+      "sha256": "1a1f31aad49249a5766bdbdb1589ba674526ff4769963b6d2ca31ec54fd9a8da"
+    },
+    {
+      "path": "data/hapjeong_bc/split.json",
+      "bytes": 1163,
+      "sha256": "62be967c8f400ee6daf184253704857cccdc73874a18911c0201508f0b2b6884"
+    },
+    {
+      "path": "data/hapjeong_bc/run_config.json",
+      "bytes": 6041,
+      "sha256": "35f0b7b2fdc76602114d9046ac4f6a56373d1c51687ee925bd2c60c78e3bb7fb"
+    },
+    {
+      "path": "results/pretrained/bc/model.pt",
+      "bytes": 120672,
+      "sha256": "d0b0afdf5f988c08e9e7354c66d9879d9450b777c5fb50057a05112dee13c84b"
+    },
+    {
+      "path": "results/pretrained/bc/run_config.json",
+      "bytes": 6033,
+      "sha256": "7c872ea3d1c2b541aa913c429f34a14273d9d8b944f33de6be47630070d18eb0"
+    },
+    {
+      "path": "results/pretrained/bc_ppo_initial/model.pt",
+      "bytes": 120672,
+      "sha256": "a0d5b2872ae7b58fd3b57af38a5afec412f200d9c2ce1f7204e4fb4501896e28"
+    },
+    {
+      "path": "results/pretrained/bc_ppo_initial/run_config.json",
+      "bytes": 6011,
+      "sha256": "a00847fc88dc73ca94d4b89fed74170bc3ff21f258c07e601cfb58a658960616"
+    },
+    {
+      "path": "results/pretrained/bc_ppo_best/model.pt",
+      "bytes": 120672,
+      "sha256": "29cbe7e74f037090ca3285cf9c2c4ea8d9b87b8e2f7d5ac371952c7727448802"
+    },
+    {
+      "path": "results/pretrained/bc_ppo_best/run_config.json",
+      "bytes": 6017,
+      "sha256": "aac25d12d5fe09e954e4c7344ad0951e15fa1e87ba7eff51df2d067c726daa44"
+    },
+    {
+      "path": "results/pretrained/residual/model.pt",
+      "bytes": 121696,
+      "sha256": "6999ae663c37c01342302084a0c955b34f61e7e47f0d0079b549048d47d3faad"
+    },
+    {
+      "path": "results/pretrained/residual/run_config.json",
+      "bytes": 6003,
+      "sha256": "d6d8d69f46b629def4c0019dbe9daaaf89089cf2d13af764fd74aa666865697b"
+    },
+    {
+      "path": "results/pretrained/residual/base_model.pt",
+      "bytes": 120672,
+      "sha256": "d0b0afdf5f988c08e9e7354c66d9879d9450b777c5fb50057a05112dee13c84b"
+    },
+    {
+      "path": "results/pretrained/residual/base_run_config.json",
+      "bytes": 6033,
+      "sha256": "7c872ea3d1c2b541aa913c429f34a14273d9d8b944f33de6be47630070d18eb0"
+    },
+    {
+      "path": "results/pretrained/residual/residual_manifest.json",
+      "bytes": 403,
+      "sha256": "0ce983a7f75e7b2fabdb9e19d508bf5d170d3e8b7e362feb466c72ae81e369a1"
+    }
+  ]
+}

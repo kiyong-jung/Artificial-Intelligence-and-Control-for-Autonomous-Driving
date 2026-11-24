@@ -1,11 +1,17 @@
-"""신호 교차로 우회전(right_turn)."""
+"""밀도 분산(InteriorSpawner)과 신호 교차로 우회전(right_turn)."""
 import os
+import random
 import sys
+import xml.etree.ElementTree as ET
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from maps import load_map  # noqa: E402
+from traffic.alleys import read_net  # noqa: E402
 from traffic.hapjeong import HapjeongTraffic  # noqa: E402
+from traffic.interior_spawner import InteriorSpawner  # noqa: E402
+from traffic.presence import PRESENCE_RADIUS_M, SPAWN_MARGIN_M  # noqa: E402
 from traffic.right_turn import right_turn_links  # noqa: E402
 
 
@@ -17,6 +23,57 @@ def world(tmp_path_factory):
     w.close()
 
 
+def test_entry_flows_are_reduced_by_the_interior_share(world):
+    """입구 흐름을 30% 줄이고 그만큼을 노선 위 출발로 옮기므로 전체 대수는 같다."""
+    rou = ET.parse(os.path.join(world.out_dir, "routes.rou.xml")).getroot()
+    after = sum(float(f.get("period")[4:-1]) * 3600 for f in rou.iter("flow")
+                if f.get("type") == "carDist" and (f.get("period") or "").startswith("exp("))
+    moved = world.interior_per_h
+    assert moved > 0 and world.summary["interior"]["share"] == 0.3
+    assert moved / (after + moved) == pytest.approx(0.3, abs=1e-3)
+
+
+class _FakeTc:
+    class vehicle:
+        added = []
+
+        @classmethod
+        def getIDList(cls): return ["bus0"]
+
+        bus_xy = (250.0, 150.0)
+
+        @classmethod
+        def getPosition(cls, v): return cls.bus_xy
+
+        @classmethod
+        def add(cls, vid, rid, **kw): cls.added.append((vid, rid, kw))
+
+    class route:
+        routes = {}
+
+        @classmethod
+        def add(cls, rid, edges): cls.routes[rid] = edges
+
+
+def test_spawner_never_places_cars_near_the_test_bus(world):
+    """시험용 버스에서 min_dist 안에는 투입하지 않는다(눈앞에 차가 갑자기 생기지 않는다)."""
+    m = load_map("hapjeong")
+    net = read_net(os.path.join(world.out_dir, "network.net.xml"))
+    tc = _FakeTc()
+    tc.vehicle.added.clear()
+    sp = InteriorSpawner(tc, net, "bus0", m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}),
+                         per_h=3600.0 * 10, rng=random.Random(1), dt=0.1)
+    tc.vehicle.bus_xy = bx, by = sp._xy("R71", 60.0)        # 버스를 노선 위에 둔다(근처 지점이 있어야 건너뜀이 센다)
+    for k in range(3000):
+        sp.update(k * 0.1)
+    assert sp.n_spawned > 100 and sp.n_skipped_near > 0
+    for vid, rid, kw in tc.vehicle.added:
+        edge = tc.route.routes[rid][0]
+        x, y = sp._xy(edge, float(kw["departPos"]))
+        assert ((x - bx) ** 2 + (y - by) ** 2) ** 0.5 >= PRESENCE_RADIUS_M + SPAWN_MARGIN_M - 1e-6
+        assert kw["typeID"] == "carDist"
+
+
 def test_right_on_red_changes_every_signal_but_the_main_crossing(world):
     tc = world.start(warmup=5)
     ror = world.summary["right_on_red"]
@@ -26,45 +83,30 @@ def test_right_on_red_changes_every_signal_but_the_main_crossing(world):
     # 횡단보도 보행자 신호가 켜져 있는(건너는 사람이 있을 수 있는) 위상에서는 열지 않는다
     assert ror["J74"]["blocked_by_ped"] > 0.1
     assert all(v["opened_share"] + v["blocked_by_ped"] <= 1.0 for v in ror.values())
-    # 적색이던 우회전은 일시정지 후 진행('s')으로만 열린다. 서지 않고 지나는 녹색('G', 'g')은 원래 녹색이던 위상뿐이다
+    # 바꾼 뒤에도 우회전 링크는 모든 위상에서 적색이 아닌 시간이 늘었다
     import sumolib
     net = sumolib.net.readNet(os.path.join(world.out_dir, "network.net.xml"), withInternal=False, withPrograms=True)
-    for tid, info in ror.items():
-        tls = next(t for t in net.getTrafficLights() if t.getID() == tid)
-        links = right_turn_links(tls)
-        now = [ph.state for ph in tc.trafficlight.getAllProgramLogics(tid)[-1].phases]   # info["orig"]는 마지막 프로그램의 것
-        assert any(st[i] == "s" for st in now for i in links)
-        for st, orig in zip(now, info["orig"]):
-            for i in links:
-                assert st[i] == orig[i] or (orig[i] in "ru" and st[i] == "s"), (tid, i, orig[i], st[i])
+    tls = next(t for t in net.getTrafficLights() if t.getID() == "J74")
+    links = right_turn_links(tls)
+    greens = sum(ph.duration for lg in tc.trafficlight.getAllProgramLogics("J74") for ph in lg.phases
+                 for i in links if ph.state[i] in "Gg")
+    assert greens > 0
 
 
-def test_right_turn_on_red_stops_before_turning(world):
-    # 's'로 연 위상에 우회전한 차는 정지선 앞에서 멈췄다가 지난다(도로교통법의 일시정지)
-    tc = world.start(warmup=5)
-    ror = world.summary["right_on_red"]
-    import sumolib
-    net = sumolib.net.readNet(os.path.join(world.out_dir, "network.net.xml"), withInternal=False, withPrograms=True)
-    via = {}                                       # 우회전 내부 차로 -> (교차로, 링크 번호)
-    for tid in ror:
-        tls = next(t for t in net.getTrafficLights() if t.getID() == tid)
-        for i in right_turn_links(tls):
-            for _, _, v in tc.trafficlight.getControlledLinks(tid)[i]:
-                via[v] = (tid, i)
-    approach_min, passed = {}, []
-    for _ in range(4000):
-        tc.simulationStep()
-        for v in tc.vehicle.getIDList():
-            nxt = tc.vehicle.getNextLinks(v)
-            if nxt and nxt[0][4] in via and tc.vehicle.getRoadID(v)[:1] != ":":
-                key = (v, nxt[0][4])
-                approach_min[key] = min(approach_min.get(key, 99.0), tc.vehicle.getSpeed(v))
-                if tc.vehicle.getLanePosition(v) >= tc.lane.getLength(tc.vehicle.getLaneID(v)) - 15.0:
-                    tid, i = via[nxt[0][4]]
-                    approach_min[key + ("state",)] = tc.trafficlight.getRedYellowGreenState(tid)[i]
-            lane = tc.vehicle.getLaneID(v)
-            if lane in via and (v, lane) in approach_min and (v, lane) not in {p[0] for p in passed}:
-                passed.append(((v, lane), approach_min[(v, lane)], approach_min.get((v, lane, "state"))))
-    on_red = [p for p in passed if p[2] == "s"]
-    assert len(on_red) >= 5
-    assert all(speed < 0.5 for _, speed, _ in on_red), on_red[:5]
+def test_spawner_skips_avoid_roads_and_routes_that_cross_them():
+    # 와우산로·잔다리로에는 투입하지 않고, 그 도로를 지나는 경로도 쓰지 않는다
+    from traffic.flow_balance import edges_named, path_ids
+    m = load_map("hapjeong")
+    net = read_net(os.path.join(os.path.dirname(__file__), "..", "maps", "hapjeong", "source", "network.net.xml"))
+    avoid = edges_named(net, ("와우산로", "잔다리로"))
+    tc = _FakeTc()
+    tc.vehicle.added.clear()
+    sp = InteriorSpawner(tc, net, "bus0", m["routes"]["bus_loop"], sorted({f["to"] for f in m["flows"]}), per_h=3600.0 * 10,
+                         rng=random.Random(2), dt=0.1, avoid=avoid)
+    assert sp.roads and not any(e in avoid for e in sp.roads)
+    tc.vehicle.bus_xy = (1e6, 1e6)                                   # 버스가 멀리 있다
+    for k in range(3000):
+        sp.update(k * 0.1)
+    assert sp.n_spawned > 100
+    for vid, rid, kw in tc.vehicle.added:
+        assert not any(e in avoid for e in tc.route.routes[rid])

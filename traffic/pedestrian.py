@@ -2,7 +2,6 @@
 
 P1: jmIgnoreFoeProb 1 + jmIgnoreFoeSpeed = v_low, impatience 0 -> 버스가 v_low 이하로 느려야 건넌다.
 P2: 기본 간격 수용 + impatience(0.5~1) -> 버스가 충분히 멀면 건넌다.
-pedDist: 모든 보행자가 쓰는 분포. P1·P2를 impatience 구간으로 넓혔다(ped_dist_xml).
 """
 import os
 import subprocess
@@ -18,30 +17,6 @@ def ped_vtypes_xml(v_low=1.5, p2_impatience=0.75):
     return (f'<vType id="ped_p1" {BASE} jmIgnoreFoeProb="1" jmIgnoreFoeSpeed="{v_low}" impatience="0"/>\n'
             f'<vType id="ped_p2" {BASE} impatience="{p2_impatience}"/>\n'
             f'<vType id="ped_force" {BASE} jmIgnoreFoeProb="1" jmIgnoreFoeSpeed="100" impatience="1"/>')
-
-
-PED_DIST = "pedDist"
-WALKER = 'vClass="pedestrian" width="0.5" length="0.3" minGap="0.2" maxSpeed="1.4" speedDev="0.1"'
-
-
-def ped_dist_xml(v_low=1.5, p1_share=0.5):
-    """모든 보행자의 vTypeDistribution. 누가 가까이 있든 같은 규칙이다(시험용 버스만 따로 무시하지 않는다).
-
-    누구도 차를 무시하지 않는다(jmIgnoreFoeProb 0). 무시하는 보행자는 횡단보도에 멈춰 선 차를 그대로 지나가 충돌로 잡혔다
-    (busy seed 3, J82). 조심성은 받아들이는 간격(impatience)으로만 나눈다.
-    P1 구간(impatience 0, 0.25): 차가 멀리 있어야 건넌다.
-    P2 구간(impatience 0.5, 0.75, 1): 차가 감속해야 하는 간격도 받아들인다. 기다릴수록 SUMO가 impatience를 키운다(120초에 1).
-    걷는 속도는 사람마다 다르다(speedDev 0.1). 값은 자리표시다.
-    """
-    p1, p2 = (0.0, 0.25), (0.5, 0.75, 1.0)
-    vts, ids, probs = [], [], []
-    for k, imp in enumerate(p1 + p2):
-        vid = f"ped_{k}"
-        vts.append(f'<vType id="{vid}" {WALKER} jmIgnoreFoeProb="0" impatience="{imp}"/>')
-        ids.append(vid)
-        probs.append(round((p1_share / len(p1)) if imp in p1 else ((1 - p1_share) / len(p2)), 4))
-    vts.append(f'<vTypeDistribution id="{PED_DIST}" vTypes="{" ".join(ids)}" probabilities="{" ".join(map(str, probs))}"/>')
-    return "\n".join(vts)
 
 
 def build_a3_net():

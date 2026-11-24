@@ -240,6 +240,12 @@ class SumoHighwayEnv(gym.Env):
         self.accel_ramp = bool(action.get("accel_ramp", True))
         self.observation_space = spaces.Box(-1.0, 1.0, shape=(self.obs_dim,),
                                             dtype=np.float32)
+        self.bus_task = None
+        if ego.get("learning_profile") == "bus_service_v1":
+            from env.bus_task import BusTask
+            self.bus_task = BusTask(self, ego, traci)
+            self.obs_dim = 93
+            self.observation_space = spaces.Box(-1.0, 1.0, shape=(93,), dtype=np.float32)
 
     # ==================================================================
     # SUMO 프로세스 시작
@@ -351,6 +357,8 @@ class SumoHighwayEnv(gym.Env):
         self.stops_served, self.stops_missed = 0, 0
         self._speed = float(traci.vehicle.getSpeed(self.ego_id)) if self.ego_id in traci.vehicle.getIDList() else 0.0
         self._progress_mark = (0, float(traci.vehicle.getDistance(self.ego_id)))
+        if self.bus_task:
+            self.bus_task.reset()
         return self._get_obs(), {"sumo_seed": self.sumo_seed,
                                  "ego_insert_wait_seconds": (1 + _wait) * self.step_length,
                                  "warmup_seconds": warmup_steps * self.step_length,
@@ -668,6 +676,8 @@ class SumoHighwayEnv(gym.Env):
         return detected
 
     def _get_obs(self):
+        if self.bus_task:
+            return self.bus_task.observation()
         self._segment_cache.clear()
         # ego가 이미 사라졌다면(충돌/도착) 0벡터 반환 — 종료 직전 마지막 관측용
         if self.ego_id not in traci.vehicle.getIDList():
@@ -1086,6 +1096,8 @@ class SumoHighwayEnv(gym.Env):
         state = {"sim_time": float(traci.simulation.getTime()),
                  "ego": {"id": self.ego_id, "alive": False}, "vehicles": [], "pedestrians": [],
                  "navigation": None, "traffic_light": None}
+        if self.bus_task:
+            state["bus_service"] = self.bus_task.state()
         if self.ego_id not in traci.vehicle.getIDList():
             return state
         x, y, speed, heading = self._pose(self.ego_id)
@@ -1145,6 +1157,8 @@ class SumoHighwayEnv(gym.Env):
         return state
 
     def step(self, action):
+        if self.bus_task:
+            self.bus_task.before_step()
         # action = [가감속 raw, 차선변경 raw]
         action_arr = np.asarray(action, dtype=np.float32).reshape(-1)
         if action_arr.size < self.act_dim:
@@ -1191,6 +1205,8 @@ class SumoHighwayEnv(gym.Env):
                 lane_change_aborted = self._steer() or lane_change_aborted
                 stop_line = self._stop_line_ahead()
             traci.simulationStep()
+            if self.bus_task:
+                self.bus_task.tick(self.step_length)
             if self.ego_id in traci.vehicle.getIDList():
                 # 가속도는 속도 변화로 잰다. SUMO가 적색 정지선 앞에서 속도를 한 계산 만에 0으로 만들면
                 # getAcceleration()은 0을 돌려줘, 승객이 겪는 급정지가 기록에서 빠진다.
@@ -1216,7 +1232,8 @@ class SumoHighwayEnv(gym.Env):
             alive = self.ego_id in traci.vehicle.getIDList()
             red_light = red_light or self._passed_red(stop_line, alive, arrived)
             if (arrived or not alive or vehicle_collision or pedestrian_collision or red_light
-                    or self.ego_id in teleporting_ids):
+                    or self.ego_id in teleporting_ids
+                    or (self.bus_task and (self.bus_task.red_violation or self.bus_task.tracker.missed))):
                 break
         self.step_count += 1
 
@@ -1356,6 +1373,8 @@ class SumoHighwayEnv(gym.Env):
                                       abs(traci.vehicle.getSpeed(self.ego_id)
                                           - requested_speed) > 1e-3),
         }
+        if self.bus_task:
+            reward, terminated, truncated, info = self.bus_task.outcome(reward, terminated, truncated, info)
         return obs, float(reward), terminated, truncated, info
 
     def _stalled(self):

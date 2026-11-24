@@ -1,18 +1,18 @@
 """A2. 끼어들기형(S5) vType 분포와 정차 차량(S4) 정의.
 
-끼어들기는 차선변경이 아니라 우선 교차로(priority junction)에서 비우선 골목 차가 큰길 차의 간격을 얼마나 좁게
-받아들이는가로 나타난다. jm* 파라미터는 vType 단위로만 설정되므로 분포를 구간으로 나눈 vTypeDistribution을 쓴다.
+끼어들기는 차선변경이 아니라 우선 교차로(priority junction)의 우선권 위반으로 구현한다.
+jm* 파라미터는 vType 단위로만 설정되므로 분포를 구간으로 나눈 vTypeDistribution을 쓴다.
 """
 
 from dataclasses import dataclass
 
 
-def cutin_vtype_xml(dist_id, bins, v_ign=15.0, base_attrs=None):
-    """bins: [(p_ignore, timegap_minor, impatience, weight)] — 구간마다 vType 하나. 기본값은 없다. 합정역은
-    alley_driver_bins()(p_ignore 0)를, 합성 도로 검증은 확인할 값을 직접 준다.
+def cutin_vtype_xml(dist_id="cutin", bins=None, v_ign=15.0, base_attrs=None):
+    """bins: [(p_ignore, timegap_minor, impatience, weight)] — 구간마다 vType 하나.
 
     v_ign은 접근하는 차량 속도 범위(예: 8~14 m/s)보다 커야 한다. 기본값 0이면 멈춘 차량만 무시한다.
     """
+    bins = bins or default_bins()
     attrs = base_attrs or 'length="4.5" accel="2.6" decel="4.5" tau="1.0" sigma="0"'
     out = []
     for i, (p, tg, imp, w, *_) in enumerate(bins):
@@ -24,15 +24,32 @@ def cutin_vtype_xml(dist_id, bins, v_ign=15.0, base_attrs=None):
     return "\n".join(out)
 
 
-def alley_driver_bins(n=6):
-    """신호 없는 합류 골목 운전자 분포. 앞차를 무시하지 않는다(jmIgnoreFoeProb=0).
+def default_bins(n=6):
+    """INTERACTION 합류 간격 분포 자리표시: 공격성이 커지는 n개 구간 (균등 가중)."""
+    return [(round(0.2 + 0.8 * i / (n - 1), 3), round(1.0 - 0.7 * i / (n - 1), 3),
+             round(i / (n - 1), 3), round(1.0 / n, 4)) for i in range(n)]
 
-    구간 i의 공격성 a = i/(n-1)에서 impatience = 0.5a(큰길 차를 감속시키는 합류를 받아들이는 정도, 기다릴수록 SUMO가 더 키운다),
-    jmTimegapMinor = 1.0 - 0.7a [s](큰길 차 앞뒤로 받아들이는 최소 시간 간격). 같은 가중. 값은 자리표시다.
-    impatience 상한을 1에서 0.5로 낮췄다. 1이면 골목 차가 J96에서 큰길 차와 부딪혔다(busy seed 2).
+
+def cutin_bins_once(n=6, aggression=None):
+    """끼어들기 진입 판정을 차량당 한 번(= 합류 상호작용당 한 번)으로 만드는 구간.
+
+    SUMO의 jmIgnoreFoeProb는 접근 중 여러 번 뽑혀 실제 진입 확률이 p가 아니라 1-(1-p)^k가 된다(검증으로 확인, k≈5).
+    그래서 vType의 무시 확률을 0 또는 1로만 두고, '무시형' vType의 비율을 시나리오 확률 p_ignore(a)로 맞춘다.
+    구간(공격성 a_i)마다 vType 두 개(무시형, 비무시형)가 생기고, 투입 때 vTypeDistribution이 한 번 뽑는다.
+    5번째 값은 그 구간의 공격성 a다.
     """
-    return [(0.0, round(1.0 - 0.7 * a, 3), round(0.5 * a, 3), round(1.0 / n, 4))
-            for a in (i / (n - 1) for i in range(n))]
+    from .common import AGGRESSION
+    ag = aggression or AGGRESSION
+    bins = []
+    for i in range(n):
+        a = i / (n - 1)
+        p = min(1.0, max(0.0, ag.p_ignore(a)))
+        tg, imp = round(1.0 - 0.7 * a, 3), round(a, 3)
+        if p > 0:
+            bins.append((1.0, tg, imp, round(p / n, 5), a))
+        if p < 1:
+            bins.append((0.0, tg, imp, round((1 - p) / n, 5), a))
+    return bins
 
 
 def parking_area_xml(pid, lane, start, end, capacity=1):
@@ -42,10 +59,8 @@ def parking_area_xml(pid, lane, start, end, capacity=1):
 
 
 def taxi_flow_xml(fid, route, parking_id, duration, prob, vtype="taxi", begin=0, end=3600):
-    """S4: 초당 투입 확률 prob(포아송에 가까운 도착)로 경로를 달리다 정차 구역에 duration초 서는 흐름."""
     return (f'<flow id="{fid}" type="{vtype}" route="{route}" begin="{begin}" end="{end}" '
-            f'probability="{prob}" departLane="best" departSpeed="max">'
-            f'<stop parkingArea="{parking_id}" duration="{duration}"/></flow>')
+            f'probability="{prob}"><stop parkingArea="{parking_id}" duration="{duration}"/></flow>')
 
 
 # ---- S4 일반화: 정차 차량(택시·버스·일반 차량), 위치·시각·정차 시간·확률을 설정으로 받는다 ----------------------------------

@@ -109,6 +109,38 @@ class FakeTC:
                                                        "getEmergencyStoppingVehiclesIDList": lambda: list(self.emergency)})
 
 
+class FakePlan:
+    def __init__(self, kind="S3", edge="R69", end_pos=80.0, target_lane=1):
+        self.kind, self.edge, self.end_pos, self.target_lane = kind, edge, end_pos, target_lane
+
+
+class FakePilot:
+    """TestBusPilot/PDMClosedBusPilot에서 기록기가 읽는 속성만."""
+
+    def __init__(self, lap=1):
+        self.lap, self.phase, self.why, self.plan, self.target = lap, "idle", "", None, None
+        self._forced_p, self._limited, self.blocker_active = None, False, None
+        self.missed, self.forced, self.lap_times, self.last_plan = [], [], [], None
+
+
+class _Inter:
+    def __init__(self, yields):
+        self.yields, self.action = yields, "yield" if yields else "block"
+
+
+class FakeWorld:
+    def __init__(self, inter=None, mgr_log=None, injector_log=None, ped_log=None, ahead=None):
+        self.mgr = type("Mgr", (), {})()
+        self.mgr.inter = {k: (_Inter(v) if isinstance(v, bool) else v) for k, v in (inter or {}).items()}
+        self.mgr.log = list(mgr_log or [])
+        self.injector = type("Inj", (), {})()
+        self.injector.log, self.injector._lap = list(injector_log or []), None
+        self.ped = type("Ped", (), {})()
+        self.ped.log = list(ped_log or [])
+        self.ahead = ahead
+        self.alleys = []
+
+
 @functools.lru_cache(maxsize=1)
 def _ctx_args():
     from maps import load_map

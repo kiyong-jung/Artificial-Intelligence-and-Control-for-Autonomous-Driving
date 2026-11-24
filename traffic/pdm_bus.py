@@ -238,6 +238,7 @@ class PDMClosedBusPilot(TestBusPilot):
         self.pdm = {"plans": 0, "brakes": 0, "fractions": {f: 0 for f in self.cfg.fractions}}
         self._last_frac = None
         self._shapes, self._lane_len, self._n = {}, {}, 0
+        self.last_plan = None                                 # 마지막 계획 결과(데이터 기록용, 동작에는 쓰지 않는다)
 
     # 매 스텝: 기존 규칙(차선 변경 등) 다음에 PDM 종방향
     def tick(self, tc, t):
@@ -358,6 +359,11 @@ class PDMClosedBusPilot(TestBusPilot):
             self._braking = False
         frac = c.fractions[res["best"]]
         self.pdm["fractions"][frac] += 1
+        self.last_plan = {"sim_time": tc.simulation.getTime(), "fraction": frac, "v0": frac * vlim,
+                          "scores": [float(x) for x in res["scores"]], "mult": [float(x) for x in res["mult"]],
+                          "progress": [float(x) for x in res["progress"]], "ttc": [float(x) for x in res["ttc"]],
+                          "comfort": [float(x) for x in res["comfort"]], "collide_t": res["collide_t"],
+                          "emergency_brake": bool(getattr(self, "_braking", False))}
         if self._last_frac != (frac, vlim):                    # 속도 비율이나 제한속도가 바뀔 때만 IDM의 v0를 갱신
             tc.vehicle.setMaxSpeed(BUS, frac * vlim)
             self._last_frac = (frac, vlim)

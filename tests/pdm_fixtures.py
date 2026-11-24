@@ -1,6 +1,34 @@
 """PDM 원시 행 고정 데이터. 기록기(pdm_data/recorder.py)가 쓰는 행과 같은 키를 빠짐없이 채운 최소 행을 만든다."""
 
 
+def make_run_dir(tmp_path, n=11):
+    """원시 수집 폴더 모양의 작은 고정 데이터: 에피소드 1의 행 n개(마지막 행에서 바퀴 완료) + final(end='lap') 행."""
+    import gzip
+    import json
+    import os
+    import shutil
+    from pdm_fakes import _ctx_args
+    net_path, edges, stops, vmax = _ctx_args()
+    d = os.path.join(str(tmp_path), "run")
+    os.makedirs(os.path.join(d, "assets"))
+    shutil.copy(net_path, os.path.join(d, "assets", "network.net.xml"))
+    meta = {"schema_version": "pdm_bus_raw_v1", "net_sha256": "x",
+            "route": {"lap_edges": list(edges), "bus_stops": stops, "vmax": vmax,
+                      "lane_allowed": {"R69_1": [], "R69_2": [], "R69_0": ["pedestrian"]}},
+            "expert": {"ego_dims": {"length": 12.0, "width": 2.5, "min_gap": 1.0}}, "tls_programs": {}}
+    with open(os.path.join(d, "metadata.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f)
+    rows = [make_row(t=i, speed=5.0 + 0.2 * i, distance=10.0 * i, lap_position=100.0 + 2.5 * i,
+                     window_speeds=[5.0 + 0.2 * i + 0.04 * (k + 1) for k in range(5)]) for i in range(n)]
+    rows[-1]["window"]["lap_done"] = True
+    rows.append(make_row(t=n, final=True, end="lap", lap_position=100.0 + 2.5 * n))
+    with gzip.open(os.path.join(d, "steps.jsonl.gz"), "wt", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r) + "\n")
+    open(os.path.join(d, "events.jsonl"), "w").close()
+    return d
+
+
 def substep(t, edge, lane_index, lane_pos, speed, phase="idle", direction=0, lap_position=100.0, distance=0.0,
             lane_id=None, acceleration=0.0, tls0=None, lap_index=1):
     return {"t": t, "edge": edge, "lane_id": lane_id or f"{edge}_{lane_index}", "lane_index": lane_index,

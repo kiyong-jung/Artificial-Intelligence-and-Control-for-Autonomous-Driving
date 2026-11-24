@@ -62,6 +62,8 @@ REWARD_OVERRIDES = dict(
     stop_missed_penalty=3.0,
     intervention_penalty=0.05,
     comfort_penalty=0.02,
+    # 서 있기만 해도 잃는 것이 없으면 위험할 때 서 버리는 정책이 나온다. 충돌(-5)보다 작고 완주(+2)와 같은 크기다.
+    stuck_penalty=2.0,
 )
 RESIDUAL_SCALE = 0.0   # 0보다 크면 Residual RL: 행동 = 전문가 가감속 + 이 배율 × 정책 가감속 (algorithms/residual.py)
 REWARD = {**REWARD_DEFAULTS, **REWARD_OVERRIDES}

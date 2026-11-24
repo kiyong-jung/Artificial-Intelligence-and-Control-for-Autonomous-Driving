@@ -231,6 +231,10 @@ def main():
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--val-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--hidden", type=int, default=256, help="은닉층의 폭")
+    parser.add_argument("--depth", type=int, default=2, help="은닉층 수")
+    parser.add_argument("--blocks", type=int, default=0, help="1 이상이면 가운데가 넓은 잔차 블록(FFN)을 이만큼 쌓는다")
+    parser.add_argument("--expand", type=int, default=4, help="FFN 블록 가운데 폭의 배율")
     parser.add_argument("--loss", choices=["mse", "bins"], default="mse",
                         help="mse: 행동 값 회귀(수업 원본). bins: 가감속 칸과 차선변경 셋 중 고르기")
     parser.add_argument("--accel-bins", type=int, default=11, help="--loss bins의 가감속 칸 수([-1, 1]을 같은 간격으로)")
@@ -334,6 +338,10 @@ def main():
         head=args.loss,
         accel_bins=args.accel_bins,
         decode=args.decode,
+        hidden=args.hidden,
+        depth=args.depth,
+        blocks=args.blocks,
+        expand=args.expand,
     ).to(device)
 
     # 검증 데이터가 통계에 섞이지 않도록 학습 관측만으로 정규화한다.

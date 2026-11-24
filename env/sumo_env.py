@@ -148,6 +148,8 @@ class SumoHighwayEnv(gym.Env):
         # ---- 차선변경 안전 게이트 설정 (mdp_config.ACTION["lane_change_safety"]) ----
         lcs = action["lane_change_safety"]
         self.lc_safety_enabled = bool(lcs["enabled"])
+        self.lc_min_interval = float(lcs.get("min_interval", 0.0))   # s. 차로를 옮긴 뒤 다음 변경을 받기까지
+        self._last_lane_change_time = -1e9
         self.lc_front_min = float(lcs["min_front_gap"])     # m
         self.lc_rear_min = float(lcs["min_rear_gap"])       # m
         self.lc_front_tau = float(lcs["front_tau"])         # s
@@ -343,6 +345,7 @@ class SumoHighwayEnv(gym.Env):
 
         self.step_count = 0
         self._lane_change, self._lane_request_until, self._centring = None, -1.0, False
+        self._last_lane_change_time = -1e9
         self._acceleration, self._jerk = 0.0, 0.0
         self._service_next, self._dwell_left = 0, None
         self.stops_served, self.stops_missed = 0, 0
@@ -989,6 +992,9 @@ class SumoHighwayEnv(gym.Env):
             # ★ 측면충돌 방지: 실제 이동 명령(0이 아닌 변경)에만 안전 검사
             if self.lc_safety_enabled and not self._lane_change_is_safe(lane_change):
                 return False
+            # 방금 차로를 옮겼으면 min_interval초 동안 다음 변경을 받지 않는다. 두세 차로를 한 번에 쓸고 가지 않게 한다.
+            if float(traci.simulation.getTime()) - self._last_lane_change_time < self.lc_min_interval:
+                return False
             traci.vehicle.changeLane(
                 self.ego_id, target, self.lane_change_duration)
             self._lane_change = (traci.vehicle.getLaneID(self.ego_id), lane_change)
@@ -1225,6 +1231,8 @@ class SumoHighwayEnv(gym.Env):
         lane_change_observable = bool(alive and edge_before == edge_after
                                       and not edge_after.startswith(":"))
         actual_lane_change = ((lane_after - lane_before) if lane_change_observable else 0)
+        if actual_lane_change:
+            self._last_lane_change_time = float(traci.simulation.getTime())
 
         service_event = self._update_service() if alive and not collided and self.route_features else None
         obs = self._get_obs()
@@ -1254,7 +1262,7 @@ class SumoHighwayEnv(gym.Env):
             terminated = True
             termination_reason = "missing"
         elif self._stalled():
-            reward = 0.0
+            reward = -float(self.rw.get("stuck_penalty", 0.0))
             terminated = True
             termination_reason = "stuck"
         else:
@@ -1305,6 +1313,7 @@ class SumoHighwayEnv(gym.Env):
         if self.step_count >= self.max_steps and not terminated:
             truncated = True
             termination_reason = "time_limit"
+            reward -= float(self.rw.get("stuck_penalty", 0.0))
 
         limits = self.comfort_limits
         comfort = {

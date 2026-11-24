@@ -27,7 +27,7 @@ LANE_CLASSES = 3   # 차선변경 {-1, 0, +1}
 class BCPolicy(nn.Module):
     """PyTorch가 가중치를 관리하고 역전파할 수 있는 행동 예측 신경망."""
 
-    def __init__(self, state_dim, action_dim=2, head="mse", accel_bins=11, decode="mean"):
+    def __init__(self, state_dim, action_dim=2, head="mse", accel_bins=11, decode="mean", hidden=256, depth=2, blocks=0, expand=4):
         """state_dim은 관측 길이, action_dim은 출력 행동 벡터의 길이이다.
 
         head="bins"이면 가감속 칸 accel_bins개와 차선변경 3개의 점수를 낸다. decode는 칸 점수를 가감속 값으로
@@ -52,9 +52,21 @@ class BCPolicy(nn.Module):
         # fc1: 관측을 256개 특징으로 변환.
         # fc2: 특징 사이의 관계를 조합하여 행동 결정에 필요한 표현을 학습.
         # fc3: 최종 특징을 action_dim개의 행동 값으로 변환.
-        self.fc1 = nn.Linear(state_dim, 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, out_dim)
+        self.hidden = int(hidden)   # 은닉층 폭. 기본 256
+        self.fc1 = nn.Linear(state_dim, self.hidden)
+        self.fc2 = nn.Linear(self.hidden, self.hidden)
+        # depth는 은닉층 수다(기본 2). 3 이상이면 fc2 뒤에 같은 폭의 층을 더 쌓는다.
+        self.depth = int(depth)
+        self.more = nn.ModuleList(nn.Linear(self.hidden, self.hidden) for _ in range(self.depth - 2))
+        # blocks가 1 이상이면 가운데가 넓은 잔차 블록을 쌓는다(트랜스포머의 FFN, SimBa와 같은 꼴). 블록 하나는
+        # 정규화 -> 폭 hidden*expand로 넓힘 -> ReLU -> 다시 hidden으로 줄임이고, 입력을 그대로 더한다.
+        # 이때 fc1은 입력을 hidden으로 올리는 층이고 fc2와 more는 쓰지 않는다.
+        self.blocks, self.expand = int(blocks), int(expand)
+        self.ffn = nn.ModuleList(
+            nn.Sequential(nn.LayerNorm(self.hidden), nn.Linear(self.hidden, self.hidden * self.expand), nn.ReLU(),
+                          nn.Linear(self.hidden * self.expand, self.hidden)) for _ in range(self.blocks))
+        self.out_norm = nn.LayerNorm(self.hidden) if self.blocks else nn.Identity()
+        self.fc3 = nn.Linear(self.hidden, out_dim)
 
         # 관측 항목별 평균과 표준편차. 학습 코드에서 학습 데이터의 통계로 설정한다.
         # 초기값 0과 1은 정규화를 하더라도 입력이 그대로 유지되도록 한다.
@@ -76,8 +88,15 @@ class BCPolicy(nn.Module):
 
         # ReLU는 음수를 0으로 바꾸는 비선형 함수이다.
         # 층 사이에 비선형성을 넣어 단순한 선형 관계보다 복잡한 행동을 학습한다.
+        if self.blocks:
+            x = self.fc1(state)
+            for block in self.ffn:
+                x = x + block(x)
+            return self.fc3(self.out_norm(x))
         x = torch.relu(self.fc1(state))
         x = torch.relu(self.fc2(x))
+        for layer in self.more:
+            x = torch.relu(layer(x))
 
         # 출력에는 tanh나 clipping이 없으므로 [-1, 1] 범위가 보장되지 않는다.
         # 환경에 행동을 전달할 때 필요한 범위 제한과 차선 명령 양자화를 적용한다.
@@ -168,6 +187,10 @@ class BCPolicy(nn.Module):
                 "action_dim": self.action_dim,
                 "head": self.head,
                 "accel_bins": self.accel_bins,
+                "hidden": self.hidden,
+                "depth": self.depth,
+                "blocks": self.blocks,
+                "expand": self.expand,
                 "decode": self.decode,
                 "state_dict": self.state_dict(),
             },
@@ -193,6 +216,10 @@ class BCPolicy(nn.Module):
             checkpoint["action_dim"],
             head=checkpoint.get("head", "mse"),
             accel_bins=checkpoint.get("accel_bins", 11),
+            hidden=checkpoint.get("hidden", 256),
+            depth=checkpoint.get("depth", 2),
+            blocks=checkpoint.get("blocks", 0),
+            expand=checkpoint.get("expand", 4),
             decode=checkpoint.get("decode", "mean"),
         ).to(device)
 

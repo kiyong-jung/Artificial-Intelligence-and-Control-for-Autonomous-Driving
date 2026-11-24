@@ -30,6 +30,16 @@ def build_lap_context(net_path: str, lap_edges: list, bus_stops: list, vmax: flo
     return LapContext(list(lap_edges), rm, float(vmax), dict(lane_allowed), _crossings(net_path), service, net_path)
 
 
+def load_lap_context(run_dir: str) -> LapContext:
+    """수집 폴더의 metadata.json과 assets/network.net.xml로 문맥을 다시 만든다."""
+    import json
+    import os
+    with open(os.path.join(run_dir, "metadata.json"), encoding="utf-8") as f:
+        r = json.load(f)["route"]
+    return build_lap_context(os.path.join(run_dir, "assets", "network.net.xml"), r["lap_edges"], r["bus_stops"],
+                             r["vmax"], r["lane_allowed"])
+
+
 def lap_route_index(road: str, last_road, lap_edges: list) -> int:
     """한 바퀴 노선에서 도로의 번호. 교차로 내부 차로면 직전 일반 도로(SUMO getRouteIndex와 같은 규칙)."""
     return lap_edges.index(last_road if road.startswith(":") else road)

@@ -50,6 +50,20 @@ def test_short_run_writes_all_files(short_run):
     assert sum(1 for r in rows if r.get("check", {}).get("obs93_online")) == 100
 
 
+def test_offline_obs93_matches_online(short_run):
+    import numpy as np
+    from pdm_data.lap_context import load_lap_context
+    from pdm_data.obs93 import obs93
+    from pdm_data.recorder import read_steps
+    from pdm_data.replay import replay_episode
+    rows = [r for r in read_steps(short_run["run_dir"]) if r["meta"]["episode"] == 1]
+    ctx = load_lap_context(short_run["run_dir"])
+    rep = replay_episode(rows, ctx)
+    diffs = [np.abs(obs93(r, ctx, s) - np.asarray(r["check"]["obs93_online"])).max()
+             for r, s in zip(rows, rep) if r.get("check", {}).get("obs93_online")]
+    assert len(diffs) >= 100 and max(diffs) < 1e-4
+
+
 def test_recording_does_not_change_bus(short_run, short_run_no_record):
     a, b = short_run["bus_trace"], short_run_no_record["bus_trace"]
     n = min(len(a), len(b))

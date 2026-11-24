@@ -24,15 +24,15 @@ done
 left=$((TOTAL - done_rounds))
 echo "끝난 추가 회차: $done_rounds / $TOTAL. 이어서 시작할 모델: $model"
 if [ "$left" -gt 0 ]; then
-    "$PY" research/av_bc_rl/dagger.py --data "$data" --model "$model" --iterations "$left" --episodes 40 \
-        --seed $((11 + done_rounds)) --workers "${WORKERS:-12}" --out "results/g_dagger_s1_r$done_rounds" \
+    nice -n 19 "$PY" research/av_bc_rl/dagger.py --data "$data" --model "$model" --iterations "$left" --episodes 40 \
+        --seed $((11 + done_rounds)) --workers "${WORKERS:-8}" --out "results/g_dagger_s1_r$done_rounds" \
         --augment-signals --epochs 40 --batch-size 512 --loss bins --decode local
     model=$(ls -d results/g_dagger_s1_r"$done_rounds"/bc_it* | sort -V | tail -1)/model.pt
 fi
 echo "평가할 모델: $model"
 out=data/research/verify_10rounds; rm -rf "$out"; mkdir -p "$out"
 for pair in quiet:7000 baseline:7300 busy:7600; do
-    "$PY" collect_pomdp_data.py --map hapjeong --scenario "${pair%%:*}" --seed "${pair##*:}" --policy bc --model "$model" \
+    nice -n 19 "$PY" collect_pomdp_data.py --map hapjeong --scenario "${pair%%:*}" --seed "${pair##*:}" --policy bc --model "$model" \
         --episodes 20 --workers 6 --out-dir "$out" --name "${pair%%:*}" > "$out/${pair%%:*}.log" 2>&1
 done
 "$PY" research/av_bc_rl/filter_episodes.py "$out"/quiet.jsonl.gz "$out"/baseline.jsonl.gz "$out"/busy.jsonl.gz

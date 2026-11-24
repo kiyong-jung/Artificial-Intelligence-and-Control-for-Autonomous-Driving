@@ -48,6 +48,24 @@ def test_accel_label_uses_given_scale(tmp_path):
     assert stats["accel_clip_ratio"] == 0.0
 
 
+def test_expert_columns_from_window(tmp_path):
+    import gzip
+    import json
+    d = make_run_dir(tmp_path)
+    path = os.path.join(d, "steps.jsonl.gz")
+    rows = [json.loads(x) for x in gzip.open(path, "rt", encoding="utf-8")]
+    rows[0]["expert"]["pdm"] = {"sim_time": 99.9, "fraction": 0.4, "v0": 5.6}
+    rows[0]["window"]["pdm_plans"] = [{"sim_time": 100.2, "fraction": 0.6, "v0": 8.3}]
+    for s in rows[0]["window"]["substeps"]:
+        s["phase"] = "request"
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r) + "\n")
+    tr, _ = build_transitions(d, 1.5, 3.0)
+    assert tr[0]["expert"]["pdm_fraction"] == 0.6 and tr[0]["expert"]["phase"] == "request"
+    assert tr[1]["expert"]["pdm_fraction"] is None
+
+
 def test_max_lap_s_truncates(tmp_path):
     tr, stats = build_transitions(make_run_dir(tmp_path), 1.5, 3.0, max_lap_s=2.0)
     assert len(tr) == 4 and tr[-1]["truncated"] and tr[-1]["event"]["termination_reason"] == "time_limit"

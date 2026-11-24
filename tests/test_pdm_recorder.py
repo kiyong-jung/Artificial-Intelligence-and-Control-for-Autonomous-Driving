@@ -129,6 +129,66 @@ def test_request_direction_in_substeps():
     assert any(s["phase"] == "request" and s["request_direction"] == 1 for s in subs)
 
 
+def test_forced_stop_direction_from_blinker():
+    rec, w = make_recorder()
+    run_steps(rec, 6)
+    rec.pilot._forced_p, rec.pilot.phase = FakePlan("STOP"), "cool"
+    rec.tc.vehicle.items["bus0"]["signals"] = 2                   # 왼쪽 방향지시등
+    for i in range(7, 12):
+        rec.tc.now = round(i * 0.1, 6)
+        rec.on_step(rec.tc.now)
+    subs = w.steps[-1]["window"]["substeps"]
+    assert all(s["forced"] and s["request_direction"] == 1 for s in subs[1:])
+
+
+def test_ego_teleport_ends_with_teleport():
+    rec, w = make_recorder()
+    run_steps(rec, 7)
+    del rec.tc.vehicle.items["bus0"]
+    rec.tc.teleports = ["bus0"]
+    with pytest.raises(CollectionDone) as e:
+        rec.on_step(0.8)
+    rec.finish(e.value.reason)
+    assert e.value.reason == "teleport" and w.steps[-1]["meta"]["end"] == "teleport"
+    assert rec.summary()["ego_teleports"] == 1 and any(ev["kind"] == "teleport" for ev in w.events)
+
+
+def test_time_limit_is_per_lap():
+    rec, w = make_recorder(lap_changes_at_step=13, max_seconds=1.0)
+    run_steps(rec, 21)                         # 바퀴가 1.5 s에 바뀌므로 2.0 s에는 새 바퀴 0.5 s째다(전체 시간 기준이면 1.5 s에 끝난다)
+    assert (2, 0, False) in [(r["meta"]["episode"], r["meta"]["t"], r["meta"]["final"]) for r in w.steps]
+
+
+def test_window_pdm_plans_only_from_window():
+    rec, w = make_recorder()
+    rec.pilot.last_plan = {"sim_time": 0.3, "fraction": 0.4}
+    run_steps(rec, 7)
+    rec.pilot.last_plan = {"sim_time": 0.7, "fraction": 0.6}
+    run_steps_from(rec, 8, 11)
+    assert [p["fraction"] for p in w.steps[0]["window"]["pdm_plans"]] == [0.6]
+
+
+def test_calltap_restores_class_level_methods():
+    class Dom:
+        @staticmethod
+        def changeLane(*a):
+            return "orig"
+
+        setMaxSpeed = setSpeed = changeLane
+    tc = FakeTC()
+    tc.vehicle = Dom
+    tap = CallTap(tc, "bus0")
+    tap.install()
+    tap.uninstall()
+    assert Dom.changeLane("bus0", 1, 1.0) == "orig"
+
+
+def run_steps_from(rec, start, end):
+    for i in range(start, end + 1):
+        rec.tc.now = round(i * 0.1, 6)
+        rec.on_step(rec.tc.now)
+
+
 def test_rolebook_a1_and_injected():
     rb = RoleBook(FakeWorld(inter={"car7": True}, injector_log=[{"t": 1.0, "lap": 1, "kind": "S5", "id": "inj_S51",
                                                                    "ok": "injected"},

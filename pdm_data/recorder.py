@@ -28,11 +28,13 @@ class CallTap:
     def __init__(self, tc, bus_id):
         self.tc, self.bus = tc, bus_id
         self._buf, self._installed = [], False
+        self._saved = {}               # 이름 -> 감싸기 전 그 객체 자체에 있던 속성(없으면 None: 클래스 메서드였다)
 
     def install(self):
         dom = self.tc.vehicle
         for name in self.NAMES:
             orig = getattr(dom, name)
+            self._saved[name] = vars(dom).get(name) if hasattr(dom, "__dict__") else None
 
             def wrap(*args, _name=name, _orig=orig, **kw):
                 if args and args[0] == self.bus:
@@ -42,12 +44,18 @@ class CallTap:
         self._installed = True
 
     def uninstall(self):
+        """감싸기 전 상태로 되돌린다. traci는 인스턴스 속성을 지우면 클래스 메서드가 보이고, libsumo처럼 클래스 자체에 있던
+        속성이면 원래 객체를 다시 넣는다."""
         if self._installed:
-            for name in self.NAMES:
-                try:
-                    delattr(self.tc.vehicle, name)
-                except AttributeError:
-                    pass
+            dom = self.tc.vehicle
+            for name, saved in self._saved.items():
+                if saved is not None:
+                    setattr(dom, name, saved)
+                else:
+                    try:
+                        delattr(dom, name)
+                    except AttributeError:
+                        pass
         self._installed = False
         self._buf = []
 
@@ -128,6 +136,13 @@ class Recorder:
         tele = list(sim.getStartingTeleportIDList())
         emerg = list(sim.getEmergencyStoppingVehiclesIDList())
         self.collisions_total += len(coll)
+        if BUS in tele and self.started:
+            # 순간이동 중인 차는 도로망 밖이라 getIDList에 없다. 사라짐(bus_lost)과 구분해 남기고 끝낸다: 이 바퀴는 순간이동 직전에서 잘린다
+            self.ego_teleports += 1
+            self.writer.write_event({"kind": "teleport", "lap": self.pilot.lap, "t_start": t, "t_end": t, "ids": [BUS],
+                                     "injected": False, "detail": {"ego": True}})
+            self.event_counts["teleport"] = self.event_counts.get("teleport", 0) + 1
+            raise CollectionDone("teleport")
         if BUS not in tc.vehicle.getIDList():
             if self.started:
                 raise CollectionDone("bus_lost")
@@ -160,7 +175,7 @@ class Recorder:
             if self.laps_completed >= self.max_laps:
                 self.pending, self.end = None, "laps"
                 raise CollectionDone("laps")
-            self.episode, self.t_ep = lap_now, 0
+            self.episode, self.t_ep, self.t_start = lap_now, 0, t      # 시간 한도는 바퀴마다 센다(설계 5절)
             if self.check is not None:
                 self.check.reset()
         else:
@@ -201,6 +216,10 @@ class Recorder:
 
     def _direction(self, lane_idx):
         p = self.pilot
+        if p._forced_p is not None:
+            # 도착 보장 정차: 규칙은 phase를 cool로 두고 방향지시등으로 옮길 쪽을 켠 채 1초마다 changeLane을 부른다(test_bus._force_arrival)
+            sig = self.tc.vehicle.getSignals(BUS)
+            return 1 if sig & 2 else -1 if sig & 1 else 0
         if p.phase in ("signal", "request") and p.target is not None:
             return 1 if p.target > lane_idx else -1 if p.target < lane_idx else 0
         return 0
@@ -230,7 +249,7 @@ class Recorder:
             ego = snap["ego"]
             self._win = {"substeps": [], "peak_acceleration": 0.0, "peak_jerk": 0.0, "collisions": [],
                          "teleports": [], "emergency_stops": [], "pdm_plans": [], "lane_before": ego["lane_index"],
-                         "edge_before": ego["road_id"], "last_acc": ego["acceleration"]}
+                         "edge_before": ego["road_id"], "last_acc": ego["acceleration"], "t0": t}
         return row
 
     def _accumulate(self, t, coll, tele, emerg):
@@ -246,7 +265,8 @@ class Recorder:
         w["substeps"].append({"t": t, "edge": road, "lane_id": lane, "lane_index": lane_idx, "lane_position": lane_pos,
                               "lap_index": idx, "lap_position": lap_pos, "distance": v.getDistance(BUS),
                               "speed": v.getSpeed(BUS), "acceleration": acc, "tls0": list(tls[0]) if tls else None,
-                              "phase": p.phase, "request_direction": self._direction(lane_idx)})
+                              "phase": p.phase, "request_direction": self._direction(lane_idx),
+                              "forced": p._forced_p is not None})
         w["peak_acceleration"] = max(w["peak_acceleration"], abs(acc))
         w["peak_jerk"] = max(w["peak_jerk"], abs(acc - w["last_acc"]) / DT)
         w["last_acc"] = acc
@@ -271,7 +291,8 @@ class Recorder:
             if near:
                 w["emergency_stops"].append({"id": vid, "ego": vid == BUS})
         lp = getattr(p, "last_plan", None)
-        if lp is not None and (not w["pdm_plans"] or w["pdm_plans"][-1].get("sim_time") != lp.get("sim_time")):
+        if lp is not None and lp.get("sim_time", -1e18) >= w["t0"] - 1e-9 and \
+                (not w["pdm_plans"] or w["pdm_plans"][-1].get("sim_time") != lp.get("sim_time")):
             w["pdm_plans"].append(lp)
 
     def _close_window(self, lap_done):

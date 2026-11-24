@@ -43,6 +43,19 @@ def test_lane_change_label_whole_request_phase():
                                       window_dirs=[0, -1, -1, 0, 0])) == -1
 
 
+def test_lane_change_label_forced_stop():
+    row = make_row(window_phases=["cool"] * 5, window_dirs=[1] * 5)
+    for s in row["window"]["substeps"]:
+        s["forced"] = True
+    assert lane_change_label(row) == 1
+
+
+def test_teleport_final_row_truncates():
+    rows = [make_row(t=i) for i in range(3)] + [make_row(t=3, final=True, end="teleport")]
+    assert episode_end(rows, fresh_rep(rows)) == {"last_index": 2, "terminated": False, "truncated": True,
+                                                  "reason": "teleport"}
+
+
 def test_lane_change_applied():
     assert lane_change_applied(make_row(lane_before=1, lane_after=2, edge_before="R69", edge_after="R69"), 1)
     assert not lane_change_applied(make_row(lane_before=1, lane_after=1), 1)

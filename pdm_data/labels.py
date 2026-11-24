@@ -7,7 +7,7 @@ from .schema import DECISION_STEPS, DT, STOP_IDS
 
 TERMINAL_WEIGHT = {"collision": "collision", "red_light": "red_light", "missed_stop": "missed_stop",
                    "arrived": "arrival", "incomplete_service": "missed_stop"}
-TRUNCATING_ENDS = ("time_limit", "bus_lost", "sumo_closed")
+TRUNCATING_ENDS = ("time_limit", "bus_lost", "sumo_closed", "teleport")
 
 
 def accel_mps2(row) -> float:
@@ -21,10 +21,10 @@ def normalize_accel(a: float, a_pos: float, a_neg: float):
 
 
 def lane_change_label(row) -> int:
-    """요청 단계(request)인 substep이 있으면 그 마지막 0 아닌 요청 방향(+1 왼쪽), 아니면 0."""
+    """요청 단계(request)이거나 도착 보장 정차(forced) 중인 substep이 있으면 그 마지막 0 아닌 요청 방향(+1 왼쪽), 아니면 0."""
     label = 0
     for s in row["window"]["substeps"]:
-        if s["phase"] == "request" and s["request_direction"]:
+        if (s["phase"] == "request" or s.get("forced")) and s["request_direction"]:
             label = int(s["request_direction"])
     return label
 

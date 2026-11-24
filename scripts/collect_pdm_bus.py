@@ -42,7 +42,8 @@ def parse_args(argv=None):
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--warmup", type=float, default=120.0)
     ap.add_argument("--laps", type=int, default=1)
-    ap.add_argument("--max-seconds", type=float, default=1800.0, help="기록 시작 뒤 이 시간이 지나면 멈춘다(바퀴 중간이면 time_limit)")
+    ap.add_argument("--max-seconds", type=float, default=1800.0,
+                    help="바퀴 하나의 시간 한도. 한 바퀴를 이 시간 안에 못 마치면 그 바퀴를 time_limit로 끝내고 수집을 멈춘다")
     ap.add_argument("--lane-buses", type=float, default=30.0)
     ap.add_argument("--taxis", type=float, default=40.0)
     ap.add_argument("--route-boost", type=float, default=1.3)
@@ -124,13 +125,17 @@ def collect(a) -> dict:
 
     end = "time_limit"
     try:
-        world.run(tc.simulation.getTime() + a.max_seconds + 1.0, bus_id=BUS, bus_hook=pilot.tick, on_step=on_step,
+        world.run(tc.simulation.getTime() + a.laps * a.max_seconds + 60.0, bus_id=BUS, bus_hook=pilot.tick, on_step=on_step,
                   stop_bypass=False, ped_defiance=not a.no_ped_defiance, stop_ahead=not a.no_stop_ahead,
                   scenario_inject=not a.no_inject, pilot=pilot, triggers="scenario")
     except CollectionDone as e:
         end = e.reason
     except (traci.exceptions.FatalTraCIError, ConnectionError):
         end = "sumo_closed"
+    except BaseException:
+        if rec is not None:
+            rec.tap.uninstall()            # 같은 프로세스에서 다시 수집할 때 감싼 함수가 남지 않게
+        raise
     meta = None
     if rec is not None:
         rec.finish(end)

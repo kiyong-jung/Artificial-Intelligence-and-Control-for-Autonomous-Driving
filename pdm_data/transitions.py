@@ -128,7 +128,10 @@ def build_transitions(run_dir: str, a_pos: float, a_neg: float, cut_on_task_fail
             rt = reward_terms(row, rep[i], ctx, REWARDS, terminal)
             vehs, peds = detected(row)
             w = row["window"]
-            pdm = row["expert"].get("pdm") or {}
+            # 전문가 명령(B안)은 이 구간 [t, t+0.5) 동안 낸 것: 구간 안 마지막 PDM 계획, 없으면 구간 시작 때 걸려 있던 계획
+            in_win = [p for p in w.get("pdm_plans", []) if p.get("sim_time", -1e18) >= row["meta"]["sim_time"] - 1e-9]
+            pdm = in_win[-1] if in_win else (row["expert"].get("pdm") or {})
+            last_sub = w["substeps"][-1] if w["substeps"] else {}
             out.append({
                 "episode": row["meta"]["episode"], "t": row["meta"]["t"], "sim_time": row["meta"]["sim_time"],
                 "observation": obs[i], "action_raw": [an, float(lc)],
@@ -145,7 +148,9 @@ def build_transitions(run_dir: str, a_pos: float, a_neg: float, cut_on_task_fail
                 "comfort": {"peak_acceleration": w["peak_acceleration"], "peak_jerk": w["peak_jerk"],
                             "acceleration_violation": w["peak_acceleration"] > COMFORT_LIMITS["acceleration_limit"],
                             "jerk_violation": w["peak_jerk"] > COMFORT_LIMITS["jerk_limit"]},
-                "expert": {"phase": row["expert"]["phase"], "request_direction": row["expert"]["request_direction"],
+                "expert": {"phase": last_sub.get("phase", row["expert"]["phase"]),
+                           "request_direction": last_sub.get("request_direction", row["expert"]["request_direction"]),
+                           "forced_stop": any(s.get("forced") for s in w["substeps"]),
                            "plan_kind": row["expert"]["plan_kind"], "pdm_fraction": pdm.get("fraction"),
                            "pdm_v0": pdm.get("v0")},
                 "scenario": row["scenario"], "interaction": row_interaction(row, ctx, dims),

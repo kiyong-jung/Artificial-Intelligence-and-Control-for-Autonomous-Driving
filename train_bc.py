@@ -242,7 +242,8 @@ def main():
 
     parser.add_argument("--blind", nargs="+", default=[], metavar="FEATURE",
                         help="신경망이 보지 않을 관측 항목 이름(env/data_schema.OBSERVATION_FEATURES). 그 항목의 정규화 "
-                             "표준편차를 무한대로 두어 입력이 늘 0이 되게 한다. 관측 차원은 그대로다")
+                             "표준편차를 무한대로 두어 입력이 늘 0이 되게 한다. 관측 차원은 그대로다. "
+                             "묶음 이름도 받는다: compact는 좌2·우2 차로 전부(12개)와 내 차로 뒤차 간격·상대속도, tl_yield(15개)")
 
     parser.add_argument(
         "--device",
@@ -341,7 +342,8 @@ def main():
     obs_std = obs[train_idx].std(axis=0)
     obs_std = np.where(obs_std < 1e-6, 1.0, obs_std)
     if args.blind:
-        from env.data_schema import OBSERVATION_FEATURES
+        from env.data_schema import BLIND_BUNDLES, OBSERVATION_FEATURES
+        args.blind = [name for item in args.blind for name in BLIND_BUNDLES.get(item, [item])]
         unknown = sorted(set(args.blind) - set(OBSERVATION_FEATURES))
         if unknown or state_dim != len(OBSERVATION_FEATURES):
             parser.error(f"--blind: 지금 관측에 없는 항목입니다: {unknown or state_dim}")

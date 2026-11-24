@@ -4,7 +4,7 @@ numpy만 쓴다. 도로만 다시 만드는 사람에게 torch를 요구하지 �
 
 - route_following_action: 수업 원본 31차원만 보는 옛 규칙. 늘 같은 가속을 내고 신호와 정류장을 보지 못한다.
   안전 보조를 끈 지금은 첫 적색 신호나 앞차에서 끝난다. 비교 기준으로 남긴다.
-- ExpertPolicy: 43차원 관측(env/data_schema.OBSERVATION_FEATURES)만 보는 전문가 규칙(v4). 내부 상태를 두지 않는다.
+- ExpertPolicy: 관측(env/data_schema.OBSERVATION_FEATURES)을 이름으로 읽는 전문가 규칙(v4). 뒤에 붙은 근접 정보 3개는 읽지 않는다. 내부 상태를 두지 않는다.
   같은 관측이면 같은 행동이다.
 - ExpertPolicyV5: v4의 차선변경 판단과 앞차 추종을 버스 제원으로 설 수 있는 간격에 맞춘 판(--policy expert-v5).
   데이터 수집 정책이다. 무엇을 쓰고 무엇을 쓰지 않는지는 research/av_bc_rl/collection_policy.md에 있다.
@@ -12,7 +12,7 @@ numpy만 쓴다. 도로만 다시 만드는 사람에게 torch를 요구하지 �
 - ExpertPolicyV7: v6에서 경로가 이어지는 차로가 보이는 범위 밖에 있을 때 그쪽으로 옮기게 한 판(--policy expert-v7).
   도로망 3.22.0부터 쓴다.
 
-두 전문가가 쓰는 것은 정책 입력(관측 43개)과 생성자가 받는 고정 값(차량 제원, 관측 정규화 거리, 환경 게이트 값)뿐이다.
+두 전문가가 쓰는 것은 정책 입력(관측)과 생성자가 받는 고정 값(차량 제원, 관측 정규화 거리, 환경 게이트 값)뿐이다.
 SUMO 내부 상태, 도로 id, 위치, 차로 번호, 지난 관측은 쓰지 않는다. 환경도 버스를 돕지 않는다(speedMode 0,
 laneChangeMode 0). 앞차, 적색 신호, 보행자 앞에서 서는 것은 모두 이 규칙이 한다.
 """

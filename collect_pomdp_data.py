@@ -4,7 +4,7 @@
     (o_t, a_t, r_t, o_{t+1}, terminated, truncated, s_t, s_{t+1})
 
 - t: 에피소드 안의 RL 스텝 번호. 한 스텝은 metadata의 simulation.decision_interval초다.
-- o_t / o_{t+1}: agent가 실제로 보는 43차원 부분관측 (수업 원본 31 + 경로 정보 12, env/data_schema.py)
+- o_t / o_{t+1}: agent가 실제로 보는 46차원 부분관측 (수업 원본 31 + 경로 정보 12 + 근접 정보 3, env/data_schema.py)
 - a_t: [가감속 raw, 차선변경 raw]
 - lane_change: 정책이 요청한 {-1, 0, +1}. lane_change_applied는 그 명령의 실행 여부
   (수업 원본과 같은 뜻), lane_change_actual은 같은 edge에서 확인된 실제 이동이다.
@@ -89,7 +89,8 @@ def detect_algorithm(model_path: str) -> str:
 def check_model_observation(model_path: str, obs_dim: int):
     """모델이 지금 관측 차원으로 학습한 것이 아니면 ValueError를 낸다.
 
-    스키마 v3(46차원)로 학습한 BC, DAgger, Residual, PPO 모델은 차로 지시 값을 뺀 지금 관측(43차원)을 읽지 못한다.
+    스키마 v4(43차원)로 학습한 BC, DAgger, Residual, PPO 모델은 근접 정보 3개를 더한 지금 관측(46차원)을 읽지 못한다.
+    스키마 v3도 46차원이었지만 차원만으로는 가려낼 수 없다. 체크포인트에 스키마 판이 없다.
     """
     import torch
     ck = torch.load(model_path, map_location="cpu", weights_only=True)

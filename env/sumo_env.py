@@ -61,7 +61,7 @@ import traci
 from sumolib import checkBinary
 
 from env.route_map import RouteMap
-from env.data_schema import ROUTE_FEATURES
+from env.data_schema import NEAR_FEATURES, ROUTE_FEATURES
 
 SIGNAL_RIGHT, SIGNAL_LEFT = 1, 2   # traci.vehicle.getSignals의 방향지시등 비트
 LANE_RELATIONS = {2: "left2", 1: "left", 0: "same", -1: "right", -2: "right2", None: "other"}
@@ -70,6 +70,9 @@ LANE_RELATIONS = {2: "left2", 1: "left", 0: "same", -1: "right", -2: "right2", N
 # 경로 정보 관측(ROUTE_FEATURES)의 정규화 거리(m)
 TL_RANGE = 100.0           # 이보다 먼 신호는 없는 것으로 본다
 STOP_RANGE = 300.0         # 정차할 정류장까지 거리. 정류장 차로로 미리 옮길 수 있게 멀리 본다
+STOP_NEAR_RANGE = 50.0      # stop_distance_near: 정류장 접근 마지막 구간을 더 잘게 본다
+FAR_LEADER_RANGE = 100.0   # current_leader_gap_far: 내 차로 앞차를 보는 거리
+YELLOW_RANGE = 5.0         # tl_yellow_elapsed 정규화(초). 이보다 오래 켜진 황색은 1
 STOP_MARGIN = 1.0          # 버스 앞범퍼를 정류장 끝 이만큼 앞에 세운다
 CROSSING_RANGE = 100.0     # 경로 위 다음 횡단보도까지 거리. 버스(감속 2m/s²)가 50km/h에서 서려면 약 60m가 필요하다
 LIMIT_RANGE = 100.0        # 앞쪽 허용 속도를 보는 거리
@@ -221,7 +224,7 @@ class SumoHighwayEnv(gym.Env):
         # 31차원만으로는 적색 신호와 정류장을 볼 수 없다. 어느 차로로 가라는 값은 넣지 않는다(수업 규칙).
         self.route_features = bool(mdp_obs.get("route_features", True))
         if self.route_features:
-            self.obs_dim += len(ROUTE_FEATURES)
+            self.obs_dim += len(ROUTE_FEATURES) + len(NEAR_FEATURES)
         service = ego.get("service") or {}
         wanted = set(service.get("stops", ()))
         self.service_stops = [stop for stop in self.route_map.stops if stop[2] in wanted]
@@ -278,6 +281,8 @@ class SumoHighwayEnv(gym.Env):
         self.sumo_seed = int(self.np_random.integers(0, 2**31 - 1))
         self._lane_geometry.clear()
         self._segment_cache.clear()
+        self._yellow_since = {}
+        self._seen_not_yellow = set()
 
         # SUMO 상태를 완전히 초기화하는 가장 확실한 방법은 껐다 켜는 것.
         if self._started:
@@ -440,16 +445,17 @@ class SumoHighwayEnv(gym.Env):
         self._segment_cache[offset, reach] = segments
         return segments
 
-    def _neighbor(self, offset: int, leader: bool):
+    def _neighbor(self, offset: int, leader: bool, reach=None):
         """선행/후행의 (간격 m, 속도)를 반환. 현재 차선은 내부 연결도 탐색.
 
         SUMO getFollower는 합류부에서 가장 위험한 후행차를 선택한다.
-        옆 차선은 SUMO 이웃 캐시와 직접 스캔 중 가까운 차량을 사용한다.
+        옆 차선은 SUMO 이웃 캐시와 직접 스캔 중 가까운 차량을 사용한다. reach(m)는 현재 차선의 선행만 바꾼다.
         """
+        reach = self.visibility if reach is None else reach
         if offset == 0:
-            res = (traci.vehicle.getLeader(self.ego_id, self.visibility) if leader
+            res = (traci.vehicle.getLeader(self.ego_id, reach) if leader
                    else traci.vehicle.getFollower(self.ego_id, self.visibility))
-            side = self._in_path_side_leader() if leader else None
+            side = self._in_path_side_leader(reach) if leader else None
             if not res or not res[0]:
                 return side
             vid, gap = res
@@ -471,12 +477,12 @@ class SumoHighwayEnv(gym.Env):
             vid, gap = min(pairs, key=lambda pair: pair[1])
             if scan is not None and scan[0] < gap and scan[0] <= self.visibility:
                 return max(0.0, float(scan[0])), float(scan[1])
-        if gap > self.visibility:
+        if gap > reach:
             return None
         # 음수 gap을 '차 없음'으로 바꾸면 겹침/매우 가까운 차량이 사라진다.
         return max(0.0, float(gap)), traci.vehicle.getSpeed(vid)
 
-    def _in_path_side_leader(self):
+    def _in_path_side_leader(self, reach):
         """옆 차로에 속하지만 차체가 버스 앞길에 걸친 가장 가까운 앞차의 (간격 m, 속도). 없으면 None.
 
         SUMO의 getLeader는 차로 소속으로만 앞차를 고른다. 옆 차로에서 넘어오는 중인 차, 두 차로에 걸쳐 선 차, 버스가
@@ -493,7 +499,7 @@ class SumoHighwayEnv(gym.Env):
         for direction in (1, -1):
             # 차로 경계까지 남은 폭. 음수면 그만큼 경계를 넘어가 있다.
             ego_room = ego_lane_half - direction * ego_lateral - ego_half
-            for lane, start, end, distance in self._forward_segments(direction):
+            for lane, start, end, distance in self._forward_segments(direction, reach):
                 lane_half = traci.lane.getWidth(lane) / 2.0
                 for vid in traci.lane.getLastStepVehicleIDs(lane):
                     position = traci.vehicle.getLanePosition(vid)
@@ -503,7 +509,7 @@ class SumoHighwayEnv(gym.Env):
                             - traci.vehicle.getWidth(vid) / 2.0)
                     if room + ego_room < IN_PATH_CLEARANCE:
                         gap = max(0.0, distance + position - start - traci.vehicle.getLength(vid) - min_gap)
-                        if gap <= self.visibility and (best is None or gap < best[0]):
+                        if gap <= reach and (best is None or gap < best[0]):
                             best = (float(gap), float(traci.vehicle.getSpeed(vid)))
         return best
 
@@ -659,6 +665,7 @@ class SumoHighwayEnv(gym.Env):
 
         if self.route_features:
             obs += self._route_observation()
+            obs += self._near_observation()
         return np.clip(np.array(obs, dtype=np.float32), -1.0, 1.0)
 
     # ==================================================================
@@ -717,6 +724,43 @@ class SumoHighwayEnv(gym.Env):
         limit, limit_distance = self._next_speed_limit(lane_id, allowed)
         return tl + stop + crossing + [allowed / self.vmax, limit / self.vmax, limit_distance / LIMIT_RANGE,
                                        float(np.clip(self._acceleration / 2.0, -1.0, 1.0))]
+
+    def _near_observation(self):
+        """ROUTE_FEATURES 뒤에 붙는 NEAR_FEATURES 3개: 정류장 근접 거리, 먼 앞차 간격, 황색 경과."""
+        lane_id = traci.vehicle.getLaneID(self.ego_id)
+        position = self._route_position()
+        stop_near = 1.0
+        if self._service_next < len(self.service_stops):
+            end = self.service_stops[self._service_next][1]
+            stop_near = float(np.clip((end - STOP_MARGIN - position) / STOP_NEAR_RANGE, 0.0, 1.0))
+        lead = self._neighbor(0, leader=True, reach=FAR_LEADER_RANGE)
+        gap_far = 1.0 if lead is None else lead[0] / FAR_LEADER_RANGE
+        signals = self._next_tls(lane_id, position)
+        elapsed = self._yellow_elapsed(signals)
+        return [stop_near, gap_far, elapsed if signals and signals[0][2] <= TL_RANGE else 0.0]
+
+    def _yellow_elapsed(self, signals):
+        """다음 신호 link가 황색이 된 뒤 지난 시간/YELLOW_RANGE(1로 자름), 황색이 아니면 0.
+
+        link별로 황색이 된 시뮬레이션 시각을 기억한다. 처음 황색으로 본 때는 그 phase가 시작한 뒤 지난 시간
+        (getSpentDuration)을 거슬러 센다. 바로 앞 판단에서 황색이 아니었으면 그 뒤 한 판단 구간 안에 켜진 것이다."""
+        if not signals:
+            self._yellow_since.clear()
+            return 0.0
+        tls, index, _distance, light = signals[0]
+        key = (tls, index)
+        if light not in "yY":
+            self._yellow_since.clear()
+            self._seen_not_yellow = {key}
+            return 0.0
+        now = traci.simulation.getTime()
+        if key not in self._yellow_since:
+            self._yellow_since.clear()
+            start = now - traci.trafficlight.getSpentDuration(tls)
+            if key in self._seen_not_yellow:
+                start = max(start, now - self.decision_interval)
+            self._yellow_since[key] = start
+        return float(np.clip((now - self._yellow_since[key]) / YELLOW_RANGE, 0.0, 1.0))
 
     def _next_tls(self, lane_id, position):
         """getNextTLS 형식의 다음 신호들. getNextTLS는 경로 끝을 넘어 보지 않아, 순환 노선이 끝나는 마지막 도로 끝

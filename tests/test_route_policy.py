@@ -388,6 +388,35 @@ def test_signal_flips_ask_the_expert_what_if_the_light_changed_now(v6):
         lights = {name: flipped[0][OBSERVATION_FEATURES.index(name)] for name in ("tl_red", "tl_yellow", "tl_yield")}
         assert lights["tl_red"] + lights["tl_yellow"] == 1.0 and lights["tl_yield"] == 0.0
         changed = {OBSERVATION_FEATURES[i] for i in np.flatnonzero(flipped[0] != green)}
-        assert changed <= {"tl_red", "tl_yellow", "tl_yield"}
+        assert changed <= {"tl_red", "tl_yellow", "tl_yield", "tl_yellow_elapsed"}
         assert np.array_equal(actions[0], v6(flipped[0])) and actions[0][0] < -0.7
     assert v6(observe(7.8, tl_distance=20.0 / 100.0))[0] > -0.5
+
+
+def test_flipped_yellow_gets_a_random_elapsed_time_and_red_gets_none(v6):
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "research", "av_bc_rl"))
+    from augment_signals import signal_flips
+    green = observe(7.8, tl_distance=0.2, tl_yield=1.0)
+    _rows, flipped, _actions = signal_flips(np.tile(green, (200, 1)), v6, np.random.default_rng(0))
+    yellow = flipped[:, OBSERVATION_FEATURES.index("tl_yellow")] == 1.0
+    elapsed = flipped[:, OBSERVATION_FEATURES.index("tl_yellow_elapsed")]
+    assert yellow.any() and (~yellow).any()
+    assert elapsed[yellow].min() >= 0.0 and elapsed[yellow].max() <= 1.0 and elapsed[yellow].std() > 0.1
+    assert not elapsed[~yellow].any()
+
+
+@pytest.mark.parametrize("policy", [ExpertPolicy, ExpertPolicyV5, ExpertPolicyV6])
+def test_the_rule_driver_ignores_the_near_inputs(policy):
+    driver = make(policy)
+    base = observe(7.8, tl_distance=0.2, tl_yellow=1.0, stop_distance=0.1)
+    other = base.copy()
+    for name, value in (("stop_distance_near", 0.3), ("current_leader_gap_far", 0.2), ("tl_yellow_elapsed", 0.9)):
+        other[OBSERVATION_FEATURES.index(name)] = value
+    assert np.array_equal(driver(base), driver(other))
+
+
+def test_the_compact_blind_bundle_names_existing_inputs_and_keeps_acceleration():
+    from env.data_schema import BLIND_BUNDLES
+    compact = BLIND_BUNDLES["compact"]
+    assert len(compact) == len(set(compact)) == 15 and set(compact) <= set(OBSERVATION_FEATURES)
+    assert "ego_acceleration" not in compact and "left2_density" in compact and "tl_yield" in compact

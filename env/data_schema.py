@@ -2,7 +2,7 @@
 
 한 행은 판단 한 번의 전이다: 현재 관측·실제 상태 → 행동 → 보상·사건·종료 → 다음 관측·실제 상태.
 """
-SCHEMA_VERSION = "hapjeong_bus_v4"
+SCHEMA_VERSION = "hapjeong_bus_v5"
 
 SCHOOL, TEAM = "학교 기본", "팀 추가"
 # (컬럼, 형태, 구분, 의미). 점(.)은 JSONL에서 한 단계 안쪽 키다.
@@ -10,7 +10,7 @@ COLUMNS = [
     ("episode", "Integer", SCHOOL, "Episode 번호"),
     ("t", "Integer", SCHOOL, "Episode 내부 timestep (판단 한 번 = decision_interval초)"),
     ("sim_time", "Float", TEAM, "관측 시점의 SUMO 시뮬레이션 시각(초). t와 실제 시간을 구분한다"),
-    ("observation", "Vector (43-dim)", SCHOOL, "시점 t에서 AV Policy가 실제로 입력받는 부분 관측 oₜ. 수업 원본 31개 뒤에 경로 정보 12개"),
+    ("observation", "Vector (46-dim)", SCHOOL, "시점 t에서 AV Policy가 실제로 입력받는 부분 관측 oₜ. 수업 원본 31개 뒤에 경로 정보 12개와 근접 정보 3개"),
     ("action_raw", "Vector (2-dim)", SCHOOL, "Policy가 출력한 원본 Action [가감속, 차선변경]"),
     ("action.accel_raw", "Float", SCHOOL, "환경에 적용된 가감속 Action 값"),
     ("action.lane_change_raw", "Float", SCHOOL, "환경에 적용된 차선변경 raw 값"),
@@ -37,7 +37,7 @@ COLUMNS = [
     ("comfort.peak_jerk", "Float", TEAM, "이 step 동안 버스 jerk(가속도 변화율) 크기의 최댓값 (m/s³). 승객 승차감"),
     ("comfort.acceleration_violation", "Boolean", TEAM, "가속도가 승차감 한계를 넘었는지"),
     ("comfort.jerk_violation", "Boolean", TEAM, "jerk가 승차감 한계를 넘었는지"),
-    ("next_observation", "Vector (43-dim)", SCHOOL, "다음 시점의 부분 관측 oₜ₊₁"),
+    ("next_observation", "Vector (46-dim)", SCHOOL, "다음 시점의 부분 관측 oₜ₊₁"),
     ("next_state", "Dictionary", SCHOOL, "다음 시점의 privileged simulator state sₜ₊₁"),
 ]
 
@@ -79,7 +79,20 @@ ROUTE_FEATURES = ("tl_distance", "tl_red", "tl_yellow", "tl_yield",
                   "stop_distance", "stop_dwell_remaining",
                   "crosswalk_distance", "crosswalk_occupied", "speed_limit",
                   "next_speed_limit", "next_speed_limit_distance", "ego_acceleration")
-OBSERVATION_FEATURES = OBSERVATION_FEATURES + list(ROUTE_FEATURES)
+# 경로 정보 뒤에 덧붙인 근접 정보 3개(v5). 규칙 운전사는 읽지 않고, 학습한 정책의 입력이다.
+#   stop_distance_near: 정차할 다음 정류장까지 거리/50(stop_distance와 같은 기준점). 50m보다 멀거나 정류장이 없으면 1
+#   current_leader_gap_far: 내 차로(경로를 따라 이어지는 차로 포함) 앞차까지 거리/100. 100m 안에 없으면 1
+#   tl_yellow_elapsed: tl_*가 가리키는 신호가 황색이면 황색이 켜진 뒤 지난 초/5(1로 자름), 황색이 아니면 0
+NEAR_FEATURES = ("stop_distance_near", "current_leader_gap_far", "tl_yellow_elapsed")
+OBSERVATION_FEATURES = OBSERVATION_FEATURES + list(ROUTE_FEATURES) + list(NEAR_FEATURES)
+
+# train_bc.py --blind compact로 펼치는 묶음: 신경망이 보지 않을 15개 (ego_acceleration은 규칙 운전사가 jerk 제한에 읽어 가리면 검증 손실이 나빠져 뺐다) 항목
+BLIND_BUNDLES = {
+    "compact": [f"{lane}_{name}" for lane in ("left2", "right2") for name in
+                ("leader_gap", "leader_relative_speed", "follower_gap", "follower_relative_speed",
+                 "density", "route_connectivity")]
+               + ["current_follower_gap", "current_follower_relative_speed", "tl_yield"],
+}
 
 CONVENTIONS = {
     "coordinate": "x, y는 SUMO 도로망 좌표(m). heading은 북쪽 0도에서 시계 방향(도). "

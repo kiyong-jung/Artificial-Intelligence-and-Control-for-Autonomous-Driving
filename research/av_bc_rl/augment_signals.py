@@ -2,7 +2,7 @@
 
 버스가 정지선 15~25m 앞에 있을 때 황색이 켜지는 일은 한 바퀴에 한 번도 드물다. 그런데 그때 0.5초 안에 세게 줄여야 선다.
 시범과 DAgger 롤아웃 136만 줄 가운데 황색에 세게 줄이는 정답은 0.6%뿐이라, 신경망이 그 자리에서 덜 줄이다 적색에 넘었다.
-신호 색은 관측의 다른 값과 무관하게 바뀌므로, 녹색 관측에서 신호 값만 바꾼 것도 실제로 나올 수 있는 관측이다. 정답은
+신호 색은 관측의 다른 값과 무관하게 바뀌므로(황색 경과 시간 tl_yellow_elapsed는 0~1에서 고르게 뽑는다), 녹색 관측에서 신호 값만 바꾼 것도 실제로 나올 수 있는 관측이다. 정답은
 규칙 운전사가 그 관측에 내는 행동이다(관측만 보는 함수라 그대로 물을 수 있다). 주행할 때 쓰는 규칙은 없다.
 
 더한 줄은 원래 줄과 같은 에피소드 번호를 쓴다. train_bc.py는 에피소드 단위로 학습과 검증을 나누므로 둘이 섞이지 않는다.
@@ -22,7 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from dagger import expert_from_metadata  # noqa: E402
 from env.data_schema import OBSERVATION_FEATURES  # noqa: E402
 
-DISTANCE, RED, YELLOW, YIELD = (OBSERVATION_FEATURES.index(name) for name in ("tl_distance", "tl_red", "tl_yellow", "tl_yield"))
+DISTANCE, RED, YELLOW, YIELD, ELAPSED = (OBSERVATION_FEATURES.index(name) for name in
+                                         ("tl_distance", "tl_red", "tl_yellow", "tl_yield", "tl_yellow_elapsed"))
 KEYS = ("observation", "action_raw", "lane_change", "episode")
 
 
@@ -33,6 +34,8 @@ def signal_flips(observation, expert, rng, yellow_share=2 / 3):
     flipped = observation[rows].copy()
     to_yellow = rng.random(len(rows)) < yellow_share
     flipped[:, YELLOW], flipped[:, RED], flipped[:, YIELD] = to_yellow, ~to_yellow, 0.0
+    # 황색이 켜진 지 얼마나 됐는지는 알 수 없으니 0~1에서 고르게 뽑는다. 전문가는 이 값을 읽지 않는다. 적색은 0이다.
+    flipped[:, ELAPSED] = np.where(to_yellow, rng.random(len(rows)), 0.0)
     actions = np.stack([expert(obs) for obs in flipped]).astype(np.float32) if len(rows) else np.zeros((0, 2), np.float32)
     return rows, flipped, actions
 

@@ -23,6 +23,15 @@ SLOW_TRAFFIC = {"snail05v5": (1.5, .05, 5.0), "snail10v5": (1.5, .10, 5.0),
                 "snail10v8": (1.5, .10, 8.0), "snail20v8": (1.5, .20, 8.0), "snail20v5": (1.5, .20, 5.0),
                 "x2snail10v5": (2.0, .10, 5.0), "x2snail20v8": (2.0, .20, 8.0)}
 SCENARIOS.update({name: demand for name, (demand, _share, _speed) in SLOW_TRAFFIC.items()})
+# 골목·주차장 출입(mid): 배경 수요의 share_in만큼은 블록 중간 도로에서 출발하고(골목에서 나옴), share_out만큼은 블록 중간
+# 도로에서 도착한다(골목으로 빠짐). 나머지 흐름을 그만큼 줄여 총 대수는 그대로다. 출발·도착 위치는 그 도로 위 무작위이고
+# 버스 위치와 무관한 고정 수요다. 이름은 mid<share_in %>i<share_out %>o, 앞에 x2가 붙으면 2배 수요 위다.
+SIDE_TRAFFIC = {"mid20i0o": (1.5, .20, 0.0), "mid40i0o": (1.5, .40, 0.0), "mid0i20o": (1.5, 0.0, .20),
+                "mid20i20o": (1.5, .20, .20), "x2mid40i0o": (2.0, .40, 0.0), "x2mid20i20o": (2.0, .20, .20)}
+SCENARIOS.update({name: demand for name, (demand, _in, _out) in SIDE_TRAFFIC.items()})
+# 합정역 버스 노선에서 다음 신호 정지선 60m 밖 구간(블록 중간)이 30m 넘게 남는 도로. 골목 출입은 이 도로들에 길이 비례로 나눈다.
+SIDE_EDGES = {"hapjeong": ("R71", "R71.135", "R71.206", "R73", "R77", "R111", "R112", "R112.112", "R113",
+                           "-R96", "-R96.64", "-R96.119", "R54a", "R54b", "R54")}
 
 # ego 차량 제원. 지도마다 map.json의 ego_vehicle이 고른다(없으면 car).
 # 가감속 한계는 행동 a=±1의 크기다. 실제 한 스텝의 가감속은 mdp_config의 행동 정의가 결정한다.
@@ -162,3 +171,6 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
     if scenario in SLOW_TRAFFIC:
         _demand, share, speed = SLOW_TRAFFIC[scenario]
         TRAFFIC["slow"] = {"share": share, "max_speed": speed}
+    if scenario in SIDE_TRAFFIC:
+        _demand, share_in, share_out = SIDE_TRAFFIC[scenario]
+        TRAFFIC["side"] = {"share_in": share_in, "share_out": share_out, "edges": list(SIDE_EDGES[network["id"]])}

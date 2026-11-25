@@ -70,6 +70,31 @@ def _write_vehicle_types(routes: ET.Element, ego: dict, traffic: dict) -> None:
             **lateral, **traffic["background_lane_change"])))
 
 
+def _write_side_flows(routes: ET.Element, net, network: dict, side: dict, total: float, traffic: dict) -> None:
+    """골목·주차장 출입 수요. 블록 중간 도로 M마다 길이 비례 몫을 받아, M에서 출발해 지도의 도착 도로로 가는 흐름(id mid_in_)과
+    지도의 출발 도로에서 M으로 와서 그 위 무작위 위치에서 사라지는 흐름(id mid_out_)을 만든다. 상대 도로는 원래 흐름 중 가장
+    빠른 경로가 M을 지나는 것만 고른다. 원래 여행을 M에서 시작하거나 끝낸 것이라 원래 수요가 쓰지 않던 회전이 생기지 않는다
+    (아무 도로나 고르면 R73으로 가려고 동막 교차로에서 비보호 좌회전해 G30을 돌아오다 교차로 안에서 부딪혔다). 출발 위치는
+    random_free(빈 자리를 열 번 찾고 없으면 free)이고, SUMO가 앞뒤 차 간격을 확인한 뒤에만 넣는다. 도착 속도는 SUMO
+    기본값(current)이라 서지 않고 그 자리에서 사라진다. 모두 고정 포아송 수요이고 버스 위치와 무관하다."""
+    if network.get("flow_arrivals") != "poisson":
+        raise ValueError("골목 출입 수요는 포아송 도착 지도에서만 만든다(고정 간격 흐름은 시작 시각 순서가 필요하다).")
+    lengths = {m: net.getEdge(m).getLength() for m in side["edges"]}
+    paths = {(f["from"], f["to"]): {e.getID() for e in net.getFastestPath(
+        net.getEdge(f["from"]), net.getEdge(f["to"]), vClass="passenger")[0] or ()} for f in network["flows"]}
+
+    for m, length in lengths.items():
+        mine = total * length / sum(lengths.values())
+        for prefix, share, pairs, position in (
+                ("mid_in", side["share_in"], sorted({(m, d) for (o, d), p in paths.items() if m in p}), {"departPos": "random_free"}),
+                ("mid_out", side["share_out"], sorted({(o, m) for (o, d), p in paths.items() if m in p}), {"arrivalPos": "random"})):
+            for a, b in pairs if share > 0 else ():
+                ET.SubElement(routes, "flow", _attrs({
+                    "id": f"{prefix}_{a}_to_{b}", "type": "carDist", "from": a, "to": b, "begin": "0", "end": 100000,
+                    "period": f"exp({mine * share / len(pairs) / 3600.0:.6f})", "departLane": "best",
+                    "departSpeed": traffic["depart_speed"], **position}))
+
+
 def _copy_into(output: Path, source: str) -> str:
     name = Path(source).name
     (output / name).write_bytes(Path(source).read_bytes())
@@ -118,9 +143,11 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
     # 느린 차는 흐름마다 share만큼을 떼어 같은 출발·도착의 별도 흐름으로 넣는다. 포아송 도착을 나눈 것이라 합은 원래 흐름과
     # 같은 분포다. 차 id가 snail_로 시작해 기록에서 느린 차를 가려낼 수 있다.
     share = float(traffic["slow"]["share"]) if "slow" in traffic else 0.0
+    side = traffic.get("side")
+    keep = 1.0 - side["share_in"] - side["share_out"] if side else 1.0
     for begin, volume, flow in sorted(staggered, key=lambda item: item[0]):
-        for flow_id, vtype, part in ((flow["id"], "carDist", volume * (1 - share)),
-                                     (f"snail_{flow['id']}", "snail", volume * share)):
+        for flow_id, vtype, part in ((flow["id"], "carDist", volume * keep * (1 - share)),
+                                     (f"snail_{flow['id']}", "snail", volume * keep * share)):
             if part <= 0:
                 continue
             # 배경 차량은 출발·도착 도로만 정하고 경로는 SUMO가 고른다. 지도가 via를 적은 흐름은 그 도로들을 거쳐 간다.
@@ -129,6 +156,8 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
                 "begin": "0" if poisson else f"{begin:.3f}", "end": 100000,
                 "period": f"exp({part / 3600.0:.6f})" if poisson else f"{3600.0 / part:.6f}", "departLane": "best",
                 "departSpeed": traffic["depart_speed"]}))
+    if side:
+        _write_side_flows(routes, compiled, network, side, sum(volume for _begin, volume, _flow in staggered), traffic)
     _write_xml(output / "routes.rou.xml", routes)
 
     # 지도에 딸린 SUMO 파일(신호 프로그램, 교통섬, 보행자 등)은 그대로 복사해 함께 읽는다.

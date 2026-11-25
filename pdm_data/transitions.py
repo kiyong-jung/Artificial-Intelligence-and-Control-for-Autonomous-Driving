@@ -13,9 +13,11 @@ from env.bus_task import REWARDS
 
 from .features import input_design_features
 from .interaction import row_interaction
-from .labels import (accel_mps2, episode_end, lane_change_applied, lane_change_label, normalize_accel, reward_terms)
+from .labels import (accel_mps2, episode_end, lane_change_applied, lane_change_label, lane_change_label5,
+                     normalize_accel, reward_terms)
 from .lap_context import load_lap_context
 from .obs93 import obs93
+from .obs_v2 import V2Context, obs_v2
 from .recorder import read_steps
 from .replay import replay_episode
 from .schema import DETECT_RADIUS_M
@@ -93,6 +95,7 @@ def build_transitions(run_dir: str, a_pos: float, a_neg: float, cut_on_task_fail
     meta = load_meta(run_dir)
     programs = meta.get("tls_programs", {})
     dims = meta["expert"]["ego_dims"]
+    v2 = V2Context(ctx, meta.get("route", {}).get("lane_plans", []))
     rows = list(read_steps(run_dir))
     out, clipped, ends, dropped, replays = [], 0, collections.Counter(), 0, []
     for ep in episodes(rows):
@@ -108,20 +111,23 @@ def build_transitions(run_dir: str, a_pos: float, a_neg: float, cut_on_task_fail
         ends[end["reason"]] += 1
         n_states = min(last + 2, len(ep))
         obs = [obs93(ep[i], ctx, rep[i]).tolist() for i in range(n_states)]
-        feats, stage_state, prev_label = [], {}, None
+        feats, obs2, stage_state, prev_label, prev5 = [], [], {}, None, None
         labels = []
         for i in range(n_states):
             feats.append(input_design_features(ep[i], ep[i - 1] if i else None, ctx, programs, dims, prev_label,
                                                stage_state).tolist())
+            obs2.append(obs_v2(ep[i], v2, rep[i], prev5).tolist())
             if i <= last:
                 a = accel_mps2(ep[i])
                 an, was_clipped = normalize_accel(a, a_pos, a_neg)
                 lc = lane_change_label(ep[i])
-                labels.append((a, an, was_clipped, lc))
-                prev_label = (an, lc)
+                lc5 = lane_change_label5(ep[i])
+                labels.append((a, an, was_clipped, lc, lc5))
+                prev_label, prev5 = (an, lc), (an, lc5)
         for i in range(last + 1):
             row, nxt = ep[i], ep[min(i + 1, n_states - 1)]
-            a, an, was_clipped, lc = labels[i]
+            a, an, was_clipped, lc, lc5 = labels[i]
+            prev_raw = [labels[i - 1][1], float(labels[i - 1][4])] if i else [0.0, 0.0]
             clipped += int(was_clipped)
             is_last = i == last
             terminal = end["reason"] if is_last and end["terminated"] else None
@@ -134,9 +140,10 @@ def build_transitions(run_dir: str, a_pos: float, a_neg: float, cut_on_task_fail
             last_sub = w["substeps"][-1] if w["substeps"] else {}
             out.append({
                 "episode": row["meta"]["episode"], "t": row["meta"]["t"], "sim_time": row["meta"]["sim_time"],
-                "observation": obs[i], "action_raw": [an, float(lc)],
-                "action": {"accel_raw": an, "lane_change_raw": float(lc), "lane_change": lc,
-                           "lane_change_applied": lane_change_applied(row, lc)},
+                "observation": obs[i], "observation_v2": obs2[i], "action_raw": [an, float(lc5)],
+                "prev_action_raw": prev_raw,
+                "action": {"accel_raw": an, "lane_change_raw": float(lc5), "lane_change": lc5,
+                           "lane_change_request": lc, "lane_change_applied": lane_change_applied(row, lc)},
                 "action_extra": {"accel_mps2": a, "accel_clipped": was_clipped},
                 "reward": rt["total"], "reward_terms": rt,
                 "terminated": bool(is_last and end["terminated"]), "truncated": bool(is_last and end["truncated"]),
@@ -155,7 +162,8 @@ def build_transitions(run_dir: str, a_pos: float, a_neg: float, cut_on_task_fail
                            "pdm_v0": pdm.get("v0")},
                 "scenario": row["scenario"], "interaction": row_interaction(row, ctx, dims),
                 "features": feats[i], "next_features": feats[min(i + 1, n_states - 1)],
-                "next_observation": obs[min(i + 1, n_states - 1)], "next_state": _state(nxt),
+                "next_observation": obs[min(i + 1, n_states - 1)],
+                "next_observation_v2": obs2[min(i + 1, n_states - 1)], "next_state": _state(nxt),
                 "check": row.get("check", {}),
             })
     stats = {"rows_total": len(rows), "transitions": len(out), "dropped_rows": dropped,

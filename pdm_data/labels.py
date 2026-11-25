@@ -29,6 +29,30 @@ def lane_change_label(row) -> int:
     return label
 
 
+def lateral_move(row) -> int:
+    """구간 안에서 같은 도로 위 차로 번호가 바뀐 방향(+1 왼쪽, -1 오른쪽, 없으면 0). 도로 경계에서 번호가 다시 매겨지는 것은
+    세지 않는다(스냅숏 -> substep -> substep을 같은 도로끼리만 비교)."""
+    e = row["ego"]
+    prev_edge, prev_lane, moved = e["road_id"], e["lane_index"], 0
+    for s in row["window"]["substeps"]:
+        if s["edge"] == prev_edge and not s["edge"].startswith(":") and s["lane_index"] != prev_lane:
+            moved = 1 if s["lane_index"] > prev_lane else -1
+        prev_edge, prev_lane = s["edge"], s["lane_index"]
+    return moved
+
+
+def lane_change_label5(row) -> int:
+    """5값 차로 라벨: 실제로 옮긴 구간은 ±2, 방향지시등만 켠 구간(signal·request 단계, 도착 보장 정차)은 ±1, 그 밖은 0."""
+    moved = lateral_move(row)
+    if moved:
+        return 2 * moved
+    label = 0
+    for s in row["window"]["substeps"]:
+        if (s["phase"] in ("signal", "request") or s.get("forced")) and s["request_direction"]:
+            label = int(s["request_direction"])
+    return label
+
+
 def lane_change_applied(row, label: int) -> bool:
     if label == 0:
         return True

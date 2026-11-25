@@ -23,6 +23,7 @@ from env.data_schema import COLUMNS  # noqa: E402
 from pdm_data.features import FEATURE_NAMES  # noqa: E402
 from pdm_data.labels import accel_mps2, accel_report  # noqa: E402
 from pdm_data.lap_context import load_lap_context  # noqa: E402
+from pdm_data.obs_v2 import FEATURE_NAMES as OBS_V2_NAMES, LAYOUT as OBS_V2_LAYOUT, OBS_V2_DIM  # noqa: E402
 from pdm_data.recorder import _round, read_events, read_steps  # noqa: E402
 from pdm_data.scenario_offline import s5_events, s6_events  # noqa: E402
 from pdm_data.ssm import parse_ssm  # noqa: E402
@@ -41,6 +42,10 @@ EXTRA_COLUMNS = {
     "interaction.*": "선행·후행 슬롯의 thw, ttc, inv_ttc, drac, margin과 50 m 보행자의 t_ego, t_ped, dt",
     "features / next_features": "입력 설계 특징(feature_names 순서, [-1, 1])",
     "action_extra.accel_mps2": "정규화 전 실제 평균 가속도(m/s²)",
+    "action_raw[1]": "5값 차로 라벨: 실제로 옮긴 구간 ±2, 방향지시등만 켠 구간 ±1, 그 밖 0(+ 왼쪽)",
+    "action.lane_change_request": "이전 3값 요청 라벨(request 단계·도착 보장 정차의 요청 방향)",
+    "prev_action_raw": "직전 행의 action_raw(에피소드 첫 행은 [0, 0])",
+    "observation_v2 / next_observation_v2": "관측 v2 166차원(docs/observation_features_v2.md, pdm_data/obs_v2.py)",
 }
 
 
@@ -133,7 +138,11 @@ def main(argv=None):
     np.savez_compressed(os.path.join(out_dir, "transitions.npz"),
                         observation=np.asarray([r["observation"] for r in tr], np.float32).reshape(-1, 93),
                         next_observation=np.asarray([r["next_observation"] for r in tr], np.float32).reshape(-1, 93),
+                        observation_v2=np.asarray([r["observation_v2"] for r in tr], np.float32).reshape(-1, OBS_V2_DIM),
+                        next_observation_v2=np.asarray([r["next_observation_v2"] for r in tr],
+                                                       np.float32).reshape(-1, OBS_V2_DIM),
                         action_raw=np.asarray([r["action_raw"] for r in tr], np.float32).reshape(-1, 2),
+                        prev_action_raw=np.asarray([r["prev_action_raw"] for r in tr], np.float32).reshape(-1, 2),
                         reward=np.asarray([r["reward"] for r in tr], np.float32),
                         terminated=np.asarray([r["terminated"] for r in tr], bool),
                         truncated=np.asarray([r["truncated"] for r in tr], bool),
@@ -150,7 +159,9 @@ def main(argv=None):
     pmeta = {"source_schema": meta.get("schema_version"), "net_sha256": meta.get("net_sha256"),
              "accel_scale": {"pos": a.accel_pos, "neg": a.accel_neg}, "stats": stats,
              "cut_on_task_failure": not a.keep_after_task_failure, "max_lap_s": a.max_lap_s,
-             "feature_names": FEATURE_NAMES, "obs93_layout": LAYOUT, "rewards": REWARDS, "comfort_limits": COMFORT_LIMITS,
+             "feature_names": FEATURE_NAMES, "obs93_layout": LAYOUT, "obs_v2_names": list(OBS_V2_NAMES),
+             "obs_v2_layout": OBS_V2_LAYOUT, "lane_label": "5값 {-2,-1,0,1,2}: 실제 이동 ±2, 방향지시등만 ±1",
+             "rewards": REWARDS, "comfort_limits": COMFORT_LIMITS,
              "obs93_online_check": check,
              "columns": [{"name": n, "type": k, "meaning": m} for n, k, _, m in COLUMNS] +
                         [{"name": n, "meaning": m} for n, m in EXTRA_COLUMNS.items()]}

@@ -112,3 +112,15 @@ def test_full_preprocess_writes_outputs(tmp_path):
         assert os.path.exists(os.path.join(d, "processed", f)), f
     z = np.load(os.path.join(d, "processed", "transitions.npz"))
     assert z["observation"].shape == (11, 93) and z["features"].shape[0] == 11 and z["action_raw"].shape == (11, 2)
+
+
+def test_preprocess_writes_v2_columns(tmp_path):
+    import numpy as np
+    d = make_run_dir(tmp_path)
+    subprocess.run([sys.executable, SCRIPT, d, "--accel-pos", "1.5", "--accel-neg", "3.0"], check=True, capture_output=True)
+    z = np.load(os.path.join(d, "processed", "transitions.npz"))
+    assert z["observation_v2"].shape == (11, 166) and z["next_observation_v2"].shape == (11, 166)
+    assert z["prev_action_raw"].shape == (11, 2) and list(z["prev_action_raw"][0]) == [0.0, 0.0]
+    np.testing.assert_array_equal(z["prev_action_raw"][1:], z["action_raw"][:-1])
+    np.testing.assert_array_equal(z["next_observation_v2"][:-1], z["observation_v2"][1:])
+    assert np.abs(z["observation_v2"]).max() <= 1.0

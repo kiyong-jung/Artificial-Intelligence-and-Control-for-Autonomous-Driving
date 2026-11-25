@@ -32,6 +32,18 @@ SCENARIOS.update({name: demand for name, (demand, _in, _out) in SIDE_TRAFFIC.ite
 # 합정역 버스 노선에서 다음 신호 정지선 60m 밖 구간(블록 중간)이 30m 넘게 남는 도로. 골목 출입은 이 도로들에 길이 비례로 나눈다.
 SIDE_EDGES = {"hapjeong": ("R71", "R71.135", "R71.206", "R73", "R77", "R111", "R112", "R112.112", "R113",
                            "-R96", "-R96.64", "-R96.119", "R54a", "R54b", "R54")}
+# 골목 합류(alley): 배경 수요의 share만큼을 실제 골목(신호 없는 우선 교차로로 버스 노선에 붙는 1차로 도로)에서 출발시킨다.
+# 차는 골목 끝에서 SUMO의 우선권 규칙대로 양보하고 큰길로 합류한다. 나머지 흐름을 그만큼 줄여 총 대수는 그대로다.
+# 이름은 alley<share %>, 앞에 x2가 붙으면 2배 수요 위다.
+ALLEY_TRAFFIC = {"alley20": (1.5, .20), "alley40": (1.5, .40), "x2alley20": (2.0, .20)}
+SCENARIOS.update({name: demand for name, (demand, _share) in ALLEY_TRAFFIC.items()})
+# (출발 도로, 합류하는 버스 노선 도로). 출발 도로는 골목 자체이거나 그 바로 위 도로다. 차가 처음 나타나는 자리(출발 도로의
+# 처음 10m)가 버스 노선 차로에서 50m(버스 감지 범위) 넘게 떨어진 도로만 쓴다(road_builder가 검사한다). G12는 시작이 48m라
+# 위 도로 G11(52m)에서, G16·G23·G24는 여유를 두려고 위 도로 G4·-G25·G27에서 출발한다. G3은 위 도로가 없고 10m 지점이 48m라
+# 뺀다. G16·G18·G24는 맞은편 차로를 건너는 좌회전, G12·G23은 우회전 합류다.
+ALLEY_EDGES = {"hapjeong": (("G11", "R71.256"), ("G4", "-R96.64"), ("G18", "-R96.201"), ("-G25", "-R96.119"),
+                            ("G27", "R112.112"))}
+ALLEY_CLEARANCE = 50.0
 
 # ego 차량 제원. 지도마다 map.json의 ego_vehicle이 고른다(없으면 car).
 # 가감속 한계는 행동 a=±1의 크기다. 실제 한 스텝의 가감속은 mdp_config의 행동 정의가 결정한다.
@@ -174,3 +186,7 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
     if scenario in SIDE_TRAFFIC:
         _demand, share_in, share_out = SIDE_TRAFFIC[scenario]
         TRAFFIC["side"] = {"share_in": share_in, "share_out": share_out, "edges": list(SIDE_EDGES[network["id"]])}
+    if scenario in ALLEY_TRAFFIC:
+        _demand, share = ALLEY_TRAFFIC[scenario]
+        TRAFFIC["alley"] = {"share": share, "edges": [list(pair) for pair in ALLEY_EDGES[network["id"]]],
+                            "clearance": ALLEY_CLEARANCE}

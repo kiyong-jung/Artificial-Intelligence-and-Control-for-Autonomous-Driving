@@ -8,10 +8,14 @@
   running          도로 위 차 수(마지막 300초 평균)
   standing_120s    120초 넘게 한 번도 0.1m/s를 넘지 못한 차 수(마지막 300초 평균). 커지기만 하면 gridlock이다
   collisions       배경 차끼리 충돌 보고 수. collision_pairs는 서로 다른 (충돌한 차, 맞은 차) 쌍의 수
+  teleports        SUMO 순간이동 수(time-to-teleport -1이라 0이어야 한다)
+  standing_roads   120초 넘게 선 차가 있던 도로와 그 차 수(마지막 300초 평균). 어느 교차로가 막히는지 본다
+  pending_alley    골목 출발 도로별 투입 대기 차 수(마지막 300초 평균)
   arrived_per_h    도착한 차(시간당). 수요를 키워도 늘지 않으면 도로가 포화다
   route_near/mid   버스 경로 위 차 밀도(대/차로-km). near는 다음 신호 정지선 60m 안, mid는 그 밖(블록 중간)
 """
 import argparse
+import collections
 import json
 import multiprocessing
 import os
@@ -58,7 +62,7 @@ def probe(job):
     edge_set = set(edges)
     traci.start([checkBinary("sumo"), "-c", cfg, "--no-step-log", "--no-warnings", "--seed", str(seed)], label=label)
     conn = traci.getConnection(label)
-    loaded = departed = arrived = collisions = 0
+    loaded = departed = arrived = collisions = teleports = 0
     pairs = set()   # 같은 충돌이 여러 스텝 보고될 수 있어 (충돌한 차, 맞은 차) 쌍도 센다
     samples = []
     steps_per_sample = int(round(10.0 / float(conn.simulation.getDeltaT())))
@@ -67,24 +71,34 @@ def probe(job):
         loaded += conn.simulation.getLoadedNumber()
         departed += conn.simulation.getDepartedNumber()
         arrived += conn.simulation.getArrivedNumber()
+        teleports += conn.simulation.getStartingTeleportNumber()
         for collision in conn.simulation.getCollisions():
             collisions += 1
             pairs.add((collision.collider, collision.victim))
         if (step + 1) % steps_per_sample:
             continue
         ids = conn.vehicle.getIDList()
-        standing = sum(1 for v in ids if conn.vehicle.getWaitingTime(v) >= 120.0)
+        standing_ids = [v for v in ids if conn.vehicle.getWaitingTime(v) >= 120.0]
+        standing = len(standing_ids)
+        standing_roads = collections.Counter(conn.vehicle.getRoadID(v) for v in standing_ids)
+        pending_ids = conn.simulation.getPendingVehicles()
+        pending_alley = collections.Counter(v.split("_to_")[0][len("alley_"):] for v in pending_ids if v.startswith("alley_"))
         near = mid = 0
         for v in ids:
             road = conn.vehicle.getRoadID(v)
             if road in edge_set:
                 left = net.getEdge(road).getLength() - conn.vehicle.getLanePosition(v) + beyond[road]
                 near, mid = (near + 1, mid) if left < NEAR else (near, mid + 1)
-        samples.append(dict(t=conn.simulation.getTime(), running=len(ids), pending=len(conn.simulation.getPendingVehicles()),
-                            standing=standing, near=near, mid=mid, loaded=loaded, departed=departed, arrived=arrived))
+        samples.append(dict(t=conn.simulation.getTime(), running=len(ids), pending=len(pending_ids),
+                            standing=standing, standing_roads=standing_roads, pending_alley=pending_alley, near=near, mid=mid, loaded=loaded, departed=departed, arrived=arrived))
     conn.close()
     tail = [s for s in samples if s["t"] > seconds - 300]
-    return dict(scenario=scenario, seed=seed, collisions=collisions, collision_pairs=len(pairs), loaded=loaded, departed=departed,
+    def tail_mean(key):
+        return {k: round(v / len(tail), 2) for k, v in sum((s[key] for s in tail), collections.Counter()).items()}
+
+    return dict(scenario=scenario, seed=seed, collisions=collisions, collision_pairs=len(pairs), pairs=sorted(pairs),
+                teleports=teleports, standing_roads=tail_mean("standing_roads"), pending_alley=tail_mean("pending_alley"),
+                loaded=loaded, departed=departed,
                 inserted_share=departed / max(loaded, 1), backlog_end=samples[-1]["pending"],
                 running=float(np.mean([s["running"] for s in tail])),
                 standing_120s=float(np.mean([s["standing"] for s in tail])),
@@ -113,7 +127,7 @@ def main():
         mine = [r for r in runs if r["scenario"] == scenario]
         table[scenario] = {key: round(float(np.mean([r[key] for r in mine])), 3) for key in (
             "inserted_share", "backlog_end", "running", "standing_120s", "standing_120s_end", "collisions", "collision_pairs",
-            "arrived_per_h", "route_near", "route_mid")}
+            "arrived_per_h", "route_near", "route_mid", "teleports")}
         table[scenario]["runs"] = len(mine)
         print(scenario, table[scenario], flush=True)
     with open(args.out, "w", encoding="utf-8") as f:

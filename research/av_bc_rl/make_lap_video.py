@@ -26,6 +26,7 @@ VIEW, PANEL = 720, 400   # 화면 한 변(px), 정보 칸 폭(px)
 ROAD, WALK, CROSS, LINE, BG = (72, 76, 82), (176, 176, 170), (228, 228, 228), (120, 124, 130), (38, 52, 40)
 EGO, CAR, BUS, PED, TRAIL = (255, 196, 0), (150, 190, 235), (120, 220, 160), (255, 120, 170), (255, 230, 120)
 SNAIL = (200, 120, 60)   # 느린 차(id가 snail_, env/road_config.SLOW_TRAFFIC)
+ALLEY = (190, 140, 230)  # 골목에서 출발한 차(id가 alley_, env/road_config.ALLEY_TRAFFIC)
 SIGNAL = {"r": (230, 70, 60), "R": (230, 70, 60), "u": (230, 70, 60), "y": (240, 200, 40), "Y": (240, 200, 40),
           "g": (60, 200, 90), "G": (60, 200, 90), "s": (60, 200, 90)}
 TURN = {"left": "좌회전", "right": "우회전", "straight": "직진", None: "-"}
@@ -159,7 +160,8 @@ def main():
                 is_bus = "bus" in vehicle["id"].lower()
                 draw.polygon([px(p) for p in body(vehicle["x"], vehicle["y"], vehicle["heading"], 12.0 if is_bus else 4.8,
                                                    2.5 if is_bus else 1.8)],
-                             fill=BUS if is_bus else SNAIL if vehicle["id"].startswith("snail_") else CAR)
+                             fill=BUS if is_bus else SNAIL if vehicle["id"].startswith("snail_")
+                             else ALLEY if vehicle["id"].startswith("alley_") else CAR)
             for person in state.get("pedestrians", ()):
                 x, y = px((person["x"], person["y"]))
                 draw.ellipse((x - 3, y - 3, x + 3, y + 3), fill=PED)

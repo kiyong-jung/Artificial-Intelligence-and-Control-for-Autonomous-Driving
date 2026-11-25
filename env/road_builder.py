@@ -19,6 +19,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 
 from sumolib import checkBinary
+from sumolib.geomhelper import distancePointToPolygon, positionAtShapeOffset
 from sumolib.net import readNet
 
 from env.mdp_config import SIMULATION
@@ -95,6 +96,41 @@ def _write_side_flows(routes: ET.Element, net, network: dict, side: dict, total:
                     "departSpeed": traffic["depart_speed"], **position}))
 
 
+def _write_alley_flows(routes: ET.Element, net, network: dict, ego_route: str, alley: dict, total: float,
+                       traffic: dict) -> None:
+    """골목 합류 수요. 골목 (출발 도로 O, 합류 도로 M)마다 total*share를 똑같이 나눠, O에서 출발해 지도의 도착 도로로 가는 흐름
+    (id alley_)을 만든다. 차는 O의 시작에서 보통 투입(departPos base)되고, 골목 끝 신호 없는 교차로에서 양보한 뒤 M으로 합류한다.
+    도착 도로는 원래 흐름 중 가장 빠른 경로가 M을 지나는 것의 도착 도로이고, O에서 그 도로까지의 가장 빠른 경로가 M을 지나며
+    M 뒤의 회전이 모두 원래 흐름이 쓰는 회전인 것만 고른다(원래 수요가 쓰지 않던 회전은 교차로 안에서 멈춰 섰다, mid* 기록).
+    도착은 지도의 경계 도로뿐이라 버스 노선 위에서 사라지는 차가 없다. 차가 처음 나타나는 자리(O의 처음 10m)가 버스 노선
+    차로에서 clearance(버스 감지 범위)보다 가까우면 만들지 않는다."""
+    route_shapes = [lane.getShape() for edge in network["routes"][ego_route] for lane in net.getEdge(edge).getLanes()]
+    paths = {}
+    for f in network["flows"]:
+        path = net.getFastestPath(net.getEdge(f["from"]), net.getEdge(f["to"]), vClass="passenger")[0] or ()
+        paths[f["to"]] = paths.get(f["to"], []) + [[e.getID() for e in path]]
+    turns = {pair for options in paths.values() for p in options for pair in zip(p, p[1:])}
+    for origin, merge in alley["edges"]:
+        lane = net.getEdge(origin).getLanes()[0]
+        appear = min(distancePointToPolygon(positionAtShapeOffset(lane.getShape(), offset), shape)
+                     for offset in range(0, 11) for shape in route_shapes)
+        if appear < alley["clearance"]:
+            raise ValueError(f"골목 출발 도로 {origin}은 버스 노선에서 {appear:.0f}m라 차가 버스 감지 범위 안에서 나타난다.")
+        partners = []
+        for destination in sorted(d for d, options in paths.items() if any(merge in p for p in options)):
+            path = [e.getID() for e in net.getFastestPath(net.getEdge(origin), net.getEdge(destination), vClass="passenger")[0] or ()]
+            if merge in path and all(pair in turns for pair in zip(path[path.index(merge):], path[path.index(merge) + 1:])):
+                partners.append(destination)
+        if not partners:
+            raise ValueError(f"골목 {origin}에서 {merge}로 합류해 갈 도착 도로가 없다.")
+        for destination in partners:
+            ET.SubElement(routes, "flow", _attrs({
+                "id": f"alley_{origin}_to_{destination}", "type": "carDist", "from": origin, "to": destination,
+                "begin": "0", "end": 100000,
+                "period": f"exp({total * alley['share'] / len(alley['edges']) / len(partners) / 3600.0:.6f})",
+                "departLane": "best", "departSpeed": traffic["depart_speed"]}))
+
+
 def _copy_into(output: Path, source: str) -> str:
     name = Path(source).name
     (output / name).write_bytes(Path(source).read_bytes())
@@ -145,6 +181,8 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
     share = float(traffic["slow"]["share"]) if "slow" in traffic else 0.0
     side = traffic.get("side")
     keep = 1.0 - side["share_in"] - side["share_out"] if side else 1.0
+    alley = traffic.get("alley")
+    keep -= alley["share"] if alley else 0.0
     for begin, volume, flow in sorted(staggered, key=lambda item: item[0]):
         for flow_id, vtype, part in ((flow["id"], "carDist", volume * keep * (1 - share)),
                                      (f"snail_{flow['id']}", "snail", volume * keep * share)):
@@ -158,6 +196,9 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
                 "departSpeed": traffic["depart_speed"]}))
     if side:
         _write_side_flows(routes, compiled, network, side, sum(volume for _begin, volume, _flow in staggered), traffic)
+    if alley:
+        _write_alley_flows(routes, compiled, network, road["ego_route"], alley,
+                           sum(volume for _begin, volume, _flow in staggered), traffic)
     _write_xml(output / "routes.rou.xml", routes)
 
     # 지도에 딸린 SUMO 파일(신호 프로그램, 교통섬, 보행자 등)은 그대로 복사해 함께 읽는다.

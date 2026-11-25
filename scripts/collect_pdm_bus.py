@@ -80,7 +80,9 @@ def _copy_assets(work_dir, assets):
             shutil.copy2(path, assets)
 
 
-def collect(a) -> dict:
+def collect(a, controller=None) -> dict:
+    """controller: 없으면 PDM-Closed 전문가가 몬다. 있으면(pdm_data.closed_loop.PolicyController) controller.make_pilot이 만든
+    버스를 정책이 몬다: 판단 시각마다 기록기가 새 스냅숏을 찍은 직후 controller.on_decision(새 스냅숏, 방금 닫힌 행)을 부른다."""
     final_dir = os.path.join(a.out_dir, a.name)
     part = os.path.join(a.out_dir, f".{a.name}.partial")
     if not a.no_record:
@@ -97,7 +99,8 @@ def collect(a) -> dict:
     from traffic.sumo_conn import traci
     m = load_map("hapjeong")
     net_path = os.path.join(a.work_dir, "network.net.xml")
-    pilot = PDMClosedBusPilot(tc, read_net(net_path), m["routes"]["bus_loop"], map_stops(m))
+    make_pilot = controller.make_pilot if controller is not None else PDMClosedBusPilot
+    pilot = make_pilot(tc, read_net(net_path), m["routes"]["bus_loop"], map_stops(m))
     trace, state = [], {"step": 0}
 
     def trace_step():
@@ -117,11 +120,18 @@ def collect(a) -> dict:
         check = OnlineObsCheck(ctx, tc, a.check_obs) if a.check_obs > 0 else None
         rec = Recorder(tc, world, pilot, ctx, writer, max_laps=a.laps, max_seconds=a.max_seconds, check=check,
                        run_id=a.name)
+        if controller is not None:
+            controller.bind(ctx, pilot)
+    elif controller is not None:
+        raise ValueError("정책 주행(controller)은 기록이 있어야 관측을 만든다: --no-record와 함께 쓸 수 없다")
 
     def on_step(t):
         trace_step()
         if rec is not None:
+            before = rec.pending
             rec.on_step(t)
+            if controller is not None and rec.pending is not before:
+                controller.on_decision(rec.pending, before)
 
     end = "time_limit"
     try:
@@ -143,6 +153,8 @@ def collect(a) -> dict:
         meta = build_metadata(a, world, pilot, ctx, rec, tc, vtype=vtype,
                               net_copy=os.path.join(part, "assets", "network.net.xml"), bus_stops=m["bus_stops"],
                               started_at=started_at)
+        if controller is not None:
+            meta["policy"] = controller.describe()
     world.close()
     out = {"run_dir": None, "rows": rec.rows if rec else 0, "laps_completed": len(pilot.lap_times), "end": end,
            "bus_trace": trace}

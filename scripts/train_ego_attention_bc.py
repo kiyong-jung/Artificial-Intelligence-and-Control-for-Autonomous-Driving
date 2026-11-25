@@ -1,32 +1,24 @@
-"""PDM 버스 전문가 데이터로 Ego-attention 정책을 오프라인 학습한다(행동 복제 + critic TD 사전학습).
+"""PDM 버스 전문가 데이터로 Ego-attention 정책을 행동 복제(BC)로 학습한다. 가치 함수(critic)는 없다.
 
     python scripts/train_ego_attention_bc.py --data data/pdm_bus/lap_baseline_s0 data/pdm_bus/baseline_s1 \
         --out results/ego_att_bc
     python scripts/train_ego_attention_bc.py --data data/pdm_bus/*/processed/transitions.npz --input both \
         --self-attention --heads 2 --epochs 300 --out results/ego_att_both
-    # hapjeong 온라인 환경(FullTask가 obs[1:6]을 0으로 지움)에서 이어 학습할 모델:
-    python scripts/train_ego_attention_bc.py --data ... --mask-obs-indices 1,2,3,4,5 --out results/ego_att_bc_masked
 
 입력 데이터: scripts/preprocess_pdm_bus.py가 만든 <run>/processed/transitions.npz (폴더를 주면 알아서 찾는다).
 data_colum.md 열과 쓰임:
-    observation / next_observation (93) : 정책 입력(--input observation, 기본). 온라인 BusTask와 같은 관측
-    features / next_features (130)      : SUMO_AV_input_설계.md 입력 설계 특징(--input features), 둘 다는 --input both
-    observation_v2 / next_observation_v2 (166) : 관측 v2(docs/observation_features_v2.md, --input v2)
-    action_raw [가감속, 차선변경]        : 행동 복제 라벨. 가감속은 [-1, 1]을 --accel-bins개 구간으로 나눈 CE
-                                          (0이면 MSE, 제동 표본에 --brake-weight), 차선은 클래스 가중 CE(--lane-weighting).
-                                          prev_action_raw 열이 있는 데이터는 5값 차로 라벨(5클래스), 없으면 예전 3값(3클래스)
-    reward, terminated, truncated       : critic TD(0) 타깃 r + γ(1-terminated)V'(s'). truncated는 끝이 아니므로 부트스트랩
-    episode, t                          : 에피소드 단위 train/validation/test 분할(에피소드가 3개 미만이면 시간 블록 분할)
+    observation (93)      : 정책 입력(--input observation, 기본). 온라인 BusTask와 같은 관측
+    features (130)        : SUMO_AV_input_설계.md 입력 설계 특징(--input features), 둘 다는 --input both
+    observation_v2 (166)  : 관측 v2(docs/observation_features_v2.md, --input v2)
+    action_raw [가감속, 차선변경] : 행동 복제 라벨. 가감속은 [-1, 1]을 --accel-bins개 구간으로 나눈 CE
+                                   (0이면 MSE, 제동 표본에 --brake-weight), 차선은 클래스 가중 CE(--lane-weighting).
+                                   prev_action_raw 열이 있는 데이터는 5값 차로 라벨(5클래스), 없으면 예전 3값(3클래스)
+    episode, t            : 에피소드 단위 train/validation/test 분할(에피소드가 3개 미만이면 시간 블록 분할)
 
-critic은 몸통 특징을 detach한 뒤 v_head만 학습한다. 행동 복제가 critic 손실에 흔들리지 않게 하고,
-온라인 PPO를 시작할 때 쓸 만한 V(s)를 미리 맞춰 둔다.
-
-출력 <out>/: model.pt(algorithms.ppo.PPO(obs_dim, 2, **hparams).load로 읽힌다), run_config.json, history.jsonl,
-audit.json(분할, 클래스 가중치, 최종 지표, 엔티티 타입별 평균 attention), 이 스크립트 사본.
-온라인 이어 학습: scripts/train_ego_attention_ppo.py --base <out>/model.pt
+출력 <out>/: model.pt(utils.ego_attention.load_policy_dir(<out>)로 읽는다), run_config.json("network"에 구조),
+history.jsonl, audit.json(분할, 클래스 가중치, 최종 지표, 엔티티 타입별 평균 attention), 이 스크립트 사본.
 """
 import argparse
-import copy
 import hashlib
 import json
 import os
@@ -43,8 +35,8 @@ import torch.nn.functional as F
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from algorithms.ppo import PPO  # noqa: E402
-from utils.ego_attention import DEFAULT_ATTENTION, INPUT_LAYOUT, LAYOUTS, accel_bin_of  # noqa: E402
+from utils.ego_attention import (DEFAULT_ATTENTION, INPUT_LAYOUT, LAYOUTS, accel_bin_of,  # noqa: E402
+                                 build_policy, load_policy_dir)
 
 OBS_DIM = 93
 WEIGHTINGS = ("none", "inverse", "sqrt", "effective")
@@ -62,9 +54,6 @@ def class_weights(counts, scheme, cap, beta=0.999):
     w = (raw / raw[counts.argmax()]).clamp(max=cap)
     return torch.where(counts > 0, w, torch.zeros_like(w))
 BRAKE_THRESHOLD = -0.05
-PPO_DEFAULTS = dict(lr=1e-4, n_steps=1024, n_epochs=10, minibatch_size=64, gamma=0.999, gae_lambda=0.95,
-                    clip_eps=0.2, value_coef=0.005, entropy_coef=0.0, lane_entropy_coef=0.0, max_grad_norm=0.5,
-                    normalize_advantage=True)
 
 
 def resolve(path) -> Path:
@@ -76,29 +65,27 @@ def resolve(path) -> Path:
     return p
 
 
-def _inputs(d, kind, prefix, mask_idx):
+def _inputs(d, kind, mask_idx):
     if kind == "v2":
-        return d[f"{prefix}observation_v2"].astype(np.float32)
-    obs = d[f"{prefix}observation"].astype(np.float32).copy()
+        return d["observation_v2"].astype(np.float32)
+    obs = d["observation"].astype(np.float32).copy()
     if mask_idx:
         obs[:, mask_idx] = 0.0
     if kind == "observation":
         return obs
-    feats = d[f"{prefix}features"].astype(np.float32)
+    feats = d["features"].astype(np.float32)
     return feats if kind == "features" else np.concatenate([obs, feats], axis=1)
 
 
 def load(paths, kind, mask_idx):
     """여러 수집 run을 이어 붙인다. 에피소드 키 = 파일 번호 * 1e6 + episode."""
-    cols = {k: [] for k in ("x", "nx", "y", "r", "term", "trunc", "key", "t")}
+    cols = {k: [] for k in ("x", "y", "key", "t")}
     sources, kinds = [], set()
     for i, p in enumerate(paths):
         with np.load(p, allow_pickle=False) as d:
-            need = ["action_raw", "reward", "terminated", "truncated", "episode", "t"]
-            need += {"v2": ["observation_v2", "next_observation_v2"],
-                     "features": ["features", "next_features"],
-                     "both": ["observation", "next_observation", "features", "next_features"]}.get(
-                         kind, ["observation", "next_observation"])
+            need = ["action_raw", "episode", "t"]
+            need += {"v2": ["observation_v2"], "features": ["features"],
+                     "both": ["observation", "features"]}.get(kind, ["observation"])
             missing = [k for k in need if k not in d]
             if missing:
                 raise ValueError(f"{p}: 필요한 열이 없습니다 {missing}")
@@ -108,23 +95,19 @@ def load(paths, kind, mask_idx):
                 raise ValueError(f"{p}: 2차원 action_raw가 필요합니다")
             # prev_action_raw가 있으면 5값 차로 라벨(pdm_data/labels.lane_change_label5)로 만든 데이터다
             kinds.add(5 if "prev_action_raw" in d else 3)
-            cols["x"].append(_inputs(d, kind, "", mask_idx))
-            cols["nx"].append(_inputs(d, kind, "next_", mask_idx))
+            cols["x"].append(_inputs(d, kind, mask_idx))
             cols["y"].append(d["action_raw"].astype(np.float32))
-            cols["r"].append(d["reward"].astype(np.float32))
-            cols["term"].append(d["terminated"].astype(bool))
-            cols["trunc"].append(d["truncated"].astype(bool))
             cols["key"].append(i * 1_000_000 + d["episode"].astype(np.int64))
             cols["t"].append(d["t"].astype(np.int64))
-            sources.append({"path": str(p), "rows": int(len(d["reward"])),
+            sources.append({"path": str(p), "rows": int(len(d["t"])),
                             "sha256": hashlib.sha256(p.read_bytes()).hexdigest()})
     if len(kinds) != 1:
         raise ValueError("3값 차로 라벨 데이터와 5값 차로 라벨 데이터를 섞을 수 없습니다(전처리를 다시 하세요)")
     n_lane = kinds.pop()
     data = {k: np.concatenate(v) for k, v in cols.items()}
     x, y = data["x"], data["y"]
-    if not (np.isfinite(x).all() and np.isfinite(data["nx"]).all() and np.isfinite(data["r"]).all()):
-        raise ValueError("입력이나 보상에 NaN/inf가 있습니다")
+    if not (np.isfinite(x).all() and np.isfinite(y).all()):
+        raise ValueError("입력이나 행동 라벨에 NaN/inf가 있습니다")
     if np.abs(x).max() > 1.0 + 1e-5:
         raise ValueError("입력은 [-1, 1]로 정규화되어 있어야 합니다")
     half = n_lane // 2
@@ -160,18 +143,14 @@ def make_split(keys, t, rng, split_file=None):
 
 
 class Trainer:
-    def __init__(self, agent, data, args, device):
-        self.net, self.args, self.device = agent.policy, args, device
+    def __init__(self, net, data, args, device):
+        self.net, self.args, self.device = net, args, device
         self.x = torch.as_tensor(data["x"], device=device)
-        self.nx = torch.as_tensor(data["nx"], device=device)
         self.accel = torch.as_tensor(data["y"][:, 0], device=device)
         self.n_lane = int(data["n_lane"])
         self.keep = self.n_lane // 2
         # 라벨 -> 클래스: keep - 라벨. 3값 +1→0(좌), 0→1, -1→2(우). 5값 +2→0, +1→1, 0→2, -1→3, -2→4
         self.lane = torch.as_tensor(self.keep - data["y"][:, 1], device=device).long()
-        self.r = torch.as_tensor(data["r"], device=device)
-        self.done = torch.as_tensor(data["term"], device=device).float()
-        self.target = copy.deepcopy(self.net).eval()
         params = [p for n, p in self.net.named_parameters() if n != "log_std"]
         wd = getattr(args, "weight_decay", 0.0)
         self.optimizer = (torch.optim.AdamW(params, lr=args.lr, weight_decay=wd) if wd > 0
@@ -216,36 +195,30 @@ class Trainer:
         ok = logits.gather(1, cls[:, None]).squeeze(1) > -1e8
         ok = ok & (self.weights[cls] > 0)
         lane = F.cross_entropy(logits[ok], cls[ok], weight=self.weights) if ok.any() else logits.sum() * 0.0
-        v = self.net.v_head(z.detach()).squeeze(-1)
-        with torch.no_grad():
-            target = self.r[ii] + self.args.gamma * (1.0 - self.done[ii]) * self.target(self.nx[ii])[3]
-        value = F.smooth_l1_loss(v, target)
-        return accel, lane, value, (mu, logits, v, target, ok)
+        return accel, lane, (mu, logits, ok)
 
     def train_epoch(self, train_idx, rng):
         self.net.train()
         for ii in np.array_split(rng.permutation(train_idx), max(1, int(np.ceil(len(train_idx) / self.args.batch_size)))):
-            accel, lane, value, _ = self.losses(torch.as_tensor(ii, device=self.device))
-            loss = accel + self.args.lane_weight * lane + self.args.value_coef * value
+            accel, lane, _ = self.losses(torch.as_tensor(ii, device=self.device))
+            loss = accel + self.args.lane_weight * lane
             self.optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.net.parameters(), self.args.max_grad_norm)
             self.optimizer.step()
-        self.target.load_state_dict(self.net.state_dict())
 
     @torch.no_grad()
     def evaluate(self, idx):
         self.net.eval()
         if len(idx) == 0:
             return None
-        sums, n, preds, labels, masked = {"accel": 0.0, "lane": 0.0, "value": 0.0, "accel_mae": 0.0}, 0, [], [], 0
+        sums, n, preds, labels, masked = {"accel": 0.0, "lane": 0.0, "accel_mae": 0.0}, 0, [], [], 0
         for ii in np.array_split(idx, max(1, int(np.ceil(len(idx) / 4096)))):
             ii_t = torch.as_tensor(ii, device=self.device)
-            accel, lane, value, (mu, logits, _, _, ok) = self.losses(ii_t)
+            accel, lane, (mu, logits, ok) = self.losses(ii_t)
             k = len(ii)
             sums["accel"] += float(accel) * k
             sums["lane"] += float(lane) * k
-            sums["value"] += float(value) * k
             sums["accel_mae"] += float((mu - self.accel[ii_t]).abs().sum())
             sums["accel_mse_pred"] = sums.get("accel_mse_pred", 0.0) + float((mu - self.accel[ii_t]).square().sum())
             preds.append(logits.argmax(-1).cpu().numpy())
@@ -261,7 +234,7 @@ class Trainer:
         per_class = [float((p[y == c] == c).mean()) if (y == c).any() else None for c in range(self.n_lane)]
         seen = [r for r in per_class if r is not None]
         out = {"accel_loss": sums["accel"] / n, "accel_mse": sums["accel_mse_pred"] / n,
-               "lane_ce": sums["lane"] / n, "value_td": sums["value"] / n,
+               "lane_ce": sums["lane"] / n,
                "accel_mae": sums["accel_mae"] / n, "lane_acc": float((p == y).mean()),
                "lane_recall_per_class": per_class, "lane_balanced_acc": float(np.mean(seen)) if seen else None,
                "lane_change_recall": float((p[change] == y[change]).mean()) if change.any() else None,
@@ -296,7 +269,7 @@ class Trainer:
 
 
 RESUME_FREE_ARGS = {"resume", "epochs", "device", "data", "data_list", "out", "patience", "tensorboard"}
-TB_KEYS = ("bc_loss", "accel_loss", "lane_ce", "value_td", "accel_mae", "accel_bin_acc", "lane_acc", "lane_balanced_acc",
+TB_KEYS = ("bc_loss", "accel_loss", "lane_ce", "accel_mae", "accel_bin_acc", "lane_acc", "lane_balanced_acc",
            "lane_change_recall", "lane_change_precision", "lane_move_recall", "lane_move_precision", "keep_to_move",
            "blink_to_move", "wrong_side")
 LANE_CLASS_NAMES = {3: ("left", "keep", "right"),
@@ -393,7 +366,7 @@ def main(argv=None):
     ap.add_argument("--input", choices=sorted(INPUT_LAYOUT), default="observation")
     ap.add_argument("--mask-obs-indices", default="", help="observation에서 0으로 지울 열(예: 1,2,3,4,5)")
     ap.add_argument("--split-file", help='{"split": {"train": [...], "validation": [...], "test": [...]}} 에피소드 키')
-    ap.add_argument("--config", help="온라인 run_config.json. 주면 그 설정(ego, observation, PPO hparams)을 이어받는다")
+    ap.add_argument("--config", help="온라인 run_config.json. 주면 그 설정(road, ego, observation 등)을 run_config에 옮겨 적는다")
     # 네트워크
     ap.add_argument("--feature-size", type=int, default=DEFAULT_ATTENTION["feature_size"])
     ap.add_argument("--heads", type=int, default=DEFAULT_ATTENTION["heads"])
@@ -419,8 +392,6 @@ def main(argv=None):
     ap.add_argument("--accel-weighting", choices=WEIGHTINGS, default="none", help="가감속 구간 클래스 가중 방식")
     ap.add_argument("--accel-weight-cap", type=float, default=10.0)
     ap.add_argument("--cb-beta", type=float, default=0.9999, help="effective 가중의 beta")
-    ap.add_argument("--value-coef", type=float, default=0.5, help="0이면 critic을 학습하지 않는다")
-    ap.add_argument("--gamma", type=float, default=0.999)
     ap.add_argument("--max-grad-norm", type=float, default=0.5)
     ap.add_argument("--weight-decay", type=float, default=0.0, help="0보다 크면 AdamW")
     ap.add_argument("--lr-schedule", choices=("none", "cosine", "plateau"), default="none")
@@ -473,23 +444,21 @@ def main(argv=None):
                      self_attention=a.self_attention, dropout=a.dropout, lane_action_mask=a.lane_action_mask,
                      lane_classes=data["n_lane"], accel_bins=a.accel_bins)
     base_config = json.loads(Path(a.config).read_text(encoding="utf-8")) if a.config else {}
-    hp = {**PPO_DEFAULTS, **{k: v for k, v in (base_config.get("hparams") or {}).items()
-                             if k in PPO_DEFAULTS}}
-    hp.update(policy_type="ego_attention", attention=attention, init_log_std=a.init_log_std,
-              lane_keep_bias=a.lane_keep_bias, seed=a.seed, device=a.device)
-    agent = PPO(obs_dim, 2, **hp)
-    trainer = Trainer(agent, data, a, agent.device)
-    cw = trainer.set_class_weights(torch.as_tensor(idx["train"], device=agent.device))
+    network = {"attention": attention, "init_log_std": a.init_log_std, "lane_keep_bias": a.lane_keep_bias}
+    device = torch.device(a.device)
+    torch.manual_seed(a.seed)
+    net = build_policy(obs_dim, network, device)
+    trainer = Trainer(net, data, a, device)
+    cw = trainer.set_class_weights(torch.as_tensor(idx["train"], device=device))
     counts = cw["lane_counts"]
-    n_params = sum(p.numel() for p in agent.policy.parameters() if p.requires_grad)
+    n_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
     print(f"rows={len(data['key'])} train/val/test={[len(idx[k]) for k in ('train', 'validation', 'test')]} "
           f"split={split_info['mode']} input={a.input}({obs_dim}) params={n_params} lane_counts={counts}", flush=True)
 
     sched = make_scheduler(trainer.optimizer, a)
     ck = {"epoch": 0, "best": float("inf"), "best_epoch": 0, "bad": 0, "stopped": False, "best_state": None}
     if state is not None:
-        agent.policy.load_state_dict(state["net"])
-        trainer.target.load_state_dict(state["target"])
+        net.load_state_dict(state["net"])
         trainer.optimizer.load_state_dict(state["optimizer"])
         if sched is not None and state.get("scheduler") is not None:
             sched.load_state_dict(state["scheduler"])
@@ -524,7 +493,7 @@ def main(argv=None):
                 log_tensorboard(tb, epoch, row, trainer.n_lane)
             if va["bc_loss"] < ck["best"]:
                 ck.update(best=va["bc_loss"], best_epoch=epoch, bad=0,
-                          best_state={k: v.detach().cpu().clone() for k, v in agent.policy.state_dict().items()})
+                          best_state={k: v.detach().cpu().clone() for k, v in net.state_dict().items()})
                 atomic_save(ck["best_state"], out / "model.pt")
             else:
                 ck["bad"] += 1
@@ -532,8 +501,7 @@ def main(argv=None):
                 sched.step(va["bc_loss"]) if a.lr_schedule == "plateau" else sched.step()
             ck["epoch"] = epoch
             ck["stopped"] = bool(a.patience and ck["bad"] >= a.patience)
-            atomic_save({**ck, "net": agent.policy.state_dict(), "target": trainer.target.state_dict(),
-                         "optimizer": trainer.optimizer.state_dict(),
+            atomic_save({**ck, "net": net.state_dict(), "optimizer": trainer.optimizer.state_dict(),
                          "scheduler": sched.state_dict() if sched is not None else None,
                          "np_rng": rng.bit_generator.state, "torch_rng": torch.get_rng_state(),
                          "cuda_rng": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None},
@@ -542,22 +510,16 @@ def main(argv=None):
                 print(f"epoch {epoch:4d} lr={lr:.2e} train bc={tr['bc_loss']:.4f} val bc={va['bc_loss']:.4f} "
                       f"acc_mae={va['accel_mae']:.3f} lane_acc={va['lane_acc']:.3f} "
                       f"lane_bal={va['lane_balanced_acc']} move_recall={va.get('lane_move_recall')} "
-                      f"V_td={va['value_td']:.4f} ({row['time_s']:.1f}s)", flush=True)
+                      f"({row['time_s']:.1f}s)", flush=True)
             if ck["stopped"]:
                 print(f"early stop: {a.patience} 에폭 동안 validation bc_loss가 좋아지지 않았다", flush=True)
     if ck["best_state"] is None:
         raise RuntimeError("학습한 에폭이 없습니다(--epochs 확인)")
     best_epoch = ck["best_epoch"]
 
-    agent.policy.load_state_dict(ck["best_state"])
+    net.load_state_dict(ck["best_state"])
     atomic_save(ck["best_state"], out / "model.pt")
-    trainer.net = agent.policy
     final = {k: trainer.evaluate(v) for k, v in idx.items()}
-    restored = PPO(obs_dim, 2, **hp)
-    restored.load(str(out / "model.pt"))
-    probe = torch.as_tensor(data["x"][:32], device=agent.device)
-    with torch.no_grad():
-        assert torch.equal(agent.policy.det_action(probe), restored.policy.det_action(probe))
 
     settings = {k: base_config[k] for k in ("road", "ego", "traffic", "simulation", "observation", "action")
                 if k in base_config}
@@ -565,19 +527,23 @@ def main(argv=None):
         settings["ego"] = {**settings.get("ego", {}), "observation_mask_indices": mask_idx}
         settings["observation"] = {**settings.get("observation", {}), "masked_indices": mask_idx}
     processed_meta = paths[0].with_name("metadata.json")
-    config = {**settings, "kind": "ego_attention_bc_pretraining", "hparams": hp, "input": a.input, "obs_dim": obs_dim,
-              "data": sources, "reward": base_config.get("reward"),
+    config = {**settings, "kind": "ego_attention_bc", "network": network, "input": a.input, "obs_dim": obs_dim,
+              "data": sources,
               "data_metadata": json.loads(processed_meta.read_text(encoding="utf-8")) if processed_meta.is_file() else None,
               "created_at": datetime.now().astimezone().isoformat()}
     (out / "run_config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    restored, _ = load_policy_dir(out, device)   # 저장한 폴더만으로 같은 행동이 나오는지 확인
+    probe = torch.as_tensor(data["x"][:32], device=device)
+    net.eval()
+    with torch.no_grad():
+        assert torch.equal(net.det_action(probe), restored.det_action(probe))
     audit = {"split": split_info, "selected_epoch": best_epoch, "final": final,
              "attention_by_type_validation": trainer.attention_summary(idx["validation"]),
              "lane_counts_train": counts, "lane_weights": cw["lane_weights"], "class_weights": cw,
              "trainable_parameters": n_params,
              "loss": {"accel": (f"구간 {a.accel_bins}개 CE({a.accel_weighting} 가중, 상한 {a.accel_weight_cap})"
                                 if a.accel_bins else "MSE") + f", 제동(<{BRAKE_THRESHOLD}) 표본 가중 {a.brake_weight}",
-                      "lane": f"{a.lane_weighting} 클래스 가중 CE x {a.lane_weight}(최다 클래스 대비 상한 {a.lane_weight_cap})",
-                      "value": f"smooth L1 TD(0) x {a.value_coef}, gamma {a.gamma}, 몸통 detach, 에폭마다 target 갱신"},
+                      "lane": f"{a.lane_weighting} 클래스 가중 CE x {a.lane_weight}(최다 클래스 대비 상한 {a.lane_weight_cap})"},
              "selection": "validation bc_loss 최소; test는 선택에 쓰지 않음", "save_load_parity": True,
              "epochs_run": ck["epoch"], "early_stopped": ck["stopped"],
              "args": vars(a)}

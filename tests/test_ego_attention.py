@@ -1,4 +1,4 @@
-"""Ego-attention 정책: layout, 마스크, 순서 불변, PPO 연결, BC 스크립트(SUMO 없이)."""
+"""Ego-attention 정책: layout, 마스크, 순서 불변, 저장·불러오기, BC 스크립트(SUMO 없이)."""
 import json
 import os
 import sys
@@ -9,9 +9,8 @@ import torch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from algorithms.ppo import PPO  # noqa: E402
 from env.bus_task import LAYOUT  # noqa: E402
-from utils.ego_attention import LAYOUTS, EgoAttentionHybridActorCritic  # noqa: E402
+from utils.ego_attention import LAYOUTS, EgoAttentionHybridPolicy, load_policy_dir  # noqa: E402
 
 
 def _obs(layout, rng, n=4):
@@ -48,12 +47,13 @@ def test_features130_layout_matches_feature_names():
 @pytest.mark.parametrize("layout", ["obs93", "features130", "both"])
 def test_shapes_and_interface(layout):
     rng = np.random.default_rng(0)
-    net = EgoAttentionHybridActorCritic(LAYOUTS[layout]["dim"], {"layout": layout, "self_attention": True})
+    net = EgoAttentionHybridPolicy(LAYOUTS[layout]["dim"], {"layout": layout, "self_attention": True})
     x = torch.as_tensor(_obs(layout, rng))
-    mu, std, logits, v = net(x)
-    assert mu.shape == (4, 1) and logits.shape == (4, 3) and v.shape == (4,) and std.shape == (1,)
-    a, logp, _ = net.sample(x)
-    logp2, ent, _ = net.evaluate_actions(x, a)
+    mu, std, logits = net(x)
+    assert mu.shape == (4, 1) and logits.shape == (4, 3) and std.shape == (1,)
+    assert not any(n.startswith("v_head") for n in net.state_dict())
+    a, logp = net.sample(x)
+    logp2, ent = net.evaluate_actions(x, a)
     torch.testing.assert_close(logp, logp2)
     assert set(net.det_action(x)[:, 1].tolist()) <= {-1.0, 0.0, 1.0}
     att = net.attention_matrix(x)
@@ -64,7 +64,7 @@ def test_shapes_and_interface(layout):
 def test_absent_entities_are_ignored_and_order_invariant():
     torch.manual_seed(0)
     rng = np.random.default_rng(1)
-    net = EgoAttentionHybridActorCritic(93).eval()
+    net = EgoAttentionHybridPolicy(93).eval()
     x = _obs("obs93", rng, 1)
     base = net(torch.as_tensor(x))
     y = x.copy()
@@ -82,26 +82,32 @@ def test_absent_entities_are_ignored_and_order_invariant():
 
 
 def test_lane_action_mask_blocks_unavailable_side():
-    net = EgoAttentionHybridActorCritic(93, {"lane_action_mask": True}, lane_keep_bias=-5.0)
+    net = EgoAttentionHybridPolicy(93, {"lane_action_mask": True}, lane_keep_bias=-5.0)
     x = torch.as_tensor(_obs("obs93", np.random.default_rng(2), 64))
     x[:, 2] = 0.0   # 왼쪽 차로 없음
     x[:, 4] = 1.0
     for _ in range(5):
-        a, _, _ = net.sample(x)
+        a, _ = net.sample(x)
         assert (a[:, 1] != 1.0).all()
 
 
-def test_ppo_ego_attention_save_load(tmp_path):
-    hp = dict(policy_type="ego_attention", attention={"heads": 2, "feature_size": 32, "embed_layers": [32]},
-              device="cpu", seed=3)
-    agent = PPO(93, 2, **hp)
-    agent.save(str(tmp_path / "m.pt"))
-    other = PPO(93, 2, **json.loads(json.dumps(hp)))
-    other.load(str(tmp_path / "m.pt"))
-    obs = _obs("obs93", np.random.default_rng(3), 1)[0]
-    np.testing.assert_array_equal(agent.predict(obs, True), other.predict(obs, True))
-    action, logp, value = agent.act(obs)
-    assert action.shape == (2,) and np.isfinite(logp) and np.isfinite(value)
+def test_load_policy_dir_reads_legacy_output_with_v_head(tmp_path):
+    """critic을 두던 때의 출력(run_config "hparams", model.pt에 v_head)도 읽는다."""
+    attention = {"heads": 2, "feature_size": 32, "embed_layers": [32]}
+    net = EgoAttentionHybridPolicy(93, attention).eval()
+    state = dict(net.state_dict(), **{"v_head.weight": torch.zeros(1, 64), "v_head.bias": torch.zeros(1)})
+    torch.save(state, tmp_path / "model.pt")
+    (tmp_path / "run_config.json").write_text(json.dumps(
+        {"obs_dim": 93, "hparams": {"policy_type": "ego_attention", "attention": attention, "lr": 1e-4}}))
+    loaded, _ = load_policy_dir(tmp_path)
+    x = torch.as_tensor(_obs("obs93", np.random.default_rng(3), 4))
+    torch.testing.assert_close(net.det_action(x), loaded.det_action(x))
+
+
+def test_lane_label_of():
+    from utils.ego_attention import LANE_CMDS, lane_label_of
+    assert [lane_label_of(c, 5) for c in LANE_CMDS[5]] == [2, 1, 0, -1, -2]
+    assert [lane_label_of(c, 3) for c in LANE_CMDS[3]] == [1, 0, -1]
 
 
 def _fake_npz(path, rng, episodes, rows=40):
@@ -113,11 +119,7 @@ def _fake_npz(path, rng, episodes, rows=40):
     act = np.stack([np.clip(obs[:, 0] * 0.5, -1, 1), lane], 1).astype(np.float32)
     ep = np.repeat(np.arange(episodes), rows).astype(np.int32)
     t = np.tile(np.arange(rows), episodes).astype(np.int32)
-    term = t == rows - 1
-    np.savez_compressed(path, observation=obs, next_observation=np.roll(obs, -1, 0), action_raw=act,
-                        reward=rng.normal(0, 0.1, n).astype(np.float32), terminated=term,
-                        truncated=np.zeros(n, bool), episode=ep, t=t, features=feats,
-                        next_features=np.roll(feats, -1, 0))
+    np.savez_compressed(path, observation=obs, action_raw=act, episode=ep, t=t, features=feats)
 
 
 @pytest.mark.parametrize("extra,episodes", [([], 4), (["--input", "both", "--mask-obs-indices", "1,2,3,4,5"], 1)])
@@ -136,8 +138,8 @@ def test_bc_script_smoke(tmp_path, extra, episodes):
     audit = json.loads((out / "audit.json").read_text(encoding="utf-8"))
     assert audit["split"]["mode"] == ("episode" if episodes >= 2 else "time_block")
     assert audit["final"]["test"]["rows"] > 0
-    agent = PPO(cfg["obs_dim"], 2, **cfg["hparams"])
-    agent.load(str(out / "model.pt"))
+    assert "hparams" not in cfg and cfg["network"]["attention"]["heads"] == 2
+    load_policy_dir(out)
     if extra:
         assert cfg["ego"]["observation_mask_indices"] == [1, 2, 3, 4, 5]
 
@@ -155,16 +157,16 @@ def test_v2_layout_matches_obs_v2_names():
 
 
 def test_v2_five_lane_classes_interface_and_mask():
-    net = EgoAttentionHybridActorCritic(166, {"layout": "v2", "lane_classes": 5, "lane_action_mask": True},
+    net = EgoAttentionHybridPolicy(166, {"layout": "v2", "lane_classes": 5, "lane_action_mask": True},
                                         lane_keep_bias=-5.0)
     x = torch.as_tensor(_obs("v2", np.random.default_rng(5), 64))
     x[:, 4], x[:, 5] = 0.0, 1.0          # 왼쪽 차로 없음, 오른쪽 있음
-    mu, _, logits, _ = net(x)
+    mu, _, logits = net(x)
     assert logits.shape == (64, 5)
     for _ in range(5):
-        a, logp, _ = net.sample(x)
+        a, logp = net.sample(x)
         assert set(a[:, 1].tolist()) <= {0.0, -0.5, -1.0}     # 왼쪽 방향지시등·변경(+0.5, +1)은 막힌다
-        logp2, _, _ = net.evaluate_actions(x, a)
+        logp2, _ = net.evaluate_actions(x, a)
         torch.testing.assert_close(logp, logp2)
     assert set(net.det_action(x)[:, 1].tolist()) <= {1.0, 0.5, 0.0, -0.5, -1.0}
 
@@ -176,9 +178,7 @@ def _fake_npz_v2(path, rng, episodes, rows=40):
     act = np.stack([np.clip(obs[:, 0] * 0.5, -1, 1), lane], 1).astype(np.float32)
     ep = np.repeat(np.arange(episodes), rows).astype(np.int32)
     t = np.tile(np.arange(rows), episodes).astype(np.int32)
-    np.savez_compressed(path, observation_v2=obs, next_observation_v2=np.roll(obs, -1, 0), action_raw=act,
-                        prev_action_raw=np.roll(act, 1, 0), reward=rng.normal(0, 0.1, n).astype(np.float32),
-                        terminated=t == rows - 1, truncated=np.zeros(n, bool), episode=ep, t=t)
+    np.savez_compressed(path, observation_v2=obs, action_raw=act, prev_action_raw=np.roll(act, 1, 0), episode=ep, t=t)
 
 
 def test_bc_script_v2_five_classes(tmp_path):
@@ -192,20 +192,20 @@ def test_bc_script_v2_five_classes(tmp_path):
           "--embed-layers", "16", "--output-layers", "16"])
     cfg = json.loads((out / "run_config.json").read_text(encoding="utf-8"))
     audit = json.loads((out / "audit.json").read_text(encoding="utf-8"))
-    assert cfg["obs_dim"] == 166 and cfg["hparams"]["attention"]["lane_classes"] == 5
+    assert cfg["obs_dim"] == 166 and cfg["network"]["attention"]["lane_classes"] == 5
     assert len(audit["lane_counts_train"]) == 5 and "lane_move_recall" in audit["final"]["test"]
-    agent = PPO(166, 2, **cfg["hparams"])
-    agent.load(str(out / "model.pt"))
+    net, _ = load_policy_dir(out)
+    assert net.n_lane == 5
 
 
 def test_accel_bins_interface_roundtrip():
     from utils.ego_attention import accel_bin_of
-    net = EgoAttentionHybridActorCritic(166, {"layout": "v2", "lane_classes": 5, "accel_bins": 11})
+    net = EgoAttentionHybridPolicy(166, {"layout": "v2", "lane_classes": 5, "accel_bins": 11})
     x = torch.as_tensor(_obs("v2", np.random.default_rng(7), 16))
-    a, logp, _ = net.sample(x)
+    a, logp = net.sample(x)
     grid = set(np.round(np.linspace(-1, 1, 11), 6).tolist())
     assert set(np.round(a[:, 0].numpy().astype(np.float64), 6).tolist()) <= grid
-    logp2, ent, _ = net.evaluate_actions(x, a)
+    logp2, ent = net.evaluate_actions(x, a)
     torch.testing.assert_close(logp, logp2)
     assert net.current_std == 0.0 and not hasattr(net, "mu_head")
     assert accel_bin_of(torch.tensor([-1.0, -0.04, 0.06, 1.0, 1.7]), 11).tolist() == [0, 5, 5, 10, 10]

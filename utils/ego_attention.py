@@ -1,7 +1,8 @@
-"""Ego-attention 하이브리드 Actor-Critic (rl-agents EgoAttention 재사용).
+"""Ego-attention 하이브리드 정책 (rl-agents EgoAttention 재사용, 행동 복제 전용).
 
 ref/rl-agents의 EgoAttention·SelfAttention·MultiLayerPerceptron을 그대로 쓰고, 버스 관측 벡터를
-엔티티 타입별 token으로 나누는 부분과 하이브리드 출력(가감속 Normal + 차선 Categorical + V)만 이 파일에 둔다.
+엔티티 타입별 token으로 나누는 부분과 하이브리드 출력(가감속 Normal 또는 구간 Categorical + 차선 Categorical)만
+이 파일에 둔다. 가치 함수(critic)는 없다. BC만으로 학습하고 PPO로 이어 학습하지 않는다.
 rl-agents의 EgoAttentionNetwork는 ego와 다른 엔티티가 같은 특징 차원이어야 하지만, 버스 관측은 타입마다
 특징이 다르다(차량 5개, 보행자 11개 등). 그래서 타입마다 embedding MLP를 따로 두고 같은 feature_size로 맞춘다
 (SUMO_AV_input_설계.md "엔티티 타입별 token에 ego-attention" 권고).
@@ -17,12 +18,16 @@ rl-agents의 EgoAttentionNetwork는 ego와 다른 엔티티가 같은 특징 차
     v2          : pdm_data/obs_v2.py 관측 v2(docs/observation_features_v2.md) 166차원
                   ego = 16, token = 차량 8개 x 12, 보행자 6개 x 9. 5값 차로 라벨과 함께 쓴다(lane_classes=5)
 
-출력 인터페이스는 utils/networks.py의 HybridActorCritic과 같다. 그래서 algorithms/ppo.py가 그대로 쓴다.
-    forward(obs) -> (mu, std, lane_logits, value)
-    sample / det_action / evaluate_actions / lane_entropy / lane_change_prob / current_std
+출력 인터페이스
+    forward(obs) -> (mu, std, lane_logits)
+    sample(obs) -> (action, log_prob), evaluate_actions(obs, action) -> (log_prob, entropy)
+    det_action / lane_entropy / lane_change_prob / current_std / attention_matrix
+저장·불러오기: scripts/train_ego_attention_bc.py 출력 폴더(run_config.json + model.pt)를 load_policy_dir로 읽는다.
 """
 from __future__ import annotations
 
+import json
+import os
 import sys
 from pathlib import Path
 
@@ -125,7 +130,7 @@ def _orthogonal(module, gain):
     return module
 
 
-class EgoAttentionHybridActorCritic(nn.Module):
+class EgoAttentionHybridPolicy(nn.Module):
     # 차선 인덱스 ↔ 명령: LANE_CMDS[lane_classes]. 3클래스는 0=왼쪽(+1), 1=유지(0), 2=오른쪽(-1)로 HybridActorCritic과 같다.
 
     def __init__(self, obs_dim: int, attention: dict = None, init_log_std=-0.5, lane_keep_bias: float = 1.0):
@@ -162,7 +167,6 @@ class EgoAttentionHybridActorCritic(nn.Module):
         else:
             self.mu_head = _orthogonal(nn.Linear(last, 1), 0.01)
         self.lane_head = _orthogonal(nn.Linear(last, self.n_lane), 0.01)
-        self.v_head = _orthogonal(nn.Linear(last, 1), 1.0)
         with torch.no_grad():
             self.lane_head.bias[self.keep] = lane_keep_bias
         if not np.isscalar(init_log_std):
@@ -211,12 +215,12 @@ class EgoAttentionHybridActorCritic(nn.Module):
         return self.accel_head(z)
 
     def heads(self, z, obs):
-        """(mu (B,1), std, 차로 로짓, V). 구간 분류면 mu는 구간 중심의 기댓값이다."""
+        """(mu (B,1), std, 차로 로짓). 구간 분류면 mu는 구간 중심의 기댓값이다."""
         if self.n_accel:
             mu = (torch.softmax(self.accel_head(z), dim=-1) * self.accel_values).sum(-1, keepdim=True)
         else:
             mu = torch.tanh(self.mu_head(z))
-        return mu, torch.exp(self.log_std), self.lane_logits(z, obs), self.v_head(z).squeeze(-1)
+        return mu, torch.exp(self.log_std), self.lane_logits(z, obs)
 
     def forward(self, obs):
         return self.heads(self.encode(obs), obs)
@@ -224,14 +228,14 @@ class EgoAttentionHybridActorCritic(nn.Module):
     def _dists(self, obs):
         z = self.encode(obs)
         lane = Categorical(logits=self.lane_logits(z, obs))
-        value = self.v_head(z).squeeze(-1)
         if self.n_accel:
-            return Categorical(logits=self.accel_head(z)), lane, value
-        return Normal(torch.tanh(self.mu_head(z)), torch.exp(self.log_std)), lane, value
+            return Categorical(logits=self.accel_head(z)), lane
+        return Normal(torch.tanh(self.mu_head(z)), torch.exp(self.log_std)), lane
 
-    # ---- algorithms/ppo.py가 쓰는 인터페이스 ----------------------------
+    # ---- 행동 ----------------------------------------------------------
     def sample(self, obs):
-        ad, cd, value = self._dists(obs)
+        """확률적 행동과 그 로그 확률."""
+        ad, cd = self._dists(obs)
         lane_idx = cd.sample()
         if self.n_accel:
             a_idx = ad.sample()
@@ -239,21 +243,23 @@ class EgoAttentionHybridActorCritic(nn.Module):
         else:
             accel = ad.sample()
             log_a = ad.log_prob(accel).sum(-1)
-        return torch.cat([accel, self.lane_cmds[lane_idx].unsqueeze(-1)], dim=-1), log_a + cd.log_prob(lane_idx), value
+        return torch.cat([accel, self.lane_cmds[lane_idx].unsqueeze(-1)], dim=-1), log_a + cd.log_prob(lane_idx)
 
     def det_action(self, obs):
-        ad, cd, _ = self._dists(obs)
+        """결정적 행동 [정규화 가감속, 차로 명령(LANE_CMDS 값)]."""
+        ad, cd = self._dists(obs)
         accel = self.accel_values[ad.logits.argmax(-1)].unsqueeze(-1) if self.n_accel else ad.mean
         return torch.cat([accel, self.lane_cmds[torch.argmax(cd.logits, dim=-1)].unsqueeze(-1)], dim=-1)
 
     def evaluate_actions(self, obs, actions):
-        ad, cd, value = self._dists(obs)
+        """주어진 행동의 (로그 확률, 엔트로피)."""
+        ad, cd = self._dists(obs)
         lane_idx = lane_class_of(actions[:, 1], self.n_lane)
         if self.n_accel:
             log_a, ent_a = ad.log_prob(accel_bin_of(actions[:, 0], self.n_accel)), ad.entropy()
         else:
             log_a, ent_a = ad.log_prob(actions[:, :1]).sum(-1), ad.entropy().sum(-1)
-        return log_a + cd.log_prob(lane_idx), ent_a + cd.entropy(), value
+        return log_a + cd.log_prob(lane_idx), ent_a + cd.entropy()
 
     def lane_entropy(self, obs):
         return Categorical(logits=self.forward(obs)[2]).entropy()
@@ -271,3 +277,36 @@ class EgoAttentionHybridActorCritic(nn.Module):
         """진단용: 헤드 평균 attention (B, 1+N). 열 순서는 self.entities."""
         _, att = self.attend(obs)
         return att.mean(dim=1).squeeze(1)
+
+
+# ---- 만들기·불러오기 -----------------------------------------------------
+NETWORK_KEYS = ("attention", "init_log_std", "lane_keep_bias")
+# critic을 두던 때 저장한 model.pt에 남아 있는 키. 불러올 때 버린다.
+LEGACY_KEYS = ("v_head.weight", "v_head.bias")
+
+
+def build_policy(obs_dim: int, network: dict, device="cpu") -> EgoAttentionHybridPolicy:
+    """network = run_config.json의 "network"(attention, init_log_std, lane_keep_bias)."""
+    kw = {k: network[k] for k in NETWORK_KEYS if k in network}
+    return EgoAttentionHybridPolicy(obs_dim, **kw).to(device)
+
+
+def load_policy_dir(model_dir, device="cpu"):
+    """scripts/train_ego_attention_bc.py 출력 폴더 -> (eval 모드 정책, run_config).
+
+    예전 출력(PPO "hparams"에 네트워크 설정, model.pt에 v_head)도 읽는다.
+    """
+    with open(os.path.join(model_dir, "run_config.json"), encoding="utf-8") as f:
+        cfg = json.load(f)
+    network = cfg.get("network") or cfg["hparams"]
+    if network.get("policy_type", "ego_attention") != "ego_attention":
+        raise ValueError(f"ego_attention 정책이 아닙니다: {model_dir}")
+    net = build_policy(cfg["obs_dim"], network, device)
+    state = torch.load(os.path.join(model_dir, "model.pt"), map_location=device, weights_only=True)
+    net.load_state_dict({k: v for k, v in state.items() if k not in LEGACY_KEYS})
+    return net.eval(), cfg
+
+
+def lane_label_of(cmd, n):
+    """행동 벡터의 차로 값(LANE_CMDS[n]) -> 차로 라벨. 5클래스는 {+2, +1, 0, -1, -2}, 3클래스는 {+1, 0, -1}."""
+    return int(round(float(cmd) * (n // 2)))

@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import dataclasses
-import json
 import math
 import os
 
@@ -43,26 +42,22 @@ def plan_dicts(pilot) -> list:
 # ---------------------------------------------------------------- 정책 불러오기
 def load_policy(model_dir: str, device: str = "cpu"):
     """scripts/train_ego_attention_bc.py 출력 폴더 -> (정책 함수 obs -> (정규화 가감속, 차로 5값), 정보).
-    정책 함수는 결정적이다(가감속 구간 argmax, 차로 argmax)."""
+    정책 함수는 결정적이다(가감속 구간 argmax, 차로 argmax).
+    차로 5값: +2/-2 좌/우로 옮김, +1/-1 방향지시등만, 0 유지(traffic/policy_bus.PolicyBus.decide의 lane_cmd)."""
     import torch
-    from algorithms.ppo import PPO
-    with open(os.path.join(model_dir, "run_config.json"), encoding="utf-8") as f:
-        cfg = json.load(f)
+    from utils.ego_attention import lane_label_of, load_policy_dir
+    net, cfg = load_policy_dir(model_dir, device)
     if cfg.get("input") != "v2":
         raise ValueError(f"관측 v2(--input v2)로 학습한 모델만 평가한다: {model_dir} input={cfg.get('input')}")
-    hp = {**cfg["hparams"], "device": device}
-    agent = PPO(cfg["obs_dim"], 2, **hp)
-    agent.load(os.path.join(model_dir, "model.pt"))
-    agent.policy.eval()
     scale = ((cfg.get("data_metadata") or {}).get("accel_scale")) or DEFAULT_ACCEL_SCALE
 
     def act(obs):
         with torch.no_grad():
-            a = agent.policy.det_action(torch.as_tensor(obs, dtype=torch.float32, device=device).unsqueeze(0))[0]
-        return float(a[0]), int(round(float(a[1])))
+            a = net.det_action(torch.as_tensor(obs, dtype=torch.float32, device=device).unsqueeze(0))[0]
+        # 행동 벡터의 차로 값은 라벨 / (클래스 수 // 2)다(5클래스면 {1, 0.5, 0, -0.5, -1}). 라벨로 되돌린다.
+        return float(a[0]), lane_label_of(a[1], net.n_lane)
     return act, {"model_dir": os.path.abspath(model_dir), "accel_scale": dict(scale), "obs_dim": cfg["obs_dim"],
-                 "lane_classes": (hp.get("attention") or {}).get("lane_classes"),
-                 "accel_bins": (hp.get("attention") or {}).get("accel_bins")}
+                 "lane_classes": net.n_lane, "accel_bins": net.n_accel}
 
 
 # ---------------------------------------------------------------- 판단

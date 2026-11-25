@@ -47,7 +47,6 @@ import torch
 import torch.nn as nn
 
 from utils.networks import GaussianActorCritic, HybridActorCritic
-from utils.ego_attention import EgoAttentionHybridActorCritic
 from utils.evaluator import evaluate_policy
 from utils.buffer import RolloutBuffer
 
@@ -84,13 +83,12 @@ class PPO:
         normalize_advantage: bool = True,
         # ---- 네트워크 ----
         policy_type: str = "hybrid",  # "hybrid"(가감속 연속 + 차선 이산, 권장)
-                                      # | "ego_attention"(hybrid 행동 + EgoAttention 몸통)
                                       # | "gaussian"(모든 축 연속 — dead zone 있음)
+                                      # EgoAttention 정책은 critic이 없는 BC 전용이라 여기서 쓰지 않는다
+                                      # (utils/ego_attention.py, scripts/train_ego_attention_bc.py)
         lane_keep_bias: float = 1.0,  # hybrid 전용: 차선 "유지" 초기 편향
         hidden_sizes=(64, 64),
         activation: str = "tanh",
-        attention: dict = None,       # policy_type="ego_attention" 전용 네트워크 설정
-                                      # (utils/ego_attention.py DEFAULT_ATTENTION 참고)
         init_log_std=-0.5,            # 초기 탐험 폭 σ = exp(·). 스칼라 또는
                                       # 차원별 튜플 (utils/networks.py 참고)
         # ---- 기타 ----
@@ -119,22 +117,15 @@ class PPO:
                 init_log_std=init_log_std,
                 lane_keep_bias=lane_keep_bias,
             ).to(self.device)
-        elif policy_type == "ego_attention":
-            # hybrid와 같은 행동 분포, 몸통만 rl-agents EgoAttention (utils/ego_attention.py)
-            assert act_dim == 2, "ego_attention 정책은 [가감속, 차선] 2차원 행동 전용"
-            self.policy = EgoAttentionHybridActorCritic(
-                obs_dim,
-                attention=attention,
-                init_log_std=init_log_std,
-                lane_keep_bias=lane_keep_bias,
-            ).to(self.device)
-        else:
+        elif policy_type == "gaussian":
             self.policy = GaussianActorCritic(
                 obs_dim, act_dim,
                 hidden_sizes=hidden_sizes,
                 activation=activation,
                 init_log_std=init_log_std,
             ).to(self.device)
+        else:
+            raise ValueError(f"policy_type은 hybrid 또는 gaussian: {policy_type!r}")
         self.policy_type = policy_type
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr)
 

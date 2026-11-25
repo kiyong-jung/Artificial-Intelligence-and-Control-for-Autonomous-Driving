@@ -7,7 +7,7 @@
   backlog_end      끝날 때 아직 못 들어간 차 수
   running          도로 위 차 수(마지막 300초 평균)
   standing_120s    120초 넘게 한 번도 0.1m/s를 넘지 못한 차 수(마지막 300초 평균). 커지기만 하면 gridlock이다
-  collisions       배경 차끼리 충돌 수
+  collisions       배경 차끼리 충돌 보고 수. collision_pairs는 서로 다른 (충돌한 차, 맞은 차) 쌍의 수
   arrived_per_h    도착한 차(시간당). 수요를 키워도 늘지 않으면 도로가 포화다
   route_near/mid   버스 경로 위 차 밀도(대/차로-km). near는 다음 신호 정지선 60m 안, mid는 그 밖(블록 중간)
 """
@@ -59,6 +59,7 @@ def probe(job):
     traci.start([checkBinary("sumo"), "-c", cfg, "--no-step-log", "--no-warnings", "--seed", str(seed)], label=label)
     conn = traci.getConnection(label)
     loaded = departed = arrived = collisions = 0
+    pairs = set()   # 같은 충돌이 여러 스텝 보고될 수 있어 (충돌한 차, 맞은 차) 쌍도 센다
     samples = []
     steps_per_sample = int(round(10.0 / float(conn.simulation.getDeltaT())))
     for step in range(int(seconds / conn.simulation.getDeltaT())):
@@ -66,7 +67,9 @@ def probe(job):
         loaded += conn.simulation.getLoadedNumber()
         departed += conn.simulation.getDepartedNumber()
         arrived += conn.simulation.getArrivedNumber()
-        collisions += len(conn.simulation.getCollisions())
+        for collision in conn.simulation.getCollisions():
+            collisions += 1
+            pairs.add((collision.collider, collision.victim))
         if (step + 1) % steps_per_sample:
             continue
         ids = conn.vehicle.getIDList()
@@ -81,7 +84,7 @@ def probe(job):
                             standing=standing, near=near, mid=mid, loaded=loaded, departed=departed, arrived=arrived))
     conn.close()
     tail = [s for s in samples if s["t"] > seconds - 300]
-    return dict(scenario=scenario, seed=seed, collisions=collisions, loaded=loaded, departed=departed,
+    return dict(scenario=scenario, seed=seed, collisions=collisions, collision_pairs=len(pairs), loaded=loaded, departed=departed,
                 inserted_share=departed / max(loaded, 1), backlog_end=samples[-1]["pending"],
                 running=float(np.mean([s["running"] for s in tail])),
                 standing_120s=float(np.mean([s["standing"] for s in tail])),
@@ -109,7 +112,7 @@ def main():
     for scenario in args.scenarios:
         mine = [r for r in runs if r["scenario"] == scenario]
         table[scenario] = {key: round(float(np.mean([r[key] for r in mine])), 3) for key in (
-            "inserted_share", "backlog_end", "running", "standing_120s", "standing_120s_end", "collisions",
+            "inserted_share", "backlog_end", "running", "standing_120s", "standing_120s_end", "collisions", "collision_pairs",
             "arrived_per_h", "route_near", "route_mid")}
         table[scenario]["runs"] = len(mine)
         print(scenario, table[scenario], flush=True)

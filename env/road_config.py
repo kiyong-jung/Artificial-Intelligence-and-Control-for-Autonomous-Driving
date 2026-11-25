@@ -14,6 +14,16 @@ from maps import DEFAULT_MAP, load_map
 # 1.75배부터는 서교동사거리 앞 끼어들기에서 멈춰 선다(reports/progress_log.md 30번).
 SCENARIOS = {"quiet": 0.5, "baseline": 1.0, "busy": 1.25, "heavy": 1.5}
 
+# 실험용 교통량(exp/snail-traffic). 위 네 교통량의 생성 파일과 기록은 바뀌지 않는다.
+# x*: 수요 배율만 키운다. SUMO가 넣지 못한 차는 진입로에서 기다린다(research/av_bc_rl/sim_health.py가 잰다).
+SCENARIOS.update({"x2": 2.0, "x2p5": 2.5, "x3": 3.0, "x4": 4.0, "x5": 5.0, "x6": 6.0})
+# 느린 차(snail): 배경 수요의 share만큼을 최고속도 max_speed(m/s)인 차로 바꾼다. 총 수요는 그대로다. 버스 위치와 무관하게
+# SUMO가 투입하고 몬다. 이름은 snail<share %>v<max_speed>, 앞에 x2가 붙으면 2배 수요 위다.
+SLOW_TRAFFIC = {"snail05v5": (1.5, .05, 5.0), "snail10v5": (1.5, .10, 5.0),
+                "snail10v8": (1.5, .10, 8.0), "snail20v8": (1.5, .20, 8.0), "snail20v5": (1.5, .20, 5.0),
+                "x2snail10v5": (2.0, .10, 5.0), "x2snail20v8": (2.0, .20, 8.0)}
+SCENARIOS.update({name: demand for name, (demand, _share, _speed) in SLOW_TRAFFIC.items()})
+
 # ego 차량 제원. 지도마다 map.json의 ego_vehicle이 고른다(없으면 car).
 # 가감속 한계는 행동 a=±1의 크기다. 실제 한 스텝의 가감속은 mdp_config의 행동 정의가 결정한다.
 _EGO_COMMON = {
@@ -149,3 +159,6 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
         vehs_per_hour=sum(float(f["vehs_per_hour"]) for f in network["flows"]) * SCENARIOS[scenario],
         controllers=deepcopy(_CONTROLLERS),
     )
+    if scenario in SLOW_TRAFFIC:
+        _demand, share, speed = SLOW_TRAFFIC[scenario]
+        TRAFFIC["slow"] = {"share": share, "max_speed": speed}

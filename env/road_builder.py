@@ -60,6 +60,14 @@ def _write_vehicle_types(routes: ET.Element, ego: dict, traffic: dict) -> None:
             speedDev=c["speed_dev"], color=c["color"], sigma=c.get("sigma"),
             collisionAvoidanceOverride=c.get("collision_avoidance_override"),
             vClass="passenger", guiShape="passenger/sedan", **lateral, **traffic["background_lane_change"])))
+    if "slow" in traffic:
+        # 느린 차는 Krauss 차의 최고속도만 낮춘 것이다. 배달 트럭 모양이라 영상에서 구별된다.
+        c = controllers["krauss"]
+        ET.SubElement(routes, "vType", _attrs(dict(
+            id="snail", carFollowModel="Krauss", accel=c["accel"], decel=c["decel"], tau=c["tau"],
+            minGap=c["min_gap"], sigma=c["sigma"], maxSpeed=traffic["slow"]["max_speed"], speedDev=c["speed_dev"],
+            color=".55,.3,.1", vClass="passenger", guiShape="delivery",
+            **lateral, **traffic["background_lane_change"])))
 
 
 def _copy_into(output: Path, source: str) -> str:
@@ -107,13 +115,20 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
     # 지도가 flow_arrivals를 "poisson"으로 두면 차가 무작위 간격으로 들어온다(평균은 같다). 고정 간격이면 seed가 달라도
     # 같은 시각에 같은 차가 나와, 버스가 겪는 일이 에피소드마다 되풀이된다.
     poisson = network.get("flow_arrivals") == "poisson"
+    # 느린 차는 흐름마다 share만큼을 떼어 같은 출발·도착의 별도 흐름으로 넣는다. 포아송 도착을 나눈 것이라 합은 원래 흐름과
+    # 같은 분포다. 차 id가 snail_로 시작해 기록에서 느린 차를 가려낼 수 있다.
+    share = float(traffic["slow"]["share"]) if "slow" in traffic else 0.0
     for begin, volume, flow in sorted(staggered, key=lambda item: item[0]):
-        # 배경 차량은 출발·도착 도로만 정하고 경로는 SUMO가 고른다. 지도가 via를 적은 흐름은 그 도로들을 거쳐 간다.
-        ET.SubElement(routes, "flow", _attrs({
-            "id": flow["id"], "type": "carDist", "from": flow["from"], "to": flow["to"], "via": flow.get("via"),
-            "begin": "0" if poisson else f"{begin:.3f}", "end": 100000,
-            "period": f"exp({volume / 3600.0:.6f})" if poisson else f"{3600.0 / volume:.6f}", "departLane": "best",
-            "departSpeed": traffic["depart_speed"]}))
+        for flow_id, vtype, part in ((flow["id"], "carDist", volume * (1 - share)),
+                                     (f"snail_{flow['id']}", "snail", volume * share)):
+            if part <= 0:
+                continue
+            # 배경 차량은 출발·도착 도로만 정하고 경로는 SUMO가 고른다. 지도가 via를 적은 흐름은 그 도로들을 거쳐 간다.
+            ET.SubElement(routes, "flow", _attrs({
+                "id": flow_id, "type": vtype, "from": flow["from"], "to": flow["to"], "via": flow.get("via"),
+                "begin": "0" if poisson else f"{begin:.3f}", "end": 100000,
+                "period": f"exp({part / 3600.0:.6f})" if poisson else f"{3600.0 / part:.6f}", "departLane": "best",
+                "departSpeed": traffic["depart_speed"]}))
     _write_xml(output / "routes.rou.xml", routes)
 
     # 지도에 딸린 SUMO 파일(신호 프로그램, 교통섬, 보행자 등)은 그대로 복사해 함께 읽는다.

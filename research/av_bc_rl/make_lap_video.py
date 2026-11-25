@@ -25,6 +25,7 @@ FONT = "/System/Library/Fonts/AppleSDGothicNeo.ttc"
 VIEW, PANEL = 720, 400   # 화면 한 변(px), 정보 칸 폭(px)
 ROAD, WALK, CROSS, LINE, BG = (72, 76, 82), (176, 176, 170), (228, 228, 228), (120, 124, 130), (38, 52, 40)
 EGO, CAR, BUS, PED, TRAIL = (255, 196, 0), (150, 190, 235), (120, 220, 160), (255, 120, 170), (255, 230, 120)
+SNAIL = (200, 120, 60)   # 느린 차(id가 snail_, env/road_config.SLOW_TRAFFIC)
 SIGNAL = {"r": (230, 70, 60), "R": (230, 70, 60), "u": (230, 70, 60), "y": (240, 200, 40), "Y": (240, 200, 40),
           "g": (60, 200, 90), "G": (60, 200, 90), "s": (60, 200, 90)}
 TURN = {"left": "좌회전", "right": "우회전", "straight": "직진", None: "-"}
@@ -116,6 +117,8 @@ def main():
     parser.add_argument("--net", default=os.path.join(REPO, "maps", "hapjeong", "source", "network.net.xml"))
     parser.add_argument("--fps", type=int, default=15)
     parser.add_argument("--last", type=float, default=None, help="마지막 이만큼(초)만 찍는다. 실패 장면을 느리게 볼 때")
+    parser.add_argument("--window", type=float, nargs=2, default=None, metavar=("FROM", "TO"),
+                        help="에피소드 시작부터 FROM~TO초 구간만 찍는다. 한 장면(차로 변경 등)을 보여 줄 때")
     parser.add_argument("--hold", type=float, default=2.0, help="마지막 장면을 더 보여 주는 시간(초)")
     parser.add_argument("--radius", type=float, default=50.0, help="버스에서 화면 끝까지 거리(m)")
     args = parser.parse_args()
@@ -126,6 +129,10 @@ def main():
     trail, changes, banner, banner_left, center = [], 0, "", 0, None
     start = rows[0]["sim_time"]
     first = 0 if args.last is None else max(0, len(rows) - int(args.last / 0.5))
+    last = len(rows) - 1
+    if args.window:
+        first = next(i for i, row in enumerate(rows) if row["sim_time"] - start >= args.window[0])
+        last = max(i for i, row in enumerate(rows) if row["sim_time"] - start <= args.window[1])
     with imageio.get_writer(args.out, fps=args.fps, codec="libx264", quality=7, macro_block_size=8) as writer:
         for index, row in enumerate(rows):
             state, event, action = row["state"], row["event"], row["action"]
@@ -151,7 +158,8 @@ def main():
             for vehicle in state.get("vehicles", ()):
                 is_bus = "bus" in vehicle["id"].lower()
                 draw.polygon([px(p) for p in body(vehicle["x"], vehicle["y"], vehicle["heading"], 12.0 if is_bus else 4.8,
-                                                   2.5 if is_bus else 1.8)], fill=BUS if is_bus else CAR)
+                                                   2.5 if is_bus else 1.8)],
+                             fill=BUS if is_bus else SNAIL if vehicle["id"].startswith("snail_") else CAR)
             for person in state.get("pedestrians", ()):
                 x, y = px((person["x"], person["y"]))
                 draw.ellipse((x - 3, y - 3, x + 3, y + 3), fill=PED)
@@ -208,14 +216,15 @@ def main():
                 draw.rectangle((x - 8, VIEW - 120, VIEW + PANEL - 16, VIEW - 64), fill=(250, 250, 250))
                 draw.text((x + 4, VIEW - 92), banner, font=font(24, True), fill=(20, 20, 20), anchor="lm")
                 banner_left -= 1
-            draw.text((x, VIEW - 40), f"반경 {half:.0f}m  노랑=우리 버스  파랑=차  초록=다른 버스  분홍=보행자", font=font(14), fill=(150, 150, 156))
+            draw.text((x, VIEW - 40), f"반경 {half:.0f}m  노랑=우리 버스  파랑=차  갈색=느린 차  초록=다른 버스  분홍=보행자", font=font(14), fill=(150, 150, 156))
             if index < first:   # 찍지 않는 앞부분도 궤적과 누적 수는 센다
                 continue
             writer.append_data(np.asarray(image))
-            if index == len(rows) - 1:   # 마지막 장면을 더 보여 준다
+            if index == last:   # 마지막 장면을 더 보여 준다
                 for _ in range(int(args.fps * args.hold)):
                     writer.append_data(np.asarray(image))
-    shown = len(rows) - first
+                break
+    shown = last + 1 - first
     print(args.out, f"{shown}장, {shown / args.fps + args.hold:.0f}초, 차로 변경 {changes}번")
 
 

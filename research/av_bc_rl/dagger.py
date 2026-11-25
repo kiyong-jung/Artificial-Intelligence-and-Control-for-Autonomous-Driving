@@ -37,6 +37,8 @@ from env.route_policy import EXPERT_VERSIONS  # noqa: E402
 
 PY = sys.executable
 SCENARIO_SEEDS = {"quiet": 2100, "baseline": 2400, "busy": 2700, "heavy": 3500}   # train 집합 안, 전문가 수집 seed와 겹치지 않는다
+# 실험용 교통량(exp/snail-traffic). SCENARIO_SEEDS와 따로 두어 기존 실행의 episode 번호 규칙(칸 4개)이 그대로다.
+EXTRA_SEEDS = {"x2": 4500}
 
 
 def expert_from_metadata(meta):
@@ -64,7 +66,7 @@ def main():
     parser.add_argument("--relabel-to", help="롤아웃 없이 --data의 정답만 --expert-version 전문가로 다시 붙여 이 NPZ로 쓴다")
     parser.add_argument("--expert-version", type=int, choices=sorted(EXPERT_VERSIONS), help="--relabel-to에 쓸 전문가 판")
     parser.add_argument("--iterations", type=int, default=2)
-    parser.add_argument("--scenarios", nargs="+", default=["quiet", "baseline", "busy"], choices=tuple(SCENARIO_SEEDS),
+    parser.add_argument("--scenarios", nargs="+", default=["quiet", "baseline", "busy"], choices=(*SCENARIO_SEEDS, *EXTRA_SEEDS),
                         help="롤아웃을 모을 교통량. 나중 반복에 heavy를 더해 점점 붐비게 할 수 있다")
     parser.add_argument("--episodes", type=int, default=30, help="반복마다 교통량별 롤아웃 수")
     parser.add_argument("--epochs", type=int, default=50)
@@ -75,6 +77,8 @@ def main():
                              "합본 자체에는 넣지 않는다. 처음 BC도 그렇게 늘린 데이터로 학습한 것이어야 한다")
     parser.add_argument("--overlap", action="store_true",
                         help="학습하는 동안 다음 반복의 롤아웃을 그때 가진 모델로 미리 모은다")
+    parser.add_argument("--episode-base", type=int, default=0,
+                        help="새 롤아웃 episode 번호에 더할 값. 다른 실행의 합본(--data)에서 이어 갈 때 번호가 겹치지 않게 그 최대값보다 크게 준다")
     parser.add_argument("--out")
     args, train_args = parser.parse_known_args()
 
@@ -101,7 +105,7 @@ def main():
         """반복 하나의 롤아웃을 교통량마다 모은다. 이미 있는 것은 건너뛴다."""
         paths = []
         for scenario in args.scenarios:
-            base = SCENARIO_SEEDS[scenario]
+            base = {**SCENARIO_SEEDS, **EXTRA_SEEDS}[scenario]
             name = f"dagger_s{args.seed}_it{iteration}_{scenario}"
             # 반복마다 rollout seed가 겹치지 않게 episodes만큼 띄운다. 학습 seed(args.seed)는 100씩 띄운다.
             seed = base + 100 * args.seed + args.episodes * (iteration - 1)
@@ -133,7 +137,8 @@ def main():
         # 반복마다 교통량 수만큼 칸을 더 띄운다.
         parts = [base_arrays] + [relabel(path, expert) for path in rollouts]
         for index, part in enumerate(parts[1:], start=1):
-            part["episode"] = part["episode"].astype(np.int64) + 100000 * (len(SCENARIO_SEEDS) * (iteration - 1) + index)
+            slots = max(len(SCENARIO_SEEDS), len(args.scenarios))
+            part["episode"] = part["episode"].astype(np.int64) + 100000 * (slots * (iteration - 1) + index) + args.episode_base
         for key in base_arrays:
             merged[key] = np.concatenate([part[key] for part in parts if key in part])
         data_path = out / f"dagger_s{args.seed}_it{iteration}.npz"

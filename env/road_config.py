@@ -44,6 +44,36 @@ SCENARIOS.update({name: demand for name, (demand, _share) in ALLEY_TRAFFIC.items
 ALLEY_EDGES = {"hapjeong": (("G11", "R71.256"), ("G4", "-R96.64"), ("G18", "-R96.201"), ("-G25", "-R96.119"),
                             ("G27", "R112.112"))}
 ALLEY_CLEARANCE = 50.0
+# 장면의 원인(cause): 차를 더 넣지 않고 팀이 정한 장면이 생기는 원인을 고정 수요로 만든다. 모두 heavy(1.5배) 위이고 총 차량
+# 수요는 heavy와 같다(택시·골목 차만큼 나머지 흐름을 줄인다). 버스 위치와 무관하게 실행 전에 파일로 정해진다.
+#   taxi  정류장 앞 택시(S4). 버스가 서는 정류장마다 택시가 정류장 차로 안에 서 있는 시간 비율(점유율)
+#   cut   골목 끼어들기(S5). 골목 출발 수요 비율. 출발 골목은 CUT_EDGES, 운전 성향은 CUT_DRIVERS[style]
+#   ped   보행자 수요 배율(S6). 지도의 보행자 흐름(personFlow) 전부를 같은 배율로 늘린다
+CAUSE_TRAFFIC = {
+    "taxi25": {"taxi": .25}, "taxi50": {"taxi": .50},
+    "cut10d": {"cut": (.10, "default")}, "cut05a": {"cut": (.05, "assertive")},
+    "cut10a": {"cut": (.10, "assertive")}, "cut15a": {"cut": (.15, "assertive")},
+    "cut10b": {"cut": (.10, "bold")},
+    "ped15": {"ped": 1.5}, "ped20": {"ped": 2.0},
+    # 세 원인을 함께: rich는 각 원인의 센 쪽, rich_lo는 약한 쪽이다.
+    "rich": {"taxi": .50, "cut": (.15, "assertive"), "ped": 2.0},
+    "rich_lo": {"taxi": .25, "cut": (.10, "assertive"), "ped": 1.5},
+    # rich_lo와 같되 택시 출발 도로에도 골목과 같은 50m 검사를 한다(rich_lo에서 G31 출발 택시가 버스 50m 안에서 나타났다).
+    "rich2": {"taxi": .25, "cut": (.10, "assertive"), "ped": 1.5, "taxi_clearance": ALLEY_CLEARANCE},
+}
+SCENARIOS.update({name: 1.5 for name in CAUSE_TRAFFIC})
+# 끼어들기 골목은 alley* 기록에서 버스 앞 합류가 나오고 대기열로 이어지지 않던 둘이다: 성지1길 G11 → G12 → 독막로 R71.256
+# (우회전 합류), 와우산로 골목 G27 → G24 → R112.112(맞은편 차로를 건너는 좌회전). 잔다리로 세 골목은 J42 쪽 대기열을 키웠다.
+CUT_EDGES = {"hapjeong": (("G11", "R71.256"), ("G27", "R112.112"))}
+# 골목 차의 교차로 성향(SUMO vType 접합부 모델). impatience 1은 우선 차가 최대로 제동하면 피할 수 있는 틈이면 들어간다
+# (0은 우선 차를 늦추지 않는 틈만). jmTimegapMinor는 우선 차 앞을 지날 때 둘 최소 시간 간격(기본 1초). 무시 확률
+# (jmIgnoreFoeProb)은 충돌을 만들어 쓰지 않는다. default는 배경 차와 같은 성향(대조군)이다.
+CUT_DRIVERS = {"default": None,
+               "assertive": {"impatience": 0.5, "jmTimegapMinor": 0.5},
+               "bold": {"impatience": 1.0, "jmTimegapMinor": 0.0}}
+# 택시는 정류장 차로 안 두 자리(head: 정류장 끝에 앞을 맞춘다. 버스는 그 뒤에서 정차할 수 있다. tail: 정류장 시작 6m. 버스는
+# 택시가 떠날 때까지 정류장에 들어가지 못한다)에 15·20·25·30초 선다. 평균 22.5초라 점유율 p는 정류장마다 시간당 p*3600/22.5대다.
+TAXI_DWELLS = (15.0, 20.0, 25.0, 30.0)
 
 # ego 차량 제원. 지도마다 map.json의 ego_vehicle이 고른다(없으면 car).
 # 가감속 한계는 행동 a=±1의 크기다. 실제 한 스텝의 가감속은 mdp_config의 행동 정의가 결정한다.
@@ -190,3 +220,17 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
         _demand, share = ALLEY_TRAFFIC[scenario]
         TRAFFIC["alley"] = {"share": share, "edges": [list(pair) for pair in ALLEY_EDGES[network["id"]]],
                             "clearance": ALLEY_CLEARANCE}
+    cause = CAUSE_TRAFFIC.get(scenario, {})
+    if "cut" in cause:
+        share, style = cause["cut"]
+        TRAFFIC["alley"] = {"share": share, "edges": [list(pair) for pair in CUT_EDGES[network["id"]]],
+                            "clearance": ALLEY_CLEARANCE, "driver": CUT_DRIVERS[style]}
+    if "taxi" in cause:
+        stops = {stop["id"]: stop for stop in network["bus_stops"]}
+        TRAFFIC["taxi"] = {"occupancy": cause["taxi"], "dwells_s": list(TAXI_DWELLS),
+                           "stops": [{k: stops[s][k] for k in ("id", "lane", "startPos", "endPos")}
+                                     for s in EGO["service"]["stops"]]}
+        if "taxi_clearance" in cause:
+            TRAFFIC["taxi"]["clearance"] = cause["taxi_clearance"]
+    if "ped" in cause:
+        TRAFFIC["pedestrian_scale"] = cause["ped"]

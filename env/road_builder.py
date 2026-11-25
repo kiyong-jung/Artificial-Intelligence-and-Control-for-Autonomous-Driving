@@ -37,12 +37,16 @@ def _attrs(values: dict) -> dict:
             for key, value in values.items() if value is not None}
 
 
-def _write_vehicle_types(routes: ET.Element, ego: dict, traffic: dict) -> None:
-    """ego는 지도가 고른 제원 한 종류, 배경차는 추종모델 네 종류의 확률 분포다."""
-    lateral = {attribute: traffic["lateral_model"][key] for key, attribute in (
+def _lateral_attributes(traffic: dict) -> dict:
+    return {attribute: traffic["lateral_model"][key] for key, attribute in (
         ("accel", "lcAccelLat"), ("max_speed", "maxSpeedLat"),
         ("standing_speed", "lcMaxSpeedLatStanding"), ("speed_factor", "lcMaxSpeedLatFactor"),
         ("roundabout_cooperation", "lcCooperativeRoundabout"))}
+
+
+def _write_vehicle_types(routes: ET.Element, ego: dict, traffic: dict) -> None:
+    """ego는 지도가 고른 제원 한 종류, 배경차는 추종모델 네 종류의 확률 분포다."""
+    lateral = _lateral_attributes(traffic)
     if float(traffic["lateral_resolution"]) > 0:
         lateral["laneChangeModel"] = "SL2015"
     ET.SubElement(routes, "vType", _attrs(dict(
@@ -69,6 +73,77 @@ def _write_vehicle_types(routes: ET.Element, ego: dict, traffic: dict) -> None:
             minGap=c["min_gap"], sigma=c["sigma"], maxSpeed=traffic["slow"]["max_speed"], speedDev=c["speed_dev"],
             color=".55,.3,.1", vClass="passenger", guiShape="delivery",
             **lateral, **traffic["background_lane_change"])))
+
+
+def _write_krauss_type(routes: ET.Element, traffic: dict, vtype: str, color: str, shape: str, extra: dict) -> None:
+    """Krauss 배경 차와 같은 제원의 따로 이름 붙인 vType(택시, 골목 차). extra는 더하는 속성이다."""
+    c = traffic["controllers"]["krauss"]
+    ET.SubElement(routes, "vType", _attrs(dict(
+        id=vtype, carFollowModel="Krauss", accel=c["accel"], decel=c["decel"], tau=c["tau"], minGap=c["min_gap"],
+        sigma=c["sigma"], maxSpeed=traffic["max_speed"], speedDev=c["speed_dev"], color=color, vClass="passenger",
+        guiShape=shape, **_lateral_attributes(traffic), **traffic["background_lane_change"], **extra)))
+
+
+def _appear_distance(net, edge: str, route_shapes: list) -> float:
+    """차가 처음 나타나는 자리(edge 0번 차로의 처음 10m)와 버스 노선 차로 사이의 가장 짧은 거리(m)."""
+    lane = net.getEdge(edge).getLanes()[0]
+    return min(distancePointToPolygon(positionAtShapeOffset(lane.getShape(), offset), shape)
+               for offset in range(0, 11) for shape in route_shapes)
+
+
+def _taxis_per_stop(taxi: dict) -> float:
+    """정류장 하나에 시간당 오는 택시 수. 점유율 = 도착률 x 평균 정차 시간."""
+    dwells = [float(d) for d in taxi["dwells_s"]]
+    return float(taxi["occupancy"]) * 3600.0 / (sum(dwells) / len(dwells))
+
+
+def _write_taxi_flows(routes: ET.Element, net, network: dict, ego_route: str, taxi: dict, traffic: dict) -> None:
+    """정류장 앞 택시(taxi*). 정류장마다 시간당 occupancy*3600/평균 정차 시간 대의 택시가 원래 흐름 중 가장 빠른 경로가 그
+    정류장 도로를 지나는 (출발, 도착) 쌍으로 달리며, 정류장 차로 안 두 자리(head, tail)에 dwells_s 중 하나만큼 선다(SUMO
+    차로 정차 stop). 출발·도착은 지도의 경계 도로라 버스 가까이에서 생기거나 사라지지 않는다. 정류장 차로에서 경로의 다음
+    도로로 바로 이어지는 쌍만 쓴다(정류장 뒤 차로를 여러 칸 옮겨야 하면 서서 막는다). clearance가 있으면 출발 도로의 처음
+    10m가 버스 노선 차로에서 그보다 가까운 쌍은 빼서, 지도 원래 흐름의 출발 골목(G31 등)에서도 택시가 버스 눈앞에 생기지 않게
+    한다(taxi25·taxi50·rich·rich_lo는 clearance 없이 만들었다)."""
+    _write_krauss_type(routes, traffic, "taxi", "1,.75,0", "passenger/hatchback", {})
+    paths = {(f["from"], f["to"]): [e.getID() for e in net.getFastestPath(
+        net.getEdge(f["from"]), net.getEdge(f["to"]), vClass="passenger")[0] or ()] for f in network["flows"]}
+    dwells = [float(d) for d in taxi["dwells_s"]]
+    per_stop = _taxis_per_stop(taxi)
+    for stop in taxi["stops"]:
+        lane = net.getLane(stop["lane"])
+        edge = lane.getEdge().getID()
+        onward = {c.getTo().getID() for c in lane.getOutgoing()}
+        pairs = sorted(od for od, p in paths.items() if edge in p[:-1] and p[p.index(edge) + 1] in onward)
+        if taxi.get("clearance"):
+            route_shapes = [lane.getShape() for e in network["routes"][ego_route] for lane in net.getEdge(e).getLanes()]
+            pairs = [(o, d) for o, d in pairs if _appear_distance(net, o, route_shapes) >= taxi["clearance"]]
+        if not pairs:
+            raise ValueError(f"정류장 {stop['id']} 차로에서 이어 갈 원래 흐름이 없다.")
+        spots = {"head": (float(stop["endPos"]) - 6.0, float(stop["endPos"])),
+                 "tail": (float(stop["startPos"]), float(stop["startPos"]) + 6.0)}
+        for spot, (start, end) in spots.items():
+            for dwell in dwells:
+                for o, d in pairs:
+                    flow = ET.SubElement(routes, "flow", _attrs({
+                        "id": f"taxi_{stop['id']}_{spot}_{dwell:.0f}_{o}_to_{d}", "type": "taxi", "from": o, "to": d,
+                        "begin": "0", "end": 100000,
+                        "period": f"exp({per_stop / len(spots) / len(dwells) / len(pairs) / 3600.0:.6f})",
+                        "departLane": "best", "departSpeed": traffic["depart_speed"]}))
+                    ET.SubElement(flow, "stop", _attrs({"lane": stop["lane"], "startPos": f"{start:.2f}",
+                                                        "endPos": f"{end:.2f}", "duration": f"{dwell:.0f}"}))
+
+
+def _scaled_people(output: Path, source: str, scale: float) -> str:
+    """보행자 경로 파일의 personFlow 도착률(exp(rate))을 scale배로 바꿔 실행 폴더에 쓴다. 원본은 그대로 둔다."""
+    tree = ET.parse(source)
+    for flow in tree.getroot().iter("personFlow"):
+        period = flow.get("period", "")
+        if not period.startswith("exp("):
+            raise ValueError(f"보행자 흐름 {flow.get('id')}의 period가 포아송(exp)이 아니다: {period}")
+        flow.set("period", f"exp({float(period[4:-1]) * scale:.8f})")
+    name = Path(source).name
+    tree.write(output / name, encoding="utf-8", xml_declaration=True)
+    return name
 
 
 def _write_side_flows(routes: ET.Element, net, network: dict, side: dict, total: float, traffic: dict) -> None:
@@ -105,15 +180,18 @@ def _write_alley_flows(routes: ET.Element, net, network: dict, ego_route: str, a
     도착은 지도의 경계 도로뿐이라 버스 노선 위에서 사라지는 차가 없다. 차가 처음 나타나는 자리(O의 처음 10m)가 버스 노선
     차로에서 clearance(버스 감지 범위)보다 가까우면 만들지 않는다."""
     route_shapes = [lane.getShape() for edge in network["routes"][ego_route] for lane in net.getEdge(edge).getLanes()]
+    vtype = "carDist"
+    if alley.get("driver"):
+        # 끼어드는 골목 차(cut*): Krauss 배경 차에 교차로 성향(road_config.CUT_DRIVERS)만 더한 것이다.
+        vtype = "alley_driver"
+        _write_krauss_type(routes, traffic, vtype, ".6,.6,.6", "passenger/sedan", alley["driver"])
     paths = {}
     for f in network["flows"]:
         path = net.getFastestPath(net.getEdge(f["from"]), net.getEdge(f["to"]), vClass="passenger")[0] or ()
         paths[f["to"]] = paths.get(f["to"], []) + [[e.getID() for e in path]]
     turns = {pair for options in paths.values() for p in options for pair in zip(p, p[1:])}
     for origin, merge in alley["edges"]:
-        lane = net.getEdge(origin).getLanes()[0]
-        appear = min(distancePointToPolygon(positionAtShapeOffset(lane.getShape(), offset), shape)
-                     for offset in range(0, 11) for shape in route_shapes)
+        appear = _appear_distance(net, origin, route_shapes)
         if appear < alley["clearance"]:
             raise ValueError(f"골목 출발 도로 {origin}은 버스 노선에서 {appear:.0f}m라 차가 버스 감지 범위 안에서 나타난다.")
         partners = []
@@ -125,7 +203,7 @@ def _write_alley_flows(routes: ET.Element, net, network: dict, ego_route: str, a
             raise ValueError(f"골목 {origin}에서 {merge}로 합류해 갈 도착 도로가 없다.")
         for destination in partners:
             ET.SubElement(routes, "flow", _attrs({
-                "id": f"alley_{origin}_to_{destination}", "type": "carDist", "from": origin, "to": destination,
+                "id": f"alley_{origin}_to_{destination}", "type": vtype, "from": origin, "to": destination,
                 "begin": "0", "end": 100000,
                 "period": f"exp({total * alley['share'] / len(alley['edges']) / len(partners) / 3600.0:.6f})",
                 "departLane": "best", "departSpeed": traffic["depart_speed"]}))
@@ -183,6 +261,9 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
     keep = 1.0 - side["share_in"] - side["share_out"] if side else 1.0
     alley = traffic.get("alley")
     keep -= alley["share"] if alley else 0.0
+    taxi = traffic.get("taxi")
+    if taxi:
+        keep -= _taxis_per_stop(taxi) * len(taxi["stops"]) / sum(volume for _begin, volume, _flow in staggered)
     for begin, volume, flow in sorted(staggered, key=lambda item: item[0]):
         for flow_id, vtype, part in ((flow["id"], "carDist", volume * keep * (1 - share)),
                                      (f"snail_{flow['id']}", "snail", volume * keep * share)):
@@ -199,11 +280,16 @@ def build(road: dict, ego: dict, traffic: dict, out_dir: str) -> str:
     if alley:
         _write_alley_flows(routes, compiled, network, road["ego_route"], alley,
                            sum(volume for _begin, volume, _flow in staggered), traffic)
+    if taxi:
+        _write_taxi_flows(routes, compiled, network, road["ego_route"], taxi, traffic)
     _write_xml(output / "routes.rou.xml", routes)
 
-    # 지도에 딸린 SUMO 파일(신호 프로그램, 교통섬, 보행자 등)은 그대로 복사해 함께 읽는다.
+    # 지도에 딸린 SUMO 파일(신호 프로그램, 교통섬, 보행자 등)은 그대로 복사해 함께 읽는다. 보행자 배율(ped*)이 있으면
+    # 보행자 흐름의 도착률만 바꾼 사본을 쓴다.
     extra_additional = [_copy_into(output, path) for path in network.get("extra_additional_paths", [])]
-    extra_routes = [_copy_into(output, path) for path in network.get("extra_route_paths", [])]
+    people = traffic.get("pedestrian_scale")
+    extra_routes = [_scaled_people(output, path, float(people)) if people else _copy_into(output, path)
+                    for path in network.get("extra_route_paths", [])]
 
     # 3) 정류장은 도로 시설로만 표시한다. 버스와 승객은 넣지 않는다.
     additional = ET.parse(network["context_path"]).getroot()

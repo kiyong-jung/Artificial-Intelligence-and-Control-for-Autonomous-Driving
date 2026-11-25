@@ -38,7 +38,7 @@ from env.route_policy import EXPERT_VERSIONS  # noqa: E402
 PY = sys.executable
 SCENARIO_SEEDS = {"quiet": 2100, "baseline": 2400, "busy": 2700, "heavy": 3500}   # train 집합 안, 전문가 수집 seed와 겹치지 않는다
 # 실험용 교통량(exp/snail-traffic). SCENARIO_SEEDS와 따로 두어 기존 실행의 episode 번호 규칙(칸 4개)이 그대로다.
-EXTRA_SEEDS = {"x2": 4500}
+EXTRA_SEEDS = {"x2": 4500, "rich_lo": 4600}
 
 
 def expert_from_metadata(meta):

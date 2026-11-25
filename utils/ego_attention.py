@@ -14,6 +14,8 @@ rl-agents의 EgoAttentionNetwork는 ego와 다른 엔티티가 같은 특징 차
                   ego = ego(7) + 차선 변경 가능(2) + 경로(9) + 정류장(7) + 신호(10) + 안전 여유(5) = 40
                   token = lane-slot 6개 x 6, 골목·교차 차량 3개 x 7(phantom 포함), 보행자 3개 x 11
     both        : obs93 뒤에 features130을 이어 붙인 223차원
+    v2          : pdm_data/obs_v2.py 관측 v2(docs/observation_features_v2.md) 166차원
+                  ego = 16, token = 차량 8개 x 12, 보행자 6개 x 9. 5값 차로 라벨과 함께 쓴다(lane_classes=5)
 
 출력 인터페이스는 utils/networks.py의 HybridActorCritic과 같다. 그래서 algorithms/ppo.py가 그대로 쓴다.
     forward(obs) -> (mu, std, lane_logits, value)
@@ -64,7 +66,18 @@ LAYOUTS["both"] = {
     "groups": LAYOUTS["obs93"]["groups"] + [dict(g, start=g["start"] + 93) for g in LAYOUTS["features130"]["groups"]],
     "lane_flags": LAYOUTS["obs93"]["lane_flags"],
 }
-INPUT_LAYOUT = {"observation": "obs93", "features": "features130", "both": "both"}
+# v2: pdm_data/obs_v2.py (docs/observation_features_v2.md). ego 16, 차량 8 x 12, 보행자 6 x 9.
+# lane_flags는 왼쪽·오른쪽 "차로 있음"(지도 기준) 비트다. 교통 상황은 담지 않는다.
+LAYOUTS["v2"] = {
+    "dim": 166,
+    "ego": [[0, 16]],
+    "groups": [_group("vehicle", 16, 8, 12), _group("pedestrian", 112, 6, 9)],
+    "lane_flags": [4, 5],
+}
+INPUT_LAYOUT = {"observation": "obs93", "features": "features130", "both": "both", "v2": "v2"}
+# 차로 명령 클래스. 3: (+1 좌, 0 유지, -1 우). 5: 5값 라벨 (+2 좌로 옮김, +1 좌 방향지시등, 0, -1, -2)을 2로 나눈 값.
+# 행동 벡터의 차로 성분은 이 값이다(항상 [-1, 1]).
+LANE_CMDS = {3: (1.0, 0.0, -1.0), 5: (1.0, 0.5, 0.0, -0.5, -1.0)}
 
 DEFAULT_ATTENTION = {
     "layout": "obs93",
@@ -76,7 +89,24 @@ DEFAULT_ATTENTION = {
     "dropout": 0.0,
     "activation": "RELU",
     "lane_action_mask": False,     # True면 차선 변경 불가 쪽 로짓을 막는다(hapjeong FullTask는 그 비트를 0으로 지우므로 끈다)
+    "lane_classes": 3,             # 3 또는 5(5값 차로 라벨, LANE_CMDS 참고)
+    "accel_bins": 0,               # 0이면 가감속 Normal(연속). K(홀수 권장)면 [-1, 1]을 K개 중심으로 나눈 Categorical
 }
+
+
+def accel_centers(k):
+    return torch.linspace(-1.0, 1.0, k)
+
+
+def accel_bin_of(value, k):
+    """정규화 가감속 [-1, 1] -> 가장 가까운 구간 번호(0 = -1)."""
+    return torch.round((value.clamp(-1.0, 1.0) + 1.0) * (k - 1) / 2.0).long()
+
+
+def lane_class_of(cmd, n):
+    """행동 벡터의 차로 값(LANE_CMDS[n]의 값) -> 클래스 번호. 0이 가장 왼쪽."""
+    half = (n - 1) / 2
+    return torch.round((1.0 - cmd) * half).long().clamp(0, n - 1)
 
 
 def layout_entities(layout: dict) -> list:
@@ -96,8 +126,7 @@ def _orthogonal(module, gain):
 
 
 class EgoAttentionHybridActorCritic(nn.Module):
-    # 차선 인덱스 ↔ 명령: 0=왼쪽(+1), 1=유지(0), 2=오른쪽(-1). HybridActorCritic과 같다.
-    LANE_CMDS = (1.0, 0.0, -1.0)
+    # 차선 인덱스 ↔ 명령: LANE_CMDS[lane_classes]. 3클래스는 0=왼쪽(+1), 1=유지(0), 2=오른쪽(-1)로 HybridActorCritic과 같다.
 
     def __init__(self, obs_dim: int, attention: dict = None, init_log_std=-0.5, lane_keep_bias: float = 1.0):
         super().__init__()
@@ -106,6 +135,10 @@ class EgoAttentionHybridActorCritic(nn.Module):
         self.layout = LAYOUTS[cfg["layout"]]
         if obs_dim != self.layout["dim"]:
             raise ValueError(f"layout {cfg['layout']}는 {self.layout['dim']}차원 입력이 필요한데 obs_dim={obs_dim}")
+        self.n_lane = int(cfg["lane_classes"])
+        if self.n_lane not in LANE_CMDS:
+            raise ValueError(f"lane_classes는 {sorted(LANE_CMDS)} 중 하나")
+        self.keep = self.n_lane // 2
         f = int(cfg["feature_size"])
         if f % int(cfg["heads"]):
             raise ValueError("feature_size는 heads로 나누어떨어져야 한다")
@@ -120,15 +153,22 @@ class EgoAttentionHybridActorCritic(nn.Module):
         self.ego_attention = EgoAttention(dict(att, type="EgoAttention"))
         self.output = _mlp(f, cfg["output_layers"], act)
         last = cfg["output_layers"][-1] if cfg["output_layers"] else f
-        self.mu_head = _orthogonal(nn.Linear(last, 1), 0.01)
-        self.lane_head = _orthogonal(nn.Linear(last, 3), 0.01)
+        self.n_accel = int(cfg.get("accel_bins") or 0)
+        if self.n_accel == 1:
+            raise ValueError("accel_bins는 0(연속) 또는 2 이상")
+        if self.n_accel:
+            self.accel_head = _orthogonal(nn.Linear(last, self.n_accel), 0.01)
+            self.register_buffer("accel_values", accel_centers(self.n_accel))
+        else:
+            self.mu_head = _orthogonal(nn.Linear(last, 1), 0.01)
+        self.lane_head = _orthogonal(nn.Linear(last, self.n_lane), 0.01)
         self.v_head = _orthogonal(nn.Linear(last, 1), 1.0)
         with torch.no_grad():
-            self.lane_head.bias[1] = lane_keep_bias
+            self.lane_head.bias[self.keep] = lane_keep_bias
         if not np.isscalar(init_log_std):
             init_log_std = float(init_log_std[0])
         self.log_std = nn.Parameter(torch.ones(1) * float(init_log_std))
-        self.register_buffer("lane_cmds", torch.tensor(self.LANE_CMDS))
+        self.register_buffer("lane_cmds", torch.tensor(LANE_CMDS[self.n_lane]))
         self.entities = layout_entities(self.layout)
 
     # ---- token 만들기 --------------------------------------------------
@@ -160,46 +200,71 @@ class EgoAttentionHybridActorCritic(nn.Module):
         logits = self.lane_head(z)
         if self.cfg["lane_action_mask"]:
             left, right = self.layout["lane_flags"]
-            blocked = torch.stack([obs[:, left] < 0.5, torch.zeros_like(obs[:, left], dtype=torch.bool),
-                                   obs[:, right] < 0.5], dim=-1)
+            no_left, no_right = obs[:, left] < 0.5, obs[:, right] < 0.5
+            side = self.keep          # 왼쪽 클래스 수 = 오른쪽 클래스 수
+            blocked = torch.stack([no_left] * side + [torch.zeros_like(no_left)] + [no_right] * side, dim=-1)
             logits = logits.masked_fill(blocked, -1e9)
         return logits
 
+    def accel_logits(self, z):
+        """accel_bins > 0일 때 가감속 구간 로짓 (B, K)."""
+        return self.accel_head(z)
+
     def heads(self, z, obs):
-        mu = torch.tanh(self.mu_head(z))
+        """(mu (B,1), std, 차로 로짓, V). 구간 분류면 mu는 구간 중심의 기댓값이다."""
+        if self.n_accel:
+            mu = (torch.softmax(self.accel_head(z), dim=-1) * self.accel_values).sum(-1, keepdim=True)
+        else:
+            mu = torch.tanh(self.mu_head(z))
         return mu, torch.exp(self.log_std), self.lane_logits(z, obs), self.v_head(z).squeeze(-1)
 
     def forward(self, obs):
         return self.heads(self.encode(obs), obs)
 
+    def _dists(self, obs):
+        z = self.encode(obs)
+        lane = Categorical(logits=self.lane_logits(z, obs))
+        value = self.v_head(z).squeeze(-1)
+        if self.n_accel:
+            return Categorical(logits=self.accel_head(z)), lane, value
+        return Normal(torch.tanh(self.mu_head(z)), torch.exp(self.log_std)), lane, value
+
     # ---- algorithms/ppo.py가 쓰는 인터페이스 ----------------------------
     def sample(self, obs):
-        mu, std, logits, value = self.forward(obs)
-        nd, cd = Normal(mu, std), Categorical(logits=logits)
-        accel, lane_idx = nd.sample(), cd.sample()
-        log_prob = nd.log_prob(accel).sum(-1) + cd.log_prob(lane_idx)
-        return torch.cat([accel, self.lane_cmds[lane_idx].unsqueeze(-1)], dim=-1), log_prob, value
+        ad, cd, value = self._dists(obs)
+        lane_idx = cd.sample()
+        if self.n_accel:
+            a_idx = ad.sample()
+            accel, log_a = self.accel_values[a_idx].unsqueeze(-1), ad.log_prob(a_idx)
+        else:
+            accel = ad.sample()
+            log_a = ad.log_prob(accel).sum(-1)
+        return torch.cat([accel, self.lane_cmds[lane_idx].unsqueeze(-1)], dim=-1), log_a + cd.log_prob(lane_idx), value
 
     def det_action(self, obs):
-        mu, _, logits, _ = self.forward(obs)
-        return torch.cat([mu, self.lane_cmds[torch.argmax(logits, dim=-1)].unsqueeze(-1)], dim=-1)
+        ad, cd, _ = self._dists(obs)
+        accel = self.accel_values[ad.logits.argmax(-1)].unsqueeze(-1) if self.n_accel else ad.mean
+        return torch.cat([accel, self.lane_cmds[torch.argmax(cd.logits, dim=-1)].unsqueeze(-1)], dim=-1)
 
     def evaluate_actions(self, obs, actions):
-        mu, std, logits, value = self.forward(obs)
-        nd, cd = Normal(mu, std), Categorical(logits=logits)
-        lane_idx = (1.0 - torch.round(actions[:, 1])).long().clamp(0, 2)
-        log_prob = nd.log_prob(actions[:, :1]).sum(-1) + cd.log_prob(lane_idx)
-        return log_prob, nd.entropy().sum(-1) + cd.entropy(), value
+        ad, cd, value = self._dists(obs)
+        lane_idx = lane_class_of(actions[:, 1], self.n_lane)
+        if self.n_accel:
+            log_a, ent_a = ad.log_prob(accel_bin_of(actions[:, 0], self.n_accel)), ad.entropy()
+        else:
+            log_a, ent_a = ad.log_prob(actions[:, :1]).sum(-1), ad.entropy().sum(-1)
+        return log_a + cd.log_prob(lane_idx), ent_a + cd.entropy(), value
 
     def lane_entropy(self, obs):
         return Categorical(logits=self.forward(obs)[2]).entropy()
 
     def lane_change_prob(self, obs):
-        return 1.0 - torch.softmax(self.forward(obs)[2], dim=-1)[:, 1]
+        return 1.0 - torch.softmax(self.forward(obs)[2], dim=-1)[:, self.keep]
 
     @property
     def current_std(self) -> float:
-        return float(torch.exp(self.log_std).mean().item())
+        """연속 가감속의 표준편차. 구간 분류(accel_bins > 0)에서는 쓰지 않으므로 0."""
+        return 0.0 if self.n_accel else float(torch.exp(self.log_std).mean().item())
 
     @torch.no_grad()
     def attention_matrix(self, obs):

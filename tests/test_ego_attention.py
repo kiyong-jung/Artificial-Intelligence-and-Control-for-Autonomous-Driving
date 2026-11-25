@@ -140,3 +140,149 @@ def test_bc_script_smoke(tmp_path, extra, episodes):
     agent.load(str(out / "model.pt"))
     if extra:
         assert cfg["ego"]["observation_mask_indices"] == [1, 2, 3, 4, 5]
+
+
+def test_v2_layout_matches_obs_v2_names():
+    from pdm_data.obs_v2 import FEATURE_NAMES, OBS_V2_DIM
+    lay = LAYOUTS["v2"]
+    assert lay["dim"] == OBS_V2_DIM
+    covered = sorted(sum([list(range(a, b)) for a, b in lay["ego"]], []) +
+                     [g["start"] + i for g in lay["groups"] for i in range(g["count"] * g["size"])])
+    assert covered == list(range(OBS_V2_DIM))
+    assert {g["name"]: FEATURE_NAMES[g["start"]] for g in lay["groups"]} == {"vehicle": "veh0_presence",
+                                                                              "pedestrian": "ped0_presence"}
+    assert [FEATURE_NAMES[i] for i in lay["lane_flags"]] == ["left_lane_exists", "right_lane_exists"]
+
+
+def test_v2_five_lane_classes_interface_and_mask():
+    net = EgoAttentionHybridActorCritic(166, {"layout": "v2", "lane_classes": 5, "lane_action_mask": True},
+                                        lane_keep_bias=-5.0)
+    x = torch.as_tensor(_obs("v2", np.random.default_rng(5), 64))
+    x[:, 4], x[:, 5] = 0.0, 1.0          # 왼쪽 차로 없음, 오른쪽 있음
+    mu, _, logits, _ = net(x)
+    assert logits.shape == (64, 5)
+    for _ in range(5):
+        a, logp, _ = net.sample(x)
+        assert set(a[:, 1].tolist()) <= {0.0, -0.5, -1.0}     # 왼쪽 방향지시등·변경(+0.5, +1)은 막힌다
+        logp2, _, _ = net.evaluate_actions(x, a)
+        torch.testing.assert_close(logp, logp2)
+    assert set(net.det_action(x)[:, 1].tolist()) <= {1.0, 0.5, 0.0, -0.5, -1.0}
+
+
+def _fake_npz_v2(path, rng, episodes, rows=40):
+    n = episodes * rows
+    obs = _obs("v2", rng, n)
+    lane = rng.choice([-2.0, -1.0, 0.0, 1.0, 2.0], n, p=[0.05, 0.1, 0.7, 0.1, 0.05]).astype(np.float32)
+    act = np.stack([np.clip(obs[:, 0] * 0.5, -1, 1), lane], 1).astype(np.float32)
+    ep = np.repeat(np.arange(episodes), rows).astype(np.int32)
+    t = np.tile(np.arange(rows), episodes).astype(np.int32)
+    np.savez_compressed(path, observation_v2=obs, next_observation_v2=np.roll(obs, -1, 0), action_raw=act,
+                        prev_action_raw=np.roll(act, 1, 0), reward=rng.normal(0, 0.1, n).astype(np.float32),
+                        terminated=t == rows - 1, truncated=np.zeros(n, bool), episode=ep, t=t)
+
+
+def test_bc_script_v2_five_classes(tmp_path):
+    from scripts.train_ego_attention_bc import main
+    rng = np.random.default_rng(6)
+    f = tmp_path / "run" / "processed" / "transitions.npz"
+    f.parent.mkdir(parents=True)
+    _fake_npz_v2(f, rng, 4)
+    out = tmp_path / "out"
+    main(["--data", str(f), "--out", str(out), "--input", "v2", "--epochs", "2", "--feature-size", "16", "--heads", "2",
+          "--embed-layers", "16", "--output-layers", "16"])
+    cfg = json.loads((out / "run_config.json").read_text(encoding="utf-8"))
+    audit = json.loads((out / "audit.json").read_text(encoding="utf-8"))
+    assert cfg["obs_dim"] == 166 and cfg["hparams"]["attention"]["lane_classes"] == 5
+    assert len(audit["lane_counts_train"]) == 5 and "lane_move_recall" in audit["final"]["test"]
+    agent = PPO(166, 2, **cfg["hparams"])
+    agent.load(str(out / "model.pt"))
+
+
+def test_accel_bins_interface_roundtrip():
+    from utils.ego_attention import accel_bin_of
+    net = EgoAttentionHybridActorCritic(166, {"layout": "v2", "lane_classes": 5, "accel_bins": 11})
+    x = torch.as_tensor(_obs("v2", np.random.default_rng(7), 16))
+    a, logp, _ = net.sample(x)
+    grid = set(np.round(np.linspace(-1, 1, 11), 6).tolist())
+    assert set(np.round(a[:, 0].numpy().astype(np.float64), 6).tolist()) <= grid
+    logp2, ent, _ = net.evaluate_actions(x, a)
+    torch.testing.assert_close(logp, logp2)
+    assert net.current_std == 0.0 and not hasattr(net, "mu_head")
+    assert accel_bin_of(torch.tensor([-1.0, -0.04, 0.06, 1.0, 1.7]), 11).tolist() == [0, 5, 5, 10, 10]
+
+
+def test_class_weights_schemes():
+    from scripts.train_ego_attention_bc import class_weights
+    c = torch.tensor([10.0, 1000.0, 0.0, 40.0])
+    w = class_weights(c, "inverse", 50.0)
+    assert w.tolist() == pytest.approx([50.0, 1.0, 0.0, 25.0])          # 100배는 상한 50
+    assert class_weights(c, "sqrt", 50.0).tolist() == pytest.approx([10.0, 1.0, 0.0, 5.0])
+    e = class_weights(c, "effective", 1e9, beta=0.999)
+    assert e[1] == 1.0 and e[0] > e[3] > 1.0 and e[2] == 0.0
+    assert class_weights(c, "none", 50.0).tolist() == [1.0, 1.0, 0.0, 1.0]
+
+
+def _bc_args(f, out, epochs, *extra):
+    return ["--data", str(f), "--out", str(out), "--input", "v2", "--epochs", str(epochs), "--feature-size", "16",
+            "--heads", "2", "--embed-layers", "16", "--output-layers", "16", "--batch-size", "64", "--resume", *extra]
+
+
+def test_bc_resume_matches_uninterrupted(tmp_path, monkeypatch):
+    """4 epoch 실행이 3번째 epoch 학습 중에 죽었다가 --resume으로 이어 간 결과가 한 번에 끝낸 것과 같다."""
+    import scripts.train_ego_attention_bc as bc
+    f = tmp_path / "d" / "processed" / "transitions.npz"
+    f.parent.mkdir(parents=True)
+    _fake_npz_v2(f, np.random.default_rng(8), 4)
+    extra = ("--lr-schedule", "cosine", "--weight-decay", "1e-4")
+    bc.main(_bc_args(f, tmp_path / "full", 4, *extra))
+
+    real, calls = bc.Trainer.train_epoch, []
+
+    def dies_on_third(self, *args):
+        calls.append(1)
+        if len(calls) == 3:
+            raise KeyboardInterrupt("중단 흉내")
+        return real(self, *args)
+    monkeypatch.setattr(bc.Trainer, "train_epoch", dies_on_third)
+    with pytest.raises(KeyboardInterrupt):
+        bc.main(_bc_args(f, tmp_path / "part", 4, *extra))
+    monkeypatch.setattr(bc.Trainer, "train_epoch", real)
+    assert not (tmp_path / "part" / "audit.json").exists()
+    assert len((tmp_path / "part" / "history.jsonl").read_text().splitlines()) == 2
+    bc.main(_bc_args(f, tmp_path / "part", 4, *extra))
+    a = torch.load(tmp_path / "full" / "model.pt")
+    b = torch.load(tmp_path / "part" / "model.pt")
+    assert a.keys() == b.keys() and all(torch.equal(a[k], b[k]) for k in a)
+    ha = [json.loads(x)["validation"]["bc_loss"] for x in (tmp_path / "full" / "history.jsonl").read_text().splitlines()]
+    hb = [json.loads(x)["validation"]["bc_loss"] for x in (tmp_path / "part" / "history.jsonl").read_text().splitlines()]
+    assert ha == pytest.approx(hb) and len(hb) == 4
+    # TensorBoard: 멈췄다 이어 간 실행도 에폭마다 점 하나씩(1~4), 값은 한 번에 끝낸 것과 같다
+    ea_mod = pytest.importorskip("tensorboard.backend.event_processing.event_accumulator")
+
+    def scalars(run):
+        acc = ea_mod.EventAccumulator(str(tmp_path / run / "tb"))
+        acc.Reload()
+        return [(e.step, e.value) for e in acc.Scalars("bc_loss/validation")]
+    sa, sb = scalars("full"), scalars("part")
+    assert [s for s, _ in sb] == [1, 2, 3, 4] and [v for _, v in sa] == pytest.approx([v for _, v in sb])
+
+
+def test_bc_resume_rejects_changed_args_and_skips_done(tmp_path, capsys):
+    from scripts.train_ego_attention_bc import main
+    f = tmp_path / "d" / "processed" / "transitions.npz"
+    f.parent.mkdir(parents=True)
+    _fake_npz_v2(f, np.random.default_rng(9), 4)
+    main(_bc_args(f, tmp_path / "o", 1))
+    main(_bc_args(f, tmp_path / "o", 1))                       # 끝난 실행은 건너뛴다
+    assert "건너뜁니다" in capsys.readouterr().out
+    (tmp_path / "o" / "audit.json").unlink()
+    with pytest.raises(ValueError, match="lr"):
+        main(_bc_args(f, tmp_path / "o", 2, "--lr", "1e-3"))
+    with pytest.raises(FileExistsError):
+        main([a for a in _bc_args(f, tmp_path / "o", 2) if a != "--resume"])
+    main(_bc_args(f, tmp_path / "o", 2))                       # --epochs는 늘려서 이어 갈 수 있다
+    assert len((tmp_path / "o" / "history.jsonl").read_text().splitlines()) == 2
+    main(_bc_args(f, tmp_path / "c", 1, "--lr-schedule", "cosine"))
+    (tmp_path / "c" / "audit.json").unlink()
+    with pytest.raises(ValueError, match="cosine"):             # cosine은 길이가 바뀌면 스케줄이 달라진다
+        main(_bc_args(f, tmp_path / "c", 3, "--lr-schedule", "cosine"))

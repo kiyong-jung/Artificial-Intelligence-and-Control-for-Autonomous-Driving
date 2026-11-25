@@ -11,8 +11,10 @@
 | `model_best_busy_lap.mp4` | 정류장 4곳을 모두 서고 완주한 한 바퀴. 같은 평가에서 차로 변경이 가장 많은 바퀴(10번)다. | 1.5배, 7901 | 66초(750초를 배속) |
 | `model_worst_collision.mp4` | 차와 충돌하기 전 마지막 120초 | 1.25배, 7616 | 34초 |
 | `model_worst_red_light.mp4` | 적색 신호를 지나기 전 마지막 120초 | 1.5배, 7909 | 34초 |
+| `model_worst_stuck_seogyo.mp4` | 서교동사거리 앞(R94)에서 좌회전 차로로 못 끼어들고 200초 멈춰 선 마지막 300초. 제출 수집 `heavy_s0_000` 12번 바퀴 | 1.5배, 40000012 | 43초 |
+| `model_worst_pedestrian.mp4` | 신호 없는 횡단보도에서 보행자와 닿기 전 마지막 60초. 제출 수집 `heavy_s0_004` 177번 바퀴 | 1.5배, 40000977 | 24초 |
 
-seed는 모두 학습에 쓰지 않은 평가용(7000번대)이다. 이 평가(네 교통량 80바퀴)에서 76바퀴 완주, 충돌 2, 적색 통과 2였다. 멈춰 섬과 시간 초과가 없어 그 워스트 영상은 없다.
+seed는 모두 학습에 쓰지 않은 평가용(7000번대)이다. 위 세 영상의 평가(네 교통량 80바퀴)에서 76바퀴 완주, 충돌 2, 적색 통과 2였다. 멈춰 섬과 보행자 충돌은 그 평가에 없어 제출 수집 12,000바퀴에서 골랐다.
 
 ## 규칙 운전사(비교용)
 
@@ -34,4 +36,4 @@ python research/av_bc_rl/render_best_worst.py data/research/verify_map322_heavy 
 
 ## PR 미리보기
 
-`preview_best_lap.gif`는 `model_best_busy_lap.mp4`를 3배 더 빠르게 줄인 22초 미리보기다(GitHub는 저장소 안의 mp4를 본문에서 바로 틀지 못한다).
+`preview_best_lap.gif`는 `model_best_busy_lap.mp4`를 3배 더 빠르게 줄인 22초 미리보기다. `preview_worst_*.gif`는 워스트 영상 네 개의 마지막 부분이다(GitHub는 저장소 안의 mp4를 본문에서 바로 틀지 못한다).

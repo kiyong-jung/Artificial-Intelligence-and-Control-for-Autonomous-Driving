@@ -1,0 +1,904 @@
+{
+ "args": {
+  "scenarios": [
+   "rich2"
+  ],
+  "seeds": 6,
+  "seed": 60000,
+  "seconds": 1100.0,
+  "workers": 4,
+  "out": "research/av_bc_rl/metrics/sim_health_cause3.json"
+ },
+ "table": {
+  "rich2": {
+   "inserted_share": 0.978,
+   "backlog_end": 14.0,
+   "running": 146.311,
+   "standing_120s": 2.033,
+   "standing_120s_end": 6.833,
+   "collisions": 0.0,
+   "collision_pairs": 0.0,
+   "arrived_per_h": 1478.727,
+   "route_near": 8.946,
+   "route_mid": 2.161,
+   "teleports": 0.0,
+   "person_collision_pairs": 0.0,
+   "taxi_stops_per_h": 140.727,
+   "runs": 6
+  }
+ },
+ "runs": [
+  {
+   "scenario": "rich2",
+   "seed": 60000,
+   "collisions": 0,
+   "collision_pairs": 0,
+   "pairs": [],
+   "person_collision_pairs": 0,
+   "taxi_stops_per_h": 121.0909090909091,
+   "teleports": 0,
+   "standing_roads": {
+    "-R92.163": 0.8,
+    "R55": 0.37,
+    "R50": 0.23,
+    "R94": 0.07
+   },
+   "pending_alley": {},
+   "loaded": 602,
+   "departed": 591,
+   "inserted_share": 0.9817275747508306,
+   "backlog_end": 11,
+   "running": 140.8,
+   "standing_120s": 1.4666666666666666,
+   "standing_120s_end": 1,
+   "arrived_per_h": 1469.4545454545455,
+   "route_near": 7.8394016230855215,
+   "route_mid": 1.8578697342519284,
+   "route_near_lane_km": 2.0239640000000003,
+   "route_mid_lane_km": 5.777226000000001,
+   "series": [
+    {
+     "t": 10.0,
+     "running": 3,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 70.0,
+     "running": 33,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 130.0,
+     "running": 58,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 190.0,
+     "running": 81,
+     "pending": 0,
+     "standing": 1
+    },
+    {
+     "t": 250.0,
+     "running": 93,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 310.0,
+     "running": 102,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 370.0,
+     "running": 120,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 430.0,
+     "running": 126,
+     "pending": 1,
+     "standing": 1
+    },
+    {
+     "t": 490.0,
+     "running": 114,
+     "pending": 1,
+     "standing": 5
+    },
+    {
+     "t": 550.0,
+     "running": 131,
+     "pending": 0,
+     "standing": 1
+    },
+    {
+     "t": 610.0,
+     "running": 133,
+     "pending": 2,
+     "standing": 1
+    },
+    {
+     "t": 670.0,
+     "running": 141,
+     "pending": 3,
+     "standing": 2
+    },
+    {
+     "t": 730.0,
+     "running": 146,
+     "pending": 4,
+     "standing": 0
+    },
+    {
+     "t": 790.0,
+     "running": 134,
+     "pending": 7,
+     "standing": 0
+    },
+    {
+     "t": 850.0,
+     "running": 140,
+     "pending": 7,
+     "standing": 3
+    },
+    {
+     "t": 910.0,
+     "running": 141,
+     "pending": 5,
+     "standing": 1
+    },
+    {
+     "t": 970.0,
+     "running": 132,
+     "pending": 10,
+     "standing": 0
+    },
+    {
+     "t": 1030.0,
+     "running": 149,
+     "pending": 11,
+     "standing": 4
+    },
+    {
+     "t": 1090.0,
+     "running": 145,
+     "pending": 12,
+     "standing": 1
+    }
+   ]
+  },
+  {
+   "scenario": "rich2",
+   "seed": 60001,
+   "collisions": 0,
+   "collision_pairs": 0,
+   "pairs": [],
+   "person_collision_pairs": 0,
+   "taxi_stops_per_h": 150.54545454545453,
+   "teleports": 0,
+   "standing_roads": {
+    "-R92.163": 0.67,
+    "R55": 0.87,
+    "R50": 0.33,
+    "R94": 0.07
+   },
+   "pending_alley": {},
+   "loaded": 591,
+   "departed": 587,
+   "inserted_share": 0.9932318104906938,
+   "backlog_end": 4,
+   "running": 139.26666666666668,
+   "standing_120s": 1.9333333333333333,
+   "standing_120s_end": 3,
+   "arrived_per_h": 1446.5454545454545,
+   "route_near": 9.32164142576976,
+   "route_mid": 2.3194522769232155,
+   "route_near_lane_km": 2.0239640000000003,
+   "route_mid_lane_km": 5.777226000000001,
+   "series": [
+    {
+     "t": 10.0,
+     "running": 3,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 70.0,
+     "running": 38,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 130.0,
+     "running": 59,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 190.0,
+     "running": 80,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 250.0,
+     "running": 99,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 310.0,
+     "running": 98,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 370.0,
+     "running": 122,
+     "pending": 0,
+     "standing": 1
+    },
+    {
+     "t": 430.0,
+     "running": 137,
+     "pending": 0,
+     "standing": 1
+    },
+    {
+     "t": 490.0,
+     "running": 134,
+     "pending": 0,
+     "standing": 3
+    },
+    {
+     "t": 550.0,
+     "running": 142,
+     "pending": 0,
+     "standing": 3
+    },
+    {
+     "t": 610.0,
+     "running": 139,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 670.0,
+     "running": 124,
+     "pending": 0,
+     "standing": 1
+    },
+    {
+     "t": 730.0,
+     "running": 124,
+     "pending": 0,
+     "standing": 6
+    },
+    {
+     "t": 790.0,
+     "running": 134,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 850.0,
+     "running": 139,
+     "pending": 2,
+     "standing": 4
+    },
+    {
+     "t": 910.0,
+     "running": 141,
+     "pending": 2,
+     "standing": 5
+    },
+    {
+     "t": 970.0,
+     "running": 134,
+     "pending": 4,
+     "standing": 0
+    },
+    {
+     "t": 1030.0,
+     "running": 139,
+     "pending": 4,
+     "standing": 2
+    },
+    {
+     "t": 1090.0,
+     "running": 145,
+     "pending": 3,
+     "standing": 2
+    }
+   ]
+  },
+  {
+   "scenario": "rich2",
+   "seed": 60002,
+   "collisions": 0,
+   "collision_pairs": 0,
+   "pairs": [],
+   "person_collision_pairs": 0,
+   "taxi_stops_per_h": 140.72727272727272,
+   "teleports": 0,
+   "standing_roads": {
+    "-R92.163": 0.6,
+    "R55": 1.73,
+    "R50": 0.1,
+    "R94": 0.03
+   },
+   "pending_alley": {},
+   "loaded": 616,
+   "departed": 598,
+   "inserted_share": 0.9707792207792207,
+   "backlog_end": 18,
+   "running": 145.86666666666667,
+   "standing_120s": 2.466666666666667,
+   "standing_120s_end": 11,
+   "arrived_per_h": 1449.8181818181818,
+   "route_near": 8.069972259058625,
+   "route_mid": 1.892488424952275,
+   "route_near_lane_km": 2.0239640000000003,
+   "route_mid_lane_km": 5.777226000000001,
+   "series": [
+    {
+     "t": 10.0,
+     "running": 8,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 70.0,
+     "running": 35,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 130.0,
+     "running": 64,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 190.0,
+     "running": 83,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 250.0,
+     "running": 93,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 310.0,
+     "running": 112,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 370.0,
+     "running": 131,
+     "pending": 2,
+     "standing": 0
+    },
+    {
+     "t": 430.0,
+     "running": 129,
+     "pending": 5,
+     "standing": 0
+    },
+    {
+     "t": 490.0,
+     "running": 128,
+     "pending": 4,
+     "standing": 2
+    },
+    {
+     "t": 550.0,
+     "running": 153,
+     "pending": 5,
+     "standing": 2
+    },
+    {
+     "t": 610.0,
+     "running": 154,
+     "pending": 7,
+     "standing": 1
+    },
+    {
+     "t": 670.0,
+     "running": 147,
+     "pending": 11,
+     "standing": 5
+    },
+    {
+     "t": 730.0,
+     "running": 148,
+     "pending": 12,
+     "standing": 5
+    },
+    {
+     "t": 790.0,
+     "running": 143,
+     "pending": 15,
+     "standing": 1
+    },
+    {
+     "t": 850.0,
+     "running": 138,
+     "pending": 15,
+     "standing": 6
+    },
+    {
+     "t": 910.0,
+     "running": 145,
+     "pending": 16,
+     "standing": 5
+    },
+    {
+     "t": 970.0,
+     "running": 143,
+     "pending": 16,
+     "standing": 0
+    },
+    {
+     "t": 1030.0,
+     "running": 151,
+     "pending": 19,
+     "standing": 0
+    },
+    {
+     "t": 1090.0,
+     "running": 151,
+     "pending": 18,
+     "standing": 9
+    }
+   ]
+  },
+  {
+   "scenario": "rich2",
+   "seed": 60003,
+   "collisions": 0,
+   "collision_pairs": 0,
+   "pairs": [],
+   "person_collision_pairs": 0,
+   "taxi_stops_per_h": 163.63636363636363,
+   "teleports": 0,
+   "standing_roads": {
+    "-R92.163": 0.8,
+    "R55": 1.03,
+    "R50": 0.07,
+    "R94": 0.07
+   },
+   "pending_alley": {},
+   "loaded": 605,
+   "departed": 592,
+   "inserted_share": 0.9785123966942149,
+   "backlog_end": 13,
+   "running": 138.26666666666668,
+   "standing_120s": 1.9666666666666666,
+   "standing_120s_end": 8,
+   "arrived_per_h": 1508.7272727272727,
+   "route_near": 9.749844035434096,
+   "route_mid": 2.2675242408726954,
+   "route_near_lane_km": 2.0239640000000003,
+   "route_mid_lane_km": 5.777226000000001,
+   "series": [
+    {
+     "t": 10.0,
+     "running": 7,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 70.0,
+     "running": 36,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 130.0,
+     "running": 75,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 190.0,
+     "running": 102,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 250.0,
+     "running": 120,
+     "pending": 4,
+     "standing": 1
+    },
+    {
+     "t": 310.0,
+     "running": 124,
+     "pending": 5,
+     "standing": 0
+    },
+    {
+     "t": 370.0,
+     "running": 136,
+     "pending": 5,
+     "standing": 3
+    },
+    {
+     "t": 430.0,
+     "running": 134,
+     "pending": 7,
+     "standing": 2
+    },
+    {
+     "t": 490.0,
+     "running": 134,
+     "pending": 6,
+     "standing": 1
+    },
+    {
+     "t": 550.0,
+     "running": 153,
+     "pending": 8,
+     "standing": 6
+    },
+    {
+     "t": 610.0,
+     "running": 155,
+     "pending": 10,
+     "standing": 1
+    },
+    {
+     "t": 670.0,
+     "running": 129,
+     "pending": 9,
+     "standing": 0
+    },
+    {
+     "t": 730.0,
+     "running": 141,
+     "pending": 8,
+     "standing": 5
+    },
+    {
+     "t": 790.0,
+     "running": 140,
+     "pending": 9,
+     "standing": 0
+    },
+    {
+     "t": 850.0,
+     "running": 153,
+     "pending": 12,
+     "standing": 5
+    },
+    {
+     "t": 910.0,
+     "running": 142,
+     "pending": 12,
+     "standing": 4
+    },
+    {
+     "t": 970.0,
+     "running": 129,
+     "pending": 14,
+     "standing": 0
+    },
+    {
+     "t": 1030.0,
+     "running": 129,
+     "pending": 14,
+     "standing": 4
+    },
+    {
+     "t": 1090.0,
+     "running": 131,
+     "pending": 13,
+     "standing": 6
+    }
+   ]
+  },
+  {
+   "scenario": "rich2",
+   "seed": 60004,
+   "collisions": 0,
+   "collision_pairs": 0,
+   "pairs": [],
+   "person_collision_pairs": 0,
+   "taxi_stops_per_h": 157.0909090909091,
+   "teleports": 0,
+   "standing_roads": {
+    "R55": 1.7,
+    "R50": 0.4,
+    "R94": 0.17,
+    "-R92.163": 0.07
+   },
+   "pending_alley": {},
+   "loaded": 649,
+   "departed": 633,
+   "inserted_share": 0.975346687211094,
+   "backlog_end": 16,
+   "running": 157.33333333333334,
+   "standing_120s": 2.3333333333333335,
+   "standing_120s_end": 8,
+   "arrived_per_h": 1502.1818181818182,
+   "route_near": 9.832190691138774,
+   "route_mid": 2.8041139467280662,
+   "route_near_lane_km": 2.0239640000000003,
+   "route_mid_lane_km": 5.777226000000001,
+   "series": [
+    {
+     "t": 10.0,
+     "running": 8,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 70.0,
+     "running": 42,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 130.0,
+     "running": 77,
+     "pending": 1,
+     "standing": 0
+    },
+    {
+     "t": 190.0,
+     "running": 101,
+     "pending": 0,
+     "standing": 1
+    },
+    {
+     "t": 250.0,
+     "running": 118,
+     "pending": 0,
+     "standing": 1
+    },
+    {
+     "t": 310.0,
+     "running": 119,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 370.0,
+     "running": 124,
+     "pending": 1,
+     "standing": 2
+    },
+    {
+     "t": 430.0,
+     "running": 120,
+     "pending": 3,
+     "standing": 1
+    },
+    {
+     "t": 490.0,
+     "running": 119,
+     "pending": 5,
+     "standing": 2
+    },
+    {
+     "t": 550.0,
+     "running": 159,
+     "pending": 6,
+     "standing": 2
+    },
+    {
+     "t": 610.0,
+     "running": 149,
+     "pending": 9,
+     "standing": 0
+    },
+    {
+     "t": 670.0,
+     "running": 143,
+     "pending": 11,
+     "standing": 1
+    },
+    {
+     "t": 730.0,
+     "running": 144,
+     "pending": 11,
+     "standing": 3
+    },
+    {
+     "t": 790.0,
+     "running": 142,
+     "pending": 15,
+     "standing": 0
+    },
+    {
+     "t": 850.0,
+     "running": 149,
+     "pending": 16,
+     "standing": 0
+    },
+    {
+     "t": 910.0,
+     "running": 155,
+     "pending": 16,
+     "standing": 10
+    },
+    {
+     "t": 970.0,
+     "running": 162,
+     "pending": 15,
+     "standing": 0
+    },
+    {
+     "t": 1030.0,
+     "running": 153,
+     "pending": 13,
+     "standing": 1
+    },
+    {
+     "t": 1090.0,
+     "running": 169,
+     "pending": 17,
+     "standing": 7
+    }
+   ]
+  },
+  {
+   "scenario": "rich2",
+   "seed": 60005,
+   "collisions": 0,
+   "collision_pairs": 0,
+   "pairs": [],
+   "person_collision_pairs": 0,
+   "taxi_stops_per_h": 111.27272727272727,
+   "teleports": 0,
+   "standing_roads": {
+    "-R92.163": 0.17,
+    "R55": 1.63,
+    "R50": 0.03,
+    "R94": 0.2
+   },
+   "pending_alley": {
+    "G27": 0.03
+   },
+   "loaded": 637,
+   "departed": 615,
+   "inserted_share": 0.9654631083202512,
+   "backlog_end": 22,
+   "running": 156.33333333333334,
+   "standing_120s": 2.033333333333333,
+   "standing_120s_end": 10,
+   "arrived_per_h": 1495.6363636363637,
+   "route_near": 8.860500153823551,
+   "route_mid": 1.8232510435515819,
+   "route_near_lane_km": 2.0239640000000003,
+   "route_mid_lane_km": 5.777226000000001,
+   "series": [
+    {
+     "t": 10.0,
+     "running": 2,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 70.0,
+     "running": 42,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 130.0,
+     "running": 70,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 190.0,
+     "running": 99,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 250.0,
+     "running": 128,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 310.0,
+     "running": 141,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 370.0,
+     "running": 156,
+     "pending": 0,
+     "standing": 4
+    },
+    {
+     "t": 430.0,
+     "running": 154,
+     "pending": 0,
+     "standing": 2
+    },
+    {
+     "t": 490.0,
+     "running": 159,
+     "pending": 0,
+     "standing": 2
+    },
+    {
+     "t": 550.0,
+     "running": 173,
+     "pending": 0,
+     "standing": 8
+    },
+    {
+     "t": 610.0,
+     "running": 172,
+     "pending": 0,
+     "standing": 0
+    },
+    {
+     "t": 670.0,
+     "running": 166,
+     "pending": 0,
+     "standing": 5
+    },
+    {
+     "t": 730.0,
+     "running": 165,
+     "pending": 0,
+     "standing": 9
+    },
+    {
+     "t": 790.0,
+     "running": 159,
+     "pending": 5,
+     "standing": 0
+    },
+    {
+     "t": 850.0,
+     "running": 151,
+     "pending": 8,
+     "standing": 1
+    },
+    {
+     "t": 910.0,
+     "running": 152,
+     "pending": 12,
+     "standing": 8
+    },
+    {
+     "t": 970.0,
+     "running": 158,
+     "pending": 14,
+     "standing": 0
+    },
+    {
+     "t": 1030.0,
+     "running": 162,
+     "pending": 17,
+     "standing": 1
+    },
+    {
+     "t": 1090.0,
+     "running": 160,
+     "pending": 21,
+     "standing": 8
+    }
+   ]
+  }
+ ]
+}

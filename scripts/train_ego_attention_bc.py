@@ -257,6 +257,11 @@ class Trainer:
             out["keep_to_move"] = int(((y == k) & pm).sum())
             out["blink_to_move"] = int((np.isin(y, (1, 3)) & pm).sum())
             out["wrong_side"] = int((((y < k) & (p > k)) | ((y > k) & (p < k))).sum())
+        elif self.n_lane == 3:  # 3값(관측 33차원 MLP): ±1이 곧 실제 이동. 깜빡이 클래스가 없어 blink_to_move는 없다
+            out["lane_move_recall"] = out["lane_change_recall"]
+            out["lane_move_precision"] = out["lane_change_precision"]
+            out["keep_to_move"] = int(((y == k) & (p != k)).sum())
+            out["wrong_side"] = int((((y < k) & (p > k)) | ((y > k) & (p < k))).sum())
         out["bc_loss"] = out["accel_loss"] + self.args.lane_weight * out["lane_ce"]
         return out
 

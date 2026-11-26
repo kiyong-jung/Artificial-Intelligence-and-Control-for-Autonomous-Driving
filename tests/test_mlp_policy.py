@@ -89,6 +89,11 @@ def test_train_obs33_mlp_smoke(tmp_path):
     audit = json.loads((out / "audit.json").read_text(encoding="utf-8"))
     assert cfg["input"] == "obs33" and cfg["obs_dim"] == 33 and cfg["network"]["policy_type"] == "mlp"
     assert len(audit["lane_counts_train"]) == 3
+    for split in ("validation", "test"):                   # 3클래스도 이동 지표를 낸다(±1이 곧 이동)
+        m = audit["final"][split]
+        assert m["lane_move_recall"] == m["lane_change_recall"]
+        assert m["lane_move_precision"] == m["lane_change_precision"]
+        assert isinstance(m["keep_to_move"], int) and isinstance(m["wrong_side"], int)
     net, _ = load_mlp_policy_dir(str(out))
     assert net.n_lane == 3 and net.det_action(torch.zeros(1, 33)).shape == (1, 2)
 

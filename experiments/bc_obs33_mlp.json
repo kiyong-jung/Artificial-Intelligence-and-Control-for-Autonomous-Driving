@@ -1,0 +1,12 @@
+{
+  "description": "관측 33차원 + 3값 차로 라벨(A안) MLP 행동 복제(data/pdm_bus_sumo_lc busy). 차로 클래스 가중 effective(base)와 inverse 비교. 가감속은 구간 21개 CE. 각 실험은 common 뒤에 자기 인자를 붙인다(뒤의 값이 이긴다).",
+  "split_seed": 38001,
+  "seeds": [1, 2, 3],
+  "common": ["--input", "obs33", "--policy", "mlp", "--hidden-layers", "256,256",
+             "--epochs", "200", "--batch-size", "1024", "--lr", "1e-3",
+             "--lr-schedule", "cosine", "--min-lr", "1e-5", "--patience", "40", "--accel-bins", "21"],
+  "experiments": {
+    "base":         ["--lane-weighting", "effective", "--cb-beta", "0.9999", "--lane-weight-cap", "100"],
+    "lane_inverse": ["--lane-weighting", "inverse", "--lane-weight-cap", "50"]
+  }
+}

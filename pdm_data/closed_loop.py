@@ -92,6 +92,8 @@ class PolicyController:
         self.info = dict(info or {})
         self.world = world
         self.obs33 = self.info.get("input") == "obs33"
+        if self.obs33 and world != "sumo_lc":           # 연결성이 좌회전 차로 보정 도로망에 기대므로 학습과 같은 월드만
+            raise ValueError(f"관측 33차원 정책은 --world sumo_lc에서만 평가한다(받은 값: {world})")
         self.pilot = self.v2 = self.c33 = self.ctx = self.replay = None
         self.episode, self.prev = None, None
         self.decisions = 0

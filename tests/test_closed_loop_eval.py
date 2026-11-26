@@ -146,9 +146,43 @@ def test_lc3_opposite_releases_latch():
     assert _calls(tc, "changeLane")[-1] == (BUS, 1, 0.5)
 
 
+def test_lc3_latch_rejects_internal_lane():
+    p, tc = _lc3()
+    tc.vehicle.items[BUS]["lat_speed"] = 0.8
+    p.decide(0.0, 1, t=1.0)
+    p.tick(tc, 1.1)
+    tc.vehicle.items[BUS].update(road=":J107_2", lane=":J107_2_0", lane_index=0)   # 아직 옮기는 중에 교차로 안
+    p.decide(0.0, 1, t=1.5)
+    p.tick(tc, 1.6)
+    assert _calls(tc, "changeLane") == [(BUS, 2, 0.5)]
+    assert p.policy_stats["lane_request_rejected"]["internal"] == 1
+
+
+def test_lc3_latch_road_change_does_not_resend_old_index():
+    p, tc = _lc3()
+    tc.vehicle.items[BUS]["lat_speed"] = 0.8
+    p.decide(0.0, 1, t=1.0)
+    p.tick(tc, 1.1)
+    tc.vehicle.items[BUS].update(road="R69a", lane="R69a_1", lane_index=1)        # 새 도로: 차로 번호가 옛 도로와 다르다
+    p.decide(0.0, 1, t=1.5)
+    p.tick(tc, 1.6)
+    assert _calls(tc, "changeLane") == [(BUS, 2, 0.5)] and p.policy_stats["lane_guard_ignored"] == 1
+    tc.vehicle.items[BUS]["lat_speed"] = 0.0                                       # 다 옮겼다: 새 도로 기준 새 요청
+    p.decide(0.0, 1, t=2.0)
+    p.tick(tc, 2.1)
+    assert _calls(tc, "changeLane")[-1] == (BUS, 2, 0.5) and len(_calls(tc, "changeLane")) == 2
+
+
 def test_stop_plans_only_drops_s2_s3():
     p, _ = _pilot(stop_plans_only=True)
     assert {q.kind for q in p.plans} == {"STOP"} and {q.kind for q in p.lane_plans_all} > {"STOP"}
+
+
+def test_controller_obs33_requires_sumo_lc_world():
+    with pytest.raises(ValueError):
+        PolicyController(lambda o: (0.0, 0), None, {"input": "obs33", "lane_classes": 3})
+    with pytest.raises(ValueError):
+        PolicyController(lambda o: (0.0, 0), None, {"input": "obs33", "lane_classes": 3}, world="hapjeong")
 
 
 def test_controller_obs33_path():
@@ -157,7 +191,7 @@ def test_controller_obs33_path():
     def act(obs):
         seen.append(np.array(obs))
         return (0.0, 1)
-    c = PolicyController(act, {"pos": 1.5, "neg": 3.0}, {"input": "obs33", "lane_classes": 3})
+    c = PolicyController(act, {"pos": 1.5, "neg": 3.0}, {"input": "obs33", "lane_classes": 3}, world="sumo_lc")
     pilot = StubPilot()
     c.bind(CTX, pilot)
     c.on_decision(make_row(t=0, speed=5.0), None)

@@ -65,7 +65,7 @@ class PolicyBusPilot(PDMClosedBusPilot):
         if stop_plans_only:
             self.lane_plans_all = list(self.plans)
             self.plans = [p for p in self.plans if p.kind == "STOP"]
-        self._lc = None                    # 3값: 잠근 (방향, 목표 차로)
+        self._lc = None                    # 3값: 잠근 (방향, 목표 차로, 요청한 도로)
         self.accel = None                  # 지금 걸린 가감속 명령 [m/s^2]. 첫 판단 전에는 None(정지 유지)
         self.lane_cmd = 0
         self._lane_pending = False
@@ -142,28 +142,34 @@ class PolicyBusPilot(PDMClosedBusPilot):
         cmd = self.lane_cmd
         idx = v.getLaneIndex(BUS)
         if self._lc is not None:
-            d, target = self._lc
-            if (idx == target and abs(v.getLateralSpeed(BUS)) < LC3_SETTLED_MPS) or (cmd and cmd != d):
+            d, target, lc_road = self._lc
+            settled = abs(v.getLateralSpeed(BUS)) < LC3_SETTLED_MPS
+            # 도로가 바뀌면 옛 도로의 차로 번호는 뜻이 없다: 옆 이동이 멈출 때까지 같은 방향 명령만 막는다
+            if (cmd and cmd != d) or (settled and (road != lc_road or idx == target)):
                 self._lc = None
         if not self._lane_pending:
             return
         self._lane_pending = False
+        n = 0 if internal else tc.edge.getLaneNumber(road)
         if self._lc is not None:
-            target = self._lc[1]
-            if idx != target:
+            target, lc_road = self._lc[1], self._lc[2]
+            if internal:
+                self.policy_stats["lane_request_rejected"]["internal"] += 1
+            elif road != lc_road or idx == target:
+                self.policy_stats["lane_guard_ignored"] += 1
+            elif not 0 <= target < n:
+                self.policy_stats["lane_request_rejected"]["no_lane"] += 1
+            else:
                 v.changeLane(BUS, target, DECISION_S)
                 self.policy_stats["lane_requests_sent"] += 1
-            else:
-                self.policy_stats["lane_guard_ignored"] += 1
             return
-        n = 0 if internal else tc.edge.getLaneNumber(road)
         target, why = lane_target(2 * cmd, idx, n, internal)
         if target is None:
             self.policy_stats["lane_request_rejected"][why] += 1
             return
         v.changeLane(BUS, target, DECISION_S)
         self.policy_stats["lane_requests_sent"] += 1
-        self._lc = (cmd, target)
+        self._lc = (cmd, target, road)
 
     def summary(self):
         s = self.policy_stats

@@ -6,7 +6,7 @@
 #   scripts/preprocess_pdm_bus_batch.sh count    # 전처리 상태만 센다
 #
 # - 수집이 끝난 seed(<out>/<이름>/metadata.json이 있음)만 한다. .partial 폴더는 건너뛴다.
-# - 이미 관측 v2로 전처리한 seed(processed/metadata.json에 obs_v2_names가 있음)는 건너뛴다. 중간에 멈춰도 같은 명령으로 이어 간다.
+# - 이미 관측 33차원까지 전처리한 seed(processed/metadata.json에 obs33_names가 있음)는 건너뛴다. 중간에 멈춰도 같은 명령으로 이어 간다.
 # - 로그는 <out>/_preprocess_logs/<이름>.log, 실패한 seed는 _preprocess_logs/failed.txt.
 # - 환경 변수: PYTHON_EXE(D:/conda_envs/sumo/python.exe), OUT_DIR(data/pdm_bus), SCENARIO(baseline),
 #   ACCEL_POS(1.5), ACCEL_NEG(3.0) - 가감속 라벨 정규화 상수. 모든 seed가 같은 값이어야 한다.
@@ -21,7 +21,7 @@ ACCEL_NEG="${ACCEL_NEG:-3.0}"
 LOG_DIR="$OUT_DIR/_preprocess_logs"
 
 is_done() {   # $1 = seed 폴더
-    [ -f "$1/processed/transitions.npz" ] && grep -q obs_v2_names "$1/processed/metadata.json" 2>/dev/null
+    [ -f "$1/processed/transitions.npz" ] && grep -q obs33_names "$1/processed/metadata.json" 2>/dev/null
 }
 
 if [ "${1:-}" = "count" ]; then

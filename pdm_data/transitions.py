@@ -14,8 +14,10 @@ from env.bus_task import REWARDS
 from .features import input_design_features
 from .interaction import row_interaction
 from .labels import (accel_mps2, episode_end, lane_change_applied, lane_change_label, lane_change_label5,
+                     lane_change_labels3,
                      normalize_accel, reward_terms)
 from .lap_context import load_lap_context
+from .obs33 import Obs33Context, obs33
 from .obs93 import obs93
 from .obs_v2 import V2Context, obs_v2
 from .recorder import read_steps
@@ -96,6 +98,10 @@ def build_transitions(run_dir: str, a_pos: float, a_neg: float, cut_on_task_fail
     programs = meta.get("tls_programs", {})
     dims = meta["expert"]["ego_dims"]
     v2 = V2Context(ctx, meta.get("route", {}).get("lane_plans", []))
+    c33 = Obs33Context(ctx)
+
+    def lane_width(lane_id):
+        return c33.net.getLane(lane_id).getWidth()
     rows = list(read_steps(run_dir))
     out, clipped, ends, dropped, replays = [], 0, collections.Counter(), 0, []
     for ep in episodes(rows):
@@ -111,6 +117,8 @@ def build_transitions(run_dir: str, a_pos: float, a_neg: float, cut_on_task_fail
         ends[end["reason"]] += 1
         n_states = min(last + 2, len(ep))
         obs = [obs93(ep[i], ctx, rep[i]).tolist() for i in range(n_states)]
+        obs33s = [obs33(ep[i], c33, rep[i]).tolist() for i in range(n_states)]
+        lane3 = lane_change_labels3(ep[:n_states], lane_width)
         feats, obs2, stage_state, prev_label, prev5 = [], [], {}, None, None
         labels = []
         for i in range(n_states):
@@ -141,6 +149,7 @@ def build_transitions(run_dir: str, a_pos: float, a_neg: float, cut_on_task_fail
             out.append({
                 "episode": row["meta"]["episode"], "t": row["meta"]["t"], "sim_time": row["meta"]["sim_time"],
                 "observation": obs[i], "observation_v2": obs2[i], "action_raw": [an, float(lc5)],
+                "observation_33": obs33s[i], "action_33": [an, float(lane3[i])],
                 "prev_action_raw": prev_raw,
                 "action": {"accel_raw": an, "lane_change_raw": float(lc5), "lane_change": lc5,
                            "lane_change_request": lc, "lane_change_applied": lane_change_applied(row, lc)},
@@ -164,6 +173,7 @@ def build_transitions(run_dir: str, a_pos: float, a_neg: float, cut_on_task_fail
                 "features": feats[i], "next_features": feats[min(i + 1, n_states - 1)],
                 "next_observation": obs[min(i + 1, n_states - 1)],
                 "next_observation_v2": obs2[min(i + 1, n_states - 1)], "next_state": _state(nxt),
+                "next_observation_33": obs33s[min(i + 1, n_states - 1)],
                 "check": row.get("check", {}),
             })
     stats = {"rows_total": len(rows), "transitions": len(out), "dropped_rows": dropped,

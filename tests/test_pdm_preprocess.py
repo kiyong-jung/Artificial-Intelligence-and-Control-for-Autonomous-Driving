@@ -124,3 +124,19 @@ def test_preprocess_writes_v2_columns(tmp_path):
     np.testing.assert_array_equal(z["prev_action_raw"][1:], z["action_raw"][:-1])
     np.testing.assert_array_equal(z["next_observation_v2"][:-1], z["observation_v2"][1:])
     assert np.abs(z["observation_v2"]).max() <= 1.0
+
+
+def test_npz_has_obs33_columns(tmp_path):
+    import json
+    import numpy as np
+    d = make_run_dir(tmp_path)
+    subprocess.run([sys.executable, SCRIPT, d, "--accel-pos", "1.5", "--accel-neg", "3.0"], check=True, capture_output=True)
+    z = np.load(os.path.join(d, "processed", "transitions.npz"))
+    assert z["observation_33"].shape == (11, 33) and z["next_observation_33"].shape == (11, 33)
+    assert z["action_33"].shape == (11, 2)
+    np.testing.assert_array_equal(z["action_33"][:, 0], z["action_raw"][:, 0])
+    assert set(z["action_33"][:, 1].tolist()) <= {-1.0, 0.0, 1.0}
+    np.testing.assert_array_equal(z["next_observation_33"][:-1], z["observation_33"][1:])
+    assert np.abs(z["observation_33"]).max() <= 1.0
+    with open(os.path.join(d, "processed", "metadata.json"), encoding="utf-8") as f:
+        assert len(json.load(f)["obs33_names"]) == 33

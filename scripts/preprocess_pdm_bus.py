@@ -23,6 +23,7 @@ from env.data_schema import COLUMNS  # noqa: E402
 from pdm_data.features import FEATURE_NAMES  # noqa: E402
 from pdm_data.labels import accel_mps2, accel_report  # noqa: E402
 from pdm_data.lap_context import load_lap_context  # noqa: E402
+from pdm_data.obs33 import FEATURE_NAMES_33, OBS33_DIM  # noqa: E402
 from pdm_data.obs_v2 import FEATURE_NAMES as OBS_V2_NAMES, LAYOUT as OBS_V2_LAYOUT, OBS_V2_DIM  # noqa: E402
 from pdm_data.recorder import _round, read_events, read_steps  # noqa: E402
 from pdm_data.scenario_offline import s5_events, s6_events  # noqa: E402
@@ -45,6 +46,8 @@ EXTRA_COLUMNS = {
     "action_raw[1]": "5값 차로 라벨: 실제로 옮긴 구간 ±2, 방향지시등만 켠 구간 ±1, 그 밖 0(+ 왼쪽)",
     "action.lane_change_request": "이전 3값 요청 라벨(request 단계·도착 보장 정차의 요청 방향)",
     "prev_action_raw": "직전 행의 action_raw(에피소드 첫 행은 [0, 0])",
+    "observation_33 / next_observation_33": "관측 33차원(docs/superpowers/specs/2026-11-26-obs33-mlp-bc-design.md, pdm_data/obs33.py)",
+    "action_33": "[정규화 가감속(action_raw[0]과 같음), 3값 차로 라벨 {-1,0,1}(+ 왼쪽, 실제 옆 이동 기준)]",
     "observation_v2 / next_observation_v2": "관측 v2 166차원(docs/observation_features_v2.md, pdm_data/obs_v2.py)",
 }
 
@@ -149,7 +152,10 @@ def main(argv=None):
                         episode=np.asarray([r["episode"] for r in tr], np.int32),
                         t=np.asarray([r["t"] for r in tr], np.int32),
                         features=np.asarray([r["features"] for r in tr], np.float32).reshape(-1, len(FEATURE_NAMES)),
-                        next_features=np.asarray([r["next_features"] for r in tr], np.float32).reshape(-1, len(FEATURE_NAMES)))
+                        next_features=np.asarray([r["next_features"] for r in tr], np.float32).reshape(-1, len(FEATURE_NAMES)),
+                        observation_33=np.asarray([r["observation_33"] for r in tr], np.float32).reshape(-1, OBS33_DIM),
+                        next_observation_33=np.asarray([r["next_observation_33"] for r in tr], np.float32).reshape(-1, OBS33_DIM),
+                        action_33=np.asarray([r["action_33"] for r in tr], np.float32).reshape(-1, 2))
     with open(os.path.join(out_dir, "events.jsonl"), "w", encoding="utf-8") as f:
         for e in events:
             f.write(json.dumps(_round(e), ensure_ascii=False, separators=(",", ":")) + "\n")
@@ -159,7 +165,8 @@ def main(argv=None):
     pmeta = {"source_schema": meta.get("schema_version"), "net_sha256": meta.get("net_sha256"),
              "accel_scale": {"pos": a.accel_pos, "neg": a.accel_neg}, "stats": stats,
              "cut_on_task_failure": not a.keep_after_task_failure, "max_lap_s": a.max_lap_s,
-             "feature_names": FEATURE_NAMES, "obs93_layout": LAYOUT, "obs_v2_names": list(OBS_V2_NAMES),
+             "feature_names": FEATURE_NAMES, "obs93_layout": LAYOUT, "obs_v2_names": list(OBS_V2_NAMES), "obs33_names": list(FEATURE_NAMES_33),
+             "lane_label_33": "3값 {-1,0,1}: 옆 이동 시작 구간부터 차로가 바뀐 구간까지 이동 방향(action_33[1])",
              "obs_v2_layout": OBS_V2_LAYOUT, "lane_label": "5값 {-2,-1,0,1,2}: 실제 이동 ±2, 방향지시등만 ±1",
              "rewards": REWARDS, "comfort_limits": COMFORT_LIMITS,
              "obs93_online_check": check,

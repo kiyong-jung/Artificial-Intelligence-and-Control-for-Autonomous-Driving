@@ -61,3 +61,5 @@ python research/av_bc_rl/render_best_worst.py data/research/verify_map322_heavy 
 ## PR 미리보기
 
 `preview_best_lap.gif`는 `model_best_busy_lap.mp4`를 3배 더 빠르게 줄인 22초 미리보기다. `preview_worst_*.gif`는 워스트 영상 네 개의 마지막 부분이다(GitHub는 저장소 안의 mp4를 본문에서 바로 틀지 못한다).
+
+`review_r8/preview_*.gif`는 PR #14 본문에 넣는 미리보기다. 1번과 5번 영상은 빠르게 줄였고, 2~4번은 마지막 부분이다.

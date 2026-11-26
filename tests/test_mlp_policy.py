@@ -123,6 +123,24 @@ def test_train_focal_reports_both_losses(tmp_path):
     assert abs(m["bc_loss"] - (m["accel_loss"] + m["lane_loss"])) < 1e-6
 
 
+@pytest.mark.parametrize("lane_loss", ["ce", "focal"])
+def test_train_accel_mse(tmp_path, lane_loss):
+    from scripts.train_ego_attention_bc import main
+    f = tmp_path / "run0" / "processed" / "transitions.npz"
+    f.parent.mkdir(parents=True)
+    _fake_npz_33(f, 3)
+    out = tmp_path / "out"
+    main(["--data", str(f), "--out", str(out), "--input", "obs33", "--policy", "mlp", "--hidden-layers", "16,16",
+          "--accel-bins", "0", "--lane-loss", lane_loss, "--epochs", "1", "--no-tensorboard"])
+    audit = json.loads((out / "audit.json").read_text(encoding="utf-8"))
+    m = audit["final"]["validation"]
+    assert "MSE" in audit["loss"]["accel"] and "accel_bin_acc" not in m and m["accel_mae"] >= 0
+    net, cfg = load_mlp_policy_dir(str(out))
+    assert cfg["network"]["mlp"]["accel_bins"] == 0 and net.n_accel == 0
+    a = net.det_action(torch.zeros(4, 33))
+    assert a.shape == (4, 2) and torch.all(a[:, 0].abs() <= 1.0)
+
+
 def test_resume_accepts_args_added_later(tmp_path):
     from scripts.train_ego_attention_bc import main
     f = tmp_path / "t.npz"

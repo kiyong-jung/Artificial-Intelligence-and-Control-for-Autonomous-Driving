@@ -1,5 +1,5 @@
 {
-  "description": "관측 33차원 + 3값 차로 라벨(A안) MLP 행동 복제(data/pdm_bus_sumo_lc busy). base = MLP 256x256, 차로 가중 effective CE. lane_inverse = inverse 가중, lane_focal = effective 가중을 alpha로 쓰는 focal loss(gamma 2), small128 = MLP 128x128. 가감속은 모두 구간 21개 CE. 각 실험은 common 뒤에 자기 인자를 붙인다(뒤의 값이 이긴다).",
+  "description": "관측 33차원 + 3값 차로 라벨(A안) MLP 행동 복제(data/pdm_bus_sumo_lc busy). base = MLP 256x256, 차로 가중 effective CE. lane_inverse = inverse 가중, lane_focal = effective 가중을 alpha로 쓰는 focal loss(gamma 2), small128 = MLP 128x128, accel_mse = 가감속 MSE(제동 표본 가중 4) + 가중 CE, accel_mse_focal = 가감속 MSE + focal. 나머지는 가감속 구간 21개 CE. 각 실험은 common 뒤에 자기 인자를 붙인다(뒤의 값이 이긴다).",
   "split_seed": 38001,
   "seeds": [1, 2, 3],
   "common": ["--input", "obs33", "--policy", "mlp", "--hidden-layers", "256,256",
@@ -10,6 +10,8 @@
     "base":         [],
     "lane_inverse": ["--lane-weighting", "inverse", "--lane-weight-cap", "50"],
     "lane_focal":   ["--lane-loss", "focal", "--focal-gamma", "2"],
-    "small128":     ["--hidden-layers", "128,128"]
+    "small128":     ["--hidden-layers", "128,128"],
+    "accel_mse":    ["--accel-bins", "0"],
+    "accel_mse_focal": ["--accel-bins", "0", "--lane-loss", "focal", "--focal-gamma", "2"]
   }
 }

@@ -112,7 +112,7 @@ git pull --ff-only origin feat/pdm-closed-bus
 
 설정 파일은 [experiments/bc_obs33_mlp.json](../experiments/bc_obs33_mlp.json)이다.
 - 공통 설정: `--input obs33 --policy mlp --hidden-layers 256,256`, 가감속 구간 21개 CE, 200 epoch, cosine, patience 40, 차로 가중 effective.
-- 실험 4개를 seed 3개씩, 모두 12회 돌린다. 분할은 `split_seed` 38001로 고정한다.
+- 실험 6개를 seed 3개씩, 모두 18회 돌린다. 분할은 `split_seed` 38001로 고정한다.
 
 | 실험 | base와 다른 점 |
 |---|---|
@@ -120,6 +120,8 @@ git pull --ff-only origin feat/pdm-closed-bus
 | `lane_inverse` | 차로 가중 inverse(상한 50) |
 | `lane_focal` | 차로 손실을 focal loss로 바꾼다(`--lane-loss focal --focal-gamma 2`). 같은 effective 가중을 alpha로 쓴다 |
 | `small128` | MLP 128×128(파라미터 23,961개) |
+| `accel_mse` | 가감속을 MSE 회귀로(`--accel-bins 0`), 제동 표본 가중 4. 차로는 effective 가중 CE |
+| `accel_mse_focal` | 가감속 MSE + 차로 focal loss(gamma 2) |
 
 ```bash
 # 무엇을 돌릴지만 확인
@@ -181,7 +183,9 @@ nvidia-smi
 - `lane_loss`: 그 실험이 실제로 학습한 차로 손실이다(focal이면 focal 값).
   `bc_loss` = `accel_loss` + `lane_loss`이고, 모델 선택(validation 최소)도 이 값으로 한다.
 - `lane_ce`: 모든 실험에서 같은 기준(가중 CE)으로 잰 값이다.
-- focal loss는 값의 크기가 CE와 달라서 `bc_loss`로는 실험끼리 비교하지 않는다. 실험끼리는 표의 지표나 `lane_ce`로 비교한다.
+- focal loss와 가감속 MSE는 값의 크기가 CE와 달라서 `bc_loss`, `accel_loss`로는 실험끼리 비교하지 않는다.
+  실험끼리는 표의 지표(`accel_mae`, `lane_bal` 등)나 `lane_ce`로 비교한다.
+  MSE 실험에는 구간이 없어 `accel_bin_acc`가 `-`다.
 
 ### TensorBoard
 
@@ -280,7 +284,7 @@ D:/conda_envs/sumo/python.exe scripts/eval_bc_closed_loop.py one --world sumo_lc
 D:/conda_envs/sumo/python.exe scripts/eval_bc_closed_loop.py run --world sumo_lc \
   --models results/bc_obs33_mlp --out results/closed_loop_obs33_mlp --jobs 8 --dry-run
 
-# 전부(모델 12개 + 전문가) x 평가 seed 20개, 동시에 8개
+# 전부(모델 18개 + 전문가) x 평가 seed 20개, 동시에 8개
 D:/conda_envs/sumo/python.exe scripts/eval_bc_closed_loop.py run --world sumo_lc \
   --models results/bc_obs33_mlp --out results/closed_loop_obs33_mlp --jobs 8
 
@@ -330,6 +334,11 @@ D:/conda_envs/sumo/python.exe -m pytest -q tests/test_mlp_policy.py tests/test_p
 - focal loss(`lane_focal`)는 차로 이동 행이 전체의 약 6%로 드물다는 점 때문에 넣었다.
   클래스 가중만으로는 쉬운 "유지" 행이 손실을 채우는데, focal loss는 이미 맞히는 표본의 손실을 줄여 헷갈리는 이동 직전·직후 행에 집중시킨다.
 - `small128`은 입력이 33개뿐이라 256×256이 과한지 보려고 넣었다. closed-loop 성적이 비슷하면 작은 모델이 낫다.
+- `accel_mse`, `accel_mse_focal`은 가감속을 구간 CE 대신 MSE로 학습하면 어떤지 보려고 넣었다.
+  - 두 손실 항의 크기가 달라진다. busy_s0~s1, 3 epoch로 재 보니 validation 값이 다음과 같았다.
+    - 가감속 MSE: 약 0.14, 차로 CE: 약 0.80
+    - 가감속 구간 CE: 약 2.39, 차로 CE: 약 0.97
+  - 그래서 MSE 실험에서는 차로 쪽이 기울기를 더 많이 차지한다. 가감속 MAE가 나쁘게 나오면 `--lane-weight`를 낮춘 실험을 더한다.
 - 가감속은 구간 21개 CE, 가중 없음으로 한다. v2 실험에서 구간 11개나 가감속 가중보다 MAE가 낮았다.
 - 미룬 일:
   - 뒤차 탐색이 두 조각 교차로(R111b→R112, R112.221→R113, R42→R68)의 두 번째 조각을 건너뛴다. 고치면 전처리를 다시 해야 한다.

@@ -10,7 +10,12 @@
 명령(판단 0.5초마다 decide()로 받는다):
   가감속 a [m/s^2]: 0.1초마다 setSpeed(max(0, v + a*0.1)). 0.5초 뒤 속도 변화가 a*0.5가 되어 학습 라벨(구간 평균 가속도)과 같다.
   차로 5값: +-2 = 그쪽으로 차선 변경 요청(한 번) + 방향지시등, +-1 = 방향지시등만, 0 = 방향지시등을 SUMO 자동으로 되돌린다.
+  차로 3값(lane_values=3, 관측 33차원 정책): +-1 = 그쪽으로 요청 + 방향지시등, 0 = 방향지시등 자동.
+    서브레인 모델에서는 요청 한 번으로 차선 변경을 끝까지 마치고, "현재 차로 +-1"을 계속 보내면 한 차로를 더 건넌다.
+    그래서 목표 차로를 잠가 둔다: 목표에 닿기 전 같은 방향 명령은 같은 목표로 다시 보내고, 닿은 뒤 옆 속도가
+    LC3_SETTLED_MPS 아래로 내려갈 때까지 같은 방향 명령은 무시한다(policy_stats lane_guard_ignored). 반대 방향 명령은 잠금을 푼다.
   +는 왼쪽(차로 번호 증가)이다.
+  stop_plans_only: S2·S3 창을 빼서 A1(양보형·비양보형)을 끈다(traffic/pdm_bus_sumo_lc.PDMSumoLaneBusPilot과 같음).
 """
 from __future__ import annotations
 
@@ -21,6 +26,7 @@ SPEED_MODE_OFF = 32      # 모든 속도 검사 끔(bit5: 교차로 안 우선�
 LC_MODE_OFF = 0          # 자율 차선 변경 없음, TraCI 요청은 안전 검사 없이
 DT = 0.1
 DECISION_S = 0.5
+LC3_SETTLED_MPS = 0.05
 
 
 def accel_from_normalized(an: float, pos: float, neg: float) -> float:
@@ -51,13 +57,20 @@ def blinker_for(cmd: int) -> int:
 
 
 class PolicyBusPilot(PDMClosedBusPilot):
-    def __init__(self, tc, net, loop, stops, stop_s=8.0, cfg=None):
+    def __init__(self, tc, net, loop, stops, stop_s=8.0, cfg=None, lane_values: int = 5, stop_plans_only: bool = False):
         super().__init__(tc, net, loop, stops, stop_s=stop_s, cfg=cfg)
+        if lane_values not in (3, 5):
+            raise ValueError("lane_values는 3 또는 5")
+        self.lane_values = int(lane_values)
+        if stop_plans_only:
+            self.lane_plans_all = list(self.plans)
+            self.plans = [p for p in self.plans if p.kind == "STOP"]
+        self._lc = None                    # 3값: 잠근 (방향, 목표 차로)
         self.accel = None                  # 지금 걸린 가감속 명령 [m/s^2]. 첫 판단 전에는 None(정지 유지)
         self.lane_cmd = 0
         self._lane_pending = False
         self.policy_stats = {"decisions": 0, "lane_requests": 0, "lane_requests_sent": 0, "blink_only": 0,
-                             "lane_request_rejected": {"internal": 0, "no_lane": 0}}
+                             "lane_request_rejected": {"internal": 0, "no_lane": 0}, "lane_guard_ignored": 0}
 
     # 정류장 정차 명령은 걸지 않는다(정책이 직접 선다)
     def _set_stops(self):
@@ -71,11 +84,12 @@ class PolicyBusPilot(PDMClosedBusPilot):
     def decide(self, accel_mps2: float, lane_cmd: int, t: float, info: dict = None):
         """판단 한 번. 기록기가 읽는 phase/target과 last_plan(window.pdm_plans에 남는다)도 맞춘다."""
         self.accel, self.lane_cmd = float(accel_mps2), int(lane_cmd)
-        self._lane_pending = abs(self.lane_cmd) == 2
+        move = 1 if self.lane_values == 3 else 2
+        self._lane_pending = abs(self.lane_cmd) == move
         self.policy_stats["decisions"] += 1
         self.policy_stats["lane_requests"] += int(self._lane_pending)
-        self.policy_stats["blink_only"] += int(abs(self.lane_cmd) == 1)
-        self.phase = {2: "request", 1: "signal"}.get(abs(self.lane_cmd), "idle")
+        self.policy_stats["blink_only"] += int(self.lane_values == 5 and abs(self.lane_cmd) == 1)
+        self.phase = "request" if self._lane_pending else ("signal" if self.lane_cmd else "idle")
         self.target = None
         if self.lane_cmd:
             try:
@@ -107,6 +121,10 @@ class PolicyBusPilot(PDMClosedBusPilot):
             v.setSpeed(BUS, 0.0)
             return
         v.setSpeed(BUS, max(0.0, v.getSpeed(BUS) + self.accel * DT))
+        if self.lane_values == 3:
+            self._apply_lc3(tc, road, internal)
+            v.setSignals(BUS, blinker_for(self.lane_cmd))
+            return
         if self._lane_pending:
             self._lane_pending = False
             idx = v.getLaneIndex(BUS)
@@ -118,6 +136,34 @@ class PolicyBusPilot(PDMClosedBusPilot):
                 v.changeLane(BUS, target, DECISION_S)
                 self.policy_stats["lane_requests_sent"] += 1
         v.setSignals(BUS, blinker_for(self.lane_cmd))
+
+    def _apply_lc3(self, tc, road, internal):
+        v = tc.vehicle
+        cmd = self.lane_cmd
+        idx = v.getLaneIndex(BUS)
+        if self._lc is not None:
+            d, target = self._lc
+            if (idx == target and abs(v.getLateralSpeed(BUS)) < LC3_SETTLED_MPS) or (cmd and cmd != d):
+                self._lc = None
+        if not self._lane_pending:
+            return
+        self._lane_pending = False
+        if self._lc is not None:
+            target = self._lc[1]
+            if idx != target:
+                v.changeLane(BUS, target, DECISION_S)
+                self.policy_stats["lane_requests_sent"] += 1
+            else:
+                self.policy_stats["lane_guard_ignored"] += 1
+            return
+        n = 0 if internal else tc.edge.getLaneNumber(road)
+        target, why = lane_target(2 * cmd, idx, n, internal)
+        if target is None:
+            self.policy_stats["lane_request_rejected"][why] += 1
+            return
+        v.changeLane(BUS, target, DECISION_S)
+        self.policy_stats["lane_requests_sent"] += 1
+        self._lc = (cmd, target)
 
     def summary(self):
         s = self.policy_stats

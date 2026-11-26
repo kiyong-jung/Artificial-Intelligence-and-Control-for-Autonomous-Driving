@@ -2,6 +2,8 @@
 
 판단은 학습 데이터와 같은 정의를 따른다.
   관측  : pdm_data.obs_v2.obs_v2(스냅숏 행, V2Context, 정차 판정 상태, 직전 행동)
+          관측 33차원 MLP 정책(run_config input "obs33")이면 pdm_data.obs33.obs33(스냅숏 행, Obs33Context, 정차 판정 상태).
+          이 정책은 차로 3값을 내고, 평가 버스는 lane_values=3으로 받는다.
   직전 행동: 직전 판단 구간에서 실제로 일어난 것(labels.accel_mps2 정규화, lane_change_label5). 학습의 prev_action_raw와 같다.
   끝    : episode_end와 같은 순서(순간이동은 기록기가 끝낸다, 충돌, 신호 위반, 정류장 놓침, 바퀴 완료)
 """
@@ -13,9 +15,12 @@ import os
 
 import numpy as np
 
+from .closed_loop_extra import (STALL_S, StallWatch, background_collisions, failure_location, interaction_counts,
+                                longest_stall, outcome, overlap_metrics)
 from .interaction import ego_frame, row_interaction
 from .labels import accel_mps2, episode_end, lane_change_label5, normalize_accel
 from .lap_context import lane_usable, load_lap_context
+from .obs33 import Obs33Context, obs33
 from .obs_v2 import V2Context, obs_v2
 from .recorder import CollectionDone, read_steps
 from .replay import EpisodeReplay, replay_episode
@@ -44,7 +49,24 @@ def load_policy(model_dir: str, device: str = "cpu"):
     """scripts/train_ego_attention_bc.py 출력 폴더 -> (정책 함수 obs -> (정규화 가감속, 차로 5값), 정보).
     정책 함수는 결정적이다(가감속 구간 argmax, 차로 argmax).
     차로 5값: +2/-2 좌/우로 옮김, +1/-1 방향지시등만, 0 유지(traffic/policy_bus.PolicyBus.decide의 lane_cmd)."""
+    import json
+
     import torch
+    with open(os.path.join(model_dir, "run_config.json"), encoding="utf-8") as f:
+        network = (json.load(f).get("network") or {})
+    if network.get("policy_type") == "mlp":
+        from utils.mlp_policy import lane_label_of as mlp_lane_label_of, load_mlp_policy_dir
+        net, cfg = load_mlp_policy_dir(model_dir, device)
+        if cfg.get("input") != "obs33":
+            raise ValueError(f"MLP 정책은 관측 33차원(--input obs33)으로 학습한 것만 평가한다: {model_dir}")
+        scale = ((cfg.get("data_metadata") or {}).get("accel_scale")) or DEFAULT_ACCEL_SCALE
+
+        def act33(obs):
+            with torch.no_grad():
+                a = net.det_action(torch.as_tensor(obs, dtype=torch.float32, device=device).unsqueeze(0))[0]
+            return float(a[0]), mlp_lane_label_of(a[1])
+        return act33, {"model_dir": os.path.abspath(model_dir), "accel_scale": dict(scale), "obs_dim": cfg["obs_dim"],
+                       "lane_classes": net.n_lane, "accel_bins": net.n_accel, "input": "obs33"}
     from utils.ego_attention import lane_label_of, load_policy_dir
     net, cfg = load_policy_dir(model_dir, device)
     if cfg.get("input") != "v2":
@@ -57,31 +79,37 @@ def load_policy(model_dir: str, device: str = "cpu"):
         # 행동 벡터의 차로 값은 라벨 / (클래스 수 // 2)다(5클래스면 {1, 0.5, 0, -0.5, -1}). 라벨로 되돌린다.
         return float(a[0]), lane_label_of(a[1], net.n_lane)
     return act, {"model_dir": os.path.abspath(model_dir), "accel_scale": dict(scale), "obs_dim": cfg["obs_dim"],
-                 "lane_classes": net.n_lane, "accel_bins": net.n_accel}
+                 "lane_classes": net.n_lane, "accel_bins": net.n_accel, "input": "v2"}
 
 
 # ---------------------------------------------------------------- 판단
 class PolicyController:
     """collect_pdm_bus.collect(controller=...)에 넣는다. 판단 시각마다 on_decision(새 스냅숏, 방금 닫힌 행)을 부른다."""
 
-    def __init__(self, act, accel_scale=None, info=None):
+    def __init__(self, act, accel_scale=None, info=None, stall_s: float = STALL_S, world: str = "hapjeong"):
         self.act = act
         self.scale = dict(accel_scale or DEFAULT_ACCEL_SCALE)
         self.info = dict(info or {})
-        self.pilot = self.v2 = self.ctx = self.replay = None
+        self.world = world
+        self.obs33 = self.info.get("input") == "obs33"
+        self.pilot = self.v2 = self.c33 = self.ctx = self.replay = None
         self.episode, self.prev = None, None
         self.decisions = 0
+        self.stall = StallWatch(stall_s)
 
     def make_pilot(self, tc, net, loop, stops):
         from traffic.policy_bus import PolicyBusPilot
-        return PolicyBusPilot(tc, net, loop, stops)
+        return PolicyBusPilot(tc, net, loop, stops, lane_values=int(self.info.get("lane_classes") or 5),
+                              stop_plans_only=self.world == "sumo_lc")
 
     def bind(self, ctx, pilot):
         self.ctx, self.pilot = ctx, pilot
         self.v2 = V2Context(ctx, plan_dicts(pilot))
+        if self.obs33:
+            self.c33 = Obs33Context(ctx)
 
     def describe(self) -> dict:
-        return {**self.info, "accel_scale": self.scale, "decisions": self.decisions,
+        return {**self.info, "accel_scale": self.scale, "decisions": self.decisions, "stall_s": self.stall.seconds,
                 "pilot": dict(getattr(self.pilot, "policy_stats", {}) or {})}
 
     def end_reason(self, closed, state):
@@ -101,21 +129,55 @@ class PolicyController:
             reason = self.end_reason(closed, state)
             if reason is not None:
                 raise CollectionDone(reason)
-            an, _ = normalize_accel(accel_mps2(closed), self.scale["pos"], self.scale["neg"])
-            self.prev = (an, lane_change_label5(closed))
+            if self.stall.feed(closed):
+                raise CollectionDone("stuck")
+            if not self.obs33:
+                an, _ = normalize_accel(accel_mps2(closed), self.scale["pos"], self.scale["neg"])
+                self.prev = (an, lane_change_label5(closed))
         if pending is None:
             return
         if pending["meta"]["episode"] != self.episode:
             self.episode, self.prev = pending["meta"]["episode"], None
             self.replay = EpisodeReplay(self.ctx)
+            self.stall.reset()
         state = self.replay.state()
-        obs = obs_v2(pending, self.v2, state, self.prev)
+        obs = obs33(pending, self.c33, state) if self.obs33 else obs_v2(pending, self.v2, state, self.prev)
         an, lane = self.act(obs)
         a = an * self.scale["pos"] if an >= 0 else an * self.scale["neg"]
         self.decisions += 1
+        extra = ({"signal_state_input": float(obs[32]), "stop_point_input": float(obs[31])} if self.obs33
+                 else {"dwell_remaining_input": float(obs[13]) * SERVICE_SECONDS})
         self.pilot.decide(a, lane, pending["meta"]["sim_time"],
-                          {"accel_norm": an, "dwell_remaining_input": float(obs[13]) * SERVICE_SECONDS,
-                           "tracker_index": state["tracker_index"]})
+                          {"accel_norm": an, **extra, "tracker_index": state["tracker_index"]})
+
+
+class ExpertWatch:
+    """PDM 전문가가 모는 바퀴에 정책과 같은 멈춰 섬 끝을 건다(전문가 운전은 바꾸지 않는다)."""
+
+    def __init__(self, stall_s: float = STALL_S, world: str = "hapjeong"):
+        self.stall = StallWatch(stall_s)
+        self.episode = None
+        self.world = world
+
+    def make_pilot(self, tc, net, loop, stops):
+        if self.world == "sumo_lc":                   # 학습 데이터와 같은 전문가(SUMO 차선 변경 + PDM 종방향)
+            from collect_pdm_bus_sumo_lc import DataPilot
+            return DataPilot(tc, net, loop, stops)
+        from traffic.pdm_bus import PDMClosedBusPilot
+        return PDMClosedBusPilot(tc, net, loop, stops)
+
+    def bind(self, ctx, pilot):
+        pass
+
+    def describe(self) -> dict:
+        return {"agent": "expert", "stall_s": self.stall.seconds}
+
+    def on_decision(self, pending, closed):
+        if closed is not None and closed.get("window") is not None and self.stall.feed(closed):
+            raise CollectionDone("stuck")
+        if pending is not None and pending["meta"]["episode"] != self.episode:
+            self.episode = pending["meta"]["episode"]
+            self.stall.reset()
 
 
 # ---------------------------------------------------------------- 지표
@@ -200,8 +262,9 @@ def _nanmin(xs):
     return min(xs) if xs else None
 
 
-def analyze_run(run_dir: str) -> dict:
-    """원시 수집 폴더(한 바퀴) -> 지표 dict. 첫 에피소드만 본다."""
+def analyze_run(run_dir: str, stall_limit: float = STALL_S) -> dict:
+    """원시 수집 폴더(한 바퀴) -> 지표 dict. 첫 에피소드만 본다.
+    outcome: 완주면 arrived, 아니면 실패 종류(끝 원인. 시간 한도인데 stall_limit 넘게 멈춰 있었으면 stuck)."""
     meta = load_meta(run_dir)
     ctx = load_lap_context(run_dir)
     rows_all = list(read_steps(run_dir))
@@ -216,6 +279,7 @@ def analyze_run(run_dir: str) -> dict:
     rep = rep[:len(rows)]
     m = {"end_reason": end["reason"], "success": end["reason"] == "arrived", "decisions": len(rows)}
     if not rows:
+        m["outcome"] = outcome(end["reason"], False, 0.0, stall_limit)
         return m
     t0 = rows[0]["meta"]["sim_time"]
     subs = [s for _, s in _substeps(rows)]
@@ -306,5 +370,14 @@ def analyze_run(run_dir: str) -> dict:
              s5_min_bus_accel=_nanmin([e["detail"]["bus_min_accel"] for e in s5]),
              s6_passes=len(s6), s6_min_pet_s=_nanmin([e["detail"]["min_pet"] for e in s6]),
              s6_no_slowdown=sum(1 for e in s6 if e["detail"]["bus_min_speed"] > 2.0))
+
+    # 실패 분류와 위치, 상호작용 장면, 겹침, 배경 충돌
+    stall = longest_stall(subs) if subs else {"duration_s": 0.0, "t_start": None}
+    kind = outcome(m["end_reason"], m["success"], stall["duration_s"], stall_limit)
+    m.update(outcome=kind, longest_stall_s=stall["duration_s"], stall_limit_s=stall_limit)
+    m.update(interaction_counts(rows, ctx, stops))
+    m.update(overlap_metrics(rows, dims))
+    m.update(background_collisions(rows))
+    m["failure_location"] = None if m["success"] else failure_location(rows, ctx, meta, kind, stall)
     m["stops"] = stops
     return m

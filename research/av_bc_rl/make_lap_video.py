@@ -28,6 +28,7 @@ EGO, CAR, BUS, PED, TRAIL = (255, 196, 0), (150, 190, 235), (120, 220, 160), (25
 SNAIL = (200, 120, 60)   # 느린 차(id가 snail_, env/road_config.SLOW_TRAFFIC)
 ALLEY = (190, 140, 230)  # 골목에서 출발한 차(id가 alley_, env/road_config.ALLEY_TRAFFIC)
 TAXI = (255, 140, 40)    # 정류장 앞 택시(id가 taxi_, env/road_config.CAUSE_TRAFFIC)
+STOP, STOP_EDGE = (24, 120, 140), (110, 225, 240)   # 버스 정류장 구간(map.json bus_stops)
 SIGNAL = {"r": (230, 70, 60), "R": (230, 70, 60), "u": (230, 70, 60), "y": (240, 200, 40), "Y": (240, 200, 40),
           "g": (60, 200, 90), "G": (60, 200, 90), "s": (60, 200, 90)}
 TURN = {"left": "좌회전", "right": "우회전", "straight": "직진", None: "-"}
@@ -52,8 +53,32 @@ def strip(shape, width):
     return left + right[::-1]
 
 
-def load_lanes(net_path):
-    net = sumolib.net.readNet(net_path, withInternal=True)
+def load_stops(net, map_json):
+    """map.json의 버스 정류장마다 (이름, 정류장 구간 다각형, 이름을 쓸 점, 범위). 구간은 차로 길이와 모양 길이의 비로 맞춘다."""
+    with open(map_json, encoding="utf-8") as f:
+        stops = json.load(f).get("bus_stops", [])
+    out = []
+    for stop in stops:
+        lane = net.getLane(stop["lane"])
+        shape = [point[:2] for point in lane.getShape()]
+        ratio = sumolib.geomhelper.polyLength(shape) / lane.getLength()
+        a, b = stop["startPos"] * ratio, stop["endPos"] * ratio
+        inner, walked = [], 0.0
+        for p, q in zip(shape, shape[1:]):
+            walked += math.dist(p, q)
+            if a < walked < b:
+                inner.append(q)
+        piece = [sumolib.geomhelper.positionAtShapeOffset(shape, a), *inner, sumolib.geomhelper.positionAtShapeOffset(shape, b)]
+        xs, ys = [p[0] for p in piece], [p[1] for p in piece]
+        (ax, ay), (bx, by) = (sumolib.geomhelper.positionAtShapeOffset(shape, d) for d in (a, b))
+        length = math.hypot(bx - ax, by - ay) or 1.0
+        side = 7.0   # 이름은 진행 방향 오른쪽(보도 쪽)으로 7m 띄운다
+        label = ((ax + bx) / 2 + (by - ay) / length * side, (ay + by) / 2 - (bx - ax) / length * side)
+        out.append((stop["name"], strip(piece, lane.getWidth()), label, (min(xs), min(ys), max(xs), max(ys))))
+    return out
+
+
+def load_lanes(net):
     lanes = []
     for edge in net.getEdges(withInternal=True):
         function = edge.getFunction()
@@ -126,7 +151,9 @@ def main():
     args = parser.parse_args()
     rows = read_episode(args.jsonl, args.episode)
     half, scale = args.radius, VIEW / (2 * args.radius)
-    lanes = load_lanes(args.net)
+    net = sumolib.net.readNet(args.net, withInternal=True)
+    lanes = load_lanes(net)
+    stops = load_stops(net, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(args.net))), "map.json"))
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     trail, changes, banner, banner_left, center = [], 0, "", 0, None
     start = rows[0]["sim_time"]
@@ -155,6 +182,12 @@ def main():
                 draw.polygon([px(p) for p in polygon], fill={"road": ROAD, "walk": WALK, "cross": CROSS}[kind])
                 if kind == "road":
                     draw.line([px(p) for p in shape], fill=LINE, width=1)
+            labels = []
+            for name, polygon, mid, (x0, y0, x1, y1) in stops:
+                if x1 < box[0] or x0 > box[2] or y1 < box[1] or y0 > box[3]:
+                    continue
+                draw.polygon([px(p) for p in polygon], fill=STOP, outline=STOP_EDGE, width=3)
+                labels.append((px(mid), f"정류장 {name}"))
             if len(trail) > 1:
                 draw.line([px(p) for p in trail[-120:]], fill=TRAIL, width=2)
             for vehicle in state.get("vehicles", ()):
@@ -169,6 +202,10 @@ def main():
                 draw.ellipse((x - 3, y - 3, x + 3, y + 3), fill=PED)
             if "x" in ego:
                 draw.polygon([px(p) for p in body(ego["x"], ego["y"], ego["heading"], 12.0, 2.5)], fill=EGO, outline=(0, 0, 0))
+            for (lx, ly), text in labels:   # 차에 가리지 않게 이름은 맨 위에 쓴다
+                left, top, right, bottom = draw.textbbox((lx, ly), text, font=font(17, True), anchor="mm")
+                draw.rounded_rectangle((left - 8, top - 5, right + 8, bottom + 5), radius=6, fill=STOP_EDGE)
+                draw.text((lx, ly), text, font=font(17, True), fill=(10, 40, 50), anchor="mm")
             if action.get("lane_change_actual"):
                 changes += 1
                 banner, banner_left = ("왼쪽으로 차로 변경" if action["lane_change_actual"] > 0 else "오른쪽으로 차로 변경"), 6
@@ -221,7 +258,7 @@ def main():
                 draw.text((x + 4, VIEW - 92), banner, font=font(24, True), fill=(20, 20, 20), anchor="lm")
                 banner_left -= 1
             draw.text((x, VIEW - 40), f"반경 {half:.0f}m  노랑=우리 버스  파랑=차  갈색=느린 차  초록=다른 버스  분홍=보행자", font=font(14), fill=(150, 150, 156))
-            draw.text((x, VIEW - 22), "보라=골목에서 나온 차  주황=정류장 택시", font=font(14), fill=(150, 150, 156))
+            draw.text((x, VIEW - 22), "보라=골목에서 나온 차  주황=정류장 택시  청록 칸=버스 정류장", font=font(14), fill=(150, 150, 156))
             if index < first:   # 찍지 않는 앞부분도 궤적과 누적 수는 센다
                 continue
             writer.append_data(np.asarray(image))

@@ -37,8 +37,10 @@ def _attrs(values: dict) -> dict:
             for key, value in values.items() if value is not None}
 
 
-def _lateral_attributes(traffic: dict) -> dict:
-    return {attribute: traffic["lateral_model"][key] for key, attribute in (
+def _lateral_attributes(traffic: dict, background: bool = False) -> dict:
+    """옆 이동 속성. 배경 차는 background_lateral이 있으면 그것을 쓴다(버스는 늘 lateral_model)."""
+    model = traffic.get("background_lateral", traffic["lateral_model"]) if background else traffic["lateral_model"]
+    return {attribute: model[key] for key, attribute in (
         ("accel", "lcAccelLat"), ("max_speed", "maxSpeedLat"),
         ("standing_speed", "lcMaxSpeedLatStanding"), ("speed_factor", "lcMaxSpeedLatFactor"),
         ("roundabout_cooperation", "lcCooperativeRoundabout"))}
@@ -52,6 +54,9 @@ def _write_vehicle_types(routes: ET.Element, ego: dict, traffic: dict) -> None:
     ET.SubElement(routes, "vType", _attrs(dict(
         id="ego_type", speedFactor=ego["speed_factor"], speedDev=ego["speed_dev"], color="1,0,0",
         **vtype_attributes(ego), **lateral)))
+    lateral = _lateral_attributes(traffic, background=True)
+    if float(traffic["lateral_resolution"]) > 0:
+        lateral["laneChangeModel"] = "SL2015"
     controllers = traffic["controllers"]
     total = sum(float(c["probability"]) for c in controllers.values())
     distribution = ET.SubElement(routes, "vTypeDistribution", id="carDist")
@@ -81,7 +86,7 @@ def _write_krauss_type(routes: ET.Element, traffic: dict, vtype: str, color: str
     ET.SubElement(routes, "vType", _attrs(dict(
         id=vtype, carFollowModel="Krauss", accel=c["accel"], decel=c["decel"], tau=c["tau"], minGap=c["min_gap"],
         sigma=c["sigma"], maxSpeed=traffic["max_speed"], speedDev=c["speed_dev"], color=color, vClass="passenger",
-        guiShape=shape, **_lateral_attributes(traffic), **traffic["background_lane_change"], **extra)))
+        guiShape=shape, **_lateral_attributes(traffic, background=True), **traffic["background_lane_change"], **extra)))
 
 
 def _appear_distance(net, edge: str, route_shapes: list) -> float:

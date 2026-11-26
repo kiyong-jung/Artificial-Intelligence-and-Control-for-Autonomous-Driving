@@ -1,0 +1,22 @@
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+설정안	seed수	걸침	걸침초	최장	돌아감	돌아감초	버스뒤걸침	버스정차	도착	충돌	텔레포트	평균속도
+nogain_stand03	2	5	30	16	15	416	0	0	1072	0	0	4.66
+nogain_factor05_acc	2	10	291	56	14	430	0	0	1073	0	0	4.68
+gain03	2	87	2772	142	8	118	0	0	1091	0	0	4.88
+gain03_factor05_acc	2	51	1206	82	40	925	0	0	1099	0	0	4.93
+sublane0	2	554	26697	576	23	296	4	0	1011	10	0	4.23
+lookahead0	2	164	6369	142	3	67	0	0	1082	0	0	4.82
+factor05_acc_stand01	2	54	482	47	51	1180	0	0	1091	0	0	4.87

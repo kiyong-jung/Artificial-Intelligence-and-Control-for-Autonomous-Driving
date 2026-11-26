@@ -60,6 +60,13 @@ CAUSE_TRAFFIC = {
     "rich_lo": {"taxi": .25, "cut": (.10, "assertive"), "ped": 1.5},
     # rich_lo와 같되 택시 출발 도로에도 골목과 같은 50m 검사를 한다(rich_lo에서 G31 출발 택시가 버스 50m 안에서 나타났다).
     "rich2": {"taxi": .25, "cut": (.10, "assertive"), "ped": 1.5, "taxi_clearance": ALLEY_CLEARANCE},
+    # rich2와 같은 수요에 배경 차의 옆 이동 설정만 바꾼 시험용이다(선 채 두 차로에 걸치는 차를 줄이는 안, 측정은
+    # research/snail/lateral_screen_rich2*.txt). ng는 속도 이득 차로 변경을 끄고 선 채 0.3m/s로 옆 이동을 마치게 한다.
+    # f5는 옆 속도를 속도의 0.5배까지 허용하고 옆 가속을 2.0으로 올린다.
+    "rich2_ng": {"taxi": .25, "cut": (.10, "assertive"), "ped": 1.5, "taxi_clearance": ALLEY_CLEARANCE,
+                 "background": {"lateral": {"standing_speed": 0.3}, "lane_change": {"lcSpeedGain": 0}}},
+    "rich2_f5": {"taxi": .25, "cut": (.10, "assertive"), "ped": 1.5, "taxi_clearance": ALLEY_CLEARANCE,
+                 "background": {"lateral": {"speed_factor": 0.5, "accel": 2.0}}},
 }
 SCENARIOS.update({name: 1.5 for name in CAUSE_TRAFFIC})
 # 끼어들기 골목은 alley* 기록에서 버스 앞 합류가 나오고 대기열로 이어지지 않던 둘이다: 성지1길 G11 → G12 → 독막로 R71.256
@@ -234,3 +241,7 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
             TRAFFIC["taxi"]["clearance"] = cause["taxi_clearance"]
     if "ped" in cause:
         TRAFFIC["pedestrian_scale"] = cause["ped"]
+    if "background" in cause:
+        # 배경 차만 바꾼다. 버스(ego_type)의 옆 이동 설정은 그대로다.
+        TRAFFIC["background_lateral"] = {**TRAFFIC["lateral_model"], **cause["background"].get("lateral", {})}
+        TRAFFIC["background_lane_change"] = {**TRAFFIC["background_lane_change"], **cause["background"].get("lane_change", {})}

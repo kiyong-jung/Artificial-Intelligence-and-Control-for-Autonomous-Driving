@@ -1,0 +1,43 @@
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+설정안	seed수	걸침	걸침초	최장	돌아감	돌아감초	버스뒤걸침	버스정차	도착	충돌	텔레포트	평균속도
+now	2	71	2094	130	7	176	0	0	1085	0	0	4.84
+stand03	2	70	344	16	81	1661	0	0	1089	0	0	4.85
+stand10	2	32	142	46	60	1798	0	0	1089	0	0	4.85
+sumo_default	2	32	142	46	60	1798	0	0	1089	0	0	4.85
+factor05	2	49	1392	141	40	1442	0	0	1089	0	0	4.84
+early	2	53	1644	134	7	204	0	0	1090	0	0	4.87
+no_gain	2	19	486	96	8	179	0	0	1073	0	0	4.67
+gap02	2	73	2128	124	9	292	0	0	1090	0	0	4.85
+early_stand03	2	78	400	20	85	1224	0	0	1091	0	0	4.87
+factor05_stand03	2	56	244	16	71	1964	0	0	1090	0	0	4.85
+factor05_acc	2	37	796	57	30	828	0	0	1091	0	0	4.85
+factor10_acc	2	35	651	57	33	1033	0	0	1091	0	0	4.88
+factor05_acc_early	2	42	871	60	27	512	0	0	1096	0	0	4.89
+factor05_acc_gap02	2	40	898	80	33	947	0	0	1086	0	0	4.85

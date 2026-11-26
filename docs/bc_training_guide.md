@@ -111,9 +111,15 @@ git pull --ff-only origin feat/pdm-closed-bus
 ## 5. 서버: MLP 실험 실행
 
 설정 파일은 [experiments/bc_obs33_mlp.json](../experiments/bc_obs33_mlp.json)이다.
-- 공통 설정: `--input obs33 --policy mlp --hidden-layers 256,256`, 가감속 구간 21개 CE, 200 epoch, cosine, patience 40.
-- 차로 클래스 가중 두 가지를 비교한다: effective(`base`)와 inverse(`lane_inverse`).
-- 각각 seed 3개씩, 모두 6회 돈다. 분할은 `split_seed` 38001로 고정한다.
+- 공통 설정: `--input obs33 --policy mlp --hidden-layers 256,256`, 가감속 구간 21개 CE, 200 epoch, cosine, patience 40, 차로 가중 effective.
+- 실험 4개를 seed 3개씩, 모두 12회 돌린다. 분할은 `split_seed` 38001로 고정한다.
+
+| 실험 | base와 다른 점 |
+|---|---|
+| `base` | 없음. MLP 256×256(파라미터 80,665개), 차로 손실은 effective 가중 CE |
+| `lane_inverse` | 차로 가중 inverse(상한 50) |
+| `lane_focal` | 차로 손실을 focal loss로 바꾼다(`--lane-loss focal --focal-gamma 2`). 같은 effective 가중을 alpha로 쓴다 |
+| `small128` | MLP 128×128(파라미터 23,961개) |
 
 ```bash
 # 무엇을 돌릴지만 확인
@@ -171,6 +177,12 @@ nvidia-smi
 
 반대 방향 오예측 수(`wrong_side`)는 표에 없다. `audit.json`의 `final.validation.wrong_side`와 TensorBoard에서 본다.
 
+손실 값은 둘로 나눠 남긴다.
+- `lane_loss`: 그 실험이 실제로 학습한 차로 손실이다(focal이면 focal 값).
+  `bc_loss` = `accel_loss` + `lane_loss`이고, 모델 선택(validation 최소)도 이 값으로 한다.
+- `lane_ce`: 모든 실험에서 같은 기준(가중 CE)으로 잰 값이다.
+- focal loss는 값의 크기가 CE와 달라서 `bc_loss`로는 실험끼리 비교하지 않는다. 실험끼리는 표의 지표나 `lane_ce`로 비교한다.
+
 ### TensorBoard
 
 ```bash
@@ -181,6 +193,7 @@ ssh -L 6006:localhost:6006 <서버>                         # 로컬 PC에서, �
 그래프 이름은 `지표/분할` 형식이다(예: `lane_balanced_acc/validation`). 그래서 train과 validation이 한 그래프에 겹쳐 보인다.
 그 밖에 다음 그래프도 있다.
 - `lane_recall_<클래스>`, `keep_to_move`, `wrong_side`, `lr`, `time_s`
+- 차로 손실 `lane_loss/*`(학습한 손실)와 `lane_ce/*`(공통 기준)
 - 선택한 모델의 `final_validation/*`, `final_test/*`
 
 ## 7. 중단과 이어 하기(resume)
@@ -217,7 +230,9 @@ python scripts/train_ego_attention_bc.py --data-list data/pdm_bus_sumo_lc/bc_dat
 | `--lane-weighting` | effective | 차로 클래스 가중: none, inverse, sqrt, effective |
 | `--cb-beta` | 0.9999 | effective 가중의 beta |
 | `--lane-weight-cap` | 100 | 가장 많은 클래스 대비 최대 배수 |
-| `--lane-weight` | 1.0 | 전체 손실에서 차로 CE의 배수 |
+| `--lane-loss` | ce | `ce`(클래스 가중 CE) 또는 `focal`(클래스 가중을 alpha로 쓰는 focal loss) |
+| `--focal-gamma` | 2.0 | focal loss의 gamma. 0이면 CE와 같다 |
+| `--lane-weight` | 1.0 | 전체 손실에서 차로 손실의 배수 |
 | `--accel-weighting` | none | 가감속 구간 클래스 가중 |
 | `--brake-weight` | 4 | 제동 표본(정규화 가감속 < -0.05) 가중 |
 | `--lane-keep-bias` | 0.5 | 차로 출력층의 "유지" 클래스 초기 bias |
@@ -265,7 +280,7 @@ D:/conda_envs/sumo/python.exe scripts/eval_bc_closed_loop.py one --world sumo_lc
 D:/conda_envs/sumo/python.exe scripts/eval_bc_closed_loop.py run --world sumo_lc \
   --models results/bc_obs33_mlp --out results/closed_loop_obs33_mlp --jobs 8 --dry-run
 
-# 전부(모델 6개 + 전문가) x 평가 seed 20개, 동시에 8개
+# 전부(모델 12개 + 전문가) x 평가 seed 20개, 동시에 8개
 D:/conda_envs/sumo/python.exe scripts/eval_bc_closed_loop.py run --world sumo_lc \
   --models results/bc_obs33_mlp --out results/closed_loop_obs33_mlp --jobs 8
 
@@ -312,6 +327,9 @@ D:/conda_envs/sumo/python.exe -m pytest -q tests/test_mlp_policy.py tests/test_p
   - effective: 시험 클래스 평균 recall이 가장 높았고, 유지 → 변경 오예측이 0건이었다.
   - inverse: 이동 precision이 가장 높았다.
   - 3값 라벨에서도 같은지 다시 본다.
+- focal loss(`lane_focal`)는 차로 이동 행이 전체의 약 6%로 드물다는 점 때문에 넣었다.
+  클래스 가중만으로는 쉬운 "유지" 행이 손실을 채우는데, focal loss는 이미 맞히는 표본의 손실을 줄여 헷갈리는 이동 직전·직후 행에 집중시킨다.
+- `small128`은 입력이 33개뿐이라 256×256이 과한지 보려고 넣었다. closed-loop 성적이 비슷하면 작은 모델이 낫다.
 - 가감속은 구간 21개 CE, 가중 없음으로 한다. v2 실험에서 구간 11개나 가감속 가중보다 MAE가 낮았다.
 - 미룬 일:
   - 뒤차 탐색이 두 조각 교차로(R111b→R112, R112.221→R113, R42→R68)의 두 번째 조각을 건너뛴다. 고치면 전처리를 다시 해야 한다.

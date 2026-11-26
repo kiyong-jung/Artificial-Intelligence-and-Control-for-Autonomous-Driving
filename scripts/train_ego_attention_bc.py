@@ -59,6 +59,16 @@ def class_weights(counts, scheme, cap, beta=0.999):
 BRAKE_THRESHOLD = -0.05
 
 
+def focal_cross_entropy(logits, target, weight, gamma):
+    """클래스 가중 focal loss(Lin et al. 2017): -w_y (1 - p_y)^gamma log p_y 의 가중 평균(가중치 합으로 나눈다).
+
+    gamma 0이면 F.cross_entropy(weight=...)와 같다. 가중치는 class_weights(effective 등)를 alpha로 쓴다.
+    """
+    logp = F.log_softmax(logits, dim=-1).gather(1, target[:, None]).squeeze(1)
+    w = weight[target]
+    return (w * (1.0 - logp.exp()).pow(gamma) * -logp).sum() / w.sum().clamp_min(1e-8)
+
+
 def resolve(path) -> Path:
     p = Path(path)
     if p.is_dir():
@@ -201,7 +211,12 @@ class Trainer:
         # lane_action_mask가 막은 쪽 라벨은 CE에서 뺀다(로짓 -1e9). 개수는 audit에 남긴다.
         ok = logits.gather(1, cls[:, None]).squeeze(1) > -1e8
         ok = ok & (self.weights[cls] > 0)
-        lane = F.cross_entropy(logits[ok], cls[ok], weight=self.weights) if ok.any() else logits.sum() * 0.0
+        if not ok.any():
+            lane = logits.sum() * 0.0
+        elif self.args.lane_loss == "focal":
+            lane = focal_cross_entropy(logits[ok], cls[ok], self.weights, self.args.focal_gamma)
+        else:
+            lane = F.cross_entropy(logits[ok], cls[ok], weight=self.weights)
         return accel, lane, (mu, logits, ok)
 
     def train_epoch(self, train_idx, rng):
@@ -226,6 +241,9 @@ class Trainer:
             k = len(ii)
             sums["accel"] += float(accel) * k
             sums["lane"] += float(lane) * k
+            cls = self.lane[ii_t]                   # 비교용 가중 CE(--lane-loss focal이어도 같은 기준)
+            ce = F.cross_entropy(logits[ok], cls[ok], weight=self.weights) if ok.any() else lane
+            sums["lane_ce"] = sums.get("lane_ce", 0.0) + float(ce) * k
             sums["accel_mae"] += float((mu - self.accel[ii_t]).abs().sum())
             sums["accel_mse_pred"] = sums.get("accel_mse_pred", 0.0) + float((mu - self.accel[ii_t]).square().sum())
             preds.append(logits.argmax(-1).cpu().numpy())
@@ -241,7 +259,7 @@ class Trainer:
         per_class = [float((p[y == c] == c).mean()) if (y == c).any() else None for c in range(self.n_lane)]
         seen = [r for r in per_class if r is not None]
         out = {"accel_loss": sums["accel"] / n, "accel_mse": sums["accel_mse_pred"] / n,
-               "lane_ce": sums["lane"] / n,
+               "lane_ce": sums["lane_ce"] / n, "lane_loss": sums["lane"] / n,
                "accel_mae": sums["accel_mae"] / n, "lane_acc": float((p == y).mean()),
                "lane_recall_per_class": per_class, "lane_balanced_acc": float(np.mean(seen)) if seen else None,
                "lane_change_recall": float((p[change] == y[change]).mean()) if change.any() else None,
@@ -262,7 +280,7 @@ class Trainer:
             out["lane_move_precision"] = out["lane_change_precision"]
             out["keep_to_move"] = int(((y == k) & (p != k)).sum())
             out["wrong_side"] = int((((y < k) & (p > k)) | ((y > k) & (p < k))).sum())
-        out["bc_loss"] = out["accel_loss"] + self.args.lane_weight * out["lane_ce"]
+        out["bc_loss"] = out["accel_loss"] + self.args.lane_weight * out["lane_loss"]   # 모델 선택 기준 = 학습 손실
         return out
 
     @torch.no_grad()
@@ -281,7 +299,9 @@ class Trainer:
 
 
 RESUME_FREE_ARGS = {"resume", "epochs", "device", "data", "data_list", "out", "patience", "tensorboard"}
-TB_KEYS = ("bc_loss", "accel_loss", "lane_ce", "accel_mae", "accel_bin_acc", "lane_acc", "lane_balanced_acc",
+# 나중에 생긴 인자: 그 전에 시작한 실행의 run_args.json에는 없으므로 기본값으로 보고 비교한다
+LATER_ARG_DEFAULTS = {"lane_loss": "ce", "focal_gamma": 2.0}
+TB_KEYS = ("bc_loss", "accel_loss", "lane_ce", "lane_loss", "accel_mae", "accel_bin_acc", "lane_acc", "lane_balanced_acc",
            "lane_change_recall", "lane_change_precision", "lane_move_recall", "lane_move_precision", "keep_to_move",
            "blink_to_move", "wrong_side")
 LANE_CLASS_NAMES = {3: ("left", "keep", "right"),
@@ -348,7 +368,8 @@ def check_resume(out, a, sources):
         args_path.write_text(json.dumps(now, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return None
     prev = json.loads(args_path.read_text(encoding="utf-8"))
-    diff = sorted(k for k in set(prev["args"]) | set(now["args"]) if prev["args"].get(k) != now["args"].get(k))
+    diff = sorted(k for k in set(prev["args"]) | set(now["args"])
+                  if prev["args"].get(k, LATER_ARG_DEFAULTS.get(k)) != now["args"].get(k, LATER_ARG_DEFAULTS.get(k)))
     if diff:
         raise ValueError(f"이어서 학습할 수 없습니다: 인자가 다릅니다 {diff}")
     if a.lr_schedule == "cosine" and prev.get("epochs") != a.epochs:
@@ -401,6 +422,9 @@ def main(argv=None):
     # 기본값 근거: seed 29개, 40 epoch 비교에서 effective(beta 0.9999)가 시험 분할 클래스 평균 recall이 가장 높고
     # 깜빡이 없이 바로 옮기는 오예측(정답 0 -> 예측 ±2)이 0건이었다(sqrt 9건, inverse 1건).
     ap.add_argument("--lane-weighting", choices=WEIGHTINGS, default="effective", help="차로 클래스 가중 방식")
+    ap.add_argument("--lane-loss", choices=("ce", "focal"), default="ce",
+                    help="차로 손실: 클래스 가중 CE, 또는 같은 가중을 alpha로 쓰는 focal loss")
+    ap.add_argument("--focal-gamma", type=float, default=2.0, help="--lane-loss focal의 gamma(0이면 CE와 같다)")
     ap.add_argument("--lane-weight-cap", type=float, default=100.0, help="가장 많은 클래스 대비 최대 배수")
     ap.add_argument("--accel-bins", type=int, default=21,
                     help="가감속을 [-1, 1]의 구간 K개로 나눠 CE로 학습(0이면 MSE 회귀)")
@@ -423,6 +447,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if not (np.isfinite(a.brake_weight) and a.brake_weight >= 1):
         ap.error("--brake-weight는 1 이상이어야 합니다")
+    if not (np.isfinite(a.focal_gamma) and a.focal_gamma >= 0):
+        ap.error("--focal-gamma는 0 이상이어야 합니다")
     mask_idx = [int(v) for v in a.mask_obs_indices.split(",") if v.strip()]
     if (a.input == "obs33") != (a.policy == "mlp"):
         ap.error("--input obs33과 --policy mlp는 함께 쓴다")
@@ -564,7 +590,8 @@ def main(argv=None):
              "trainable_parameters": n_params,
              "loss": {"accel": (f"구간 {a.accel_bins}개 CE({a.accel_weighting} 가중, 상한 {a.accel_weight_cap})"
                                 if a.accel_bins else "MSE") + f", 제동(<{BRAKE_THRESHOLD}) 표본 가중 {a.brake_weight}",
-                      "lane": f"{a.lane_weighting} 클래스 가중 CE x {a.lane_weight}(최다 클래스 대비 상한 {a.lane_weight_cap})"},
+                      "lane": (f"focal(gamma {a.focal_gamma})" if a.lane_loss == "focal" else "CE")
+                              + f", {a.lane_weighting} 클래스 가중 x {a.lane_weight}(최다 클래스 대비 상한 {a.lane_weight_cap})"},
              "selection": "validation bc_loss 최소; test는 선택에 쓰지 않음", "save_load_parity": True,
              "epochs_run": ck["epoch"], "early_stopped": ck["stopped"],
              "args": vars(a)}

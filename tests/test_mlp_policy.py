@@ -98,6 +98,47 @@ def test_train_obs33_mlp_smoke(tmp_path):
     assert net.n_lane == 3 and net.det_action(torch.zeros(1, 33)).shape == (1, 2)
 
 
+def test_focal_loss_matches_weighted_ce_at_gamma0_and_downweights_easy():
+    import torch.nn.functional as F
+    from scripts.train_ego_attention_bc import focal_cross_entropy
+    torch.manual_seed(0)
+    logits, y = torch.randn(64, 3) * 3, torch.randint(0, 3, (64,))
+    w = torch.tensor([5.0, 1.0, 5.0])
+    assert torch.allclose(focal_cross_entropy(logits, y, w, 0.0), F.cross_entropy(logits, y, weight=w), atol=1e-6)
+    easy = torch.tensor([[0.0, 8.0, 0.0]])                 # 맞게 확신한 표본은 gamma가 클수록 손실이 작다
+    one = torch.tensor([1])
+    assert focal_cross_entropy(easy, one, w, 2.0) < 0.01 * focal_cross_entropy(easy, one, w, 0.0)
+
+
+def test_train_focal_reports_both_losses(tmp_path):
+    from scripts.train_ego_attention_bc import main
+    f = tmp_path / "run0" / "processed" / "transitions.npz"
+    f.parent.mkdir(parents=True)
+    _fake_npz_33(f, 3)
+    out = tmp_path / "out"
+    main(["--data", str(f), "--out", str(out), "--input", "obs33", "--policy", "mlp", "--hidden-layers", "16,16",
+          "--lane-loss", "focal", "--focal-gamma", "2", "--epochs", "1", "--no-tensorboard"])
+    m = json.loads((out / "audit.json").read_text(encoding="utf-8"))["final"]["validation"]
+    assert m["lane_loss"] < m["lane_ce"]                   # focal 값은 같은 가중 CE보다 작다
+    assert abs(m["bc_loss"] - (m["accel_loss"] + m["lane_loss"])) < 1e-6
+
+
+def test_resume_accepts_args_added_later(tmp_path):
+    from scripts.train_ego_attention_bc import main
+    f = tmp_path / "t.npz"
+    _fake_npz_33(f, 3)
+    args = ["--data", str(f), "--out", str(tmp_path / "o"), "--input", "obs33", "--policy", "mlp",
+            "--hidden-layers", "16,16", "--no-tensorboard", "--resume"]
+    main(args + ["--epochs", "1"])
+    ra = tmp_path / "o" / "run_args.json"
+    saved = json.loads(ra.read_text(encoding="utf-8"))
+    for k in ("lane_loss", "focal_gamma"):                 # 이 인자가 생기기 전에 시작한 실행
+        saved["args"].pop(k)
+    ra.write_text(json.dumps(saved), encoding="utf-8")
+    (tmp_path / "o" / "audit.json").unlink()
+    main(args + ["--epochs", "2"])
+
+
 def test_obs33_requires_mlp(tmp_path):
     from scripts.train_ego_attention_bc import main
     f = tmp_path / "t.npz"

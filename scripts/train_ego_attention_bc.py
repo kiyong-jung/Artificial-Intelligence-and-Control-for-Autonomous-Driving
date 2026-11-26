@@ -37,6 +37,9 @@ sys.path.insert(0, str(ROOT))
 
 from utils.ego_attention import (DEFAULT_ATTENTION, INPUT_LAYOUT, LAYOUTS, accel_bin_of,  # noqa: E402
                                  build_policy, load_policy_dir)
+from utils.mlp_policy import build_mlp_policy, load_mlp_policy_dir  # noqa: E402
+
+OBS33_DIM = 33          # pdm_data/obs33.py OBS33_DIM(관측 33차원, --input obs33)
 
 OBS_DIM = 93
 WEIGHTINGS = ("none", "inverse", "sqrt", "effective")
@@ -66,6 +69,8 @@ def resolve(path) -> Path:
 
 
 def _inputs(d, kind, mask_idx):
+    if kind == "obs33":
+        return d["observation_33"].astype(np.float32)
     if kind == "v2":
         return d["observation_v2"].astype(np.float32)
     obs = d["observation"].astype(np.float32).copy()
@@ -83,20 +88,22 @@ def load(paths, kind, mask_idx):
     sources, kinds = [], set()
     for i, p in enumerate(paths):
         with np.load(p, allow_pickle=False) as d:
-            need = ["action_raw", "episode", "t"]
-            need += {"v2": ["observation_v2"], "features": ["features"],
+            label_col = "action_33" if kind == "obs33" else "action_raw"
+            need = [label_col, "episode", "t"]
+            need += {"obs33": ["observation_33"], "v2": ["observation_v2"], "features": ["features"],
                      "both": ["observation", "features"]}.get(kind, ["observation"])
             missing = [k for k in need if k not in d]
             if missing:
                 raise ValueError(f"{p}: 필요한 열이 없습니다 {missing}")
             if kind in ("observation", "both") and d["observation"].shape[1] != OBS_DIM:
                 raise ValueError(f"{p}: 93차원 observation이 필요합니다")
-            if d["action_raw"].shape[1] != 2:
-                raise ValueError(f"{p}: 2차원 action_raw가 필요합니다")
+            if d[label_col].shape[1] != 2:
+                raise ValueError(f"{p}: 2차원 {label_col}가 필요합니다")
             # prev_action_raw가 있으면 5값 차로 라벨(pdm_data/labels.lane_change_label5)로 만든 데이터다
-            kinds.add(5 if "prev_action_raw" in d else 3)
+            # obs33은 action_33의 3값 차로 라벨(pdm_data/labels.lane_change_labels3)이다
+            kinds.add(3 if kind == "obs33" else (5 if "prev_action_raw" in d else 3))
             cols["x"].append(_inputs(d, kind, mask_idx))
-            cols["y"].append(d["action_raw"].astype(np.float32))
+            cols["y"].append(d[label_col].astype(np.float32))
             cols["key"].append(i * 1_000_000 + d["episode"].astype(np.int64))
             cols["t"].append(d["t"].astype(np.int64))
             sources.append({"path": str(p), "rows": int(len(d["t"])),
@@ -256,7 +263,7 @@ class Trainer:
     @torch.no_grad()
     def attention_summary(self, idx):
         """엔티티 타입별 평균 attention 합(ego, vehicle, pedestrian, ...)."""
-        if len(idx) == 0:
+        if len(idx) == 0 or not hasattr(self.net, "attention_matrix"):
             return None
         self.net.eval()
         att = torch.cat([self.net.attention_matrix(self.x[torch.as_tensor(ii, device=self.device)])
@@ -363,7 +370,10 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", nargs="+", help="수집 run 폴더나 transitions.npz (여러 개 가능)")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--input", choices=sorted(INPUT_LAYOUT), default="observation")
+    ap.add_argument("--input", choices=sorted(INPUT_LAYOUT) + ["obs33"], default="observation")
+    ap.add_argument("--policy", choices=("ego_attention", "mlp"), default="ego_attention",
+                    help="mlp는 --input obs33 전용(utils/mlp_policy.py, 차로 3클래스)")
+    ap.add_argument("--hidden-layers", default="256,256", help="--policy mlp의 은닉층")
     ap.add_argument("--mask-obs-indices", default="", help="observation에서 0으로 지울 열(예: 1,2,3,4,5)")
     ap.add_argument("--split-file", help='{"split": {"train": [...], "validation": [...], "test": [...]}} 에피소드 키')
     ap.add_argument("--config", help="온라인 run_config.json. 주면 그 설정(road, ego, observation 등)을 run_config에 옮겨 적는다")
@@ -409,7 +419,9 @@ def main(argv=None):
     if not (np.isfinite(a.brake_weight) and a.brake_weight >= 1):
         ap.error("--brake-weight는 1 이상이어야 합니다")
     mask_idx = [int(v) for v in a.mask_obs_indices.split(",") if v.strip()]
-    if mask_idx and a.input in ("features", "v2"):
+    if (a.input == "obs33") != (a.policy == "mlp"):
+        ap.error("--input obs33과 --policy mlp는 함께 쓴다")
+    if mask_idx and a.input in ("features", "v2", "obs33"):
         ap.error("--mask-obs-indices는 observation 입력(observation, both)에만 쓴다")
     if any(not 0 <= i < OBS_DIM for i in mask_idx):
         ap.error("--mask-obs-indices는 0~92")
@@ -437,17 +449,21 @@ def main(argv=None):
     if len(idx["train"]) == 0 or len(idx["validation"]) == 0:
         raise ValueError("train/validation 분할이 비었습니다")
 
-    layout = INPUT_LAYOUT[a.input]
-    obs_dim = LAYOUTS[layout]["dim"]
+    layout = INPUT_LAYOUT.get(a.input, "obs93")
+    obs_dim = OBS33_DIM if a.input == "obs33" else LAYOUTS[layout]["dim"]
     attention = dict(DEFAULT_ATTENTION, layout=layout, feature_size=a.feature_size, heads=a.heads,
                      embed_layers=parse_layers(a.embed_layers), output_layers=parse_layers(a.output_layers),
                      self_attention=a.self_attention, dropout=a.dropout, lane_action_mask=a.lane_action_mask,
                      lane_classes=data["n_lane"], accel_bins=a.accel_bins)
     base_config = json.loads(Path(a.config).read_text(encoding="utf-8")) if a.config else {}
     network = {"attention": attention, "init_log_std": a.init_log_std, "lane_keep_bias": a.lane_keep_bias}
+    if a.policy == "mlp":
+        network = {"policy_type": "mlp", "mlp": {"hidden_layers": parse_layers(a.hidden_layers), "activation": "RELU",
+                                                 "lane_classes": data["n_lane"], "accel_bins": a.accel_bins},
+                   "init_log_std": a.init_log_std, "lane_keep_bias": a.lane_keep_bias}
     device = torch.device(a.device)
     torch.manual_seed(a.seed)
-    net = build_policy(obs_dim, network, device)
+    net = build_mlp_policy(obs_dim, network, device) if a.policy == "mlp" else build_policy(obs_dim, network, device)
     trainer = Trainer(net, data, a, device)
     cw = trainer.set_class_weights(torch.as_tensor(idx["train"], device=device))
     counts = cw["lane_counts"]
@@ -527,12 +543,12 @@ def main(argv=None):
         settings["ego"] = {**settings.get("ego", {}), "observation_mask_indices": mask_idx}
         settings["observation"] = {**settings.get("observation", {}), "masked_indices": mask_idx}
     processed_meta = paths[0].with_name("metadata.json")
-    config = {**settings, "kind": "ego_attention_bc", "network": network, "input": a.input, "obs_dim": obs_dim,
+    config = {**settings, "kind": "mlp_bc" if a.policy == "mlp" else "ego_attention_bc", "network": network, "input": a.input, "obs_dim": obs_dim,
               "data": sources,
               "data_metadata": json.loads(processed_meta.read_text(encoding="utf-8")) if processed_meta.is_file() else None,
               "created_at": datetime.now().astimezone().isoformat()}
     (out / "run_config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    restored, _ = load_policy_dir(out, device)   # 저장한 폴더만으로 같은 행동이 나오는지 확인
+    restored, _ = (load_mlp_policy_dir if a.policy == "mlp" else load_policy_dir)(out, device)   # 저장한 폴더만으로 같은 행동이 나오는지 확인
     probe = torch.as_tensor(data["x"][:32], device=device)
     net.eval()
     with torch.no_grad():

@@ -58,3 +58,44 @@ def test_load_rejects_non_mlp(tmp_path):
 def test_lane_label_roundtrip():
     assert lane_label_of(1.0) == 1 and lane_label_of(-1.0) == -1 and lane_label_of(0.0) == 0
     assert lane_class_of(torch.tensor([1.0, 0.0, -1.0])).tolist() == [0, 1, 2]
+
+
+def _fake_npz_33(path, episodes, rows=40, seed=7):
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    n = episodes * rows
+    obs = rng.uniform(-1, 1, (n, 33)).astype(np.float32)
+    lane = rng.choice([-1.0, 0.0, 1.0], n, p=[0.1, 0.8, 0.1]).astype(np.float32)
+    act = np.stack([np.clip(obs[:, 0] * 0.5, -1, 1), lane], 1).astype(np.float32)
+    ep = np.repeat(np.arange(episodes), rows).astype(np.int32)
+    t = np.tile(np.arange(rows), episodes).astype(np.int32)
+    raw = np.stack([act[:, 0], lane * 2], 1).astype(np.float32)     # 5값 열은 학습에 쓰이면 안 된다
+    np.savez_compressed(path, observation_33=obs, action_33=act, action_raw=raw, prev_action_raw=np.roll(raw, 1, 0),
+                        episode=ep, t=t)
+
+
+def test_train_obs33_mlp_smoke(tmp_path):
+    from scripts.train_ego_attention_bc import main
+    files = []
+    for i in range(2):
+        f = tmp_path / f"run{i}" / "processed" / "transitions.npz"
+        f.parent.mkdir(parents=True)
+        _fake_npz_33(f, 3, seed=i)
+        files.append(str(f))
+    out = tmp_path / "out"
+    main(["--data", *files, "--out", str(out), "--input", "obs33", "--policy", "mlp", "--hidden-layers", "32,32",
+          "--epochs", "1", "--no-tensorboard"])
+    cfg = json.loads((out / "run_config.json").read_text(encoding="utf-8"))
+    audit = json.loads((out / "audit.json").read_text(encoding="utf-8"))
+    assert cfg["input"] == "obs33" and cfg["obs_dim"] == 33 and cfg["network"]["policy_type"] == "mlp"
+    assert len(audit["lane_counts_train"]) == 3
+    net, _ = load_mlp_policy_dir(str(out))
+    assert net.n_lane == 3 and net.det_action(torch.zeros(1, 33)).shape == (1, 2)
+
+
+def test_obs33_requires_mlp(tmp_path):
+    from scripts.train_ego_attention_bc import main
+    f = tmp_path / "t.npz"
+    _fake_npz_33(f, 2)
+    with pytest.raises(SystemExit):
+        main(["--data", str(f), "--out", str(tmp_path / "o"), "--input", "obs33", "--epochs", "1"])

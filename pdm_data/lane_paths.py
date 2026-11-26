@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from sumolib.geomhelper import polygonOffsetAndDistanceToPoint
 
 PED_RADIUS_M = 0.3
+SAMPLE_M = 0.5           # 차량 몸체 점 간격
 
 
 @dataclass(frozen=True)
@@ -125,10 +126,13 @@ def _points(obj):
     dx, dy = math.sin(h), math.cos(h)            # 진행 방향
     px, py = math.cos(h), -math.sin(h)           # 오른쪽
     ln, hw = float(obj["length"]), float(obj.get("width", 2.0)) / 2.0
-    rx, ry = x - dx * ln, y - dy * ln
-    pts = [(x, y), (rx, ry), ((x + rx) / 2, (y + ry) / 2)]
-    for cx, cy in ((x, y), (rx, ry)):
-        pts += [(cx + px * hw, cy + py * hw), (cx - px * hw, cy - py * hw)]
+    # 몸체가 좁은 차로 띠를 가로지를 수 있어 꼭짓점만으로는 놓친다: 길이 방향 0.5 m 간격, 폭 방향 세 줄로 뽑는다
+    n = max(2, int(math.ceil(ln / SAMPLE_M)) + 1)
+    pts = []
+    for i in range(n):
+        t = ln * i / (n - 1)
+        cx, cy = x - dx * t, y - dy * t
+        pts += [(cx, cy), (cx + px * hw, cy + py * hw), (cx - px * hw, cy - py * hw)]
     return pts, 0.0
 
 

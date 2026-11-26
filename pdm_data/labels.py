@@ -104,3 +104,50 @@ def accel_report(values, candidates) -> dict:
     out["min"], out["max"] = float(a.min()), float(a.max())
     out["clip_ratio"] = {f"{ap}/{an}": float(np.mean([normalize_accel(x, ap, an)[1] for x in a])) for ap, an in candidates}
     return out
+
+
+LATERAL_MOVING_MPS = 0.05
+
+
+def lane_change_labels3(rows: list, lane_width) -> list:
+    """3값 차로 라벨(A안, docs/superpowers/specs/2026-11-26-obs33-mlp-bc-design.md 6절). +1 왼쪽.
+
+    스냅숏 ego.lateral_speed가 LATERAL_MOVING_MPS를 넘고 부호가 같은 연속 행 i..j가 한 옆 이동이다. 이 이동은 행 i-1의 구간에서
+    시작했으므로 후보는 행 i-1..j다. 후보 구간에서 차로가 바뀌었으면(같은 도로의 번호 변화, 또는 다음 스냅숏 lateral_position이
+    이동 반대 방향으로 차로 폭의 절반 넘게 뜀) 후보 첫 행부터 마지막으로 바뀐 행까지 이동 방향, 나머지는 0이다.
+    lane_width: lane_id -> 폭(m). window가 없는 행(에피소드 끝)은 0이다."""
+    n = len(rows)
+    out = [0] * n
+    sp = [float(r["ego"].get("lateral_speed") or 0.0) for r in rows]
+
+    def changed(r, sgn):
+        w = rows[r].get("window")
+        if w is None:
+            return False
+        if (w["edge_before"] == w["edge_after"] and not w["edge_before"].startswith(":")
+                and int(np.sign(w["lane_after"] - w["lane_before"])) == sgn):
+            return True
+        if r + 1 < n:
+            a, b = rows[r]["ego"].get("lateral_position"), rows[r + 1]["ego"].get("lateral_position")
+            if a is not None and b is not None:
+                d = float(b) - float(a)
+                return d * sgn < 0 and abs(d) > lane_width(rows[r + 1]["ego"]["lane_id"]) / 2.0
+        return False
+
+    i = 0
+    while i < n:
+        if abs(sp[i]) <= LATERAL_MOVING_MPS:
+            i += 1
+            continue
+        sgn = 1 if sp[i] > 0 else -1
+        j = i
+        while j + 1 < n and abs(sp[j + 1]) > LATERAL_MOVING_MPS and (sp[j + 1] > 0) == (sgn > 0):
+            j += 1
+        lo = max(0, i - 1)
+        flips = [r for r in range(lo, j + 1) if changed(r, sgn)]
+        if flips:
+            for r in range(lo, flips[-1] + 1):
+                if rows[r].get("window") is not None:
+                    out[r] = sgn
+        i = j + 1
+    return out

@@ -154,3 +154,7 @@ Stanford OpenWAM 의 골격은 유지한다. 순서는 상단 바, 가운데 정
 - 지름길 카드 이미지 높이(140px, 110px), 경로선 최대 폭(360px), 지연 애니메이션 시간(60ms 단위)은 토큰 없이 컴포넌트 안에 있다.
 - 그림 PNG 가 크다(그림 1 약 1.1MB, 그림 2 약 1.4MB). WebP 변환과 `srcset` 은 파일 교체가 필요해 하지 않았다.
 - 다크 모드는 없다(`color-scheme: light`).
+
+## Video
+
+영상은 `.video-box`(그림 상자와 같은 테두리와 여백) 안에 `<video controls muted loop playsinline>`로 넣는다. 히어로 영상만 `autoplay`이고 나머지는 `preload="none"`에 포스터 그림을 둔다. 여러 영상은 `.video-grid`(2열, 860px 이하 1열)로 나란히 놓고, 영상마다 굵은 제목과 한 줄 설명을 캡션으로 단다. 영상 파일은 `assets/videos/`에 H.264 mp4로 둔다. 잘한 장면만 싣지 않고 실패 장면을 유형별로 함께 싣는다.

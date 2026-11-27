@@ -1,7 +1,8 @@
 """수집 기록(JSONL)의 한 에피소드를 위에서 본 영상(MP4)으로 만든다. SUMO를 다시 돌리지 않는다.
 
 화면 가운데가 버스다(북쪽이 위). 오른쪽에 속도, 가감속 명령, 차로, 신호, 정류장, 사건을 적는다. 판단 한 번(0.5초)이
-한 장이라 fps 15면 7.5배속이다. 차와 보행자는 기록에 남은 것(버스 주변)만 그린다.
+한 장이라 fps 15면 7.5배속이다. 차와 보행자는 기록에 남은 것(버스 주변)만 그린다. --slow 구간은 2배속으로 느리게
+그리고, --note 구간에는 정보 칸에 설명을 띄운다.
 
     python research/av_bc_rl/make_lap_video.py data/research/eval300_dagger10/busy.jsonl.gz --episode 27 \
         --out videos/worst_red_light.mp4 --title "혼잡 교통량, 적색 통과"
@@ -148,6 +149,10 @@ def main():
                         help="에피소드 시작부터 FROM~TO초 구간만 찍는다. 한 장면(차로 변경 등)을 보여 줄 때")
     parser.add_argument("--hold", type=float, default=2.0, help="마지막 장면을 더 보여 주는 시간(초)")
     parser.add_argument("--radius", type=float, default=50.0, help="버스에서 화면 끝까지 거리(m)")
+    parser.add_argument("--slow", type=float, nargs=2, default=None, metavar=("FROM", "TO"),
+                        help="에피소드 시작부터 FROM~TO초 구간을 2배속으로 느리게 찍는다")
+    parser.add_argument("--note", nargs=3, action="append", default=[], metavar=("FROM", "TO", "TEXT"),
+                        help="FROM~TO초 동안 정보 칸에 TEXT를 띄운다. '|'로 두 줄로 나눈다. 여러 번 줄 수 있다")
     args = parser.parse_args()
     rows = read_episode(args.jsonl, args.episode)
     half, scale = args.radius, VIEW / (2 * args.radius)
@@ -155,7 +160,7 @@ def main():
     lanes = load_lanes(net)
     stops = load_stops(net, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(args.net))), "map.json"))
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
-    trail, changes, banner, banner_left, center = [], 0, "", 0, None
+    trail, changes, banner, banner_left, center, written = [], 0, "", 0, None, 0
     start = rows[0]["sim_time"]
     first = 0 if args.last is None else max(0, len(rows) - int(args.last / 0.5))
     last = len(rows) - 1
@@ -253,21 +258,35 @@ def main():
                            fill=(90, 200, 120) if value >= 0 else (230, 110, 90))
             draw.text((x, y + 22), "줄임", font=font(15), fill=(150, 150, 156))
             draw.text((x + bar, y + 22), "밟음", font=font(15), fill=(150, 150, 156), anchor="ra")
-            if banner_left > 0:
+            second = row["sim_time"] - start
+            note = next((text for begin, end, text in args.note if float(begin) <= second <= float(end)), None)
+            if note:
+                head, _, tail = note.partition("|")
+                draw.rectangle((x - 8, VIEW - 172, VIEW + PANEL - 16, VIEW - 64), fill=(190, 140, 230))
+                draw.text((x + 4, VIEW - 144), head, font=font(24, True), fill=(20, 10, 30), anchor="lm")
+                draw.text((x + 4, VIEW - 98), tail, font=font(19), fill=(30, 20, 40), anchor="lm")
+            elif banner_left > 0:
                 draw.rectangle((x - 8, VIEW - 120, VIEW + PANEL - 16, VIEW - 64), fill=(250, 250, 250))
                 draw.text((x + 4, VIEW - 92), banner, font=font(24, True), fill=(20, 20, 20), anchor="lm")
+            if banner_left > 0:
                 banner_left -= 1
+            slow = args.slow is not None and args.slow[0] <= second <= args.slow[1]
+            if slow:
+                draw.rounded_rectangle((14, 14, 196, 52), radius=8, fill=(24, 24, 28))
+                draw.text((105, 33), "2배속으로 느리게", font=font(18, True), fill=EGO, anchor="mm")
             draw.text((x, VIEW - 40), f"반경 {half:.0f}m  노랑=우리 버스  파랑=차  갈색=느린 차  초록=다른 버스  분홍=보행자", font=font(14), fill=(150, 150, 156))
             draw.text((x, VIEW - 22), "보라=골목에서 나온 차  주황=정류장 택시  청록 칸=버스 정류장", font=font(14), fill=(150, 150, 156))
             if index < first:   # 찍지 않는 앞부분도 궤적과 누적 수는 센다
                 continue
-            writer.append_data(np.asarray(image))
+            repeat = round(args.fps * 0.5 / 2) if slow else 1
             if index == last:   # 마지막 장면을 더 보여 준다
-                for _ in range(int(args.fps * args.hold)):
-                    writer.append_data(np.asarray(image))
+                repeat += int(args.fps * args.hold)
+            for _ in range(repeat):
+                writer.append_data(np.asarray(image))
+            written += repeat
+            if index == last:
                 break
-    shown = last + 1 - first
-    print(args.out, f"{shown}장, {shown / args.fps + args.hold:.0f}초, 차로 변경 {changes}번")
+    print(args.out, f"{last + 1 - first}장, {written / args.fps:.0f}초, 차로 변경 {changes}번")
 
 
 if __name__ == "__main__":

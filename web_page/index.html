@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>합정역 자율주행버스: 신경망 하나로 13,000바퀴, 완주 95.6%</title>
-<meta name="description" content="서울 합정역 일대 실제 도로를 SUMO로 옮기고, 학습한 신경망이 규칙 보조 없이 버스를 몰아 13,000바퀴 중 95.6%를 완주했다. 충돌 0.66%, 주행 데이터 1,086만 건 공개." />
+<meta name="description" content="서울 합정역 일대 실제 도로를 SUMO로 옮기고, 학습한 신경망이 규칙 보조 없이 버스를 주행해 13,000바퀴 중 95.6%를 완주했다. 충돌 0.66%, 주행 데이터 1,086만 건 공개." />
 <meta property="og:title" content="합정역 자율주행버스" />
 <meta property="og:description" content="가로변 정류장과 좌회전 차로를 오가는 버스를 신경망 하나로 운전한다. 13,000바퀴 완주 95.6%, 충돌 0.66%." />
 <meta property="og:type" content="article" />
@@ -33,7 +33,7 @@
 
     --sans: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
     --fs-small: .875rem; --fs-ui: .9375rem; --fs-body: 1rem; --fs-lead: 1.0625rem;
-    --fs-stat: 1.625rem; --fs-xl: 1.5rem;
+    --fs-stat: 1.625rem; --fs-xl: 1.5rem; --fs-xl-m: 1.25rem;
     --fs-h2: clamp(1.6rem, 2.6vw, 2.1rem);
     --fs-title: clamp(1.15rem, 2.2vw, 1.5rem);
     --fs-display: clamp(2.8rem, 7vw, 5.4rem);
@@ -67,16 +67,16 @@
 
   .topbar { border-bottom: 1px solid var(--rule); background: var(--paper); position: sticky; top: 0; z-index: 10; }
   .topbar-inner { max-width: var(--wide); margin: auto; height: var(--nav); padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: var(--s-5); }
-  .brand { color: var(--ink); font-weight: var(--w-black); letter-spacing: -.01em; text-decoration: none; }
+  .brand { display: inline-flex; align-items: center; min-height: var(--tap); color: var(--ink); font-weight: var(--w-black); letter-spacing: -.01em; text-decoration: none; }
   .brand::before { content: ""; display: inline-block; width: var(--mark); height: var(--mark); margin-right: var(--s-3); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
   .navlinks { display: flex; gap: var(--s-6); font-size: var(--fs-ui); font-weight: var(--w-med); }
   .navlinks a, .toc a { text-decoration: none; }
-  .navlinks a { color: var(--muted); padding: var(--s-2) 0; background: linear-gradient(var(--ink), var(--ink)) 0 calc(100% - 4px) / 0 1px no-repeat; transition: background-size var(--t-fast) var(--ease), color var(--t-fast) var(--ease); white-space: nowrap; }
+  .navlinks a { display: inline-flex; align-items: center; min-height: var(--tap); color: var(--muted); padding: 0; background: linear-gradient(var(--ink), var(--ink)) 0 calc(100% - 4px) / 0 1px no-repeat; transition: background-size var(--t-fast) var(--ease), color var(--t-fast) var(--ease); white-space: nowrap; }
   .navlinks a:hover, .navlinks a[aria-current="true"] { color: var(--ink); background-size: 100% 1px; }
   .navlinks a[aria-current="true"] { background-size: 100% 2px; background-position: 0 100%; }
 
   .wide, .wrap { margin: auto; padding: 0 var(--gutter); max-width: var(--wide); }
-  header.article-head { padding-top: var(--s-9); padding-bottom: var(--s-5); text-align: center; }
+  header.article-head { padding-top: var(--s-7); padding-bottom: var(--s-5); text-align: center; }
   h1 { margin: 0; color: var(--ink); }
   .project-name { display: block; font-size: var(--fs-display); font-weight: var(--w-black); letter-spacing: var(--ls-display); line-height: var(--lh-display); }
   .project-title { display: block; max-width: var(--measure); margin: var(--s-5) auto 0; font-size: var(--fs-title); font-weight: var(--w-med); letter-spacing: var(--ls-tight); line-height: var(--lh-ui); color: var(--body); text-wrap: balance; }
@@ -85,9 +85,11 @@
   .route-rule i { flex: none; width: var(--mark); height: var(--mark); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
   .byline { max-width: var(--measure); margin: var(--s-5) auto 0; color: var(--ink); font-weight: var(--w-semi); }
   .author-row { display: flex; justify-content: center; flex-wrap: wrap; gap: var(--s-1) var(--s-5); }
-  .author-notes { margin: var(--s-2) 0 0; color: var(--muted); font-weight: var(--w-reg); }
-  .lede { max-width: var(--measure); margin: var(--s-5) auto 0; color: var(--ink); font-size: var(--fs-lead); }
+  .author-notes { margin: var(--s-2) 0 0; color: var(--muted); font-weight: var(--w-reg); text-wrap: balance; }
+  .lede { max-width: var(--measure); margin: var(--s-5) auto 0; color: var(--ink); font-size: var(--fs-lead); text-wrap: balance; }
+  .nobr { white-space: nowrap; }
   .hero-links { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s-3); margin-top: var(--s-6); }
+  .hero-links.left { justify-content: flex-start; }
   .button { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 var(--s-5); border-radius: var(--r-pill); background: var(--accent); color: var(--on-accent); text-decoration: none; font-weight: var(--w-bold); transition: background-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
   .button:hover { background: var(--accent-deep); color: var(--on-accent); }
   .button.tonal { background: var(--tone); color: var(--ink); }
@@ -98,15 +100,19 @@
   .figure-link { display: block; overflow: hidden; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--s-3); text-decoration: none; transition: transform var(--t-med) var(--ease), border-color var(--t-med) var(--ease); }
   .figure-link img { border-radius: var(--r-sm); transition: transform var(--t-med) var(--ease); }
   .figure-link:hover { border-color: var(--rule-strong); }
-  .caption { color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); margin-top: var(--s-3); }
+  .caption { max-width: var(--measure); color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); margin-top: var(--s-3); text-wrap: pretty; }
   .caption strong { display: block; margin-bottom: var(--s-1); color: var(--ink); font-weight: var(--w-bold); font-size: var(--fs-body); }
+  .video-key { display: block; margin-top: var(--s-1); }
+  .video-key b { color: var(--ink); font-weight: var(--w-bold); }
 
   .paper-abstract { display: grid; grid-template-columns: var(--toc) minmax(0,1fr); column-gap: var(--s-8); align-items: start; margin-bottom: var(--s-8); }
   .paper-abstract h2 { font-size: var(--fs-xl); margin: 0; }
   .paper-abstract h2::before { content: none; }
   .paper-abstract p { margin: 0; max-width: var(--measure); font-size: var(--fs-lead); color: var(--ink); }
+  .paper-abstract .stat-row { margin-bottom: 0; }
 
-  main.wrap { display: grid; grid-template-columns: var(--toc) minmax(0,1fr); column-gap: var(--s-8); align-items: start; border-top: 1px solid var(--rule); padding-top: var(--s-7); }
+  main.wrap { position: relative; display: grid; grid-template-columns: var(--toc) minmax(0,1fr); column-gap: var(--s-8); align-items: start; padding-top: var(--s-7); }
+  main.wrap::before, footer .wide::before { content: ""; position: absolute; top: 0; left: var(--gutter); right: var(--gutter); height: 1px; background: var(--rule); }
   .toc { position: sticky; top: calc(var(--nav) + var(--s-5)); }
   .toc-title { font-size: var(--fs-small); font-weight: var(--w-med); margin: 0 0 var(--s-3); color: var(--muted); }
   .toc ol { list-style: none; margin: 0; padding: 0; position: relative; }
@@ -116,6 +122,8 @@
   .toc a::before { content: ""; position: absolute; left: 0; top: 50%; width: var(--mark); height: var(--mark); margin-top: calc(var(--mark) / -2); background: var(--paper); border: 2px solid var(--accent); border-radius: 50%; }
   .toc a:hover { color: var(--ink); }
   .toc a[aria-current="true"] { color: var(--ink); font-weight: var(--w-bold); }
+  .toc li.sub a { font-size: var(--fs-small); }
+  .toc li.sub a::before { width: 8px; height: 8px; margin-top: -4px; left: 2px; }
   .toc a[aria-current="true"]::before { background: var(--stop); border-color: var(--ink); border-radius: 2px; }
 
   article { min-width: 0; padding-bottom: var(--s-5); }
@@ -126,10 +134,17 @@
   h2 { position: relative; margin: 0 0 var(--s-6); font: var(--w-black) var(--fs-h2)/var(--lh-head) var(--sans); letter-spacing: var(--ls-head); scroll-margin-top: calc(var(--nav) + var(--s-5)); }
   h2::before { content: ""; position: absolute; left: calc(var(--s-4) * -1 - var(--mark)); top: .5em; width: var(--mark); height: var(--mark); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
   h3 { margin: var(--s-6) 0 var(--s-2); font-size: var(--fs-body); font-weight: var(--w-bold); }
+  /* 본문 소제목: h2(33.6px)와 본문(16px) 사이 크기로 올려 굵기만이 아니라 크기로도 구분한다. 앞 내용과는 s-7 로 띄운다. */
+  .article-section > h3 { margin-top: var(--s-7); font-size: var(--fs-xl-m); line-height: var(--lh-head); letter-spacing: var(--ls-tight); }
   p { margin: var(--s-4) 0; text-wrap: pretty; }
+  /* 본문 양쪽 정렬: 한글은 음절 사이에서 줄을 바꿔 낱말 사이가 벌어지지 않게 한다. 제목·버튼·표·숫자 묶음은 keep-all 그대로. */
+  .paper-abstract p, .article-section p:not(.pull), .article-section li, .caption, .scene-desc {
+    text-align: justify; word-break: normal; line-break: strict; overflow-wrap: anywhere; }
+  code, .caption strong, .scene-meta, .video-key { word-break: keep-all; }
   ul { padding-left: 1.2em; }
-  li { margin: var(--s-2) 0; }
-  .paper-abstract p, .article-section p:not(.pull), .article-section li, .caption { text-align: justify; }
+  li { margin: var(--s-2) 0; text-wrap: pretty; }
+  .article-section > h2 + h3 { margin-top: 0; }
+  .conclusion li { color: var(--ink); font-size: var(--fs-lead); }
   .pull { margin: var(--s-6) 0; max-width: var(--measure); color: var(--ink); font: var(--w-bold) var(--fs-xl)/var(--lh-ui) var(--sans); letter-spacing: var(--ls-tight); text-wrap: balance; }
   figure { margin: var(--s-6) 0; }
   .table-scroll { overflow-x: auto; margin: var(--s-5) 0; border: 1px solid var(--rule); border-radius: var(--r-lg); background: var(--surface); }
@@ -139,10 +154,23 @@
   tbody td:first-child { font-weight: var(--w-bold); white-space: nowrap; }
   tr:last-child td { border-bottom: 0; }
   td.num, th.num { text-align: right; }
+  .obs-list { margin: var(--s-5) 0; }
+  .obs-list > p { max-width: var(--measure); }
+  .obs-list summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; color: var(--ink); font-weight: var(--w-semi); }
+  .col-avg { background: var(--tone); }
   td.num { font-weight: var(--w-bold); white-space: nowrap; }
-  code { font-family: inherit; font-size: .9em; font-weight: var(--w-semi); color: var(--ink); background: var(--tone); padding: 1px var(--s-2); border-radius: var(--r-xs); }
+  .grouped td:nth-last-child(2), .grouped td:nth-last-child(3) { white-space: nowrap; }
+  /* 합계 행만 가장 굵게. 표의 마지막 행이라고 굵히면 합계가 아닌 행(복합 교통, 보행자 충돌)이 합계처럼 튄다. */
+  tbody tr.total td.num { font-weight: var(--w-black); }
+  /* 평가 결과 표: 완주율 열이 주인공(tone 바탕, 800), 실패 원인 열은 보조(muted, 500). 실패 숫자는 그대로 보이되 눈이 먼저 가지 않게 한다. */
+  td.num.col-key { background: var(--tone); color: var(--ink); font-weight: var(--w-black); }
+  th.col-key { background: var(--tone); color: var(--ink); font-weight: var(--w-bold); }
+  td.num.minor { color: var(--muted); font-weight: var(--w-med); }
+  tbody tr.total td.num.minor { font-weight: var(--w-bold); }
+  th.minor-start, td.minor-start { border-left: 1px solid var(--rule-soft); }
+  code { font-family: inherit; font-size: .9em; font-weight: var(--w-semi); color: var(--ink); background: var(--tone); padding: 1px var(--s-1); border-radius: var(--r-xs); }
 
-  .shortcut-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--s-4); margin: var(--s-6) 0; }
+  .shortcut-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-4); margin: var(--s-6) 0; }
   .shortcut { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); overflow: hidden; }
   .shortcut img { width: 100%; height: 140px; object-fit: cover; }
   .shortcut-body { padding: var(--s-3) var(--s-4) var(--s-4); border-top: 1px solid var(--rule); }
@@ -153,20 +181,125 @@
   .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); margin: var(--s-6) 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--rule); }
   .stat { padding: var(--s-3) var(--s-4) var(--s-3) 0; }
   .stat + .stat { padding-left: var(--s-4); border-left: 1px solid var(--rule); }
-  .stat b { display: block; color: var(--ink); font: var(--w-bold) var(--fs-stat)/var(--lh-display) var(--sans); letter-spacing: var(--ls-head); white-space: nowrap; }
+  .stat b { display: block; color: var(--ink); font: var(--w-bold) var(--fs-stat)/var(--lh-display) var(--sans); letter-spacing: var(--ls-head); }
   .stat span { color: var(--muted); font-size: var(--fs-ui); }
 
   .video-box { overflow: hidden; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--s-3); }
   .video-box video { display: block; width: 100%; height: auto; border-radius: var(--r-sm); background: var(--ink); }
-  .video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-5); margin: var(--s-5) 0; }
+  .video-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-5); margin: var(--s-5) 0; }
   .video-grid figure { margin: 0; }
-  .paper-abstract .stat-row { margin-bottom: 0; }
-  .stat b { white-space: normal; }
-  .hero-links.left { justify-content: flex-start; }
-  tbody tr:last-child td.num { font-weight: var(--w-black); }
+  .video-aside { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--s-5); align-items: center; }
+  .video-aside .caption { grid-column: 2 / -1; margin-top: 0; }
 
-  footer { border-top: 1px solid var(--rule); color: var(--muted); font-size: var(--fs-small); padding: var(--s-5) 0 var(--s-7); }
-  footer .wide { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--s-3) var(--s-6); }
+  /* 눈치싸움 극장: 영상 하나 + 고른 장면 캡션 + 노선 위 정류장 다섯 개(탭). JS가 없으면 다섯 장면이 모두 펼쳐진다. */
+  .theater { margin-top: var(--s-7); }
+  .theater-title { margin: 0; font-size: var(--fs-xl); font-weight: var(--w-black); line-height: var(--lh-head); letter-spacing: var(--ls-tight); }
+  .theater > p { max-width: var(--measure); margin: var(--s-3) 0 0; }
+  .scene-panels { display: grid; gap: var(--s-6); margin-top: var(--s-5); }
+  .scene-panel figure { margin: 0; }
+  .scene-route { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-2); margin: var(--s-5) 0 var(--s-3); }
+  .scene-route[hidden] { display: none; }
+  .scene-route button { display: flex; flex-direction: column; gap: var(--s-2); min-height: var(--tap); margin: 0; padding: var(--s-1) var(--s-1) var(--s-2); background: var(--surface); border: 2px solid var(--rule); border-radius: var(--r-lg); color: var(--muted); font: inherit; font-size: var(--fs-small); line-height: var(--lh-ui); text-align: left; cursor: pointer; word-break: keep-all; transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+  .scene-route button img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-sm); }
+  .scene-route .scene-name { padding: 0 var(--s-1); }
+  .scene-route .scene-name b { color: var(--accent); margin-right: 2px; }
+  .scene-route button:hover { border-color: var(--rule-strong); color: var(--ink); }
+  .scene-route [aria-selected="true"] { border-color: var(--accent); color: var(--ink); font-weight: var(--w-bold); }
+  .theater.is-tabs .scene-panel { grid-area: 1 / 1; }
+  .theater.is-tabs .scene-panel:not(.is-on) { visibility: hidden; }
+  .scene-meta { display: block; margin-bottom: var(--s-1); }
+  .scene-meta b { color: var(--ink); font-weight: var(--w-bold); }
+  .theater .caption strong { font-size: var(--fs-lead); }
+  .scene-desc { display: block; max-width: var(--measure); color: var(--body); font-size: var(--fs-body); line-height: var(--lh-text); }
+
+  pre { margin: var(--s-4) 0; padding: var(--s-4); overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); font-size: var(--fs-small); line-height: var(--lh-ui); }
+  pre code { padding: 0; background: none; font-size: 1em; font-weight: var(--w-reg); white-space: pre; }
+  /* 히어로 아래 두 묶음(이야기 줄, 메인 목표)의 가운데 제목 */
+  .band-title { margin: 0; font-size: var(--fs-xl); text-align: center; }
+  .band-title::before { content: none; }
+  .scorecard .band-title { margin-bottom: var(--s-5); font-size: var(--fs-h2); letter-spacing: var(--ls-head); }
+
+  /* 이야기 줄: 왜 버스인가. 네 장면을 노선(파랑 선) 위 정류장(노랑 네모)으로 잇는다. 아이콘은 장식이라 aria-hidden. */
+  .story { max-width: var(--figure); margin-top: var(--s-7); margin-bottom: var(--s-8); }
+  .story-line { position: relative; list-style: none; margin: var(--s-6) 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--s-5); }
+  .story-line::before { content: ""; position: absolute; left: 0; right: 0; top: calc(80px + var(--s-4) + var(--mark) / 2 - 2px); height: 4px; background: var(--accent); }
+  .story-step { position: relative; display: flex; flex-direction: column; margin: 0; }
+  .story-step::after { content: ""; order: 1; position: relative; flex: none; width: var(--mark); height: var(--mark); margin-top: var(--s-4); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
+  .story-icon { order: 0; display: block; flex: none; width: 120px; height: 80px; overflow: visible; }
+  .story-step h3 { order: 2; margin: var(--s-4) 0 0; font-size: var(--fs-lead); line-height: var(--lh-ui); letter-spacing: var(--ls-tight); }
+  /* 넓은 화면의 이야기 글은 약 216px 좁은 칸이라 양쪽 정렬하면 숫자 묶음(.nobr) 앞뒤가 크게 벌어진다. 4열에서는 왼쪽 정렬, 860px 이하 1열에서 양쪽 정렬한다. */
+  .story-step p { order: 3; margin: var(--s-2) 0 0; font-size: var(--fs-ui); text-align: start; }
+  .story-step .mini-points { order: 3; font-size: var(--fs-ui); color: var(--body); }
+  .story-link { order: 4; align-self: flex-start; display: inline-flex; align-items: center; min-height: var(--tap); color: var(--accent); font-size: var(--fs-ui); font-weight: var(--w-bold); }
+  .story-link:hover { color: var(--accent-deep); }
+  /* 아이콘 선: ink 선, accent 노선·화살표, stop 정류장 네모, surface 속, rule-strong 도로 */
+  .story-icon .il { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .story-icon .if { fill: var(--surface); stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+  .story-icon .ir { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+  .story-icon .ia { fill: var(--accent); stroke: var(--ink); stroke-width: 2.5; }
+  .story-icon .ib { fill: var(--accent); }
+  .story-icon .is { fill: var(--stop); stroke: var(--ink); stroke-width: 2; }
+  .story-icon .ig { fill: none; stroke: var(--rule-strong); stroke-width: 2; stroke-linecap: round; }
+  .story-icon .id { stroke-dasharray: 6 6; }
+
+  /* 메인 목표: 카드마다 기준과 우리를 위아래로 맞대고, 막대는 우리(파랑 칸)와 기준(ink 세로선)을 같은 눈금에 둔다. */
+  .scorecard { max-width: var(--figure); margin-top: 0; margin-bottom: var(--s-7); }
+  .score-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); }
+  .score { grid-row: span 5; display: grid; grid-template-rows: subgrid; row-gap: var(--s-2); align-content: start; padding: var(--s-4); background: var(--surface); border: 1px solid var(--rule); border-top: 4px solid var(--accent); border-radius: var(--r-lg); text-decoration: none; color: var(--body); word-break: keep-all; transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
+  .score:hover { border-color: var(--rule-strong); border-top-color: var(--accent-deep); color: var(--body); }
+  .score-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); }
+  .score-name { display: flex; align-items: center; gap: var(--s-2); color: var(--ink); font-size: var(--fs-ui); font-weight: var(--w-bold); }
+  .score-name::before { content: ""; flex: none; width: var(--mark); height: var(--mark); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
+  .score-ok { flex: none; padding: 0 var(--s-2); border-radius: var(--r-pill); background: var(--tone); color: var(--accent-deep); font-size: var(--fs-small); font-weight: var(--w-bold); line-height: var(--lh-ui); }
+  .vs { display: grid; grid-template-columns: 2.5em minmax(0, 1fr); column-gap: var(--s-2); align-items: baseline; align-content: start; }
+  .vs-k { color: var(--muted); font-size: var(--fs-small); font-weight: var(--w-med); }
+  .vs-v { min-width: 0; color: var(--ink); font-size: var(--fs-small); font-weight: var(--w-semi); line-height: var(--lh-ui); text-wrap: pretty; }
+  .vs-ours { padding-top: var(--s-2); border-top: 1px solid var(--rule-soft); }
+  .vs-ours .vs-k { color: var(--ink); font-weight: var(--w-bold); }
+  .score .vs { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+  .vs-ours .vs-v { font: var(--w-black) var(--fs-stat)/var(--lh-display) var(--sans); letter-spacing: var(--ls-head); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .vs-v small { margin-left: 2px; font-size: .6em; font-weight: var(--w-bold); }
+  .score-bar { display: block; padding: var(--s-2) 0 var(--s-5); }
+  .bar { position: relative; display: block; height: var(--s-2); border-radius: var(--r-xs); background: var(--tone-deep); }
+  .bar i { position: absolute; display: block; font-style: normal; }
+  .bar-fill { left: 0; top: 0; bottom: 0; width: var(--ours); border-radius: var(--r-xs); background: var(--accent); }
+  .bar-tick { top: calc(var(--s-1) * -1); bottom: calc(var(--s-1) * -1); left: var(--at); width: 2px; margin-left: -1px; background: var(--ink); }
+  .bar-label { top: calc(100% + var(--s-1)); left: var(--at); transform: translateX(-50%); color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); white-space: nowrap; }
+  .bar-label.end { transform: translateX(-100%); }
+  .score-note { color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); text-wrap: pretty; }
+  .criteria { list-style: none; margin: var(--s-4) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
+  .criteria li { grid-row: span 3; display: grid; grid-template-rows: subgrid; row-gap: 0; margin: 0; }
+  .criteria a { grid-row: span 3; display: grid; grid-template-rows: subgrid; row-gap: var(--s-1); padding: var(--s-3) var(--s-4); border: 1px solid var(--rule); border-radius: var(--r-lg); text-decoration: none; color: var(--body); font-size: var(--fs-small); line-height: var(--lh-ui); word-break: keep-all; transition: border-color var(--t-fast) var(--ease); }
+  .criteria a:hover { border-color: var(--rule-strong); color: var(--body); }
+  .criteria b { color: var(--ink); font-size: var(--fs-ui); }
+  .criteria .vs-v { font-weight: var(--w-reg); color: var(--muted); }
+  .criteria .vs-ours { padding-top: var(--s-1); }
+  .criteria .vs-ours .vs-v { font: var(--w-semi) var(--fs-small)/var(--lh-ui) var(--sans); letter-spacing: 0; color: var(--ink); white-space: normal; }
+  @media (hover: hover) and (pointer: fine) { .score:hover { transform: translateY(-2px); } }
+  @media (max-width: 1100px) { .score-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 860px) {
+    .story { margin-top: var(--s-6); margin-bottom: var(--s-7); }
+    .story-line { grid-template-columns: 1fr; row-gap: var(--s-6); padding-left: var(--s-6); }
+    .story-line::before { display: none; }
+    .story-step:not(:last-child)::before { content: ""; position: absolute; left: calc(var(--s-6) * -1 + var(--mark) / 2 - 2px); top: 32px; bottom: calc(var(--s-6) * -1 - 32px); width: 4px; background: var(--accent); }
+    .story-step::after { position: absolute; left: calc(var(--s-6) * -1); top: calc(32px - var(--mark) / 2); margin: 0; }
+    .story-icon { width: 96px; height: 64px; }
+    .story-step h3 { margin-top: var(--s-3); }
+    .story-step p { font-size: var(--fs-body); text-align: justify; word-break: normal; line-break: strict; overflow-wrap: anywhere; }
+    .criteria { grid-template-columns: 1fr; }
+    /* 1열이라 폭이 넉넉하다. 근거와 기준 문구를 small(14px) 대신 ui(15px)로 읽게 한다. */
+    .criteria a, .criteria .vs-ours .vs-v, .score .vs:not(.vs-ours) .vs-v, .score-note { font-size: var(--fs-ui); }
+  }
+  @media (max-width: 600px) { .score-grid { grid-template-columns: 1fr; } }
+
+  .goal-chip { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--tap); margin-top: var(--s-4); padding: 0 var(--s-4); border: 1px solid var(--rule); border-radius: var(--r-pill); background: var(--surface); color: var(--ink); font-size: var(--fs-ui); font-weight: var(--w-semi); text-decoration: none; word-break: keep-all; }
+  .goal-chip:hover { border-color: var(--rule-strong); color: var(--ink); }
+  .goal-chip i { width: var(--mark); height: var(--mark); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
+  .mini-points { margin: var(--s-2) 0 0; padding-left: 1.1em; }
+  .mini-points li { margin: 2px 0; text-align: left; word-break: keep-all; text-wrap: balance; line-height: var(--lh-ui); }
+  footer { color: var(--muted); font-size: var(--fs-small); padding-bottom: var(--s-7); }
+  footer .wide { position: relative; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--s-3) var(--s-6); padding-top: var(--s-5); }
+  footer a { display: inline-flex; align-items: center; min-height: var(--tap); }
 
   .lit-pending { color: var(--muted); transition: color var(--t-slow) var(--ease); }
   .lit-pending.lit { color: var(--ink); }
@@ -204,18 +337,37 @@
     .toc ol::before { display: none; }
     .toc a { display: flex; align-items: center; min-height: var(--tap); padding-top: 0; padding-bottom: 0; }
     .navlinks { display: none; }
-    header.article-head { padding-top: var(--s-7); }
     .article-section { margin-bottom: var(--s-8); }
     h2 { margin-bottom: var(--s-5); }
     .stat-row { grid-template-columns: 1fr 1fr; }
     .stat:nth-child(3) { padding-left: 0; border-left: 0; }
     .stat:nth-child(n+3) { border-top: 1px solid var(--rule); }
-    .shortcut-grid { grid-template-columns: 1fr 1fr; gap: var(--s-3); }
-    .video-grid { grid-template-columns: 1fr; }
+    .shortcut-grid { gap: var(--s-3); }
+    .video-grid, .video-aside { grid-template-columns: 1fr; }
+    .video-aside .caption { grid-column: auto; margin-top: var(--s-3); }
     .shortcut img { height: 110px; }
-    .pull { font-size: 1.25rem; }
-    .hero-links .button { width: 100%; justify-content: center; }
-  }
+    .pull, .theater-title { font-size: var(--fs-xl-m); }
+    .hero-links { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
+    .hero-links .button { width: 100%; justify-content: center; padding: 0 var(--s-2); }
+    .hero-links .button:first-child { grid-column: 1 / -1; }
+    .hero-links.left { grid-template-columns: 1fr; }
+    table { font-size: var(--fs-small); }
+    th, td { padding: var(--s-3) var(--s-2); }
+    th:first-child, td:first-child { padding-left: var(--s-3); }
+    tbody td:first-child { white-space: normal; min-width: 6em; }
+    td:not(.num):not(:first-child) { min-width: 8em; }
+    /* 숫자 칸은 좁게, 숫자 머리글은 두 줄을 허용해 바퀴당 interaction 표(평균 열)와 교통 구성 표가 390px 에 다 들어오게 한다. */
+    thead th.num { white-space: normal; }
+    td.num, th.num { padding-left: var(--s-1); padding-right: var(--s-1); }
+    th:first-child, td:first-child { padding-left: var(--s-3); }
+    th:last-child, td:last-child { padding-right: var(--s-3); }
+    table code { font-size: 1em; }
+    .table-scroll th:first-child, .table-scroll td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); border-right: 1px solid var(--rule-soft); }
+    .grouped td:last-child { min-width: 16em; }
+    .table-scroll .grouped td:first-child:not([rowspan]) { position: static; z-index: auto; border-right: 0; padding-left: var(--s-2); min-width: 0; white-space: nowrap; }
+        }
+  @media (max-width: 600px) { .shortcut-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 860px) { .scene-route { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-1); } .scene-route .scene-name { font-size: 0; padding: 0; text-align: center; } .scene-route .scene-name b { font-size: var(--fs-small); margin: 0; } }
 </style>
 </head>
 <body>
@@ -237,34 +389,139 @@
   <div class="route-rule" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
   <div class="byline">
     <div class="author-row">
-      <span>정기용</span><span>서예인</span><span>주현진</span><span>박신후</span><span>이건호</span>
+      <span>주현진</span><span>정기용</span><span>서예인</span><span>이건호</span><span>박신후</span>
     </div>
     <p class="author-notes">성균관대학교 · 자율주행인공지능및제어 팀 프로젝트 · URBAN:ON</p>
   </div>
-  <p class="lede">서울 합정역 일대 도로를 SUMO로 옮기고, 규칙 보조 없이 신경망 하나로 버스를 몰아 13,000바퀴 중 95.6%를 완주했으며, 그 주행 1,086만 건을 공개한다.</p>
+  <p class="lede">서울 합정역 일대 도로를 SUMO로 옮기고, 규칙 보조 없이 신경망 하나로 버스를 주행해 <span class="nobr">13,000바퀴</span> 중 <span class="nobr">95.6%를</span> 완주했으며, 그 주행 <span class="nobr">1,086만 건을</span> 공개한다.</p>
   <div class="hero-links">
     <a class="button" href="https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving">GitHub 코드</a>
-    <a class="button" href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">Hugging Face 데이터</a>
+    <a class="button tonal" href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">Hugging Face 데이터</a>
     <a class="button tonal" href="#videos">주행 영상</a>
-    <a class="button tonal" href="assets/shortcut_report.pdf">골목 보고서 (PDF)</a>
   </div>
+  <a class="goal-chip" href="#score-title"><i aria-hidden="true"></i>메인 목표 4/4 충족 · 충돌률 0.66% · 완주 95.6% · 데이터 10,864,774건</a>
 </header>
 
-<figure class="wide demo">
-  <div class="video-box"><video src="assets/videos/full_lap.mp4" poster="assets/videos/full_lap.jpg" autoplay muted loop playsinline controls preload="metadata" aria-label="학습한 버스가 복합 교통에서 정류장 4곳을 서고 한 바퀴를 완주하는 영상"></video></div>
-  <figcaption class="caption"><strong>영상 1. 학습한 신경망이 몬 한 바퀴</strong>가장 붐비는 복합 교통에서 정류장 4곳에 서고 돌아오는 약 8분짜리 한 바퀴를 67초로 줄인 영상이다.</figcaption>
+<section class="wide story" aria-labelledby="story-title">
+  <h2 id="story-title" class="band-title">왜 버스인가</h2>
+  <ol class="story-line">
+    <li class="story-step">
+      <svg class="story-icon" viewBox="0 0 120 80" aria-hidden="true" focusable="false">
+        <line class="ig" x1="4" y1="68" x2="116" y2="68"/>
+        <line class="il" x1="106" y1="30" x2="106" y2="67"/>
+        <rect class="is" x="99" y="16" width="14" height="14" rx="2"/>
+        <rect class="if" x="8" y="16" width="82" height="42" rx="8"/>
+        <rect class="ib" x="10" y="44" width="64" height="5"/>
+        <rect class="il" x="16" y="24" width="16" height="12" rx="2"/>
+        <rect class="il" x="37" y="24" width="16" height="12" rx="2"/>
+        <rect class="il" x="58" y="24" width="12" height="12" rx="2"/>
+        <rect class="il" x="76" y="24" width="8" height="30" rx="2"/>
+        <circle class="if" cx="28" cy="58" r="7"/>
+        <circle class="if" cx="68" cy="58" r="7"/>
+      </svg>
+      <h3>차로를 가장 자주 바꾸는 차</h3>
+      <ul class="mini-points"><li>정류장은 가장 바깥 차로</li><li>좌회전은 가장 안쪽 차로</li></ul>
+    </li>
+    <li class="story-step">
+      <svg class="story-icon" viewBox="0 0 120 80" aria-hidden="true" focusable="false">
+        <rect class="ir" x="22" y="12" width="76" height="56" rx="16"/>
+        <path class="il" d="M77 63L82 68L77 73M43 7L38 12L43 17"/>
+        <rect class="is" x="54" y="6" width="12" height="12" rx="2"/>
+        <rect class="is" x="92" y="34" width="12" height="12" rx="2"/>
+        <rect class="is" x="54" y="62" width="12" height="12" rx="2"/>
+        <rect class="is" x="16" y="34" width="12" height="12" rx="2"/>
+      </svg>
+      <h3>정류장과 좌회전의 반복</h3>
+      <ul class="mini-points"><li>정류장 4곳·좌회전 4곳의 교차 배치</li><li>한 바퀴에 차로 변경 <span class="nobr">8~9번</span></li></ul>
+    </li>
+    <li class="story-step">
+      <svg class="story-icon" viewBox="0 0 120 80" aria-hidden="true" focusable="false">
+        <line class="ig" x1="4" y1="8" x2="116" y2="8"/>
+        <line class="ig id" x1="4" y1="29" x2="116" y2="29"/>
+        <line class="ig id" x1="4" y1="51" x2="116" y2="51"/>
+        <line class="ig" x1="4" y1="72" x2="116" y2="72"/>
+        <rect class="if" x="6" y="13" width="22" height="12" rx="3"/>
+        <rect class="if" x="88" y="13" width="22" height="12" rx="3"/>
+        <rect class="ia" x="12" y="32" width="42" height="16" rx="4"/>
+        <rect class="if" x="70" y="55" width="22" height="12" rx="3"/>
+        <rect class="is" x="100" y="66" width="12" height="12" rx="2"/>
+        <path class="ir" d="M58 40C67 40 64 19 74 19"/>
+        <path class="il" d="M69 13.5L75 19L69 24.5"/>
+      </svg>
+      <h3>옆 차로와 눈치싸움</h3>
+      <ul class="mini-points"><li>옆 차로의 택시·골목 차·보행자</li><li><span class="nobr">0.5초마다</span> 끼어들지 판단</li></ul>
+      <a class="story-link" href="#nunchi">눈치싸움 장면 보기</a>
+    </li>
+    <li class="story-step">
+      <svg class="story-icon" viewBox="0 0 120 80" aria-hidden="true" focusable="false">
+        <path class="ig" d="M24 14L60 24M24 14L60 40M24 14L60 56M24 31L60 24M24 31L60 40M24 31L60 56M24 49L60 24M24 49L60 40M24 49L60 56M24 66L60 24M24 66L60 40M24 66L60 56M60 24L96 30M60 24L96 50M60 40L96 30M60 40L96 50M60 56L96 30M60 56L96 50"/>
+        <circle class="if" cx="24" cy="14" r="6"/>
+        <circle class="if" cx="24" cy="31" r="6"/>
+        <circle class="if" cx="24" cy="49" r="6"/>
+        <circle class="if" cx="24" cy="66" r="6"/>
+        <circle class="if" cx="60" cy="24" r="6"/>
+        <circle class="if" cx="60" cy="40" r="6"/>
+        <circle class="if" cx="60" cy="56" r="6"/>
+        <circle class="ia" cx="96" cy="30" r="7"/>
+        <circle class="if" cx="96" cy="50" r="7"/>
+      </svg>
+      <h3>신경망 하나에 맡긴 운전</h3>
+      <ul class="mini-points"><li>규칙 없이 신경망 하나로 운전</li><li>완주 <span class="nobr">95.6%</span>, 충돌 <span class="nobr">0.66%</span></li></ul>
+    </li>
+  </ol>
+</section>
+
+<section class="wide scorecard" aria-labelledby="score-title">
+  <h2 id="score-title" class="band-title">메인 목표 달성률 100%</h2>
+  <div class="score-grid">
+    <a class="score" href="#results">
+      <span class="score-head"><span class="score-name">Collision Rate</span><span class="score-ok">충족</span></span>
+      <span class="vs"><span class="vs-k">기준</span><span class="vs-v">5% 미만</span></span>
+      <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">0.66%</span></span>
+      <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 99.34%; --at: 95%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label">기준</i></span></span>
+      <ul class="mini-points score-note"><li>충돌 없이 끝난 바퀴 99.3%</li></ul>
+    </a>
+    <a class="score" href="#results">
+      <span class="score-head"><span class="score-name">목적지 완주</span><span class="score-ok">충족</span></span>
+      <span class="vs"><span class="vs-k">기준</span><span class="vs-v">목적지까지 완주</span></span>
+      <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">95.6%</span></span>
+      <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 95.58%"><i class="bar-fill"></i></span></span>
+      <ul class="mini-points score-note"><li><span class="nobr">12,425 / 13,000바퀴</span></li></ul>
+    </a>
+    <a class="score" href="#data">
+      <span class="score-head"><span class="score-name">Dataset</span><span class="score-ok">충족</span></span>
+      <span class="vs"><span class="vs-k">기준</span><span class="vs-v">10,000,000건(10⁷) 이상</span></span>
+      <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">10,864,774<small>건</small></span></span>
+      <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 100%; --at: 92.04%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label">기준</i></span></span>
+      <ul class="mini-points score-note"><li>기준의 108.6%, HF 공개</li></ul>
+    </a>
+    <a class="score" href="#lap-video">
+      <span class="score-head"><span class="score-name">실주행 영상</span><span class="score-ok">충족</span></span>
+      <span class="vs"><span class="vs-k">기준</span><span class="vs-v">30초 이상</span></span>
+      <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">67<small>초</small></span></span>
+      <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 100%; --at: 44.78%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label">기준</i></span></span>
+      <ul class="mini-points score-note"><li>한 바퀴 + 눈치싸움 5개</li></ul>
+    </a>
+  </div>
+  <ul class="criteria">
+    <li><a href="#why"><b>도로 구조의 의미</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">의사결정이 필요한 구조</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">정류장 4곳·좌회전 4곳 교차 배치</span></span></a></li>
+    <li><a href="#road"><b>도로 구조 구현</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">실제 도로 특징 반영</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">실제 OSM 도로·골목 8곳</span></span></a></li>
+    <li><a href="#traffic"><b>Traffic 구성</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">충분한 일반 차량</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">버스 주변 평균 4.9~18.8대</span></span></a></li>
+    <li><a href="#interaction"><b>Vehicle Interaction</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">AV와 의미 있는 상호작용</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">차로 변경의 46%에 옆 차 동반</span></span></a></li>
+    <li><a href="#results"><b>Simulation 안정성</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">정체·Teleport·오류 없음</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">순간이동 0건, 오류 0</span></span></a></li>
+    <li><a href="#problems"><b>분석 및 설명</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">설계 이유·문제·해결 설명</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">문제 6개 해결, 실패 위치 분석</span></span></a></li>
+  </ul>
+</section>
+
+<figure class="wide demo" id="lap-video">
+  <div class="video-box"><video src="assets/videos/full_lap.mp4" poster="assets/videos/full_lap.jpg" width="1120" height="720" data-play-in-view muted loop playsinline controls preload="metadata" aria-label="학습한 버스가 복합 교통에서 정류장 4곳을 서고 한 바퀴를 완주하는 영상"></video></div>
+  <figcaption class="caption"><strong>영상 1. 학습한 신경망이 주행한 한 바퀴</strong>가장 붐비는 복합 교통에서 정류장 4곳에 서고 돌아오는 약 8분짜리 한 바퀴를 67초로 줄인 영상이다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
 </figure>
 
 <section class="wrap paper-abstract" aria-labelledby="abstract">
   <h2 id="abstract">요약</h2>
   <div>
     <p>시내버스는 가로변 정류장에 섰다가 차로로 돌아오고, 좌회전하려면 가장 왼쪽 차로까지 옮겨야 한다. 합정역 순환 노선 1.96km에는 정류장 4곳과 좌회전 4곳이 번갈아 있어서 버스는 한 바퀴에 차로를 8~9번 바꾼다. 우리는 정류장 택시, 골목 차, 보행자가 있는 교통을 만들고, 규칙 운전사를 따라 배우는 DAgger로 신경망을 학습했다. 주행할 때는 규칙도 SUMO 안전장치도 쓰지 않는다.</p>
-    <div class="stat-row">
-      <div class="stat"><b>0.66%</b><span>충돌률 (목표 5% 미만)</span></div>
-      <div class="stat"><b>95.6%</b><span>목적지 완주율</span></div>
-      <div class="stat"><b>13,000</b><span>평가한 바퀴 (새 seed)</span></div>
-      <div class="stat"><b>1.09×10⁷</b><span>공개한 transition</span></div>
-    </div>
   </div>
 </section>
 
@@ -276,10 +533,12 @@
       <li><a href="#road">도로와 SUMO 구현</a></li>
       <li><a href="#traffic">교통 구성</a></li>
       <li><a href="#interaction">차량 interaction</a></li>
+      <li class="sub"><a href="#nunchi">눈치싸움 장면</a></li>
       <li><a href="#learning">AV 학습 설계</a></li>
       <li><a href="#results">평가 결과</a></li>
       <li><a href="#videos">주행 영상</a></li>
       <li><a href="#data">데이터셋</a></li>
+      <li><a href="#run">실행 방법</a></li>
       <li><a href="#problems">문제와 해결</a></li>
       <li><a href="#limits">결론과 한계</a></li>
     </ol>
@@ -289,8 +548,8 @@
     <section class="article-section" aria-labelledby="why">
       <h2 id="why">도로 선정과 문제</h2>
       <p>버스는 합정역을 떠나 독막로로 상수역까지 가고, 와우산로와 잔다리로를 지나 서교동사거리에서 양화로로 좌회전해 돌아온다. 정류장은 모두 가로변 차로에 있고 좌회전은 가장 왼쪽 차로에서만 하므로, 버스는 한 바퀴 내내 가로변과 왼쪽 끝을 오간다.</p>
-      <p class="pull lit-pending" id="pull">버스는 0.5초마다 옆 차로의 틈을 보고 끼어들지, 속도를 줄여 기다릴지 정한다.</p>
-      <div class="table-scroll">
+      <p class="pull lit-pending" id="pull">0.5초마다 옆 차로의 틈을 보고 끼어들지, 속도를 줄여 기다릴지 정하는 버스</p>
+      <div class="table-scroll" role="region" tabindex="0" aria-label="상황별로 버스가 판단할 것 표">
         <table>
           <thead><tr><th scope="col">번호</th><th scope="col">상황</th><th scope="col">버스가 판단할 것</th></tr></thead>
           <tbody>
@@ -307,7 +566,7 @@
 
     <section class="article-section" aria-labelledby="road">
       <h2 id="road">도로와 SUMO 구현</h2>
-      <p>OpenStreetMap에서 만든 원본에 빌드 스크립트가 실제 지도와 대조해 고친 내용을 차례로 적용하므로, 누가 다시 만들어도 같은 도로망이 나온다.</p>
+      <p>OpenStreetMap에서 만든 원본에 빌드 스크립트와 수정 스크립트가 실제 지도와 대조해 고친 내용을 차례로 적용했다. 학습, 평가, 수집은 모두 저장소에 커밋된 도로망 하나를 읽고, 도로를 불러올 때 파일 해시로 같은 도로망인지 확인한다.</p>
       <div class="stat-row">
         <div class="stat"><b>1,963m</b><span>버스 순환 경로</span></div>
         <div class="stat"><b>4곳</b><span>버스가 서는 정류장</span></div>
@@ -323,23 +582,27 @@
       <p>상수역 사거리, 삼거리포차 앞, 서교동사거리, 합정역 사거리의 좌회전은 가장 왼쪽 차로에서만 할 수 있어서, 버스는 합정역 사거리 앞에서 167m 안에 세 차로를 건넌다.</p>
       <figure>
         <a class="figure-link" href="assets/hapjeong_map.webp"><img src="assets/hapjeong_map.webp" width="2400" height="1982" alt="합정역 도로망. 파란 선은 연구 버스 순환 경로, 빨간 선은 골목, 청록 선은 양화로 중앙버스 노선이다." loading="lazy" decoding="async" /></a>
-        <figcaption class="caption"><strong>그림 2. 합정역 도로망과 골목</strong>파란 선은 버스가 시계 반대 방향으로 도는 경로, 빨간 선은 골목, 보라 세모는 골목 합류점, 노란 네모는 정류장이다.</figcaption>
+        <figcaption class="caption"><strong>그림 2. 합정역 도로망과 골목</strong>도로망 3.22.0이다. 파란 선은 버스가 시계 반대 방향으로 도는 경로, 빨간 선은 골목, 보라 세모는 골목 합류점, 노란 네모는 노선 위 정류장 6곳이며 버스는 그중 4곳에 선다.</figcaption>
       </figure>
-      <h3>실제 골목 여덟 묶음</h3>
-      <p>골목이 없으면 끼어드는 차도 없어서 버스 경로 안쪽의 실제 골목 여덟 묶음을 살렸고, 아래 수치는 그때 규칙 버스로 160바퀴를 돌아 잰 값이다.</p>
+      <h3>실제 골목 여덟 곳</h3>
+      <p>골목이 없으면 끼어드는 차도 없어서 버스 경로 안쪽의 실제 골목 여덟 곳을 살렸고, 아래 수치는 그때 규칙 버스로 160바퀴를 돌아 잰 값이다.</p>
       <div class="shortcut-grid">
         <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari6.webp" width="354" height="246" alt="잔다리로6길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로6길</h3><p><b>끼어들기 28번</b>시간당 45대</p></div></div>
         <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari3.webp" width="528" height="647" alt="독막로3길 북쪽과 잔다리로3길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로3길</h3><p><b>끼어들기 21번</b>시간당 19대</p></div></div>
         <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak6.webp" width="272" height="240" alt="독막로6길 고리 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로6길 고리</h3><p><b>끼어들기 14번</b>시간당 47대</p></div></div>
         <div class="shortcut"><img src="assets/shortcuts/shortcut_wausan11.webp" width="485" height="275" alt="와우산로11길과 와우산로13길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>와우산로11길</h3><p><b>끼어들기 3번</b>시간당 50대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari2.webp" width="226" height="316" alt="잔다리로2길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로2길</h3><p><b>끼어들기 3번</b>시간당 25대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak3.webp" width="168" height="212" alt="독막로3길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로3길</h3><p><b>끼어들기 3번</b>시간당 18대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_eoulmadang.webp" width="330" height="609" alt="어울마당로 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>어울마당로</h3><p><b>끼어들기 2번</b>시간당 20대</p></div></div>
+        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak7.webp" width="692" height="559" alt="양화로6길과 독막로7길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로7길</h3><p><b>끼어들기 0번</b>시간당 25대</p></div></div>
       </div>
-      <p>도로를 고칠 때마다 30분 시험 300번에서 충돌이나 급정지가 난 횟수를 셌고, 자세한 내용은 <a href="assets/shortcut_report.pdf">골목 보고서</a>에 있다.</p>
+      <p>도로를 고칠 때마다 30분 시험 300번에서 충돌이나 급정지가 난 횟수를 셌다.</p>
     </section>
 
     <section class="article-section" aria-labelledby="traffic">
       <h2 id="traffic">교통 구성</h2>
-      <p>일반 차는 실행 전에 seed로 정해진 route/flow 파일대로 나오고, 버스 위치를 보고 넣는 차는 없다. 같은 seed로 버스를 넣고 뺀 두 실행에서 배경 차 467대의 출발 시각과 경로가 모두 같았다.</p>
-      <div class="table-scroll">
+      <p>일반 차는 실행 전에 seed로 정해진 route/<wbr>flow 파일대로 나오고, 버스 위치를 보고 넣는 차는 없다. 같은 seed로 버스를 넣고 뺀 두 실행에서 배경 차 467대의 출발 시각과 경로가 모두 같았다.</p>
+      <div class="table-scroll" role="region" tabindex="0" aria-label="교통 구성 표">
         <table>
           <thead><tr><th scope="col">교통</th><th scope="col" class="num">시간당 차량</th><th scope="col" class="num">버스 150m 안 차</th><th scope="col">구성</th></tr></thead>
           <tbody>
@@ -364,55 +627,98 @@
     <section class="article-section" aria-labelledby="interaction">
       <h2 id="interaction">차량 interaction</h2>
       <p>평가 13,000바퀴에서 버스가 보는 50m 안에서 다른 차나 보행자와 얽힌 장면을 바퀴당 횟수로 셌다.</p>
-      <div class="table-scroll">
+      <div class="table-scroll" role="region" tabindex="0" aria-label="바퀴당 차량 interaction 표">
         <table>
-          <thead><tr><th scope="col">장면 (바퀴당)</th><th scope="col" class="num">한산</th><th scope="col" class="num">보통</th><th scope="col" class="num">혼잡</th><th scope="col" class="num">매우 혼잡</th><th scope="col" class="num">복합</th></tr></thead>
+          <thead><tr><th scope="col">장면 (바퀴당)</th><th scope="col" class="num">한산</th><th scope="col" class="num">보통</th><th scope="col" class="num">혼잡</th><th scope="col" class="num">매우 혼잡</th><th scope="col" class="num">복합</th><th scope="col" class="num col-avg">평균</th></tr></thead>
           <tbody>
-            <tr><td>정류장 정차 중 뒤 50m 안에 차 (S1)</td><td class="num">0.27</td><td class="num">0.53</td><td class="num">0.67</td><td class="num">0.79</td><td class="num">1.56</td></tr>
-            <tr><td>왼쪽 변경 때 옮길 차로 뒤 30m 안에 차 (S2)</td><td class="num">0.33</td><td class="num">0.88</td><td class="num">1.22</td><td class="num">1.49</td><td class="num">2.11</td></tr>
-            <tr><td>오른쪽 변경 때 옮길 차로 뒤 30m 안에 차 (S3)</td><td class="num">0.61</td><td class="num">0.84</td><td class="num">0.91</td><td class="num">0.95</td><td class="num">0.93</td></tr>
-            <tr><td>앞으로 끼어든 차 (S5)</td><td class="num">0.33</td><td class="num">0.67</td><td class="num">0.86</td><td class="num">0.99</td><td class="num">1.50</td></tr>
-            <tr><td>보행자가 건너던 횡단보도 접근 (S6)</td><td class="num">2.02</td><td class="num">1.99</td><td class="num">1.93</td><td class="num">1.96</td><td class="num">2.33</td></tr>
+            <tr><td>정류장 정차 중 뒤 50m 안에 차 (S1)</td><td class="num">0.27</td><td class="num">0.53</td><td class="num">0.67</td><td class="num">0.79</td><td class="num">1.56</td><td class="num col-avg">0.76</td></tr>
+            <tr><td>왼쪽 변경 때 옮길 차로 뒤 30m 안에 차 (S2)</td><td class="num">0.33</td><td class="num">0.88</td><td class="num">1.22</td><td class="num">1.49</td><td class="num">2.11</td><td class="num col-avg">1.21</td></tr>
+            <tr><td>오른쪽 변경 때 옮길 차로 뒤 30m 안에 차 (S3)</td><td class="num">0.61</td><td class="num">0.84</td><td class="num">0.91</td><td class="num">0.95</td><td class="num">0.93</td><td class="num col-avg">0.85</td></tr>
+            <tr><td>앞으로 끼어든 차 (S5)</td><td class="num">0.33</td><td class="num">0.67</td><td class="num">0.86</td><td class="num">0.99</td><td class="num">1.50</td><td class="num col-avg">0.87</td></tr>
+            <tr><td>보행자가 건너던 횡단보도 접근 (S6)</td><td class="num">2.02</td><td class="num">1.99</td><td class="num">1.93</td><td class="num">1.96</td><td class="num">2.33</td><td class="num col-avg">2.05</td></tr>
           </tbody>
         </table>
       </div>
-      <div class="stat-row">
-        <div class="stat"><b>8.5~9.3번</b><span>한 바퀴의 차로 변경</span></div>
-        <div class="stat"><b>46%</b><span>복합 교통에서 옮길 차로 30m 안에 차가 있던 변경</span></div>
-        <div class="stat"><b>12.7%</b><span>구간 가운데에서 앞 30m 안에 차가 있는 시간 (매우 혼잡은 4.4%)</span></div>
-        <div class="stat"><b>231 / 240</b><span>정류장 앞 택시(S4)를 만난 바퀴</span></div>
-      </div>
+      <ul>
+        <li>한 바퀴의 차로 변경은 8.5~9.3번이다.</li>
+        <li>복합 교통에서 옮길 차로 30m 안에 차가 있던 변경은 46%다.</li>
+        <li>구간 가운데에서 앞 30m 안에 차가 있는 시간은 12.7%다(매우 혼잡은 4.4%).</li>
+        <li>정류장 앞 택시(S4)를 만난 바퀴는 240바퀴 중 231바퀴다.</li>
+      </ul>
       <figure>
         <a class="figure-link" href="assets/scenario_map.webp"><img src="assets/scenario_map.webp" width="2400" height="1500" alt="여섯 시나리오가 일어나는 위치를 표시한 합정역 도로망" loading="lazy" decoding="async" /></a>
-        <figcaption class="caption"><strong>그림 3. 시나리오가 일어나는 곳</strong>버스 경로 위에 여섯 시나리오가 일어나는 자리를 표시했다.</figcaption>
+        <figcaption class="caption"><strong>그림 3. 시나리오가 일어나는 곳</strong></figcaption>
       </figure>
+      <div class="theater" id="nunchi" data-video-group>
+        <h3 class="theater-title">눈치싸움 장면</h3>
+        <p>버스와 주변 차가 서로 속도와 간격을 보며 먼저 갈지 기다릴지 정한다. 사람 운전자끼리의 눈치싸움과 닮은, 숫자로는 보이지 않는 장면이다. SUMO 화면은 2배속이다.</p>
+        <div class="scene-route" role="tablist" aria-label="눈치싸움 장면 고르기" hidden>
+          <button type="button" role="tab" id="scene-tab-1" aria-selected="true" aria-controls="scene-1"><img src="assets/videos/scenario_1.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>1</b> 합정역 정류장 진입</span></button>
+          <button type="button" role="tab" id="scene-tab-2" aria-selected="false" aria-controls="scene-2" tabindex="-1"><img src="assets/videos/scenario_2.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>2</b> 정류장 출발과 재합류</span></button>
+          <button type="button" role="tab" id="scene-tab-3" aria-selected="false" aria-controls="scene-3" tabindex="-1"><img src="assets/videos/scenario_3.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>3</b> 독막로 정류장</span></button>
+          <button type="button" role="tab" id="scene-tab-4" aria-selected="false" aria-controls="scene-4" tabindex="-1"><img src="assets/videos/scenario_4.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>4</b> 붐비는 교차로 출발</span></button>
+          <button type="button" role="tab" id="scene-tab-5" aria-selected="false" aria-controls="scene-5" tabindex="-1"><img src="assets/videos/scenario_5.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>5</b> 교차로 앞 차로 변경</span></button>
+        </div>
+        <div class="scene-panels">
+          <div class="scene-panel is-on" id="scene-1" role="tabpanel" aria-labelledby="scene-tab-1">
+            <figure>
+              <div class="video-box"><video src="assets/videos/scenario_1.mp4" poster="assets/videos/scenario_1.jpg" width="960" height="540" data-play-in-view controls muted playsinline preload="none" aria-labelledby="scene-1-title"></video></div>
+              <figcaption class="caption"><span class="scene-meta"><b>장면 1</b> · 보통 교통</span><strong id="scene-1-title">합정역 정류장 진입</strong><span class="scene-desc">신호를 기다리며 줄 선 차들 바로 옆 정류장 차로로 들어가 서고, 정차를 마친 뒤 다시 교차로로 나간다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
+            </figure>
+          </div>
+          <div class="scene-panel" id="scene-2" role="tabpanel" aria-labelledby="scene-tab-2">
+            <figure>
+              <div class="video-box"><video src="assets/videos/scenario_2.mp4" poster="assets/videos/scenario_2.jpg" width="960" height="540" data-play-in-view controls muted playsinline preload="none" aria-labelledby="scene-2-title"></video></div>
+              <figcaption class="caption"><span class="scene-meta"><b>장면 2</b> · 보통 교통</span><strong id="scene-2-title">정류장 출발과 재합류</strong><span class="scene-desc">정류장을 떠나는 버스 옆으로 차가 붙어 오고, 둘이 나란히 달리며 서로 간격을 맞춘다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
+            </figure>
+          </div>
+          <div class="scene-panel" id="scene-3" role="tabpanel" aria-labelledby="scene-tab-3">
+            <figure>
+              <div class="video-box"><video src="assets/videos/scenario_3.mp4" poster="assets/videos/scenario_3.jpg" width="960" height="540" data-play-in-view controls muted playsinline preload="none" aria-labelledby="scene-3-title"></video></div>
+              <figcaption class="caption"><span class="scene-meta"><b>장면 3</b> · 보통 교통</span><strong id="scene-3-title">독막로 정류장</strong><span class="scene-desc">옆 차로를 오가는 차들 사이로 가로변 정류장에 섰다가 다음 교차로로 향한다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
+            </figure>
+          </div>
+          <div class="scene-panel" id="scene-4" role="tabpanel" aria-labelledby="scene-tab-4">
+            <figure>
+              <div class="video-box"><video src="assets/videos/scenario_4.mp4" poster="assets/videos/scenario_4.jpg" width="960" height="540" data-play-in-view controls muted playsinline preload="none" aria-labelledby="scene-4-title"></video></div>
+              <figcaption class="caption"><span class="scene-meta"><b>장면 4</b> · 혼잡 교통</span><strong id="scene-4-title">붐비는 교차로 출발</strong><span class="scene-desc">긴 대기 줄 앞에서 신호를 기다리다 녹색이 켜지자 다른 차들과 함께 교차로를 건넌다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
+            </figure>
+          </div>
+          <div class="scene-panel" id="scene-5" role="tabpanel" aria-labelledby="scene-tab-5">
+            <figure>
+              <div class="video-box"><video src="assets/videos/scenario_5.mp4" poster="assets/videos/scenario_5.jpg" width="960" height="540" data-play-in-view controls muted playsinline preload="none" aria-labelledby="scene-5-title"></video></div>
+              <figcaption class="caption"><span class="scene-meta"><b>장면 5</b> · 한산 교통</span><strong id="scene-5-title">교차로 앞 차로 변경</strong><span class="scene-desc">옆 차와 나란히 정지선에 다가가고, 교차로 안을 지나는 차를 기다린 뒤 차로를 옮겨 출발한다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="article-section" aria-labelledby="learning">
       <h2 id="learning">AV 학습 설계</h2>
-      <div class="table-scroll">
+      <div class="table-scroll" role="region" tabindex="0" aria-label="AV 학습 설계 표">
         <table>
           <thead><tr><th scope="col">항목</th><th scope="col">내용</th></tr></thead>
           <tbody>
-            <tr><td>Observation</td><td>46차원 부분 관측(50m 범위). 버스 속도와 가속도, 다섯 차로의 앞뒤 차, 차로 밀도, 차로별 경로 연결 거리, 신호, 정류장, 횡단보도, 제한속도. 신경망은 그중 31개를 쓴다.</td></tr>
-            <tr><td>Action</td><td>[가감속, 차로 변경]. 가감속은 +1.0 ~ -2.0m/s², 차로 변경은 {-1, 0, +1}. 0.5초마다 한 번 판단한다.</td></tr>
+            <tr><td>Observation</td><td>46차원 부분 관측(50m 범위). 버스 속도와 가속도, 다섯 차로의 앞뒤 차, 차로 밀도, 차로별 경로 연결 거리, 신호, 정류장, 횡단보도, 제한속도. 신경망은 그중 31개 사용</td></tr>
+            <tr><td>Action</td><td>[가감속, 차로 변경]. 가감속은 +1.0 ~ -2.0m/s², 차로 변경은 {-1, 0, +1}. 0.5초마다 한 번 판단한다. 차로 변경 명령은 수업 원본 환경의 차로 변경 안전 검사(앞뒤 3m와 속도 비례 여유, 출발 60m)를 거치며, 값은 수업 원본과 같다. 조교가 이 검사는 끄지 않아도 된다고 답했다.</td></tr>
             <tr><td>Reward</td><td>속도 0.1 × v/vmax, 정류장 정차 +1, 정류장 지나침 -3, 충돌 -5, 적색 통과 -5, 도착 +2, 멈춰 섬 -2, 승차감 한계 넘음 -0.02.</td></tr>
             <tr><td>종료</td><td>충돌, 적색 통과, 도착, 멈춰 섬(200초 동안 5m 못 감), 1,400 step(700초).</td></tr>
-            <tr><td>신경망</td><td>MLP, 은닉층 256 × 2, 가중치 81,514개. 출력은 가속도 11칸과 차로 3가지의 점수다.</td></tr>
+            <tr><td>신경망</td><td>MLP, 은닉층 256 × 2, 가중치 81,514개. 출력은 가속도 11칸과 차로 3가지의 점수</td></tr>
           </tbody>
         </table>
       </div>
       <p>차로를 알려 주는 지시는 없고, 버스는 차로마다 노선으로 이어지는 거리만 보고 갈 차로를 정한다. 가속도를 값 하나로 맞히게 하면 서야 할지 가야 할지 모를 때 그 중간값을 내서, 11칸 중 하나를 고르게 바꿨다.</p>
       <h3>DAgger와 커리큘럼</h3>
-      <p>신경망이 직접 몬 상태마다 규칙 운전사의 정답을 붙여 다시 학습하고, 교통은 쉬운 것에서 붐비는 것으로 넓혔다. 규칙 운전사는 정답을 붙일 때만 쓰고 주행할 때는 쓰지 않는다.</p>
-      <div class="table-scroll">
+      <p>신경망이 직접 주행한 상태마다 규칙 운전사의 정답을 붙여 다시 학습하고, 교통은 쉬운 것에서 붐비는 것으로 넓혔다. 규칙 운전사는 정답을 붙일 때만 쓰고 주행할 때는 쓰지 않는다.</p>
+      <div class="table-scroll" role="region" tabindex="0" aria-label="DAgger 단계 표">
         <table>
           <thead><tr><th scope="col">단계</th><th scope="col">교통</th><th scope="col">내용</th></tr></thead>
           <tbody>
-            <tr><td>시범</td><td>한산, 보통, 혼잡</td><td>규칙 운전사가 300바퀴를 몰고 그 기록으로 처음 모방학습</td></tr>
-            <tr><td>DAgger 1~12회</td><td>한산, 보통, 혼잡</td><td>회마다 교통별 25바퀴를 신경망이 직접 몬다</td></tr>
-            <tr><td>DAgger 13~16회</td><td>+ 매우 혼잡</td><td>끼어들기와 대기 줄 상황을 늘린다</td></tr>
-            <tr><td>DAgger 17~21회</td><td>+ 택시·골목 차·보행자</td><td>정류장 앞 택시와 골목 차를 배운다</td></tr>
+            <tr><td>BC</td><td>한산, 보통, 혼잡</td><td>규칙 운전사가 주행한 300바퀴 기록으로 BC(모방학습)</td></tr>
+            <tr><td>DAgger 1~12회</td><td>한산, 보통, 혼잡</td><td>회마다 교통별 25바퀴를 신경망이 직접 운전</td></tr>
+            <tr><td>DAgger 13~16회</td><td>+ 매우 혼잡</td><td>끼어들기와 대기 줄 상황 추가</td></tr>
+            <tr><td>DAgger 17~21회</td><td>+ 택시·골목 차·보행자</td><td>정류장 앞 택시와 골목 차 학습</td></tr>
             <tr><td>DAgger 22~24회</td><td>다섯 교통 전부</td><td>최종 합본 271만 건</td></tr>
           </tbody>
         </table>
@@ -422,36 +728,36 @@
 
     <section class="article-section" aria-labelledby="results">
       <h2 id="results">평가 결과</h2>
-      <p>다섯 교통에서 학습에 쓰지 않은 seed로 2,600바퀴씩 돌리고, SUMO 안전장치(speedMode 0, laneChangeMode 0)를 끈 채 끝난 원인을 원본 기록에서 셌다.</p>
-      <div class="table-scroll">
+      <p>다섯 교통에서 학습에 쓰지 않은 seed로 2,600바퀴씩 돌리고, SUMO 안전장치(speed<wbr>Mode 0, lane<wbr>Change<wbr>Mode 0)를 끈 채 끝난 원인을 원본 기록에서 셌다.</p>
+      <div class="table-scroll" role="region" tabindex="0" aria-label="교통별 평가 결과 표">
         <table>
-          <thead><tr><th scope="col">교통</th><th scope="col" class="num">바퀴</th><th scope="col" class="num">완주</th><th scope="col" class="num">차 충돌</th><th scope="col" class="num">보행자 충돌</th><th scope="col" class="num">적색 통과</th><th scope="col" class="num">멈춰 섬</th><th scope="col" class="num">시간 초과</th></tr></thead>
+          <thead><tr><th scope="col">교통</th><th scope="col" class="num">바퀴</th><th scope="col" class="num">완주</th><th scope="col" class="num col-key">완주율</th><th scope="col" class="num minor-start">차 충돌</th><th scope="col" class="num">보행자 충돌</th><th scope="col" class="num">적색 통과</th><th scope="col" class="num">멈춰 섬</th><th scope="col" class="num">시간 초과</th></tr></thead>
           <tbody>
-            <tr><td>한산</td><td class="num">2,600</td><td class="num">2,594</td><td class="num">2</td><td class="num">0</td><td class="num">1</td><td class="num">3</td><td class="num">0</td></tr>
-            <tr><td>보통</td><td class="num">2,600</td><td class="num">2,544</td><td class="num">14</td><td class="num">0</td><td class="num">1</td><td class="num">38</td><td class="num">3</td></tr>
-            <tr><td>혼잡</td><td class="num">2,600</td><td class="num">2,519</td><td class="num">10</td><td class="num">1</td><td class="num">1</td><td class="num">59</td><td class="num">10</td></tr>
-            <tr><td>매우 혼잡</td><td class="num">2,600</td><td class="num">2,471</td><td class="num">16</td><td class="num">1</td><td class="num">4</td><td class="num">87</td><td class="num">21</td></tr>
-            <tr><td>복합</td><td class="num">2,600</td><td class="num">2,297</td><td class="num">34</td><td class="num">8</td><td class="num">18</td><td class="num">170</td><td class="num">73</td></tr>
-            <tr><td>합계</td><td class="num">13,000</td><td class="num">12,425 (95.6%)</td><td class="num">76</td><td class="num">10</td><td class="num">25</td><td class="num">357</td><td class="num">107</td></tr>
+            <tr><td>한산</td><td class="num">2,600</td><td class="num">2,594</td><td class="num col-key">99.8%</td><td class="num minor minor-start">2</td><td class="num minor">0</td><td class="num minor">1</td><td class="num minor">3</td><td class="num minor">0</td></tr>
+            <tr><td>보통</td><td class="num">2,600</td><td class="num">2,544</td><td class="num col-key">97.8%</td><td class="num minor minor-start">14</td><td class="num minor">0</td><td class="num minor">1</td><td class="num minor">38</td><td class="num minor">3</td></tr>
+            <tr><td>혼잡</td><td class="num">2,600</td><td class="num">2,519</td><td class="num col-key">96.9%</td><td class="num minor minor-start">10</td><td class="num minor">1</td><td class="num minor">1</td><td class="num minor">59</td><td class="num minor">10</td></tr>
+            <tr><td>매우 혼잡</td><td class="num">2,600</td><td class="num">2,471</td><td class="num col-key">95.0%</td><td class="num minor minor-start">16</td><td class="num minor">1</td><td class="num minor">4</td><td class="num minor">87</td><td class="num minor">21</td></tr>
+            <tr><td>복합</td><td class="num">2,600</td><td class="num">2,297</td><td class="num col-key">88.3%</td><td class="num minor minor-start">34</td><td class="num minor">8</td><td class="num minor">18</td><td class="num minor">170</td><td class="num minor">73</td></tr>
+            <tr class="total"><td>합계</td><td class="num">13,000</td><td class="num">12,425</td><td class="num col-key">95.6%</td><td class="num minor minor-start">76</td><td class="num minor">10</td><td class="num minor">25</td><td class="num minor">357</td><td class="num minor">107</td></tr>
           </tbody>
         </table>
       </div>
       <ul>
+        <li>완주율은 복합 교통을 뺀 네 교통에서 97.4%이고, 택시·골목 차·보행자가 함께 나오는 가장 어려운 복합 교통에서도 88.3%다.</li>
         <li>충돌은 차 76번과 보행자 10번을 합쳐 0.66%이고, 가장 어려운 복합 교통만 보면 1.6%다.</li>
-        <li>완주율은 복합 교통을 뺀 네 교통에서 97.4%, 복합 교통에서 88.3%다.</li>
-        <li>순간이동을 꺼 두었기 때문에 막힌 경우는 사라지지 않고 "멈춰 섬"으로 남는다.</li>
         <li>차와 버스의 상자가 조금이라도 겹친 바퀴 391개를 모두 충돌로 쳐도 3.7%로 5% 아래다.</li>
+        <li>순간이동을 꺼 두었기 때문에 막힌 경우는 사라지지 않고 "멈춰 섬"으로 남는다.</li>
       </ul>
-      <h3>실패한 곳</h3>
-      <div class="table-scroll">
+      <h3>실패 575바퀴(4.4%)가 난 곳</h3>
+      <div class="table-scroll" role="region" tabindex="0" aria-label="실패한 곳 표">
         <table>
-          <thead><tr><th scope="col">실패</th><th scope="col" class="num">횟수</th><th scope="col">가장 많은 곳</th></tr></thead>
+          <thead><tr><th scope="col">실패</th><th scope="col" class="num">횟수</th><th scope="col" class="num">비율</th><th scope="col">가장 많은 곳</th></tr></thead>
           <tbody>
-            <tr><td>멈춰 섬</td><td class="num">357</td><td>서교동사거리 앞 305번. 정류장을 떠나 좌회전 줄에 끼어들지 못한다</td></tr>
-            <tr><td>시간 초과</td><td class="num">107</td><td>합정역 사거리 앞뒤 대기 줄 71번</td></tr>
-            <tr><td>차 충돌</td><td class="num">76</td><td>합정역 사거리 갈림 지점 31번, 서교동사거리 안 18번</td></tr>
-            <tr><td>적색 통과</td><td class="num">25</td><td>독막로 11번, 서교동사거리 앞 8번</td></tr>
-            <tr><td>보행자 충돌</td><td class="num">10</td><td>와우산로 신호 없는 횡단보도 9번</td></tr>
+            <tr><td>멈춰 섬</td><td class="num">357</td><td class="num minor">2.75%</td><td>서교동사거리 앞 305번. 정류장을 떠난 뒤 좌회전 줄 진입 실패</td></tr>
+            <tr><td>시간 초과</td><td class="num">107</td><td class="num minor">0.82%</td><td>합정역 사거리 앞뒤 대기 줄 71번</td></tr>
+            <tr><td>차 충돌</td><td class="num">76</td><td class="num minor">0.58%</td><td>합정역 사거리 갈림 지점 31번, 서교동사거리 안 18번</td></tr>
+            <tr><td>적색 통과</td><td class="num">25</td><td class="num minor">0.19%</td><td>독막로 11번, 서교동사거리 앞 8번</td></tr>
+            <tr><td>보행자 충돌</td><td class="num">10</td><td class="num minor">0.08%</td><td>와우산로 신호 없는 횡단보도 9번</td></tr>
           </tbody>
         </table>
       </div>
@@ -461,26 +767,26 @@
       <h2 id="videos">주행 영상</h2>
       <p>평가 기록을 그대로 다시 그린 영상으로, 잘한 장면과 실패한 장면을 함께 싣는다.</p>
       <figure>
-        <div class="video-box"><video src="assets/videos/taxi_wait.mp4" poster="assets/videos/taxi_wait.jpg" controls muted loop playsinline preload="none"></video></div>
-        <figcaption class="caption"><strong>영상 2. 정류장 앞 택시 (S4)</strong>같은 바퀴에서 왼쪽 이전 모델은 정류장 입구의 택시를 들이받고, 오른쪽 최종 모델은 택시 뒤에서 기다렸다가 정류장에 선다.</figcaption>
+        <div class="video-box"><video src="assets/videos/taxi_wait.mp4" poster="assets/videos/taxi_wait.jpg" width="1920" height="618" controls muted loop playsinline preload="none" aria-labelledby="v-taxi"></video></div>
+        <figcaption class="caption"><strong id="v-taxi">영상 2. 정류장 앞 택시 (S4)</strong>같은 바퀴에서 왼쪽 이전 모델은 정류장 입구의 택시를 들이받고, 오른쪽 최종 모델은 택시 뒤에서 기다렸다가 정류장에 선다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
+      </figure>
+      <figure class="video-aside">
+        <div class="video-box"><video src="assets/videos/side_by_side.mp4" poster="assets/videos/side_by_side.jpg" width="1120" height="720" controls muted loop playsinline preload="none" aria-labelledby="v-side"></video></div>
+        <figcaption class="caption"><strong id="v-side">옆에서 나란히 가는 차</strong>버스 왼쪽에서 10초쯤 나란히 가던 차가 왼쪽 차로로 빠진다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
       </figure>
       <h3>실패 장면</h3>
       <div class="video-grid">
         <figure>
-          <div class="video-box"><video src="assets/videos/fail_queue_tail.mp4" poster="assets/videos/fail_queue_tail.jpg" controls muted loop playsinline preload="none"></video></div>
-          <figcaption class="caption"><strong>대기 줄 끝 충돌</strong>좌회전을 마치고 앞에 선 줄을 늦게 보고 끝 차에 닿는다.</figcaption>
+          <div class="video-box"><video src="assets/videos/fail_queue_tail.mp4" poster="assets/videos/fail_queue_tail.jpg" width="1120" height="720" controls muted loop playsinline preload="none" aria-labelledby="v-fail-queue"></video></div>
+          <figcaption class="caption"><strong id="v-fail-queue">대기 줄 끝 충돌</strong>좌회전을 마치고 앞에 선 줄을 늦게 보고 끝 차에 닿는다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
         </figure>
         <figure>
-          <div class="video-box"><video src="assets/videos/fail_yellow.mp4" poster="assets/videos/fail_yellow.jpg" controls muted loop playsinline preload="none"></video></div>
-          <figcaption class="caption"><strong>황색 진입</strong>서교동사거리 정지선 앞에서 황색이 켜졌는데 서지 않고 들어간다.</figcaption>
+          <div class="video-box"><video src="assets/videos/fail_yellow.mp4" poster="assets/videos/fail_yellow.jpg" width="1120" height="720" controls muted loop playsinline preload="none" aria-labelledby="v-fail-yellow"></video></div>
+          <figcaption class="caption"><strong id="v-fail-yellow">황색 진입</strong>서교동사거리 정지선 앞에서 황색이 켜졌는데 서지 않고 들어간다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
         </figure>
         <figure>
-          <div class="video-box"><video src="assets/videos/fail_green_start.mp4" poster="assets/videos/fail_green_start.jpg" controls muted loop playsinline preload="none"></video></div>
-          <figcaption class="caption"><strong>녹색 출발</strong>녹색이 켜지자마자 출발했는데 교차로 안에 아직 차가 남아 있다.</figcaption>
-        </figure>
-        <figure>
-          <div class="video-box"><video src="assets/videos/side_by_side.mp4" poster="assets/videos/side_by_side.jpg" controls muted loop playsinline preload="none"></video></div>
-          <figcaption class="caption"><strong>옆에서 나란히 가는 차</strong>버스 왼쪽에서 10초쯤 나란히 가던 차가 왼쪽 차로로 빠진다.</figcaption>
+          <div class="video-box"><video src="assets/videos/fail_green_start.mp4" poster="assets/videos/fail_green_start.jpg" width="1120" height="720" controls muted loop playsinline preload="none" aria-labelledby="v-fail-green"></video></div>
+          <figcaption class="caption"><strong id="v-fail-green">녹색 출발</strong>녹색이 켜지자마자 출발했는데 교차로 안에 아직 차가 남아 있다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
         </figure>
       </div>
       <p>실패는 대부분 신호가 바뀌는 순간이나 대기 줄 끝에서 일어난다.</p>
@@ -488,11 +794,11 @@
 
     <section class="article-section" aria-labelledby="data">
       <h2 id="data">데이터셋</h2>
-      <p>신경망이 탐색 잡음 없이 직접 몬 13,000바퀴를 0.5초마다 한 건씩 기록했고, 실패하거나 시뮬레이션 이상이 있는 1,290바퀴를 통째로 빼고 공개한다.</p>
+      <p>신경망이 탐색 잡음 없이 직접 주행한 13,000바퀴를 0.5초마다 한 건씩 기록해, 실패나 시뮬레이션 이상이 없는 바퀴만 걸러 공개한다(1,290바퀴 제외).</p>
       <div class="stat-row">
-        <div class="stat"><b>12,186,016</b><span>모은 transition</span></div>
-        <div class="stat"><b>10,864,774</b><span>걸러 낸 뒤 공개한 건수</span></div>
-        <div class="stat"><b>11,710</b><span>남긴 바퀴</span></div>
+        <div class="stat"><b>10,864,774</b><span>공개한 transition</span></div>
+        <div class="stat"><b>11,710</b><span>공개한 바퀴</span></div>
+        <div class="stat"><b>12,186,016</b><span>거르기 전 transition</span></div>
         <div class="stat"><b>7.4GB</b><span>65묶음, 교통별 폴더</span></div>
       </div>
       <ul>
@@ -501,35 +807,159 @@
         <li>65묶음 모두 NPZ 행 수가 metadata의 건수와 맞고, 올린 뒤 다시 받은 파일의 해시도 원본과 같다.</li>
         <li>데이터를 모은 신경망 <code>model/model.pt</code>도 함께 올렸다.</li>
       </ul>
+      <h3>데이터 컬럼</h3>
+      <p>수업 기본 수집기의 항목을 모두 담고, 정류장, 보행자, 신호, 승차감을 판단하는 데 필요한 항목을 더했다. 아래 표의 정의는 데이터의 metadata.json에도 그대로 들어 있다.</p>
+      <div class="table-scroll" role="region" tabindex="0" aria-label="데이터 컬럼 표">
+        <table class="grouped">
+          <thead><tr><th scope="col">묶음</th><th scope="col">컬럼</th><th scope="col">형태</th><th scope="col">출처</th><th scope="col">뜻</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="3">식별</td><td><code>episode</code></td><td>Integer</td><td>수업 기본</td><td>Episode 번호</td></tr>
+            <tr><td><code>t</code></td><td>Integer</td><td>수업 기본</td><td>Episode 내부 timestep (판단 한 번 = decision_interval초)</td></tr>
+            <tr><td><code>sim_time</code></td><td>Float</td><td>팀 추가</td><td>관측 시점의 SUMO 시뮬레이션 시각(초). t와 실제 시간 구분용</td></tr>
+            <tr><td rowspan="4">관측</td><td><code>observation</code></td><td>Vector (46-dim)</td><td>수업 기본</td><td>시점 t에서 AV Policy가 실제로 입력받는 부분 관측 oₜ. 수업 원본 31개 뒤에 경로 정보 12개와 근접 정보 3개</td></tr>
+            <tr><td><code>next_observation</code></td><td>Vector (46-dim)</td><td>수업 기본</td><td>다음 시점의 부분 관측 oₜ₊₁</td></tr>
+            <tr><td><code>detected_vehicles</code></td><td>List</td><td>수업 기본</td><td>Observation 시점에 감지된 주변 차량 정보 (관측 차선의 차량과 반경 50m 안의 차량. ego 기준 상대 위치·속도, 방향지시등)</td></tr>
+            <tr><td><code>detected_pedestrians</code></td><td>List</td><td>팀 추가</td><td>Observation 시점에 감지된 보행자 (ego 기준 상대 위치·속도)</td></tr>
+            <tr><td rowspan="5">행동</td><td><code>action_raw</code></td><td>Vector (2-dim)</td><td>수업 기본</td><td>Policy가 출력한 원본 Action [가감속, 차선변경]</td></tr>
+            <tr><td><code>action.accel_raw</code></td><td>Float</td><td>수업 기본</td><td>환경에 적용된 가감속 Action 값</td></tr>
+            <tr><td><code>action.lane_change_raw</code></td><td>Float</td><td>수업 기본</td><td>환경에 적용된 차선변경 raw 값</td></tr>
+            <tr><td><code>action.lane_change</code></td><td>Integer</td><td>수업 기본</td><td>실제 명령으로 변환된 차선변경 값 {-1, 0, +1}</td></tr>
+            <tr><td><code>action.lane_change_applied</code></td><td>Boolean</td><td>수업 기본</td><td>차선변경 명령이 실제 적용되었는지 여부</td></tr>
+            <tr><td rowspan="3">보상·종료</td><td><code>reward</code></td><td>Float</td><td>수업 기본</td><td>시점 t에서 받은 Reward rₜ</td></tr>
+            <tr><td><code>terminated</code></td><td>Boolean</td><td>수업 기본</td><td>충돌 / 도착 등 환경 자체의 종료 여부</td></tr>
+            <tr><td><code>truncated</code></td><td>Boolean</td><td>수업 기본</td><td>최대 Episode Step 등 시간 제한에 의한 종료 여부</td></tr>
+            <tr><td rowspan="2">상태</td><td><code>state</code></td><td>Dictionary</td><td>수업 기본</td><td>SUMO 내부의 privileged simulator state sₜ (ego, vehicles, pedestrians, navigation, traffic_light)</td></tr>
+            <tr><td><code>next_state</code></td><td>Dictionary</td><td>수업 기본</td><td>다음 시점의 privileged simulator state sₜ₊₁</td></tr>
+            <tr><td rowspan="11">이벤트</td><td><code>event.collided</code></td><td>Boolean</td><td>수업 기본</td><td>해당 step에서 ego 충돌 발생 여부(차 또는 보행자)</td></tr>
+            <tr><td><code>event.pedestrian_collision</code></td><td>Boolean</td><td>팀 추가</td><td>해당 step에서 ego가 보행자와 충돌했는지. 참이면 event.collided도 참</td></tr>
+            <tr><td><code>event.red_light_violation</code></td><td>Boolean</td><td>팀 추가</td><td>해당 step에서 ego 앞범퍼가 적색 정지선을 넘었는지</td></tr>
+            <tr><td><code>event.arrived</code></td><td>Boolean</td><td>수업 기본</td><td>목적지 도착 여부</td></tr>
+            <tr><td><code>event.lane_before</code></td><td>Integer / String</td><td>수업 기본</td><td>Action 적용 전 AV 차선</td></tr>
+            <tr><td><code>event.lane_after</code></td><td>Integer / String</td><td>수업 기본</td><td>Action 적용 후 AV 차선</td></tr>
+            <tr><td><code>event.termination_reason</code></td><td>String</td><td>팀 추가</td><td>종료 원인 (arrived, collision, pedestrian_collision, red_light, time_limit, teleport, missing, stuck). collision은 차와의 충돌이다. stuck은 ego가 stuck_timeout초 동안 stuck_progress_m도 못 간 것. 종료가 아니면 빈 값</td></tr>
+            <tr><td><code>event.background_collisions</code></td><td>Integer</td><td>팀 추가</td><td>이 step 동안 ego가 끼지 않은 충돌 수(배경 차량끼리, 배경 차량과 보행자)</td></tr>
+            <tr><td><code>event.service_event</code></td><td>String</td><td>팀 추가</td><td>이 step에 정차할 정류장을 마쳤으면 served, 서지 않고 지나쳤으면 missed, 아니면 빈 값</td></tr>
+            <tr><td><code>event.stops_served</code></td><td>Integer</td><td>팀 추가</td><td>에피소드에서 지금까지 정차를 마친 정류장 수</td></tr>
+            <tr><td><code>event.stops_missed</code></td><td>Integer</td><td>팀 추가</td><td>에피소드에서 지금까지 서지 않고 지나친 정차 정류장 수</td></tr>
+            <tr><td rowspan="4">승차감</td><td><code>comfort.peak_acceleration</code></td><td>Float</td><td>팀 추가</td><td>이 step 동안 버스 가속도 크기의 최댓값 (m/s²). 승객 승차감</td></tr>
+            <tr><td><code>comfort.peak_jerk</code></td><td>Float</td><td>팀 추가</td><td>이 step 동안 버스 jerk(가속도 변화율) 크기의 최댓값 (m/s³). 승객 승차감</td></tr>
+            <tr><td><code>comfort.acceleration_violation</code></td><td>Boolean</td><td>팀 추가</td><td>가속도가 승차감 한계를 넘었는지</td></tr>
+            <tr><td><code>comfort.jerk_violation</code></td><td>Boolean</td><td>팀 추가</td><td>jerk가 승차감 한계를 넘었는지</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>state와 next_state에는 버스, 버스 150m 안의 차와 보행자, 노선 정보, 앞 신호가 들어 있다. 위치는 m, 속도는 m/s, 방향은 북쪽 0도에서 시계 방향(도)이다.</p>
+      <div class="table-scroll" role="region" tabindex="0" aria-label="상태 키 표">
+        <table>
+          <thead><tr><th scope="col">키</th><th scope="col">담은 것</th><th scope="col">하위 항목</th></tr></thead>
+          <tbody>
+            <tr><td><code>state.ego</code></td><td>버스</td><td>id, alive, x, y, speed, acceleration, jerk, heading, road_id, lane_id, lane_index, lane_position, lateral_position, lateral_speed, signals</td></tr>
+            <tr><td><code>state.vehicles</code></td><td>버스 150m 안의 차</td><td>id, x, y, speed, heading, road_id, lane_id, lane_index, lane_position, lateral_position, lateral_speed, signals</td></tr>
+            <tr><td><code>state.pedestrians</code></td><td>버스 150m 안의 보행자</td><td>id, x, y, speed, heading, road_id</td></tr>
+            <tr><td><code>state.navigation</code></td><td>노선 정보</td><td>route_id, route_edge_index, drivable_lane_ids, target_lane_ids, next_turn, distance_to_turn, crossing_id, distance_to_crossing, next_stop_id, distance_to_stop, distance_to_destination</td></tr>
+            <tr><td><code>state.traffic_light</code></td><td>앞 신호</td><td>id, link_index, state, distance_to_stop_line</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <details class="obs-list">
+        <summary>관측 46개 이름과 뜻 보기</summary>
+        <p>모든 값은 -1에서 1 사이다. 거리는 50m, 속도는 제한속도로 나누고, 노선 연결 거리만 200m로 나눈다. 신경망은 "가림"으로 표시한 15개를 0으로 가리고 31개를 쓴다.</p>
+        <div class="table-scroll" role="region" tabindex="0" aria-label="관측 46개 표">
+          <table>
+            <thead><tr><th scope="col" class="num">번호</th><th scope="col">이름</th><th scope="col">뜻</th><th scope="col">구분</th><th scope="col">신경망</th></tr></thead>
+            <tbody>
+              <tr><td class="num">0</td><td><code>ego_speed</code></td><td>버스 속도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">1</td><td><code>left2_leader_gap</code></td><td>왼쪽 두 칸 차로 앞차 간격</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">2</td><td><code>left2_leader_relative_speed</code></td><td>왼쪽 두 칸 차로 앞차 상대 속도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">3</td><td><code>left2_follower_gap</code></td><td>왼쪽 두 칸 차로 뒤차 간격</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">4</td><td><code>left2_follower_relative_speed</code></td><td>왼쪽 두 칸 차로 뒤차 상대 속도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">5</td><td><code>left1_leader_gap</code></td><td>왼쪽 한 칸 차로 앞차 간격</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">6</td><td><code>left1_leader_relative_speed</code></td><td>왼쪽 한 칸 차로 앞차 상대 속도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">7</td><td><code>left1_follower_gap</code></td><td>왼쪽 한 칸 차로 뒤차 간격</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">8</td><td><code>left1_follower_relative_speed</code></td><td>왼쪽 한 칸 차로 뒤차 상대 속도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">9</td><td><code>current_leader_gap</code></td><td>내 차로 앞차 간격</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">10</td><td><code>current_leader_relative_speed</code></td><td>내 차로 앞차 상대 속도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">11</td><td><code>current_follower_gap</code></td><td>내 차로 뒤차 간격</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">12</td><td><code>current_follower_relative_speed</code></td><td>내 차로 뒤차 상대 속도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">13</td><td><code>right1_leader_gap</code></td><td>오른쪽 한 칸 차로 앞차 간격</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">14</td><td><code>right1_leader_relative_speed</code></td><td>오른쪽 한 칸 차로 앞차 상대 속도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">15</td><td><code>right1_follower_gap</code></td><td>오른쪽 한 칸 차로 뒤차 간격</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">16</td><td><code>right1_follower_relative_speed</code></td><td>오른쪽 한 칸 차로 뒤차 상대 속도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">17</td><td><code>right2_leader_gap</code></td><td>오른쪽 두 칸 차로 앞차 간격</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">18</td><td><code>right2_leader_relative_speed</code></td><td>오른쪽 두 칸 차로 앞차 상대 속도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">19</td><td><code>right2_follower_gap</code></td><td>오른쪽 두 칸 차로 뒤차 간격</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">20</td><td><code>right2_follower_relative_speed</code></td><td>오른쪽 두 칸 차로 뒤차 상대 속도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">21</td><td><code>left2_route_connectivity</code></td><td>왼쪽 두 칸 차로 노선으로 이어지는 거리</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">22</td><td><code>left1_route_connectivity</code></td><td>왼쪽 한 칸 차로 노선으로 이어지는 거리</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">23</td><td><code>current_route_connectivity</code></td><td>내 차로 노선으로 이어지는 거리</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">24</td><td><code>right1_route_connectivity</code></td><td>오른쪽 한 칸 차로 노선으로 이어지는 거리</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">25</td><td><code>right2_route_connectivity</code></td><td>오른쪽 두 칸 차로 노선으로 이어지는 거리</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">26</td><td><code>left2_density</code></td><td>왼쪽 두 칸 차로 50m 안 차 밀도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">27</td><td><code>left1_density</code></td><td>왼쪽 한 칸 차로 50m 안 차 밀도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">28</td><td><code>current_density</code></td><td>내 차로 50m 안 차 밀도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">29</td><td><code>right1_density</code></td><td>오른쪽 한 칸 차로 50m 안 차 밀도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">30</td><td><code>right2_density</code></td><td>오른쪽 두 칸 차로 50m 안 차 밀도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">31</td><td><code>tl_distance</code></td><td>다음 신호 정지선까지 거리</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">32</td><td><code>tl_red</code></td><td>그 신호가 적색인지</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">33</td><td><code>tl_yellow</code></td><td>황색인지</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">34</td><td><code>tl_yield</code></td><td>비보호(양보) 녹색인지</td><td>경로 정보</td><td>가림</td></tr>
+              <tr><td class="num">35</td><td><code>stop_distance</code></td><td>다음 정류장까지 거리</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">36</td><td><code>stop_dwell_remaining</code></td><td>남은 정차 시간</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">37</td><td><code>crosswalk_distance</code></td><td>다음 횡단보도까지 거리</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">38</td><td><code>crosswalk_occupied</code></td><td>보행자가 건너는 중인지</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">39</td><td><code>speed_limit</code></td><td>지금 제한속도</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">40</td><td><code>next_speed_limit</code></td><td>다음 제한속도</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">41</td><td><code>next_speed_limit_distance</code></td><td>다음 제한속도까지 거리</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">42</td><td><code>ego_acceleration</code></td><td>버스 가속도</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">43</td><td><code>stop_distance_near</code></td><td>다음 정류장까지 거리(가까운 범위)</td><td>근접 정보</td><td>씀</td></tr>
+              <tr><td class="num">44</td><td><code>current_leader_gap_far</code></td><td>내 차로 앞차 간격(먼 범위)</td><td>근접 정보</td><td>씀</td></tr>
+              <tr><td class="num">45</td><td><code>tl_yellow_elapsed</code></td><td>황색이 켜진 뒤 지난 시간</td><td>근접 정보</td><td>씀</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
       <div class="hero-links left">
         <a class="button" href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">Hugging Face에서 받기</a>
       </div>
     </section>
 
+    <section class="article-section" aria-labelledby="run">
+      <h2 id="run">실행 방법</h2>
+      <p>Python 3.10과 SUMO 1.27.1에서 확인했다. SUMO는 따로 설치하고 <code>SUMO_HOME</code>을 설정한 뒤 패키지를 설치한다.</p>
+<pre><code>git clone https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving.git
+cd Artificial-Intelligence-and-Control-for-Autonomous-Driving
+pip install -r requirements.txt</code></pre>
+      <p>저장소에 들어 있는 최종 모델로 복합 교통 4바퀴를 돌리면, 평가 기록과 같은 결과(4바퀴 모두 완주)가 나온다.</p>
+<pre><code>PYTHONPATH=. python research/av_bc_rl/evaluate.py --policy bc --model models/final/model.pt \
+  --label final --seed 63000 --scenarios rich2 --episodes 4 --workers 4</code></pre>
+      <p>데이터 수집, 처음부터 학습하기, 저장소 구조는 <a href="https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving#readme">README</a>에 정리했다.</p>
+    </section>
+
     <section class="article-section" aria-labelledby="problems">
       <h2 id="problems">문제와 해결</h2>
-      <div class="table-scroll">
+      <div class="table-scroll" role="region" tabindex="0" aria-label="문제와 해결 표">
         <table>
           <thead><tr><th scope="col">영역</th><th scope="col">문제</th><th scope="col">해결</th><th scope="col">결과</th></tr></thead>
           <tbody>
-            <tr><td>도로</td><td>붙어 있는 교차로에서 급정지와 충돌</td><td>교차로를 합치고 차로를 한 차로씩 이음</td><td>급정지 40 → 0번</td></tr>
-            <tr><td>교통</td><td>대기 줄의 선 차가 돌아 뒤차와 겹침</td><td>선 차의 옆 이동을 끔</td><td>26 → 0대</td></tr>
+            <tr><td>도로</td><td>붙어 있는 교차로에서 급정지와 충돌</td><td>교차로를 합치고 차로를 한 차로씩 이음</td><td>급정지 40번에서 0번</td></tr>
+            <tr><td>교통</td><td>대기 줄의 선 차가 돌아 뒤차와 겹침</td><td>선 차의 옆 이동을 끔</td><td>26대에서 0대</td></tr>
             <tr><td>교통</td><td>구간 가운데에 차가 없음</td><td>정류장 택시와 골목 차를 수요로 넣음</td><td>앞차 있는 시간 12.7%</td></tr>
             <tr><td>학습</td><td>모방학습만으로는 30바퀴 중 26바퀴 완주</td><td>DAgger로 벗어난 상태의 정답을 더함</td><td>10회 뒤 60바퀴 모두 완주</td></tr>
             <tr><td>학습</td><td>황색에서 어정쩡하게 줄이다 넘음</td><td>가속도를 11칸 중 고르게 함</td><td>적색 통과 0.19%</td></tr>
-            <tr><td>데이터</td><td>실패·이상 바퀴가 섞임</td><td>바퀴 단위 걸러내기</td><td>1,290바퀴 제외</td></tr>
+            <tr><td>데이터</td><td>실패·이상 바퀴가 섞임</td><td>바퀴 단위 걸러내기</td><td>실패·이상 없는 바퀴만 공개<span class="nobr">(1,290바퀴 제외)</span></td></tr>
           </tbody>
         </table>
       </div>
       <figure>
-        <div class="video-box"><video src="assets/videos/car_behind_bus.mp4" poster="assets/videos/car_behind_bus.jpg" controls muted loop playsinline preload="none"></video></div>
-        <figcaption class="caption"><strong>영상 3. 남은 문제: 두 차로에 걸쳐 서는 뒤차</strong>정류장에 선 버스를 피하려던 뒤차가 왼쪽에서는 차로를 반쯤 넘은 채 서고, 오른쪽 시험 설정에서는 바로 뒤에 서지만, 설정 21가지 중 이를 완전히 없앤 안은 없었다.</figcaption>
+        <div class="video-box"><video src="assets/videos/car_behind_bus.mp4" poster="assets/videos/car_behind_bus.jpg" width="2240" height="720" controls muted loop playsinline preload="none" aria-labelledby="v-car-behind"></video></div>
+        <figcaption class="caption"><strong id="v-car-behind">영상 3. 남은 문제, 두 차로에 걸쳐 서는 뒤차</strong>정류장에 선 버스를 피하려던 뒤차가 왼쪽에서는 차로를 반쯤 넘은 채 서고, 오른쪽 시험 설정에서는 바로 뒤에 서지만, 설정 21가지 중 이를 완전히 없앤 안은 없었다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
       </figure>
     </section>
 
     <section class="article-section" aria-labelledby="limits">
       <h2 id="limits">결론과 한계</h2>
-      <ul>
+      <h3>결론</h3>
+      <ul class="conclusion">
         <li>가로변 정류장과 가장 왼쪽 차로 좌회전이 번갈아 나와서 버스는 한 바퀴에 차로를 8~9번 바꿔야 한다.</li>
         <li>그 사이에 정류장 출발과 접근, 좌회전 전 끼어들기, 정류장 앞 택시, 골목 차, 신호 없는 횡단보도를 만난다.</li>
         <li>신경망 하나가 규칙 보조 없이 13,000바퀴 중 95.6%를 완주했고, 충돌은 0.66%였다.</li>
@@ -547,8 +977,8 @@
 
 <footer>
   <div class="wide">
-    <span>자율주행인공지능및제어 팀 프로젝트</span>
-    <span>2026</span>
+    <span>자율주행인공지능및제어 팀 프로젝트 · 2026</span>
+    <span><a href="https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving">코드</a> · <a href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">데이터</a></span>
     <span>도로 데이터 © OpenStreetMap contributors (ODbL 1.0)</span>
   </div>
 </footer>
@@ -573,6 +1003,87 @@
       });
     }, { rootMargin: '-15% 0px -75% 0px' });
     Object.keys(ids).forEach(function (id) { var h = document.getElementById(id); if (h) io.observe(h); });
+  })();
+
+  /* 영상: 화면에 절반 넘게 보일 때만 소리 없이 재생하고 벗어나면 멈춘다.
+     움직임 줄이기, 데이터 절약에서는 저절로 틀지 않는다. 사용자가 멈춘 영상은 다시 저절로 틀지 않는다. */
+  (function () {
+    var vids = [].slice.call(document.querySelectorAll('video[data-play-in-view]'));
+    var calm = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    var conn = navigator.connection;
+    function allowed() { return !(calm && calm.matches) && !(conn && conn.saveData); }
+    function owner(v) { return v.closest('[data-video-group]') || v; }
+    function shown(v) { var p = v.closest('.scene-panel'); return !p || p.classList.contains('is-on'); }
+    function play(v) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+    function hold(v) { if (!v.paused) { v._auto = true; v.pause(); } }
+    function wake(v) { if (shown(v) && v._seen && allowed() && !owner(v).hasAttribute('data-user-paused')) play(v); }
+    vids.forEach(function (v) {
+      v.addEventListener('pause', function () { if (v._auto) v._auto = false; else owner(v).setAttribute('data-user-paused', ''); });
+      v.addEventListener('play', function () { owner(v).removeAttribute('data-user-paused'); });
+    });
+    if ('IntersectionObserver' in window) {
+      var nav = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav'), 10) || 0;
+      var vo = new IntersectionObserver(function (es) {
+        es.forEach(function (e) {
+          var v = e.target;
+          v._seen = e.intersectionRatio >= 0.5;
+          if (!shown(v)) return;
+          if (v._seen) wake(v); else hold(v);
+        });
+      }, { threshold: [0, 0.5], rootMargin: '-' + nav + 'px 0px 0px 0px' });
+      vids.forEach(function (v) { vo.observe(v); });
+    }
+    if (calm && calm.addEventListener) calm.addEventListener('change', function () { if (calm.matches) vids.forEach(hold); });
+
+    /* 눈치싸움 극장: 정류장 다섯 개가 탭이다. 좌우 화살표(세로일 때 위아래), Home, End로 옮긴다. */
+    var box = document.getElementById('nunchi');
+    var list = box && box.querySelector('[role="tablist"]');
+    if (!list) return;
+    var tabs = [].slice.call(list.querySelectorAll('[role="tab"]'));
+    var panels = tabs.map(function (t) { return document.getElementById(t.getAttribute('aria-controls')); });
+    var narrow = window.matchMedia('(max-width: 860px)');
+    function orient() { list.setAttribute('aria-orientation', narrow.matches ? 'vertical' : 'horizontal'); }
+    function select(i) {
+      var cur = 0;
+      tabs.forEach(function (t, k) { if (t.getAttribute('aria-selected') === 'true') cur = k; });
+      if (i === cur) return;
+      var from = panels[cur].querySelector('video'), to = panels[i].querySelector('video');
+      var going = !from.paused;
+      hold(from);
+      tabs.forEach(function (t, k) {
+        var on = k === i;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+        panels[k].classList.toggle('is-on', on);
+      });
+      if (going) play(to); else wake(to);
+    }
+    tabs.forEach(function (t, k) { t.addEventListener('click', function () { select(k); }); });
+    list.addEventListener('keydown', function (e) {
+      var i = tabs.indexOf(document.activeElement), n = tabs.length, j = -1, vert = narrow.matches;
+      if (i < 0) return;
+      if (e.key === 'ArrowRight' || (vert && e.key === 'ArrowDown')) j = (i + 1) % n;
+      else if (e.key === 'ArrowLeft' || (vert && e.key === 'ArrowUp')) j = (i + n - 1) % n;
+      else if (e.key === 'Home') j = 0;
+      else if (e.key === 'End') j = n - 1;
+      if (j < 0) return;
+      e.preventDefault();
+      tabs[j].focus();
+      select(j);
+    });
+    orient();
+    if (narrow.addEventListener) narrow.addEventListener('change', orient);
+    panels.forEach(function (p, k) {
+      var v = p.querySelector('video');
+      v.addEventListener('ended', function () {
+        var j = (k + 1) % panels.length;
+        box.removeAttribute('data-user-paused');
+        select(j);
+        if (allowed()) play(panels[j].querySelector('video'));
+      });
+    });
+    box.classList.add('is-tabs');
+    list.hidden = false;
   })();
 </script>
 </body>

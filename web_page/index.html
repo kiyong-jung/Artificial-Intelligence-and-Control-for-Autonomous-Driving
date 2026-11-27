@@ -191,13 +191,13 @@
   .video-aside { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--s-5); align-items: center; }
   .video-aside .caption { grid-column: 2 / -1; margin-top: 0; }
 
-  /* 눈치싸움 극장: 영상 하나 + 고른 장면 캡션 + 노선 위 정류장 다섯 개(탭). JS가 없으면 다섯 장면이 모두 펼쳐진다. */
+  /* 눈치싸움 극장: 영상 하나 + 고른 장면 캡션 + 노선 위 정류장 여섯 개(탭). JS가 없으면 여섯 장면이 모두 펼쳐진다. */
   .theater { margin-top: var(--s-7); }
   .theater-title { margin: 0; font-size: var(--fs-xl); font-weight: var(--w-black); line-height: var(--lh-head); letter-spacing: var(--ls-tight); }
   .theater > p { max-width: var(--measure); margin: var(--s-3) 0 0; }
   .scene-panels { display: grid; gap: var(--s-6); margin-top: var(--s-5); }
   .scene-panel figure { margin: 0; }
-  .scene-route { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-2); margin: var(--s-5) 0 var(--s-3); }
+  .scene-route { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--s-2); margin: var(--s-5) 0 var(--s-3); }
   .scene-route[hidden] { display: none; }
   .scene-route button { display: flex; flex-direction: column; gap: var(--s-2); min-height: var(--tap); margin: 0; padding: var(--s-1) var(--s-1) var(--s-2); background: var(--surface); border: 2px solid var(--rule); border-radius: var(--r-lg); color: var(--muted); font: inherit; font-size: var(--fs-small); line-height: var(--lh-ui); text-align: left; cursor: pointer; word-break: keep-all; transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
   .scene-route button img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-sm); }
@@ -367,7 +367,7 @@
     .table-scroll .grouped td:first-child:not([rowspan]) { position: static; z-index: auto; border-right: 0; padding-left: var(--s-2); min-width: 0; white-space: nowrap; }
         }
   @media (max-width: 600px) { .shortcut-grid { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 860px) { .scene-route { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-1); } .scene-route .scene-name { font-size: 0; padding: 0; text-align: center; } .scene-route .scene-name b { font-size: var(--fs-small); margin: 0; } }
+  @media (max-width: 860px) { .scene-route { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--s-1); } .scene-route .scene-name { font-size: 0; padding: 0; text-align: center; } .scene-route .scene-name b { font-size: var(--fs-small); margin: 0; } }
 </style>
 </head>
 <body>
@@ -500,7 +500,7 @@
       <span class="vs"><span class="vs-k">기준</span><span class="vs-v">30초 이상</span></span>
       <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">67<small>초</small></span></span>
       <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 100%; --at: 44.78%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label">기준</i></span></span>
-      <ul class="mini-points score-note"><li>한 바퀴 + 눈치싸움 5개</li></ul>
+      <ul class="mini-points score-note"><li>한 바퀴 + 눈치싸움 6개</li></ul>
     </a>
   </div>
   <ul class="criteria">
@@ -644,6 +644,7 @@
         <li>복합 교통에서 옮길 차로 30m 안에 차가 있던 변경은 46%다.</li>
         <li>구간 가운데에서 앞 30m 안에 차가 있는 시간은 12.7%다(매우 혼잡은 4.4%).</li>
         <li>정류장 앞 택시(S4)를 만난 바퀴는 240바퀴 중 231바퀴다.</li>
+        <li>골목 출구에서 끼어들려는 골목 차(S5)는 수집 2,600바퀴에서 499번 만났고, 423번은 골목 차가 기다리고 버스가 먼저 지났다.</li>
       </ul>
       <figure>
         <a class="figure-link" href="assets/scenario_map.webp"><img src="assets/scenario_map.webp" width="2400" height="1500" alt="여섯 시나리오가 일어나는 위치를 표시한 합정역 도로망" loading="lazy" decoding="async" /></a>
@@ -651,13 +652,14 @@
       </figure>
       <div class="theater" id="nunchi" data-video-group>
         <h3 class="theater-title">눈치싸움 장면</h3>
-        <p>버스와 주변 차가 서로 속도와 간격을 보며 먼저 갈지 기다릴지 정한다. 사람 운전자끼리의 눈치싸움과 닮은, 숫자로는 보이지 않는 장면이다. SUMO 화면은 2배속이다.</p>
+        <p>버스와 주변 차가 서로 속도와 간격을 보며 먼저 갈지 기다릴지 정한다. 사람 운전자끼리의 눈치싸움과 닮은, 숫자로는 보이지 않는 장면이다. 모든 장면은 2배속이다.</p>
         <div class="scene-route" role="tablist" aria-label="눈치싸움 장면 고르기" hidden>
           <button type="button" role="tab" id="scene-tab-1" aria-selected="true" aria-controls="scene-1"><img src="assets/videos/scenario_1.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>1</b> 합정역 정류장 진입</span></button>
           <button type="button" role="tab" id="scene-tab-2" aria-selected="false" aria-controls="scene-2" tabindex="-1"><img src="assets/videos/scenario_2.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>2</b> 정류장 출발과 재합류</span></button>
           <button type="button" role="tab" id="scene-tab-3" aria-selected="false" aria-controls="scene-3" tabindex="-1"><img src="assets/videos/scenario_3.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>3</b> 독막로 정류장</span></button>
           <button type="button" role="tab" id="scene-tab-4" aria-selected="false" aria-controls="scene-4" tabindex="-1"><img src="assets/videos/scenario_4.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>4</b> 붐비는 교차로 출발</span></button>
           <button type="button" role="tab" id="scene-tab-5" aria-selected="false" aria-controls="scene-5" tabindex="-1"><img src="assets/videos/scenario_5.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>5</b> 교차로 앞 차로 변경</span></button>
+          <button type="button" role="tab" id="scene-tab-6" aria-selected="false" aria-controls="scene-6" tabindex="-1"><img src="assets/videos/scenario_6.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>6</b> 골목 합류 양보와 비양보</span></button>
         </div>
         <div class="scene-panels">
           <div class="scene-panel is-on" id="scene-1" role="tabpanel" aria-labelledby="scene-tab-1">
@@ -688,6 +690,12 @@
             <figure>
               <div class="video-box"><video src="assets/videos/scenario_5.mp4" poster="assets/videos/scenario_5.jpg" width="960" height="540" data-play-in-view controls muted playsinline preload="none" aria-labelledby="scene-5-title"></video></div>
               <figcaption class="caption"><span class="scene-meta"><b>장면 5</b> · 한산 교통</span><strong id="scene-5-title">교차로 앞 차로 변경</strong><span class="scene-desc">옆 차와 나란히 정지선에 다가가고, 교차로 안을 지나는 차를 기다린 뒤 차로를 옮겨 출발한다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
+            </figure>
+          </div>
+          <div class="scene-panel" id="scene-6" role="tabpanel" aria-labelledby="scene-tab-6">
+            <figure>
+              <div class="video-box"><video src="assets/videos/scenario_6.mp4" poster="assets/videos/scenario_6.jpg" width="1600" height="900" data-play-in-view controls muted playsinline preload="none" aria-labelledby="scene-6-title"></video></div>
+              <figcaption class="caption"><span class="scene-meta"><b>장면 6</b> · 복합 교통 · 메인 영상과 같은 바퀴</span><strong id="scene-6-title">골목 합류 양보와 비양보</strong><span class="scene-desc">같은 골목 출구에서 첫 골목 차는 속도를 35→18 km/h로 줄여 먼저 보내고, 바로 뒤 차는 3초 기다리게 한 뒤 먼저 지나간다. 수집 2,600바퀴의 이 출구 만남 499번 중 버스가 먼저 지난 것이 423번이고, 줄여서 먼저 보낸 것은 이 한 번이다.</span><span class="video-key"><b>노란 차가 버스, 보라 차가 골목 차</b> · 기록으로 다시 그린 화면</span></figcaption>
             </figure>
           </div>
         </div>
@@ -1035,7 +1043,7 @@ pip install -r requirements.txt</code></pre>
     }
     if (calm && calm.addEventListener) calm.addEventListener('change', function () { if (calm.matches) vids.forEach(hold); });
 
-    /* 눈치싸움 극장: 정류장 다섯 개가 탭이다. 좌우 화살표(세로일 때 위아래), Home, End로 옮긴다. */
+    /* 눈치싸움 극장: 정류장 여섯 개가 탭이다. 좌우 화살표(세로일 때 위아래), Home, End로 옮긴다. */
     var box = document.getElementById('nunchi');
     var list = box && box.querySelector('[role="tablist"]');
     if (!list) return;

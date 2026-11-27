@@ -38,7 +38,7 @@
 |---|---|---|
 | 도로 구조 구현 | [도로 구현](#도로-구현) | OpenStreetMap 원본을 실제 지도와 대조해 고친 도로망, 실제 지도와 겹친 그림, 살린 실제 골목 여덟 곳 |
 | 도로 구조의 의미 | [도로 선정과 문제](#도로-선정과-문제) | 가로변 정류장 4곳과 가장 왼쪽 차로 좌회전 4곳이 번갈아 있어 한 바퀴에 차로 변경 8~9번, 합정역 사거리 앞 167m 안에 세 차로 |
-| Vehicle Interaction | [차량 interaction](#차량-interaction) | 13,000바퀴에서 센 바퀴당 장면 횟수, 정류장 앞 택시를 만난 바퀴 240 중 231, 눈치싸움 영상 다섯 개 |
+| Vehicle Interaction | [차량 interaction](#차량-interaction) | 13,000바퀴에서 센 바퀴당 장면 횟수, 정류장 앞 택시를 만난 바퀴 240 중 231, 골목 출구 만남 499번, 눈치싸움 영상 여섯 개 |
 | Simulation 안정성 | [시뮬레이션 안정성](#시뮬레이션-안정성) | 순간이동 0건, 오류로 끝난 바퀴 0, 배경 이상이 있던 바퀴는 데이터에서 뺌 |
 | AV 주행 성능 | [평가 결과](#평가-결과) | 충돌률 0.66%(기준 5% 미만), 완주율 95.6%, 끝난 원인별 횟수 |
 | Traffic 구성 | [교통 구성](#교통-구성) | 교통 다섯 단계, 시간당 663~1,989대, 버스 150m 안 평균 4.9~18.8대 |
@@ -161,6 +161,7 @@
 
 - 실제 차로 변경 중 옮길 차로 앞뒤 30m 안에 차가 있던 비율은 한산 16%, 보통 32%, 혼잡 36%, 매우 혼잡 41%, 복합 46%다(교통마다 400바퀴, [`traffic_around_bus.py`](research/av_bc_rl/traffic_around_bus.py)).
 - 정류장 앞 택시(S4)는 복합 교통 240바퀴 중 231바퀴에서 만났다(DAgger 21회 모델의 평가 기록, [`cause_table_confirm.txt`](research/traffic_checks/cause_table_confirm.txt)).
+- 골목 출구에서 끼어들려는 골목 차(S5)는 복합 교통 수집 2,600바퀴에서 499번 만났다. 423번(84.8%)은 골목 차가 기다리고(중앙값 4.0초) 버스가 먼저 지났고, 76번은 버스가 멀리 있을 때 골목 차가 먼저 들어갔다. 버스가 속도를 줄여 먼저 보낸 것은 그중 1번이다([`alley_merge_events.py`](research/av_bc_rl/alley_merge_events.py)).
 
 ### 눈치싸움 장면
 
@@ -198,14 +199,14 @@
       옆 차와 나란히 정지선에 다가가고, 교차로 안을 지나는 차를 기다린 뒤 차로를 옮겨 출발하는 것으로 보인다.
     </td>
     <td width="50%" valign="top">
-      <b>영상 읽는 법</b><br><br>
-      SUMO GUI 화면 녹화를 2배속으로 줄였다.<br>
-      빨간 차가 버스다.<br>
-      설명은 화면을 보고 쓴 것이다.<br>
-      원본 영상(mp4)은 <a href="https://kiyong-jung.github.io/Artificial-Intelligence-and-Control-for-Autonomous-Driving/">프로젝트 페이지</a>와 <a href="web_page/assets/videos/"><code>web_page/assets/videos/</code></a>에 있다.
+      <img src="docs/media/scenario_6.gif" width="100%" alt="골목 합류 양보와 비양보 장면"><br>
+      <b>6. 골목 합류 양보와 비양보</b> · 복합 교통<br>
+      같은 골목 출구에서 첫 골목 차는 35→18 km/h로 줄여 먼저 보내고, 바로 뒤 차는 3초 기다리게 한 뒤 먼저 지나간다. 메인 영상과 같은 바퀴다.
     </td>
   </tr>
 </table>
+
+1~5는 SUMO GUI 화면 녹화이고 빨간 차가 버스다. 설명은 화면을 보고 썼다. 6은 기록으로 다시 그린 화면이고 노란 차가 버스, 보라 차가 골목 차다. 모두 2배속이며, 원본 영상(mp4)은 [프로젝트 페이지](https://kiyong-jung.github.io/Artificial-Intelligence-and-Control-for-Autonomous-Driving/)와 [`web_page/assets/videos/`](web_page/assets/videos/)에 있다.
 
 ## AV 학습 설계
 

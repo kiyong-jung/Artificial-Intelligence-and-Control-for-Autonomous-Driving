@@ -14,6 +14,74 @@ from maps import DEFAULT_MAP, load_map
 # 1.75배부터는 서교동사거리 앞 끼어들기에서 멈춰 선다(reports/progress_log.md 30번).
 SCENARIOS = {"quiet": 0.5, "baseline": 1.0, "busy": 1.25, "heavy": 1.5}
 
+# 실험용 교통량(exp/snail-traffic). 위 네 교통량의 생성 파일과 기록은 바뀌지 않는다.
+# x*: 수요 배율만 키운다. SUMO가 넣지 못한 차는 진입로에서 기다린다(research/av_bc_rl/sim_health.py가 잰다).
+SCENARIOS.update({"x2": 2.0, "x2p5": 2.5, "x3": 3.0, "x4": 4.0, "x5": 5.0, "x6": 6.0})
+# 느린 차(snail): 배경 수요의 share만큼을 최고속도 max_speed(m/s)인 차로 바꾼다. 총 수요는 그대로다. 버스 위치와 무관하게
+# SUMO가 투입하고 몬다. 이름은 snail<share %>v<max_speed>, 앞에 x2가 붙으면 2배 수요 위다.
+SLOW_TRAFFIC = {"snail05v5": (1.5, .05, 5.0), "snail10v5": (1.5, .10, 5.0),
+                "snail10v8": (1.5, .10, 8.0), "snail20v8": (1.5, .20, 8.0), "snail20v5": (1.5, .20, 5.0),
+                "x2snail10v5": (2.0, .10, 5.0), "x2snail20v8": (2.0, .20, 8.0)}
+SCENARIOS.update({name: demand for name, (demand, _share, _speed) in SLOW_TRAFFIC.items()})
+# 골목·주차장 출입(mid): 배경 수요의 share_in만큼은 블록 중간 도로에서 출발하고(골목에서 나옴), share_out만큼은 블록 중간
+# 도로에서 도착한다(골목으로 빠짐). 나머지 흐름을 그만큼 줄여 총 대수는 그대로다. 출발·도착 위치는 그 도로 위 무작위이고
+# 버스 위치와 무관한 고정 수요다. 이름은 mid<share_in %>i<share_out %>o, 앞에 x2가 붙으면 2배 수요 위다.
+SIDE_TRAFFIC = {"mid20i0o": (1.5, .20, 0.0), "mid40i0o": (1.5, .40, 0.0), "mid0i20o": (1.5, 0.0, .20),
+                "mid20i20o": (1.5, .20, .20), "x2mid40i0o": (2.0, .40, 0.0), "x2mid20i20o": (2.0, .20, .20)}
+SCENARIOS.update({name: demand for name, (demand, _in, _out) in SIDE_TRAFFIC.items()})
+# 합정역 버스 노선에서 다음 신호 정지선 60m 밖 구간(블록 중간)이 30m 넘게 남는 도로. 골목 출입은 이 도로들에 길이 비례로 나눈다.
+SIDE_EDGES = {"hapjeong": ("R71", "R71.135", "R71.206", "R73", "R77", "R111", "R112", "R112.112", "R113",
+                           "-R96", "-R96.64", "-R96.119", "R54a", "R54b", "R54")}
+# 골목 합류(alley): 배경 수요의 share만큼을 실제 골목(신호 없는 우선 교차로로 버스 노선에 붙는 1차로 도로)에서 출발시킨다.
+# 차는 골목 끝에서 SUMO의 우선권 규칙대로 양보하고 큰길로 합류한다. 나머지 흐름을 그만큼 줄여 총 대수는 그대로다.
+# 이름은 alley<share %>, 앞에 x2가 붙으면 2배 수요 위다.
+ALLEY_TRAFFIC = {"alley20": (1.5, .20), "alley40": (1.5, .40), "x2alley20": (2.0, .20)}
+SCENARIOS.update({name: demand for name, (demand, _share) in ALLEY_TRAFFIC.items()})
+# (출발 도로, 합류하는 버스 노선 도로). 출발 도로는 골목 자체이거나 그 바로 위 도로다. 차가 처음 나타나는 자리(출발 도로의
+# 처음 10m)가 버스 노선 차로에서 50m(버스 감지 범위) 넘게 떨어진 도로만 쓴다(road_builder가 검사한다). G12는 시작이 48m라
+# 위 도로 G11(52m)에서, G16·G23·G24는 여유를 두려고 위 도로 G4·-G25·G27에서 출발한다. G3은 위 도로가 없고 10m 지점이 48m라
+# 뺀다. G16·G18·G24는 맞은편 차로를 건너는 좌회전, G12·G23은 우회전 합류다.
+ALLEY_EDGES = {"hapjeong": (("G11", "R71.256"), ("G4", "-R96.64"), ("G18", "-R96.201"), ("-G25", "-R96.119"),
+                            ("G27", "R112.112"))}
+ALLEY_CLEARANCE = 50.0
+# 장면의 원인(cause): 차를 더 넣지 않고 팀이 정한 장면이 생기는 원인을 고정 수요로 만든다. 모두 heavy(1.5배) 위이고 총 차량
+# 수요는 heavy와 같다(택시·골목 차만큼 나머지 흐름을 줄인다). 버스 위치와 무관하게 실행 전에 파일로 정해진다.
+#   taxi  정류장 앞 택시(S4). 버스가 서는 정류장마다 택시가 정류장 차로 안에 서 있는 시간 비율(점유율)
+#   cut   골목 끼어들기(S5). 골목 출발 수요 비율. 출발 골목은 CUT_EDGES, 운전 성향은 CUT_DRIVERS[style]
+#   ped   보행자 수요 배율(S6). 지도의 보행자 흐름(personFlow) 전부를 같은 배율로 늘린다
+CAUSE_TRAFFIC = {
+    "taxi25": {"taxi": .25}, "taxi50": {"taxi": .50},
+    "cut10d": {"cut": (.10, "default")}, "cut05a": {"cut": (.05, "assertive")},
+    "cut10a": {"cut": (.10, "assertive")}, "cut15a": {"cut": (.15, "assertive")},
+    "cut10b": {"cut": (.10, "bold")},
+    "ped15": {"ped": 1.5}, "ped20": {"ped": 2.0},
+    # 세 원인을 함께: rich는 각 원인의 센 쪽, rich_lo는 약한 쪽이다.
+    "rich": {"taxi": .50, "cut": (.15, "assertive"), "ped": 2.0},
+    "rich_lo": {"taxi": .25, "cut": (.10, "assertive"), "ped": 1.5},
+    # rich_lo와 같되 택시 출발 도로에도 골목과 같은 50m 검사를 한다(rich_lo에서 G31 출발 택시가 버스 50m 안에서 나타났다).
+    "rich2": {"taxi": .25, "cut": (.10, "assertive"), "ped": 1.5, "taxi_clearance": ALLEY_CLEARANCE},
+    # rich2와 같은 수요에 배경 차의 옆 이동 설정만 바꾼 시험용이다(선 채 두 차로에 걸치는 차를 줄이는 안, 측정은
+    # research/snail/lateral_screen_rich2*.txt). ng는 속도 이득 차로 변경을 끄고 선 채 0.3m/s로 옆 이동을 마치게 한다.
+    # f5는 옆 속도를 속도의 0.5배까지 허용하고 옆 가속을 2.0으로 올린다.
+    "rich2_ng": {"taxi": .25, "cut": (.10, "assertive"), "ped": 1.5, "taxi_clearance": ALLEY_CLEARANCE,
+                 "background": {"lateral": {"standing_speed": 0.3}, "lane_change": {"lcSpeedGain": 0}}},
+    "rich2_f5": {"taxi": .25, "cut": (.10, "assertive"), "ped": 1.5, "taxi_clearance": ALLEY_CLEARANCE,
+                 "background": {"lateral": {"speed_factor": 0.5, "accel": 2.0}}},
+}
+SCENARIOS.update({name: 1.5 for name in CAUSE_TRAFFIC})
+# 끼어들기 골목은 alley* 기록에서 버스 앞 합류가 나오고 대기열로 이어지지 않던 둘이다: 성지1길 G11 → G12 → 독막로 R71.256
+# (우회전 합류), 와우산로 골목 G27 → G24 → R112.112(맞은편 차로를 건너는 좌회전). 잔다리로 세 골목은 J42 쪽 대기열을 키웠다.
+CUT_EDGES = {"hapjeong": (("G11", "R71.256"), ("G27", "R112.112"))}
+# 골목 차의 교차로 성향(SUMO vType 접합부 모델). impatience 1은 우선 차가 최대로 제동하면 피할 수 있는 틈이면 들어간다
+# (0은 우선 차를 늦추지 않는 틈만). jmTimegapMinor는 우선 차 앞을 지날 때 둘 최소 시간 간격(기본 1초). 무시 확률
+# (jmIgnoreFoeProb)은 충돌을 만들어 쓰지 않는다. default는 배경 차와 같은 성향(대조군)이다.
+CUT_DRIVERS = {"default": None,
+               "assertive": {"impatience": 0.5, "jmTimegapMinor": 0.5},
+               "bold": {"impatience": 1.0, "jmTimegapMinor": 0.0}}
+# 택시는 정류장 차로 안 두 자리(head: 정류장 끝에 앞을 맞춘다. 버스는 그 뒤에서 정차할 수 있다. tail: 정류장 시작 6m. 버스는
+# 택시가 떠날 때까지 정류장에 들어가지 못한다)에 15·20·25·30초 선다. 평균 22.5초라 점유율 p는 정류장마다 시간당 p*3600/22.5대다.
+TAXI_DWELLS = (15.0, 20.0, 25.0, 30.0)
+
 # ego 차량 제원. 지도마다 map.json의 ego_vehicle이 고른다(없으면 car).
 # 가감속 한계는 행동 a=±1의 크기다. 실제 한 스텝의 가감속은 mdp_config의 행동 정의가 결정한다.
 _EGO_COMMON = {
@@ -149,3 +217,31 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
         vehs_per_hour=sum(float(f["vehs_per_hour"]) for f in network["flows"]) * SCENARIOS[scenario],
         controllers=deepcopy(_CONTROLLERS),
     )
+    if scenario in SLOW_TRAFFIC:
+        _demand, share, speed = SLOW_TRAFFIC[scenario]
+        TRAFFIC["slow"] = {"share": share, "max_speed": speed}
+    if scenario in SIDE_TRAFFIC:
+        _demand, share_in, share_out = SIDE_TRAFFIC[scenario]
+        TRAFFIC["side"] = {"share_in": share_in, "share_out": share_out, "edges": list(SIDE_EDGES[network["id"]])}
+    if scenario in ALLEY_TRAFFIC:
+        _demand, share = ALLEY_TRAFFIC[scenario]
+        TRAFFIC["alley"] = {"share": share, "edges": [list(pair) for pair in ALLEY_EDGES[network["id"]]],
+                            "clearance": ALLEY_CLEARANCE}
+    cause = CAUSE_TRAFFIC.get(scenario, {})
+    if "cut" in cause:
+        share, style = cause["cut"]
+        TRAFFIC["alley"] = {"share": share, "edges": [list(pair) for pair in CUT_EDGES[network["id"]]],
+                            "clearance": ALLEY_CLEARANCE, "driver": CUT_DRIVERS[style]}
+    if "taxi" in cause:
+        stops = {stop["id"]: stop for stop in network["bus_stops"]}
+        TRAFFIC["taxi"] = {"occupancy": cause["taxi"], "dwells_s": list(TAXI_DWELLS),
+                           "stops": [{k: stops[s][k] for k in ("id", "lane", "startPos", "endPos")}
+                                     for s in EGO["service"]["stops"]]}
+        if "taxi_clearance" in cause:
+            TRAFFIC["taxi"]["clearance"] = cause["taxi_clearance"]
+    if "ped" in cause:
+        TRAFFIC["pedestrian_scale"] = cause["ped"]
+    if "background" in cause:
+        # 배경 차만 바꾼다. 버스(ego_type)의 옆 이동 설정은 그대로다.
+        TRAFFIC["background_lateral"] = {**TRAFFIC["lateral_model"], **cause["background"].get("lateral", {})}
+        TRAFFIC["background_lane_change"] = {**TRAFFIC["background_lane_change"], **cause["background"].get("lane_change", {})}

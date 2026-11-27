@@ -1,0 +1,6 @@
+rd5: 안전 사건 8, 완주 456  |  quiet 96/96 안전0  baseline 95/96 안전0  busy 94/96 안전0  heavy 94/96 안전0  rich2 77/96 안전8
+r6: 안전 사건 26, 완주 442  |  quiet 96/96 안전0  baseline 93/96 안전2  busy 91/96 안전4  heavy 93/96 안전2  rich2 69/96 안전18
+r7: 안전 사건 13, 완주 450  |  quiet 96/96 안전0  baseline 95/96 안전0  busy 92/96 안전3  heavy 93/96 안전2  rich2 74/96 안전8
+r8: 안전 사건 6, 완주 460  |  quiet 96/96 안전0  baseline 94/96 안전0  busy 93/96 안전2  heavy 91/96 안전3  rich2 86/96 안전1
+고름: r8
+results/rich_dagger_s2/bc_it3/model.pt

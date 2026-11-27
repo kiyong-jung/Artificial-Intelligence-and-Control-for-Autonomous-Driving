@@ -1,0 +1,50 @@
+bus-free health (6 seeds): scenario arrivals/h inserted_share backlog_end standing120 collision_pairs person_pairs teleports taxi_stops/h route_near route_mid
+rich2 1479 0.978 14 2.03 0.00 0.0 0.0 141 8.95 2.16
+
+driver: label scenario n arrived collision pedestrian red stuck/time stuck_roads served missed lap_s appear50(alley/other) vanish50(alley/other) teleport jump_laps artifact_laps
+v7 rich2 240 218 1 0 0 21 {"R54":2,"R94":14,":J101_0":1,":J1_22":1,"R54a":1,"R42":1,"R111b":1} 3.91 0.01 499 0.00/0.11 0.00/0.00 0 2 18{'background_collision':8,'pedestrian_jump':2,'vehicle_in_ego':8}
+rd5 rich2 240 214 3 2 3 18 {"R94":14,"R54":2,"R42":1,"R68":1} 3.78 0.10 497 0.00/0.10 0.00/0.01 0 3 21{'background_collision':9,'pedestrian_jump':3,'vehicle_in_ego':10}
+
+scenes per lap (mean±SE) and laps with >=1 / >=3 (all laps, failed ones included)
+S1 stop_follower50
+  v7 rich2 1.62±0.06 >=1 214/240 >=3 40/240
+  rd5 rich2 1.56±0.07 >=1 203/240 >=3 46/240
+S2 lc_left30
+  v7 rich2 3.31±0.12 >=1 235/240 >=3 156/240
+  rd5 rich2 3.30±0.11 >=1 233/240 >=3 161/240
+S3 lc_right30
+  v7 rich2 1.02±0.03 >=1 217/240 >=3 5/240
+  rd5 rich2 1.00±0.03 >=1 216/240 >=3 8/240
+A1 a1_left
+  v7 rich2 2.08±0.10 >=1 205/240 >=3 87/240
+  rd5 rich2 2.22±0.10 >=1 206/240 >=3 99/240
+A1 a1_right
+  v7 rich2 0.93±0.02 >=1 216/240 >=3 1/240
+  rd5 rich2 0.90±0.02 >=1 213/240 >=3 0/240
+S4 s4_seen
+  v7 rich2 3.01±0.12 >=1 227/240 >=3 131/240
+  rd5 rich2 3.05±0.12 >=1 231/240 >=3 133/240
+S4 s4_block
+  v7 rich2 0.80±0.06 >=1 130/240 >=3 10/240
+  rd5 rich2 0.77±0.06 >=1 131/240 >=3 10/240
+S5 s5_30
+  v7 rich2 0.85±0.06 >=1 139/240 >=3 10/240
+  rd5 rich2 0.88±0.06 >=1 140/240 >=3 15/240
+S5 s5_team
+  v7 rich2 0.83±0.07 >=1 125/240 >=3 15/240
+  rd5 rich2 0.82±0.06 >=1 132/240 >=3 15/240
+S5 s5_brake
+  v7 rich2 0.08±0.02 >=1 20/240 >=3 0/240
+  rd5 rich2 0.12±0.02 >=1 28/240 >=3 0/240
+cut_in
+  v7 rich2 1.64±0.08 >=1 197/240 >=3 56/240
+  rd5 rich2 1.70±0.09 >=1 200/240 >=3 62/240
+cut_in with a standing taxi within 50 m
+  v7 rich2 0.08±0.02 >=1 17/240 >=3 1/240
+  rd5 rich2 0.09±0.02 >=1 19/240 >=3 1/240
+S6 s6_any
+  v7 rich2 2.38±0.06 >=1 234/240 >=3 118/240
+  rd5 rich2 2.34±0.06 >=1 232/240 >=3 108/240
+S6 s6_team
+  v7 rich2 0.74±0.03 >=1 178/240 >=3 0/240
+  rd5 rich2 0.74±0.03 >=1 177/240 >=3 0/240

@@ -19,6 +19,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 from behavior_metrics import episode_metrics, load_episodes, summarize  # noqa: E402
+sys.path.insert(0, REPO)
+from env.road_config import SCENARIOS  # noqa: E402
 
 SPLITS = {"dev": 1000, "train": 2000, "final": 9000}
 SCENARIO_OFFSET = {"quiet": 0, "baseline": 300, "busy": 600, "heavy": 900}   # 교통량마다 다른 seed를 쓴다
@@ -55,8 +57,8 @@ def run_key(args):
 
 
 def run(args, scenario):
-    seed = SPLITS[args.split] + SCENARIO_OFFSET[scenario]
-    name = f"{args.label}_{args.split}_{scenario}"
+    seed = SPLITS[args.split] + SCENARIO_OFFSET[scenario] if args.seed is None else args.seed
+    name = f"{args.label}_{args.split if args.seed is None else f's{args.seed}'}_{scenario}"
     out_dir = os.path.join(REPO, "data", "research", "eval")
     jsonl = os.path.join(out_dir, name + ".jsonl.gz")
     key_path = os.path.join(out_dir, name + ".key.json")
@@ -95,18 +97,22 @@ def main():
     parser.add_argument("--policy", required=True, choices=["route-follow", "expert", "expert-v5", "expert-v6", "expert-v7", "bc", "ppo"])
     parser.add_argument("--model", default=None, help="bc 또는 ppo(Residual 포함) model.pt")
     parser.add_argument("--split", choices=tuple(SPLITS), default="dev")
-    parser.add_argument("--scenarios", nargs="+", default=["quiet", "baseline", "busy"], choices=tuple(SCENARIO_OFFSET))
+    parser.add_argument("--scenarios", nargs="+", default=["quiet", "baseline", "busy"], choices=tuple(SCENARIOS))
     parser.add_argument("--episodes", type=int, default=30)
     parser.add_argument("--workers", type=int, default=6)
     parser.add_argument("--label", default=None, help="결과 이름. 기본은 정책 이름")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="모든 교통량에 같은 첫 seed를 쓴다(교통량끼리 비교). 기본은 split과 교통량마다 다른 seed")
     args = parser.parse_args()
+    if args.seed is None and set(args.scenarios) - set(SCENARIO_OFFSET):
+        parser.error("실험용 교통량은 --seed가 필요합니다.")
     if args.policy in ("bc", "ppo") and not args.model:
         parser.error("--policy bc/ppo는 --model이 필요합니다.")
     args.label = args.label or args.policy
     results = {"label": args.label, "policy": args.policy, "model": args.model, "split": args.split,
                "episodes_per_scenario": args.episodes, "max_steps": MAX_STEPS,
                "scenarios": [run(args, scenario) for scenario in args.scenarios]}
-    out = os.path.join(HERE, "metrics", f"{args.label}_{args.split}.json")
+    out = os.path.join(HERE, "metrics", f"{args.label}_{args.split if args.seed is None else f's{args.seed}'}.json")
     with open(out, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=1)
     for block in results["scenarios"]:

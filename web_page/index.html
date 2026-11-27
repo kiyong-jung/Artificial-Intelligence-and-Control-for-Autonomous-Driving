@@ -85,7 +85,7 @@
   .route-rule i { flex: none; width: var(--mark); height: var(--mark); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
   .byline { max-width: var(--measure); margin: var(--s-5) auto 0; color: var(--ink); font-weight: var(--w-semi); }
   .author-row { display: flex; justify-content: center; flex-wrap: wrap; gap: var(--s-1) var(--s-5); }
-  .author-notes { margin: var(--s-2) 0 0; color: var(--muted); font-weight: var(--w-reg); }
+  .author-notes { margin: var(--s-2) 0 0; color: var(--muted); font-weight: var(--w-reg); text-wrap: balance; }
   .lede { max-width: var(--measure); margin: var(--s-5) auto 0; color: var(--ink); font-size: var(--fs-lead); text-wrap: balance; }
   .nobr { white-space: nowrap; }
   .hero-links { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s-3); margin-top: var(--s-6); }
@@ -100,7 +100,7 @@
   .figure-link { display: block; overflow: hidden; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--s-3); text-decoration: none; transition: transform var(--t-med) var(--ease), border-color var(--t-med) var(--ease); }
   .figure-link img { border-radius: var(--r-sm); transition: transform var(--t-med) var(--ease); }
   .figure-link:hover { border-color: var(--rule-strong); }
-  .caption { color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); margin-top: var(--s-3); }
+  .caption { color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); margin-top: var(--s-3); text-wrap: pretty; }
   .caption strong { display: block; margin-bottom: var(--s-1); color: var(--ink); font-weight: var(--w-bold); font-size: var(--fs-body); }
   .video-key { display: block; margin-top: var(--s-1); }
   .video-key b { color: var(--ink); font-weight: var(--w-bold); }
@@ -122,6 +122,8 @@
   .toc a::before { content: ""; position: absolute; left: 0; top: 50%; width: var(--mark); height: var(--mark); margin-top: calc(var(--mark) / -2); background: var(--paper); border: 2px solid var(--accent); border-radius: 50%; }
   .toc a:hover { color: var(--ink); }
   .toc a[aria-current="true"] { color: var(--ink); font-weight: var(--w-bold); }
+  .toc li.sub a { font-size: var(--fs-small); }
+  .toc li.sub a::before { width: 8px; height: 8px; margin-top: -4px; left: 2px; }
   .toc a[aria-current="true"]::before { background: var(--stop); border-color: var(--ink); border-radius: 2px; }
 
   article { min-width: 0; padding-bottom: var(--s-5); }
@@ -146,7 +148,7 @@
   td.num, th.num { text-align: right; }
   td.num { font-weight: var(--w-bold); white-space: nowrap; }
   tbody tr:last-child td.num { font-weight: var(--w-black); }
-  code { font-family: inherit; font-size: .9em; font-weight: var(--w-semi); color: var(--ink); background: var(--tone); padding: 1px var(--s-2); border-radius: var(--r-xs); }
+  code { font-family: inherit; font-size: .9em; font-weight: var(--w-semi); color: var(--ink); background: var(--tone); padding: 1px var(--s-1); border-radius: var(--r-xs); }
 
   .shortcut-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--s-4); margin: var(--s-6) 0; }
   .shortcut { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); overflow: hidden; }
@@ -291,7 +293,7 @@
 </header>
 
 <figure class="wide demo">
-  <div class="video-box"><video src="assets/videos/full_lap.mp4" poster="assets/videos/full_lap.jpg" data-play-in-view muted loop playsinline controls preload="metadata" aria-label="학습한 버스가 복합 교통에서 정류장 4곳을 서고 한 바퀴를 완주하는 영상"></video></div>
+  <div class="video-box"><video src="assets/videos/full_lap.mp4" poster="assets/videos/full_lap.jpg" width="1120" height="720" data-play-in-view muted loop playsinline controls preload="metadata" aria-label="학습한 버스가 복합 교통에서 정류장 4곳을 서고 한 바퀴를 완주하는 영상"></video></div>
   <figcaption class="caption"><strong>영상 1. 학습한 신경망이 몬 한 바퀴</strong>가장 붐비는 복합 교통에서 정류장 4곳에 서고 돌아오는 약 8분짜리 한 바퀴를 67초로 줄인 영상이다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
 </figure>
 
@@ -316,6 +318,7 @@
       <li><a href="#road">도로와 SUMO 구현</a></li>
       <li><a href="#traffic">교통 구성</a></li>
       <li><a href="#interaction">차량 interaction</a></li>
+      <li class="sub"><a href="#nunchi">눈치싸움 장면</a></li>
       <li><a href="#learning">AV 학습 설계</a></li>
       <li><a href="#results">평가 결과</a></li>
       <li><a href="#videos">주행 영상</a></li>
@@ -429,36 +432,36 @@
       </figure>
       <div class="theater" id="nunchi" data-video-group>
         <h3 class="theater-title">눈치싸움 장면</h3>
-        <p>숫자로는 보이지 않는 장면을 골랐다. 버스와 주변 차가 서로 속도와 간격을 보며 먼저 갈지 기다릴지 정하는 모습이 사람 운전자끼리의 눈치싸움과 닮았다. SUMO 화면을 2배속으로 줄였고, 빨간 차가 버스다.</p>
+        <p>버스와 주변 차가 서로 속도와 간격을 보며 먼저 갈지 기다릴지 정한다. 사람 운전자끼리의 눈치싸움과 닮은, 숫자로는 보이지 않는 장면이다. SUMO 화면은 2배속이다.</p>
         <div class="scene-panels">
           <div class="scene-panel is-on" id="scene-1" role="tabpanel" aria-labelledby="scene-tab-1">
             <figure>
               <div class="video-box"><video src="assets/videos/scenario_1.mp4" poster="assets/videos/scenario_1.jpg" width="960" height="540" data-play-in-view controls muted loop playsinline preload="none" aria-labelledby="scene-1-title"></video></div>
-              <figcaption class="caption"><span class="scene-meta"><b>장면 1</b> · 보통 교통</span><strong id="scene-1-title">합정역 정류장 진입</strong><span class="scene-desc">보통 교통에서 신호를 기다리며 줄 선 차들 바로 옆 정류장 차로로 들어가 서고, 정차를 마친 뒤 다시 교차로로 나간다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
+              <figcaption class="caption"><span class="scene-meta"><b>장면 1</b> · 보통 교통</span><strong id="scene-1-title">합정역 정류장 진입</strong><span class="scene-desc">신호를 기다리며 줄 선 차들 바로 옆 정류장 차로로 들어가 서고, 정차를 마친 뒤 다시 교차로로 나간다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
             </figure>
           </div>
           <div class="scene-panel" id="scene-2" role="tabpanel" aria-labelledby="scene-tab-2">
             <figure>
               <div class="video-box"><video src="assets/videos/scenario_2.mp4" poster="assets/videos/scenario_2.jpg" width="960" height="540" data-play-in-view controls muted loop playsinline preload="none" aria-labelledby="scene-2-title"></video></div>
-              <figcaption class="caption"><span class="scene-meta"><b>장면 2</b> · 보통 교통</span><strong id="scene-2-title">정류장 출발과 재합류</strong><span class="scene-desc">보통 교통에서 정류장을 떠나는 버스 옆으로 차가 붙어 오고, 둘이 나란히 달리며 서로 간격을 맞춘다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
+              <figcaption class="caption"><span class="scene-meta"><b>장면 2</b> · 보통 교통</span><strong id="scene-2-title">정류장 출발과 재합류</strong><span class="scene-desc">정류장을 떠나는 버스 옆으로 차가 붙어 오고, 둘이 나란히 달리며 서로 간격을 맞춘다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
             </figure>
           </div>
           <div class="scene-panel" id="scene-3" role="tabpanel" aria-labelledby="scene-tab-3">
             <figure>
               <div class="video-box"><video src="assets/videos/scenario_3.mp4" poster="assets/videos/scenario_3.jpg" width="960" height="540" data-play-in-view controls muted loop playsinline preload="none" aria-labelledby="scene-3-title"></video></div>
-              <figcaption class="caption"><span class="scene-meta"><b>장면 3</b> · 보통 교통</span><strong id="scene-3-title">독막로 정류장</strong><span class="scene-desc">보통 교통에서 옆 차로를 오가는 차들 사이로 가로변 정류장에 섰다가 다음 교차로로 향한다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
+              <figcaption class="caption"><span class="scene-meta"><b>장면 3</b> · 보통 교통</span><strong id="scene-3-title">독막로 정류장</strong><span class="scene-desc">옆 차로를 오가는 차들 사이로 가로변 정류장에 섰다가 다음 교차로로 향한다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
             </figure>
           </div>
           <div class="scene-panel" id="scene-4" role="tabpanel" aria-labelledby="scene-tab-4">
             <figure>
               <div class="video-box"><video src="assets/videos/scenario_4.mp4" poster="assets/videos/scenario_4.jpg" width="960" height="540" data-play-in-view controls muted loop playsinline preload="none" aria-labelledby="scene-4-title"></video></div>
-              <figcaption class="caption"><span class="scene-meta"><b>장면 4</b> · 혼잡 교통</span><strong id="scene-4-title">붐비는 교차로 출발</strong><span class="scene-desc">혼잡 교통에서 긴 대기 줄 앞에서 신호를 기다리다 녹색이 켜지자 다른 차들과 함께 교차로를 건넌다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
+              <figcaption class="caption"><span class="scene-meta"><b>장면 4</b> · 혼잡 교통</span><strong id="scene-4-title">붐비는 교차로 출발</strong><span class="scene-desc">긴 대기 줄 앞에서 신호를 기다리다 녹색이 켜지자 다른 차들과 함께 교차로를 건넌다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
             </figure>
           </div>
           <div class="scene-panel" id="scene-5" role="tabpanel" aria-labelledby="scene-tab-5">
             <figure>
               <div class="video-box"><video src="assets/videos/scenario_5.mp4" poster="assets/videos/scenario_5.jpg" width="960" height="540" data-play-in-view controls muted loop playsinline preload="none" aria-labelledby="scene-5-title"></video></div>
-              <figcaption class="caption"><span class="scene-meta"><b>장면 5</b> · 한산 교통</span><strong id="scene-5-title">교차로 앞 차로 변경</strong><span class="scene-desc">한산 교통에서 옆 차와 나란히 정지선에 다가가고, 교차로 안을 지나는 차를 기다린 뒤 차로를 옮겨 출발한다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
+              <figcaption class="caption"><span class="scene-meta"><b>장면 5</b> · 한산 교통</span><strong id="scene-5-title">교차로 앞 차로 변경</strong><span class="scene-desc">옆 차와 나란히 정지선에 다가가고, 교차로 안을 지나는 차를 기다린 뒤 차로를 옮겨 출발한다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
             </figure>
           </div>
         </div>
@@ -545,29 +548,29 @@
       <h2 id="videos">주행 영상</h2>
       <p>평가 기록을 그대로 다시 그린 영상으로, 잘한 장면과 실패한 장면을 함께 싣는다.</p>
       <figure>
-        <div class="video-box"><video src="assets/videos/taxi_wait.mp4" poster="assets/videos/taxi_wait.jpg" controls muted loop playsinline preload="none"></video></div>
-        <figcaption class="caption"><strong>영상 2. 정류장 앞 택시 (S4)</strong>같은 바퀴에서 왼쪽 이전 모델은 정류장 입구의 택시를 들이받고, 오른쪽 최종 모델은 택시 뒤에서 기다렸다가 정류장에 선다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
+        <div class="video-box"><video src="assets/videos/taxi_wait.mp4" poster="assets/videos/taxi_wait.jpg" width="1920" height="618" controls muted loop playsinline preload="none" aria-labelledby="v-taxi"></video></div>
+        <figcaption class="caption"><strong id="v-taxi">영상 2. 정류장 앞 택시 (S4)</strong>같은 바퀴에서 왼쪽 이전 모델은 정류장 입구의 택시를 들이받고, 오른쪽 최종 모델은 택시 뒤에서 기다렸다가 정류장에 선다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
+      </figure>
+      <figure class="video-aside">
+        <div class="video-box"><video src="assets/videos/side_by_side.mp4" poster="assets/videos/side_by_side.jpg" width="1120" height="720" controls muted loop playsinline preload="none" aria-labelledby="v-side"></video></div>
+        <figcaption class="caption"><strong id="v-side">옆에서 나란히 가는 차</strong>버스 왼쪽에서 10초쯤 나란히 가던 차가 왼쪽 차로로 빠진다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
       </figure>
       <h3>실패 장면</h3>
       <div class="video-grid">
         <figure>
-          <div class="video-box"><video src="assets/videos/fail_queue_tail.mp4" poster="assets/videos/fail_queue_tail.jpg" controls muted loop playsinline preload="none"></video></div>
-          <figcaption class="caption"><strong>대기 줄 끝 충돌</strong>좌회전을 마치고 앞에 선 줄을 늦게 보고 끝 차에 닿는다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
+          <div class="video-box"><video src="assets/videos/fail_queue_tail.mp4" poster="assets/videos/fail_queue_tail.jpg" width="1120" height="720" controls muted loop playsinline preload="none" aria-labelledby="v-fail-queue"></video></div>
+          <figcaption class="caption"><strong id="v-fail-queue">대기 줄 끝 충돌</strong>좌회전을 마치고 앞에 선 줄을 늦게 보고 끝 차에 닿는다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
         </figure>
         <figure>
-          <div class="video-box"><video src="assets/videos/fail_yellow.mp4" poster="assets/videos/fail_yellow.jpg" controls muted loop playsinline preload="none"></video></div>
-          <figcaption class="caption"><strong>황색 진입</strong>서교동사거리 정지선 앞에서 황색이 켜졌는데 서지 않고 들어간다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
+          <div class="video-box"><video src="assets/videos/fail_yellow.mp4" poster="assets/videos/fail_yellow.jpg" width="1120" height="720" controls muted loop playsinline preload="none" aria-labelledby="v-fail-yellow"></video></div>
+          <figcaption class="caption"><strong id="v-fail-yellow">황색 진입</strong>서교동사거리 정지선 앞에서 황색이 켜졌는데 서지 않고 들어간다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
         </figure>
         <figure>
-          <div class="video-box"><video src="assets/videos/fail_green_start.mp4" poster="assets/videos/fail_green_start.jpg" controls muted loop playsinline preload="none"></video></div>
-          <figcaption class="caption"><strong>녹색 출발</strong>녹색이 켜지자마자 출발했는데 교차로 안에 아직 차가 남아 있다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
+          <div class="video-box"><video src="assets/videos/fail_green_start.mp4" poster="assets/videos/fail_green_start.jpg" width="1120" height="720" controls muted loop playsinline preload="none" aria-labelledby="v-fail-green"></video></div>
+          <figcaption class="caption"><strong id="v-fail-green">녹색 출발</strong>녹색이 켜지자마자 출발했는데 교차로 안에 아직 차가 남아 있다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
         </figure>
       </div>
       <p>실패는 대부분 신호가 바뀌는 순간이나 대기 줄 끝에서 일어난다.</p>
-      <figure class="video-aside">
-        <div class="video-box"><video src="assets/videos/side_by_side.mp4" poster="assets/videos/side_by_side.jpg" controls muted loop playsinline preload="none"></video></div>
-        <figcaption class="caption"><strong>옆에서 나란히 가는 차</strong>버스 왼쪽에서 10초쯤 나란히 가던 차가 왼쪽 차로로 빠진다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
-      </figure>
     </section>
 
     <section class="article-section" aria-labelledby="data">
@@ -618,8 +621,8 @@ pip install -r requirements.txt</code></pre>
         </table>
       </div>
       <figure>
-        <div class="video-box"><video src="assets/videos/car_behind_bus.mp4" poster="assets/videos/car_behind_bus.jpg" controls muted loop playsinline preload="none"></video></div>
-        <figcaption class="caption"><strong>영상 3. 남은 문제: 두 차로에 걸쳐 서는 뒤차</strong>정류장에 선 버스를 피하려던 뒤차가 왼쪽에서는 차로를 반쯤 넘은 채 서고, 오른쪽 시험 설정에서는 바로 뒤에 서지만, 설정 21가지 중 이를 완전히 없앤 안은 없었다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
+        <div class="video-box"><video src="assets/videos/car_behind_bus.mp4" poster="assets/videos/car_behind_bus.jpg" width="2240" height="720" controls muted loop playsinline preload="none" aria-labelledby="v-car-behind"></video></div>
+        <figcaption class="caption"><strong id="v-car-behind">영상 3. 남은 문제: 두 차로에 걸쳐 서는 뒤차</strong>정류장에 선 버스를 피하려던 뒤차가 왼쪽에서는 차로를 반쯤 넘은 채 서고, 오른쪽 시험 설정에서는 바로 뒤에 서지만, 설정 21가지 중 이를 완전히 없앤 안은 없었다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
       </figure>
     </section>
 

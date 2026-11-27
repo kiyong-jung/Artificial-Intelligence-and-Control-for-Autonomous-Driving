@@ -165,6 +165,9 @@
   .hero-links.left { justify-content: flex-start; }
   tbody tr:last-child td.num { font-weight: var(--w-black); }
 
+  pre { margin: var(--s-4) 0; padding: var(--s-4); overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); font-size: var(--fs-small); line-height: var(--lh-ui); }
+  pre code { padding: 0; background: none; font-weight: var(--w-reg); white-space: pre; }
+
   footer { border-top: 1px solid var(--rule); color: var(--muted); font-size: var(--fs-small); padding: var(--s-5) 0 var(--s-7); }
   footer .wide { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--s-3) var(--s-6); }
 
@@ -237,7 +240,7 @@
   <div class="route-rule" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
   <div class="byline">
     <div class="author-row">
-      <span>정기용</span><span>서예인</span><span>주현진</span><span>박신후</span><span>이건호</span>
+      <span>주현진</span><span>정기용</span><span>서예인</span><span>이건호</span><span>박신후</span>
     </div>
     <p class="author-notes">성균관대학교 · 자율주행인공지능및제어 팀 프로젝트 · URBAN:ON</p>
   </div>
@@ -280,6 +283,7 @@
       <li><a href="#results">평가 결과</a></li>
       <li><a href="#videos">주행 영상</a></li>
       <li><a href="#data">데이터셋</a></li>
+      <li><a href="#run">실행 방법</a></li>
       <li><a href="#problems">문제와 해결</a></li>
       <li><a href="#limits">결론과 한계</a></li>
     </ol>
@@ -386,6 +390,30 @@
         <a class="figure-link" href="assets/scenario_map.webp"><img src="assets/scenario_map.webp" width="2400" height="1500" alt="여섯 시나리오가 일어나는 위치를 표시한 합정역 도로망" loading="lazy" decoding="async" /></a>
         <figcaption class="caption"><strong>그림 3. 시나리오가 일어나는 곳</strong>버스 경로 위에 여섯 시나리오가 일어나는 자리를 표시했다.</figcaption>
       </figure>
+      <h3>눈치싸움 장면</h3>
+      <p>숫자로는 보이지 않는 장면을 골랐다. 버스와 주변 차가 서로 속도와 간격을 보며 먼저 갈지 기다릴지 정하는 모습이 사람 운전자끼리의 눈치싸움과 닮았다. SUMO 화면을 2배속으로 줄였고, 빨간 차가 버스다.</p>
+      <div class="video-grid">
+        <figure>
+          <div class="video-box"><video src="assets/videos/scenario_1.mp4" poster="assets/videos/scenario_1.jpg" controls muted loop playsinline preload="none"></video></div>
+          <figcaption class="caption"><strong>1. 합정역 정류장 진입</strong>보통 교통에서 신호를 기다리며 줄 선 차들 바로 옆 정류장 차로로 들어가 서고, 정차를 마친 뒤 다시 교차로로 나간다.</figcaption>
+        </figure>
+        <figure>
+          <div class="video-box"><video src="assets/videos/scenario_2.mp4" poster="assets/videos/scenario_2.jpg" controls muted loop playsinline preload="none"></video></div>
+          <figcaption class="caption"><strong>2. 정류장 출발과 재합류</strong>보통 교통에서 정류장을 떠나는 버스 옆으로 차가 붙어 오고, 둘이 나란히 달리며 서로 간격을 맞춘다.</figcaption>
+        </figure>
+        <figure>
+          <div class="video-box"><video src="assets/videos/scenario_3.mp4" poster="assets/videos/scenario_3.jpg" controls muted loop playsinline preload="none"></video></div>
+          <figcaption class="caption"><strong>3. 독막로 정류장</strong>보통 교통에서 옆 차로를 오가는 차들 사이로 가로변 정류장에 섰다가 다음 교차로로 향한다.</figcaption>
+        </figure>
+        <figure>
+          <div class="video-box"><video src="assets/videos/scenario_4.mp4" poster="assets/videos/scenario_4.jpg" controls muted loop playsinline preload="none"></video></div>
+          <figcaption class="caption"><strong>4. 붐비는 교차로 출발</strong>혼잡 교통에서 긴 대기 줄 앞에서 신호를 기다리다 녹색이 켜지자 다른 차들과 함께 교차로를 건넌다.</figcaption>
+        </figure>
+        <figure>
+          <div class="video-box"><video src="assets/videos/scenario_5.mp4" poster="assets/videos/scenario_5.jpg" controls muted loop playsinline preload="none"></video></div>
+          <figcaption class="caption"><strong>5. 교차로 앞 차로 변경</strong>한산 교통에서 옆 차와 나란히 정지선에 다가가고, 교차로 안을 지나는 차를 기다린 뒤 차로를 옮겨 출발한다.</figcaption>
+        </figure>
+      </div>
     </section>
 
     <section class="article-section" aria-labelledby="learning">
@@ -504,6 +532,18 @@
       <div class="hero-links left">
         <a class="button" href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">Hugging Face에서 받기</a>
       </div>
+    </section>
+
+    <section class="article-section" aria-labelledby="run">
+      <h2 id="run">실행 방법</h2>
+      <p>Python 3.10과 SUMO 1.27.1에서 확인했다. SUMO는 따로 설치하고 <code>SUMO_HOME</code>을 설정한 뒤 패키지를 설치한다.</p>
+<pre><code>git clone https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving.git
+cd Artificial-Intelligence-and-Control-for-Autonomous-Driving
+pip install -r requirements.txt</code></pre>
+      <p>저장소에 들어 있는 최종 모델로 복합 교통 4바퀴를 돌리면, 평가 기록과 같은 결과(4바퀴 모두 완주)가 나온다.</p>
+<pre><code>PYTHONPATH=. python research/av_bc_rl/evaluate.py --policy bc --model models/final/model.pt \
+  --label final --seed 63000 --scenarios rich2 --episodes 4 --workers 4</code></pre>
+      <p>데이터 수집, 처음부터 학습하기, 저장소 구조는 <a href="https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving#readme">README</a>에 정리했다.</p>
     </section>
 
     <section class="article-section" aria-labelledby="problems">

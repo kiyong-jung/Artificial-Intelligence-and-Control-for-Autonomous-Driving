@@ -35,11 +35,14 @@ if str(BASE) not in sys.path:
 from scripts.build_road import ALLEY, ARTERIAL_PER_LANE, publish, shortest_route
 from scripts.patch_network import digest
 from scripts.prune_network import OPTIONS
+from scripts.drop_turnaround_flows import keep_natural
+from scripts.fix_pedestrian_walks import fix_walks, removed_crossings
+from scripts.randomize_pedestrians import randomize
 from scripts.validate_road import validate_structure
 
 FOLDER = BASE / "maps" / "hapjeong"
 SOURCE = FOLDER / "source"
-VERSION = "3.13.0"
+VERSION = "3.22.0"   # 3.22.0: J83·J42·J1 좌회전도 가장 왼쪽 차로 하나에서만(scripts/inner_lane_left_turns.py). 3.21.0: J82 독막로 좌회전을 안쪽 3번 차로 하나로, R112 2번 차로로(scripts/inner_lane_left_turns.py). 3.20.0: 배경 흐름 전체 1.25배(scripts/scale_demand.py). 3.19.0: bus_loop를 J1 좌회전 뒤 R68까지 늘려 순환을 닫음(scripts/close_bus_loop.py). 3.18.0: J42·J82 우회전 모서리 횡단보도 네 개를 바깥쪽으로 0.5 m 옮기고 그 앞 정지선을 1 m 물림(scripts/move_crosswalks_outward.py). 3.17.0: J42 좌회전 다섯 연결을 앞뒤 차로에 접하는 곡선으로(scripts/smooth_j42_left_turns.py). 3.16.0: 지도 경계 J99·J100·J108·J109·J110의 유턴 연결 제거(scripts/remove_fringe_turnarounds.py). 3.15.0: 되돌아가거나 크게 에도는 배경 흐름 17개 제거(scripts/drop_turnaround_flows.py), 끊긴 걸음 2개 다시 찾기와 대각선 횡단보도 고정(scripts/fix_pedestrian_walks.py), 도로망은 3.13.0 그대로. 3.14.0: 보행자를 포아송 도착(personFlow)으로, 독막로6길 고리 경유 흐름 제거(도로망은 3.13.0 그대로). 3.7.0~3.13.0은 아래 설정(REPLACED_CONNECTIONS, REMOVED_CONNECTIONS, CLOSED_CROSSINGS, CROSSING_STARTS, RIGHT_TURNS_AFTER_WALK, NO_WALKERS_ON)이다. 3.16.0~3.18.0과 3.21.0·3.22.0의 모양·신호 수정은 커밋된 도로망에 스크립트로 직접 얹었고 이 빌드는 다시 만들지 못한다(루트 README의 "알려진 한계").
 ARTERIAL_KMH, LINK_KMH, ALLEY_KMH = 50, 30, 30
 LINK_EDGES = {"R65", "R65.c", "R66", "R66.c", "R67", "R67.c"}   # 생성기 설정에서 primary_link인 연결로
 JOIN = [("J52", "J56", "J58")]
@@ -107,24 +110,26 @@ REMOVED_CONNECTIONS: list[tuple[str, str, str, str]] = [("R94", "1", "R53", "1")
 # 차도 차로 수를 바꾸는 도로(도로 → 차도 차로 수)와, 그 때문에 통째로 다시 적는 연결(나가는 도로 → [(차로, 들어가는 도로, 차로)]).
 # MOVED_LINKS는 새 연결이 원본의 어느 연결의 신호를 받는지 적는다.
 # 상수역 사거리 앞 27m 구간 R111b는 차도가 3차로에서 2차로로 줄었다. 정지선 바로 앞에서 두 차가 한 차로에 나란히 끼인 채
-# 우회전하다 교차로 안에서 서로를 막아 300초 뒤 순간이동했다. 3차로로 넓혀 차로를 1:1로 잇는다. 2차로는 직진과 좌회전,
-# 3차로는 좌회전이다. 2차로에서도 좌회전이 되어야 가로변 차로를 달리던 버스가 한 번만 옮기고 좌회전한다.
+# 우회전하다 교차로 안에서 서로를 막아 300초 뒤 순간이동했다. 3차로로 넓혀 차로를 1:1로 잇는다. 2차로는 직진, 3차로는
+# 좌회전이다. 3.20.0까지는 2차로도 R112 1차로로 좌회전해, 버스가 한 칸만 옮기고 좌회전 뒤 바로 정류장 차로에 들어섰다.
+# 실제 도로처럼 안쪽 차로에서 좌회전해 안쪽 차로(R112 2차로)로 나오게 했다(사용자 결정, scripts/inner_lane_left_turns.py).
 WIDENED_EDGES: dict[str, int] = {"R111b": 3}
 REPLACED_CONNECTIONS: dict[str, list[tuple[str, str, str]]] = {
     "R111": [("1", "R111b", "1"), ("2", "R111b", "2"), ("3", "R111b", "3")],
-    "R111b": [("1", "R129", "1"), ("1", "R128", "1"), ("2", "R128", "2"), ("2", "R112", "1"), ("3", "R112", "2")],
-    # 삼거리포차 앞과 서교동사거리의 좌회전은 2차로에서만 됐다. 가로변 차로를 달리는 버스가 좌회전 줄에 끼어들지 못하고
-    # 300초를 서 있다 순간이동했다(규칙 버스 12회 중 1회). 가로변 차로에서도 좌회전해 가로변 차로로 들어가게 한다.
-    "R112.221": [("1", "R130", "1"), ("1", "R113", "1"), ("2", "R113", "2")],
-    "R94": [("1", "R92", "1"), ("1", "R54a", "1"), ("2", "R54a", "2"), ("2", "R54a", "4")],   # 우회전(R53) 없음(3.8.0)
-    # 합정역 사거리 J1: 양화로 R42 차로 3도 직진 또는 좌회전(독막로 R68 차로 1). 합정역 정류장에서 출발한 시험용 버스가
-    # 좌회전 차로까지 옮기기 빠듯했다(3.7.0).
-    "R42": [("1", "R40", "1"), ("2", "R40", "2"), ("3", "R40", "3"), ("3", "R68", "1"), ("4", "R68", "2")]}
+    "R111b": [("1", "R129", "1"), ("1", "R128", "1"), ("2", "R128", "2"), ("3", "R112", "2")],
+    # 좌회전은 가장 왼쪽 차로에서만 한다(사용자 결정, 3.22.0). 삼거리포차 앞(R112.221)과 서교동사거리(R94)는 3.4.0부터
+    # 가로변 1차로에서도 좌회전했고(규칙 버스가 좌회전 줄에 끼어들지 못하고 300초를 서 있었다), 합정역 사거리(R42)는
+    # 3.7.0부터 3차로도 좌회전했다. 3.22.0에서 이 셋을 지웠다(scripts/inner_lane_left_turns.py).
+    "R112.221": [("1", "R130", "1"), ("2", "R113", "2")],
+    "R94": [("1", "R92", "1"), ("2", "R54a", "2"), ("2", "R54a", "4")],   # 우회전(R53) 없음(3.8.0)
+    "R42": [("1", "R40", "1"), ("2", "R40", "2"), ("3", "R40", "3"), ("4", "R68", "2")]}
 MOVED_LINKS: dict[tuple[str, str, str, str], tuple[str, str, str, str]] = {
-    ("R111b", "3", "R112", "2"): ("R111b", "2", "R112", "2"), ("R112", "1", "R113", "1"): ("R112", "2", "R113", "1"),
-    ("R94", "1", "R54a", "1"): ("R94", "2", "R54a", "2"), ("R42", "3", "R68", "1"): ("R42", "4", "R68", "2")}
+    ("R111b", "3", "R112", "2"): ("R111b", "2", "R112", "2")}
 # 배경 차량 baseline 합계. 생성기 설정(generator/road_config.py OSM_ROAD traffic)의 값이다.
 BASELINE_VEHS_PER_HOUR = 900
+# 흐름을 모두 나눈 뒤(골목 3배 등 포함, 합계 1,061대/시간) 전체에 곱하는 배율. 3.20.0에서 버스와 배경 차의 상호작용을
+# 늘리려 키웠다. 더 키우면 배경 충돌이 늘었다(scripts/scale_demand.py, maps/hapjeong/README.md 3.20.0).
+DEMAND_SCALE = 1.25
 PEDESTRIANS = {"persons_per_hour": 600, "min_distance": 150, "end": 3600, "seed": 42}
 # 무작위 보행자 경로는 도로망이 바뀔 때마다 달라져, 신호 없는 횡단보도(S6)를 건너는 사람이 없을 수도 있다.
 # S6를 건너는 보행자를 따로 넣는다. 와우산로 양쪽 인도를 번갈아 출발한다. 시간당 인원은 가정값이다.
@@ -171,10 +176,11 @@ ALLEYS = [
 # 골목 안(주차, 건물)에서 나와 간선에 신호 없이 합류하는 차(S5)를 이 도로에서 출발시킨다.
 # 유입량은 경계 골목과 같은 ALLEY다.
 ALLEY_ORIGINS = ["G3"]
-# 간선에서 들어가 간선으로 다시 나오는 골목(이름 → 지나는 도로들). 골목 안에서 차를 출발시키지 않는다. 입구와 출구 사이의
-# 간선을 지나는 배경 차량 가운데 골목 출발지 하나만큼(ALLEY × ALLEY_INFLOW)이 이 길로 돌아간다. SUMO는 가장 빠른 길만 고르므로
-# 흐름에 경유 도로(via)를 적어야 골목으로 간다.
-THROUGH_ALLEYS = {"dongmak6": ["G30", "G11", "G12"]}
+# 간선에서 들어가 간선으로 다시 나오는 골목(이름 → 지나는 도로들). 여기 적으면 입구와 출구 사이의 간선을 지나는 배경 차량
+# 가운데 골목 출발지 하나만큼(ALLEY × ALLEY_INFLOW)이 경유 도로(via)를 받아 이 길로 돌아간다. 3.14.0에서 비웠다. 3.5.0~3.13.0은
+# 독막로6길 고리 {"dongmak6": ["G30", "G11", "G12"]}로 간선 통과 차를 돌려 정류장 끝에 끼어들게 했다. 통과 차는 간선에 머물고,
+# 골목에서 나오는 차는 골목에서 출발한 차뿐이어야 한다.
+THROUGH_ALLEYS: dict[str, list[str]] = {}
 # 지름길 후보. 버스 경로가 둘러싼 구역 안의 실제 OSM 길이고, 골목과 마찬가지로 신호가 없다.
 # splits는 버스 경로 도로를 나눠 만드는 신호 없는 합류점(나가는 방향 도로, 반대 방향 도로, OSM 노드),
 # nodes는 골목끼리 만나는 점, attach는 신호를 그대로 둔 채 골목을 붙이는 기존 신호 교차로, origins는 골목 안에서 차가 출발하는 도로,
@@ -307,9 +313,10 @@ def use_shortcuts(names: list[str]) -> None:
 
 EGO_ROUTE = "bus_loop"
 # (설명, 경유 도로). 서예인이 제안한 순환 경로다. 상수역 정차 뒤 약 140m 안에 와우산로로 좌회전한다(S2).
+# 3.19.0부터 합정역 사거리(J1)에서 좌회전해 출발 도로 R69 바로 앞 R68에서 끝난다(scripts/close_bus_loop.py).
 ROUTES = {EGO_ROUTE: ("[연구] 합정역 → 성산중학교 → 상수역 → 와우산로 좌회전 → 극동방송 → 잔다리로 → 서교동교회 → "
-                      "서교동사거리 좌회전 → 양화로 → 합정역",
-                      ["R69", "R71", "R111", "R112", "R113", "-R96", "R94", "R54a", "R54", "R42"])}
+                      "서교동사거리 좌회전 → 양화로 → 합정역 → 합정역 사거리 좌회전",
+                      ["R69", "R71", "R111", "R112", "R113", "-R96", "R94", "R54a", "R54", "R42", "R68"])}
 EXTRA_FILES = {
     "additional": ["source/signals.add.xml", "source/islands.add.xml", "source/seams.add.xml", "source/stops.add.xml"],
     "routes": ["source/pedestrians.rou.xml"],
@@ -794,6 +801,11 @@ def build_pedestrians(net_path: Path, output: Path, temporary: Path) -> None:
     for person in root.findall("person"):
         root.remove(person)
     root.extend(people)
+    randomize(root, PEDESTRIANS["end"])   # 고정 출발 시각을 seed를 따르는 포아송 도착(personFlow)으로 바꾼다
+    # 끊긴 걸음은 다시 찾고, 대각선으로 건너는 걸음은 횡단보도를 고정한다. 보행자를 뺀 횡단보도는 커밋된 map.json의 기록을 따른다.
+    committed = FOLDER / "map.json"
+    avoid = removed_crossings(json.loads(committed.read_text(encoding="utf-8"))) if committed.exists() else frozenset()
+    fix_walks(root, net_path, avoid)
     ET.ElementTree(root).write(output, encoding="utf-8", xml_declaration=True)
 
 
@@ -913,7 +925,8 @@ def build() -> dict:
                                            "closed_crossings": [list(item) for item in CLOSED_CROSSINGS],
                                            "crossing_starts": CROSSING_STARTS, "right_turns_after_walk": RIGHT_TURNS_AFTER_WALK},
                                "pedestrians": {**PEDESTRIANS, "s6_walkers_per_hour": S6_WALKERS_PER_HOUR,
-                                               "no_walkers_on": NO_WALKERS_ON, "removed_walkers": removed_walkers}},
+                                               "no_walkers_on": NO_WALKERS_ON, "removed_walkers": removed_walkers,
+                                               "arrivals": "poisson"}},
             "extra_files": EXTRA_FILES,
             "ego_vehicle": "bus",
             "focus_bbox": [round(west, 7), round(south, 7), round(east, 7), round(north, 7)],
@@ -922,8 +935,11 @@ def build() -> dict:
                                 "url": "https://www.openstreetmap.org/copyright"},
             "assumptions": ["제한속도는 안전속도 5030 기준이다. 간선 50km/h, 연결로와 이름이 ~길인 이면도로 30km/h이고 OSM의 독막로 50km/h와 같다.",
                             "배경 차량 유입량은 팔달문과 같은 규칙으로 나눈 합성 수요다. quiet·baseline·busy는 0.5·1·1.25배다.",
-                            "배경 차량 baseline 합계는 생성기 설정의 시간당 900대다."],
-            "routes": routes, "route_design": route_design, "flows": scaled_flows(net), "flow_arrivals": FLOW_ARRIVALS,
+                            f"배경 차량 baseline 합계는 시간당 {1061 * DEMAND_SCALE:,.0f}대다(3.17.0 수요 1,061대의 {DEMAND_SCALE:g}배)."],
+            "routes": routes, "route_design": route_design,
+            "flows": [{**flow, "vehs_per_hour": round(flow["vehs_per_hour"] * DEMAND_SCALE, 3)}
+                      for flow in keep_natural(net_path, scaled_flows(net))[0]],
+            "flow_arrivals": FLOW_ARRIVALS,
             "max_lane_speed_mps": max(lane.getSpeed() for edge in net.getEdges() for lane in edge.getLanes()
                                       if lane.allows("passenger")),
             "ego_route": EGO_ROUTE, "bus_stops": curb_stops(net),

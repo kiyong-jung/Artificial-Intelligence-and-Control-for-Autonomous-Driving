@@ -189,7 +189,7 @@ def test_lap_plan_has_both_s2_one_s3_and_one_or_two_s5():
         inj = _inj(_TC2(), seed=seed)
         inj.update(0.0)
         p = inj._lap
-        assert [x.kind for x in p["S2"]] == ["S2", "S2"] and p["S3"].kind == "S3"
+        assert [x.kind for x in p["S2"]] == ["S2"] * 4 and p["S3"].kind == "S3"
         assert 1 <= len(p["S5"]) <= 2 and len({a.junction for a in p["S5"]}) == len(p["S5"]) and p["S6"] is False
 
 
@@ -209,7 +209,7 @@ def test_catch_up_speeds_follower_toward_bus_then_matches():
     active = set()
     inj = _inj(tc, a1_active=lambda vid: vid in active)
     inj.update(0.0)
-    plan = inj._lap["S2"][1]
+    plan = inj._lap["S2"][-1]
     tc.f.cars.append("f")
     inj._track(plan, "f", 0.0)
     gaps = {"g": 30.0}
@@ -239,7 +239,7 @@ def test_nearest_follower_is_the_partner_whoever_it_is():
     tc = _TC2(bus_road="R112.221", bus_pos=10.0, bus_speed=8.0)
     inj = _inj(tc)
     inj.update(0.0)
-    plan = inj._lap["S2"][1]
+    plan = inj._lap["S2"][-1]
     tc.f.cars += ["inj", "nat"]
     inj._track(plan, "inj", 0.0)
     inj._follower_gap = lambda vid, p: 30.0                       # 주입 차는 30 m 뒤
@@ -254,7 +254,7 @@ def test_injected_follower_stays_partner_when_it_is_the_nearest():
     tc = _TC2(bus_road="R112.221", bus_pos=10.0, bus_speed=8.0)
     inj = _inj(tc)
     inj.update(0.0)
-    plan = inj._lap["S2"][1]
+    plan = inj._lap["S2"][-1]
     tc.f.cars += ["inj", "far"]
     inj._track(plan, "inj", 0.0)
     inj._follower_gap = lambda vid, p: 8.0
@@ -356,7 +356,7 @@ def test_followers_in_other_lanes_keep_moving_while_bus_dwells():
     tc = _TC2(bus_road="R112.221", bus_pos=10.0, bus_speed=0.0)
     inj = _inj(tc)
     inj.update(0.0)
-    plan = inj._lap["S2"][1]
+    plan = inj._lap["S2"][-1]
     tc.f.cars.append("f")
     tc.f.lanes["f"] = 1                                          # 버스(차로 2)와 다른 차로
     inj._track(plan, "f", 0.0)
@@ -371,7 +371,7 @@ def test_follower_that_passed_the_bus_is_let_go():
     tc = _TC2(bus_road="R112.221", bus_pos=10.0, bus_speed=8.0)
     inj = _inj(tc)
     inj.update(0.0)
-    plan = inj._lap["S2"][1]
+    plan = inj._lap["S2"][-1]
     tc.f.cars.append("f")
     inj._track(plan, "f", 0.0)
     inj._follower_gap = lambda vid, p: -15.0                     # 이미 버스를 지나 앞에 있다: 되돌아오게 하지 않는다
@@ -398,7 +398,7 @@ def test_j1_follower_is_in_the_lane_feeding_the_left_turn_lane():
     # 좌회전 도착 도로(R68)까지 버스와 같은 길로 가야 SUMO가 좌회전 차로(R54b 4 -> R54 5)를 고른다. 예전에는 R42에서
     # 곧장 나가는 경로라 R54b 3 -> R54 4(버스의 중간 목표 차로)로 가 중간 변경에서 A1이 켜지고 마지막 변경 상대가 없었다
     assert lane[0]["route"][:5] == ["R54a", "R54b", "R54", "R42", "R68"]
-    p = inj._lap["S2"][1]
+    p = inj._lap["S2"][-1]
     assert inj._partner(p, inj._lap["lane"].get(inj._key(p))) is not None
 
 
@@ -436,7 +436,7 @@ def test_window_that_ended_without_a_partner_is_recorded_as_missed():
     tc = _TC2(bus_road="R77", bus_pos=25.0)
     inj = _inj(tc, alleys=[])
     inj.update(0.0)
-    plan = inj._lap["S2"][1]
+    plan = inj._lap["S2"][-1]
     key = inj._key(plan)
     inj._lap["seen"].add(key)
     orig = inj._dist_to
@@ -453,7 +453,7 @@ def test_injector_with_catch_up_off_tracks_the_partner_without_touching_its_spee
     inj = ScenarioInjector(tc, _net(), "bus0", _stops(), [], "carDist", lap_fn=lambda: 1, plans=plans,
                            rng=random.Random(0), stop_ids=STOP_AT, catch_up=False)
     inj.update(0.0)
-    plan = inj._lap["S2"][1]
+    plan = inj._lap["S2"][-1]
     tc.f.cars.append("f")
     inj._track(plan, "f", 0.0)
     inj._follower_gap = lambda vid, p: 30.0                      # 30 m 뒤: catch_up이면 속도를 높였을 거리

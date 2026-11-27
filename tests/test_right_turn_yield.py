@@ -30,8 +30,10 @@ def test_j96_right_turns_that_yield_to_straight_links_are_found():
     assert y[0] == set() and y[14] == set()          # 양보하도록 만들어지지 않은 우회전은 빈 집합이다
 
 
-def test_j42_right_turns_0_and_11_yield_to_no_vehicle_link_but_18_does():
+def test_j42_right_turns_0_and_10_yield_to_no_vehicle_link_but_17_does():
+    # 3.22.0에서 R94 1번 차로 좌회전(연결 8, R54a 1번 차로로)을 지워 뒤 연결 번호가 하나씩 당겨졌다. -R92.163 우회전(17)은
+    # R54a 1번 차로로 가므로, 같은 차로로 들어오던 그 좌회전에 양보할 일이 없어졌다.
     tls = _tls("J42")
     y = yields_to(tls, right_turn_links(tls))
-    assert y[0] == set() and y[11] == set()
-    assert {1, 2, 3, 6, 8} <= y[18]
+    assert y[0] == set() and y[10] == set()
+    assert y[17] == {1, 2, 3, 6}

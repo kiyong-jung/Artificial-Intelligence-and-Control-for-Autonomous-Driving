@@ -79,8 +79,10 @@ def check(records: list[dict], ego: dict, step_length: float) -> dict:
             acceleration.append(after["acceleration"])
             jerk.append(after["jerk"])
         peak_jerk.append(record["comfort"]["peak_jerk"])
-        # SUMO는 speedMode의 안전 보조로 제원의 감속 한계보다 세게 멈출 수 있다. 가속은 넘으면 안 된다.
-        if record["comfort"]["peak_acceleration"] > max(ego["accel"], ego["emergency_decel"]) + 1e-3:
+        # 안전 보조가 꺼져 있어 SUMO는 버스를 대신 세우지 않는다. 가감속은 행동의 한계(제원) 안이어야 한다.
+        # 충돌한 스텝은 SUMO가 차를 그 자리에 세우므로 뺀다.
+        if (not record["event"]["collided"]
+                and record["comfort"]["peak_acceleration"] > max(ego["accel"], ego["decel"]) + 1e-3):
             errors.append(f"{where}: 가속도 {record['comfort']['peak_acceleration']}이 제원의 한계를 넘습니다.")
     if acceleration and max(acceleration) > ego["accel"] + 1e-3:
         errors.append(f"가속 최댓값 {max(acceleration):.3f}m/s²이 제원의 가속 한계 {ego['accel']}를 넘습니다.")

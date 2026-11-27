@@ -156,21 +156,26 @@ def test_stop_set_is_s2_s4_s5_s6():
     assert STOP_AT == ("osm_stop_357920024", "osm_stop_5930628870", "osm_stop_3446267493", "osm_stop_3424857165")
 
 
-def test_lane_plans_are_s3_then_two_s2_and_end_before_signals():
+def test_lane_plans_are_s3_then_four_s2_and_end_before_signals():
     p = lane_plans(_net(), lap_route(_net(), _loop()), _stops())
-    assert [x.kind for x in p] == ["S3", "S2", "S2", "STOP", "STOP", "STOP"]      # 뒤 셋은 s4·s5·s6 정류장 차로 도착 창
+    assert [x.kind for x in p] == ["S3", "S2", "S2", "S2", "S2", "STOP", "STOP", "STOP"]   # 뒤 셋은 s4·s5·s6 정류장 차로 도착 창
     # 정류장 차로에는 정류장 시작 10 m 전까지 들어가야 한다(성산중학교 13.31 m -> 3.31 m)
     assert (p[0].edge, p[0].target_lane) == ("R71.206", 1) and p[0].end_pos == pytest.approx(3.31, abs=0.01)
+    # 좌회전은 가장 왼쪽 차로에서만 한다. J82는 3.21.0부터 R111b 차로 3, J83·J42는 3.22.0부터 R112.221 차로 2, R94 차로 2
     assert (p[1].edge, p[1].target_lane) == ("R111b", 3) and p[1].end_pos == pytest.approx(7.0, abs=0.5)
-    # J1은 R42 차로 3도 좌회전이다. 정지선 앞 20 m(R42 16 m 전체 + R54 끝 4 m)라 창 끝은 R54 163 m이고, 목표는 R42 차로 3으로 이어지는 R54 차로 4다
-    assert (p[2].edge, p[2].target_lane) == ("R54", 4) and p[2].end_pos == pytest.approx(163.0, abs=0.5)
-    assert all(x.length >= 120.0 for x in p) and p[2].length >= p[1].length     # J1 앞은 차로를 더 많이 옮긴다
-    # J1 창은 합정역(s6, R54a 245.5~270.5 m) 안에서 시작한다. 감속 판단은 정류장 끝부터 센다
     net = _net()
+    for plan, edge in ((p[2], "R112.221"), (p[3], "R94")):
+        assert (plan.edge, plan.target_lane) == (edge, 2)
+        assert plan.end_pos == pytest.approx(net.getEdge(edge).getLength() - 20.0, abs=0.5)   # 정지선 20 m 앞
+    # J1은 3.22.0부터 R42 차로 4에서만 좌회전한다. 정지선 앞 20 m(R42 16 m 전체 + R54 끝 4 m)라 창 끝은 R54 163 m이고,
+    # 목표는 R42 차로 4로 이어지는 R54 차로 5다
+    assert (p[4].edge, p[4].target_lane) == ("R54", 5) and p[4].end_pos == pytest.approx(163.0, abs=0.5)
+    assert all(x.length >= 120.0 for x in p) and p[4].length > p[1].length     # J1 앞은 차로를 더 많이 옮긴다
+    # J1 창은 합정역(s6, R54a 245.5~270.5 m) 안에서 시작한다. 감속 판단은 정류장 끝부터 센다
     eff = (net.getEdge("R54a").getLength() - 270.5 + net.getEdge("R54b").getLength()
-           + p[2].end_pos)
-    # 3.7.0: 목표 차로가 4 -> 3이라 창이 240 -> 200 m로 줄어 s6 끝(창 끝 211.6 m 전)이 창 밖이다. 그래서 창 전체를 센다
-    assert eff > p[2].length and p[2].eff_length == p[2].length
+           + p[4].end_pos)
+    # 목표 차로가 3.7.0~3.21.0의 3에서 4로 돌아와 창이 240 m라 s6 끝이 창 안에 있다. 그래서 정류장 끝부터 센다
+    assert eff < p[4].length and p[4].eff_length == pytest.approx(eff, abs=0.1)
     assert p[0].eff_length == p[0].length and p[1].eff_length == p[1].length
 
 
@@ -281,10 +286,10 @@ def test_bus_stops_to_guarantee_arrival_in_target_lane_before_window_end():
 
 
 def test_forced_stop_compares_lanes_through_the_connections_not_by_number():
-    # R54 차로 4는 R42 차로 3(좌회전 차로)으로, 차로 5는 R42 차로 4로 이어진다. 창 끝 도로(R42)의 목표 차로 번호(3)와 지금 차로 번호를
-    # 그대로 비교하면, 이미 맞는 차로(4, 5)에 있는 버스를 멈춰 세우고 틀린 차로(3, R42 차로 2로 직진)로 옮기라고 했다
+    # R54 차로 5는 R42 차로 4(3.22.0부터 하나뿐인 좌회전 차로)로, 차로 4는 R42 차로 3(직진)으로 이어진다. 창 끝 도로(R42)의 목표 차로
+    # 번호(4)와 지금 차로 번호를 그대로 비교하면, 이미 맞는 차로(5)에 있는 버스를 멈춰 세우고 틀린 차로(4)로 옮기라고 한다
     L = _net().getEdge("R54").getLength()
-    for lane in (4, 5):
+    for lane in (5,):
         tc = _FakeTC(speed=12.0)
         pilot = _pilot(tc)
         pilot.tick(tc, 0.0)
@@ -294,12 +299,12 @@ def test_forced_stop_compares_lanes_through_the_connections_not_by_number():
 
 
 def test_forced_stop_moves_toward_the_lane_that_reaches_the_target():
-    # R54 차로 2는 R42 차로 1(직진)로 간다. 멈춰서 옮길 때는 R42 차로 3으로 이어지는 가장 가까운 차로(4)로 간다(위쪽 +1)
+    # 멈춰서 옮길 때는 목표(R42 차로 4로 이어지는 R54 차로 5) 쪽으로 한 칸(위쪽 +1) 간다
     L = _net().getEdge("R54").getLength()
     tc = _FakeTC(speed=12.0)
     pilot = _pilot(tc)
     pilot.tick(tc, 0.0)
-    tc.road, tc.lane, tc.pos = "R54", 3, L - 20.0              # 차로 3은 R42 차로 2(직진)로 간다: 목표(R42 3)에 못 닿는다
+    tc.road, tc.lane, tc.pos = "R54", 3, L - 20.0              # 차로 3은 R42 차로 2(직진)로 간다: 목표(R42 4)에 못 닿는다
     _run(pilot, tc, 0.1, 1.0)
     assert tc.set_speed[-1] == 0.0 and tc.change_req and tc.change_req[0] == 4
 

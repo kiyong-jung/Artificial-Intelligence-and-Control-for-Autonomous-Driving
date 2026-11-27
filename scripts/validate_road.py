@@ -6,13 +6,14 @@
 
 먼저 validate_structure로 경로의 차선 연결·정류장·ego 경로·설계 구역을 실행망에 대조한다.
 그다음 seed×시나리오마다 두 종류를 프로세스 풀에서 돌린다.
-- 배경: 배경 차량만 --seconds 동안. 충돌·순간이동·급제동·평균 주행 대수·최대 대기와,
+- 배경: 배경 차량만 --seconds 동안. 충돌·300초 넘게 선 차·급제동·평균 주행 대수·최대 대기와,
   t=300초부터 map.json design.measure_lanes 차로의 평균 속도·점유율·대기 시간.
-- ego: 기본 ego 경로와 모든 s_* 경로를 경로 추종 규칙으로 한 에피소드씩. 투입 대기·종료 사유·에피소드 길이·
+- ego: 기본 ego 경로와 모든 s_* 경로를 전문가 규칙(env/route_policy.ExpertPolicyV5)으로 한 에피소드씩. 투입 대기·종료 사유·에피소드 길이·
   최장 정지·보상 합.
-통과 기준(PASS_CONDITION): 배경은 충돌 0, 순간이동 0(300초 기준), 모든 경계 진입로에서 출발한 차량의 도착.
+통과 기준(PASS_CONDITION): 배경은 충돌 0, 300초 넘게 이어서 선 차 0, 모든 경계 진입로에서 출발한 차량의 도착.
+학습 환경처럼 순간이동을 끄고 돌린다. 막힌 차는 사라지지 않고 서 있으므로 선 시간으로 센다.
 ego는 충돌·투입 실패 없음. r0는 모든 실행에서 도착. s_*는 도착, 시간 초과,
-300초 정지 뒤 순간이동을 시나리오 결과로 기록만 한다. 좌회전·합류 실패가 곧 그 시나리오이기
+stuck을 시나리오 결과로 기록만 한다. 좌회전·합류 실패가 곧 그 시나리오이기
 때문이다. 이 검사는 도로와 파이프라인의 정상 동작을 확인한다. 학습 정책의 안전성이나 실제 도로와의
 일치도를 입증하는 시험은 별도로 설계해야 한다.
 """
@@ -37,17 +38,19 @@ from sumolib import checkBinary
 from sumolib.net import readNet
 
 from env import road_builder
-from env.route_policy import route_following_action
+from env.route_policy import make_expert
 from env.road_config import ROAD, EGO, TRAFFIC, configure_map
 from env.mdp_config import SIMULATION
 from maps import DEFAULT_MAP, available_maps
 
 LANE_DATA_BEGIN_S = 300
-PASS_CONDITION = ("배경: 충돌 0, 순간이동 0(300초 기준), 모든 경계 진입로에서 도착. "
-                  "ego: 충돌·투입 실패 없음. r0는 모든 실행에서 도착. s_*는 도착, 시간 초과, 300초 정지 뒤 "
-                  "순간이동을 시나리오 결과로 기록만 한다.")
+# 순간이동을 켰던 때 SUMO가 차를 옮기던 기준이다. 가장 긴 신호 주기(182초)보다 길다.
+STUCK_S = 300
+PASS_CONDITION = ("배경(순간이동 끔): 충돌 0, 300초 넘게 이어서 선 차 0, 모든 경계 진입로에서 도착. "
+                  "ego: 충돌·투입 실패 없음. r0는 모든 실행에서 도착. s_*는 도착, 시간 초과, stuck을 "
+                  "시나리오 결과로 기록만 한다.")
 # s_* 경로는 좌회전·합류 실패가 시나리오의 일부다. 규칙 운전자가 막혀 서 있는 것은 도로 결함이 아니다.
-SCENARIO_OUTCOMES = ("arrived", "time_limit", "teleport")
+SCENARIO_OUTCOMES = ("arrived", "time_limit", "stuck")
 # 설계 구역(map.json design.zones)에서 id를 담는 키와 그 종류. 원형 차도 진입로는 note 글에만 있다.
 ZONE_ID_KEYS = {"edges": "edge", "alley": "edge", "joins": "edge", "approach": "edge", "left_to": "edge",
                 "goal_edge": "edge", "node": "node", "route": "route"}
@@ -108,8 +111,27 @@ def _number(element: ET.Element | None, key: str) -> int:
     return int(float(element.get(key, "0"))) if element is not None else 0
 
 
+def long_stands(fcd_path: Path, threshold_s: float = STUCK_S) -> list[dict]:
+    """1초 간격 fcd에서 threshold_s 넘게 이어서 선(0.1m/s 이하) 차와 그 차로. 순간이동을 끈 실행의 막힘이다."""
+    since, longest = {}, {}
+    for _, element in ET.iterparse(fcd_path, events=("end",)):
+        if element.tag != "timestep":
+            continue
+        time = float(element.get("time"))
+        for vehicle in element.iter("vehicle"):
+            vid = vehicle.get("id")
+            if float(vehicle.get("speed")) > 0.1:
+                since.pop(vid, None)
+                continue
+            start, lane = since.setdefault(vid, (time, vehicle.get("lane")))
+            if time - start > longest.get(vid, {}).get("stood_s", 0.0):
+                longest[vid] = {"id": vid, "lane": lane, "since_s": start, "stood_s": time - start}
+        element.clear()
+    return sorted((row for row in longest.values() if row["stood_s"] > threshold_s), key=lambda row: -row["stood_s"])
+
+
 def run_background(folder: Path, scenario: str, seed: int, seconds: float, map_id: str) -> dict:
-    """배경 차량만 실행해 충돌·순간이동·경계 진입로별 도착을 잰다."""
+    """배경 차량만 실행해 충돌·막힘·경계 진입로별 도착을 잰다."""
     configure_map(scenario, seed, None, map_id)
     definition = ROAD["network"]
     cfg = Path(road_builder.build(ROAD, EGO, TRAFFIC, str(folder)))
@@ -119,10 +141,11 @@ def run_background(folder: Path, scenario: str, seed: int, seconds: float, map_i
     command = [
         checkBinary("sumo"), "-c", str(cfg),
         "--additional-files", ET.parse(cfg).getroot().find("input/additional-files").get("value") + ",measure.add.xml",
-        "--begin", "0", "--end", str(seconds), "--time-to-teleport", "300",
+        "--begin", "0", "--end", str(seconds), "--time-to-teleport", "-1",
         "--no-step-log", "true", "--duration-log.disable", "true",
         "--summary-output", "summary.xml", "--tripinfo-output", "tripinfo.xml",
         "--statistic-output", "statistics.xml", "--collision-output", "collisions.xml",
+        "--fcd-output", "fcd.xml", "--device.fcd.period", "1", "--fcd-output.attributes", "speed,lane",
     ]
     completed = subprocess.run(command, cwd=folder, capture_output=True, text=True, timeout=900)
     (folder / "sumo.stderr.log").write_text(completed.stderr, encoding="utf-8")
@@ -137,10 +160,7 @@ def run_background(folder: Path, scenario: str, seed: int, seconds: float, map_i
     warmup = SIMULATION["warmup_steps"] * SIMULATION["step_length"]
     window = [row for row in summary if float(row.get("time")) >= warmup]
     statistics = ET.parse(folder / "statistics.xml").getroot()
-    teleports = statistics.find("teleports")
-    teleport_count = _number(teleports, "total") if teleports is not None and "total" in teleports.attrib else 0
-    # SUMO 버전에 따라 통계 필드가 달라도 경고에서 순간이동을 놓치지 않는다.
-    teleport_count = max(teleport_count, len(re.findall(r"Teleporting vehicle", completed.stderr)))
+    stuck = long_stands(folder / "fcd.xml")
     trips = ET.parse(folder / "tripinfo.xml").getroot().findall("tripinfo")
     arrived = [trip for trip in trips if float(trip.get("arrival", "-1")) >= 0]
     # 출발·도착 쌍 하나는 시간당 몇 대뿐이라 1,800초 안에 한 대도 없을 수 있다. 진입로 단위로 본다.
@@ -151,8 +171,8 @@ def run_background(folder: Path, scenario: str, seed: int, seconds: float, map_i
     collisions = len(ET.parse(folder / "collisions.xml").getroot().findall("collision"))
     return {
         "scenario": scenario, "seed": seed,
-        "ok": collisions == 0 and teleport_count == 0 and not entries_without_arrival,
-        "collisions": collisions, "teleports": teleport_count,
+        "ok": collisions == 0 and not stuck and not entries_without_arrival,
+        "collisions": collisions, "stuck_over_300s": len(stuck), "stuck_examples": stuck[:5],
         "emergency_braking": _number(statistics.find("safety"), "emergencyBraking"),
         "mean_running": round(sum(_number(row, "running") for row in window) / len(window), 3),
         "max_trip_waiting_s": max((float(trip.get("waitingTime", 0)) for trip in trips), default=0.0),
@@ -164,7 +184,8 @@ def run_background(folder: Path, scenario: str, seed: int, seconds: float, map_i
 
 
 def run_ego(folder: Path, scenario: str, seed: int, route: str, map_id: str) -> dict:
-    """경로 추종 규칙으로 ego 한 에피소드를 달려 투입·종료·정지·보상을 잰다."""
+    """전문가 규칙으로 ego 한 에피소드를 달려 투입·종료·정지·보상을 잰다. ego는 SUMO 안전 보조 없이 달리므로
+    신호를 보지 못하는 옛 경로 추종 규칙은 첫 적색에서 끝난다."""
     import traci
     from env.mdp_config import OBSERVATION, ACTION, REWARD
     from env.sumo_env import SumoHighwayEnv
@@ -184,8 +205,9 @@ def run_ego(folder: Path, scenario: str, seed: int, route: str, map_id: str) -> 
             return row
         row["insertion_wait_s"] = round(info["ego_insert_wait_seconds"] - step, 1)
         total, streak, longest = 0.0, 0, 0
+        policy = make_expert(env, version=5)
         for index in range(env.max_steps):
-            observation, reward, terminated, truncated, info = env.step(route_following_action(observation))
+            observation, reward, terminated, truncated, info = env.step(policy(observation))
             total += float(reward)
             if env.ego_id in traci.vehicle.getIDList() and traci.vehicle.getSpeed(env.ego_id) < 0.1:
                 streak += 1
@@ -217,9 +239,9 @@ def run_job(kind: str, folder: str, scenario: str, seed: int, seconds: float, ro
 
 
 def print_tables(report: dict) -> None:
-    print("배경  scenario  seed  충돌  순간이동  급제동  평균주행  최대대기(s)  결과")
+    print("배경  scenario  seed  충돌  300초정지  급제동  평균주행  최대대기(s)  결과")
     for row in report["background"]:
-        print(f"      {row['scenario']:9s} {row['seed']:<5d} {row.get('collisions', '-'):<5} {row.get('teleports', '-'):<9} "
+        print(f"      {row['scenario']:9s} {row['seed']:<5d} {row.get('collisions', '-'):<5} {row.get('stuck_over_300s', '-'):<9} "
               f"{row.get('emergency_braking', '-'):<7} {row.get('mean_running', '-'):<9} {row.get('max_trip_waiting_s', '-'):<12} "
               f"{'통과' if row['ok'] else '실패 ' + row.get('error', '')}")
     print("ego   route                   scenario  seed  투입대기(s)  종료사유          길이(s)  최장정지(s)  보상합    결과")
@@ -239,7 +261,7 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=6)
     args = parser.parse_args()
     if args.seconds < 600:
-        parser.error("차량 대기와 순간이동을 관찰할 수 있도록 --seconds는 600 이상으로 지정하세요.")
+        parser.error("차량 대기와 막힘을 관찰할 수 있도록 --seconds는 600 이상으로 지정하세요.")
     configure_map("baseline", 0, None, args.map)
     definition = ROAD["network"]
     structure = validate_structure(definition, Path(definition["net_path"]))

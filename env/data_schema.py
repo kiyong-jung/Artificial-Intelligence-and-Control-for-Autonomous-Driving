@@ -2,7 +2,7 @@
 
 한 행은 판단 한 번의 전이다: 현재 관측·실제 상태 → 행동 → 보상·사건·종료 → 다음 관측·실제 상태.
 """
-SCHEMA_VERSION = "hapjeong_bus_v1"
+SCHEMA_VERSION = "hapjeong_bus_v5"
 
 SCHOOL, TEAM = "학교 기본", "팀 추가"
 # (컬럼, 형태, 구분, 의미). 점(.)은 JSONL에서 한 단계 안쪽 키다.
@@ -10,7 +10,7 @@ COLUMNS = [
     ("episode", "Integer", SCHOOL, "Episode 번호"),
     ("t", "Integer", SCHOOL, "Episode 내부 timestep (판단 한 번 = decision_interval초)"),
     ("sim_time", "Float", TEAM, "관측 시점의 SUMO 시뮬레이션 시각(초). t와 실제 시간을 구분한다"),
-    ("observation", "Vector (profile-dependent)", SCHOOL, "시점 t의 정책 입력. 차원·순서는 metadata.observation 참조"),
+    ("observation", "Vector (46-dim)", SCHOOL, "시점 t에서 AV Policy가 실제로 입력받는 부분 관측 oₜ. 수업 원본 31개 뒤에 경로 정보 12개와 근접 정보 3개"),
     ("action_raw", "Vector (2-dim)", SCHOOL, "Policy가 출력한 원본 Action [가감속, 차선변경]"),
     ("action.accel_raw", "Float", SCHOOL, "환경에 적용된 가감속 Action 값"),
     ("action.lane_change_raw", "Float", SCHOOL, "환경에 적용된 차선변경 raw 값"),
@@ -22,16 +22,22 @@ COLUMNS = [
     ("state", "Dictionary", SCHOOL, "SUMO 내부의 privileged simulator state sₜ (ego, vehicles, pedestrians, navigation, traffic_light)"),
     ("detected_vehicles", "List", SCHOOL, "Observation 시점에 감지된 주변 차량 정보 (관측 차선의 차량과 반경 50m 안의 차량. ego 기준 상대 위치·속도, 방향지시등)"),
     ("detected_pedestrians", "List", TEAM, "Observation 시점에 감지된 보행자 (ego 기준 상대 위치·속도)"),
-    ("event.collided", "Boolean", SCHOOL, "해당 step에서 충돌 발생 여부"),
+    ("event.collided", "Boolean", SCHOOL, "해당 step에서 ego 충돌 발생 여부(차 또는 보행자)"),
+    ("event.pedestrian_collision", "Boolean", TEAM, "해당 step에서 ego가 보행자와 충돌했는지. 참이면 event.collided도 참이다"),
+    ("event.red_light_violation", "Boolean", TEAM, "해당 step에서 ego 앞범퍼가 적색 정지선을 넘었는지"),
     ("event.arrived", "Boolean", SCHOOL, "목적지 도착 여부"),
     ("event.lane_before", "Integer / String", SCHOOL, "Action 적용 전 AV 차선"),
     ("event.lane_after", "Integer / String", SCHOOL, "Action 적용 후 AV 차선"),
-    ("event.termination_reason", "String", TEAM, "종료 원인 (arrived, collision, time_limit, teleport, missing). 종료가 아니면 빈 값"),
+    ("event.termination_reason", "String", TEAM, "종료 원인 (arrived, collision, pedestrian_collision, red_light, time_limit, teleport, missing, stuck). collision은 차와의 충돌이다. stuck은 ego가 stuck_timeout초 동안 stuck_progress_m도 못 간 것. 종료가 아니면 빈 값"),
+    ("event.background_collisions", "Integer", TEAM, "이 step 동안 ego가 끼지 않은 충돌 수(배경 차량끼리, 배경 차량과 보행자)"),
+    ("event.service_event", "String", TEAM, "이 step에 정차할 정류장을 마쳤으면 served, 서지 않고 지나쳤으면 missed, 아니면 빈 값"),
+    ("event.stops_served", "Integer", TEAM, "에피소드에서 지금까지 정차를 마친 정류장 수"),
+    ("event.stops_missed", "Integer", TEAM, "에피소드에서 지금까지 서지 않고 지나친 정차 정류장 수"),
     ("comfort.peak_acceleration", "Float", TEAM, "이 step 동안 버스 가속도 크기의 최댓값 (m/s²). 승객 승차감"),
     ("comfort.peak_jerk", "Float", TEAM, "이 step 동안 버스 jerk(가속도 변화율) 크기의 최댓값 (m/s³). 승객 승차감"),
     ("comfort.acceleration_violation", "Boolean", TEAM, "가속도가 승차감 한계를 넘었는지"),
     ("comfort.jerk_violation", "Boolean", TEAM, "jerk가 승차감 한계를 넘었는지"),
-    ("next_observation", "Vector (profile-dependent)", SCHOOL, "다음 시점의 부분 관측 oₜ₊₁"),
+    ("next_observation", "Vector (46-dim)", SCHOOL, "다음 시점의 부분 관측 oₜ₊₁"),
     ("next_state", "Dictionary", SCHOOL, "다음 시점의 privileged simulator state sₜ₊₁"),
 ]
 
@@ -60,6 +66,33 @@ OBSERVATION_FEATURES = (
        ("leader_gap", "leader_relative_speed", "follower_gap", "follower_relative_speed")]
     + [f"{lane}_route_connectivity" for lane in _LANES]
     + [f"{lane}_density" for lane in _LANES])
+# 수업 원본 31개 뒤에 붙이는 경로 정보(env/sumo_env.py _route_observation). 실제 버스가 보거나 알 수 있는 값이다.
+# 어느 차로로 가라는 값(스키마 v3의 stop_lane_offset, route_lane_offset, route_lane_continuation)은 뺐다. 수업 규칙은
+# 지도 수준의 경로 정보만 허용한다. 차로는 정책이 차로별 연결성(*_route_connectivity)을 보고 고른다.
+#   tl_*: 경로 위 다음 신호(100m 안). 거리/100, 적색(r, R, u), 황색(y, Y), 비보호 녹색(g, s)
+#   stop_*: 정차해야 할 다음 정류장. 거리/300(앞범퍼를 정류장 끝 1m 앞에), 남은 정차 시간 비율
+#   crosswalk_*: 경로 위 다음 횡단보도 거리/100(100m 안), 보행자가 건너는 중이거나(신호 없는 횡단보도는) 기다리는지
+#   speed_limit: 지금 자리의 허용 속도/경로 제한속도. 차로 제한속도와 곡선 제한(버스 횡가속도 한계, env/route_map.curve_speeds) 중 낮은 값
+#   next_speed_limit*: 경로를 따라 100m 안에서 가장 낮은 허용 속도(교차로 안 회전 차로와 곡선 제한 포함)/경로 제한속도와 그 거리/100
+#   ego_acceleration: 지금 가속도/2
+ROUTE_FEATURES = ("tl_distance", "tl_red", "tl_yellow", "tl_yield",
+                  "stop_distance", "stop_dwell_remaining",
+                  "crosswalk_distance", "crosswalk_occupied", "speed_limit",
+                  "next_speed_limit", "next_speed_limit_distance", "ego_acceleration")
+# 경로 정보 뒤에 덧붙인 근접 정보 3개(v5). 규칙 운전사는 읽지 않고, 학습한 정책의 입력이다.
+#   stop_distance_near: 정차할 다음 정류장까지 거리/50(stop_distance와 같은 기준점). 50m보다 멀거나 정류장이 없으면 1
+#   current_leader_gap_far: 내 차로(경로를 따라 이어지는 차로 포함) 앞차까지 거리/100. 100m 안에 없으면 1
+#   tl_yellow_elapsed: tl_*가 가리키는 신호가 황색이면 황색이 켜진 뒤 지난 초/5(1로 자름), 황색이 아니면 0
+NEAR_FEATURES = ("stop_distance_near", "current_leader_gap_far", "tl_yellow_elapsed")
+OBSERVATION_FEATURES = OBSERVATION_FEATURES + list(ROUTE_FEATURES) + list(NEAR_FEATURES)
+
+# train_bc.py --blind compact로 펼치는 묶음: 신경망이 보지 않을 15개 (ego_acceleration은 규칙 운전사가 jerk 제한에 읽어 가리면 검증 손실이 나빠져 뺐다) 항목
+BLIND_BUNDLES = {
+    "compact": [f"{lane}_{name}" for lane in ("left2", "right2") for name in
+                ("leader_gap", "leader_relative_speed", "follower_gap", "follower_relative_speed",
+                 "density", "route_connectivity")]
+               + ["current_follower_gap", "current_follower_relative_speed", "tl_yield"],
+}
 
 CONVENTIONS = {
     "coordinate": "x, y는 SUMO 도로망 좌표(m). heading은 북쪽 0도에서 시계 방향(도). "
@@ -67,7 +100,8 @@ CONVENTIONS = {
                   "relative_heading은 상대가 ego보다 왼쪽(반시계)으로 돌아 있으면 +다.",
     "lane_index": "SUMO 차로 번호. 오른쪽이 0이고 왼쪽으로 갈수록 커진다. 합정역은 0번이 인도라 차도는 1번부터다.",
     "signals": "SUMO getSignals 비트마스크. 1 오른쪽 방향지시등, 2 왼쪽 방향지시등, 8 제동등.",
-    "observation": "모든 값은 [-1, 1]. 거리는 visibility, 속도는 경로 제한속도로 나눈다. "
+    "observation": "모든 값은 [-1, 1]. 거리는 visibility, 속도는 경로 제한속도로 나눈다. 연결성만 "
+                   "connectivity_range로 나눈다. "
                    "차량이 없으면 선행 간격 1, 후행 간격 -1이고, 차로가 없으면 연결성 -1, 밀도 1이다.",
     "missing": "값이 없으면 null이다(앞에 회전·횡단보도·신호가 없을 때, ego가 사라진 뒤의 state).",
     "jerk": "SUMO 계산 간격(step_length)마다 가속도 차이를 그 간격으로 나눈 값이다. state.ego.jerk는 마지막 "

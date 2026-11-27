@@ -28,6 +28,7 @@ from maps import load_map
 
 from algorithms.ppo import PPO
 from algorithms.bc import BCPolicy
+from algorithms.residual import ResidualPolicy
 from utils.evaluator import evaluate_policy
 
 # train.py와 동일한 네트워크 구조로 만들어야 가중치를 불러올 수 있으므로
@@ -209,6 +210,8 @@ if __name__ == "__main__":
     try:
         agent = load_agent(model_path, env.observation_space.shape[0],
                            env.action_space.shape[0], args.algorithm)
+        if saved.get("residual_scale"):
+            agent = ResidualPolicy(agent, env, saved["residual_scale"])
         metrics = evaluate_policy(agent, env, n_episodes=args.episodes,
                                   deterministic=True, seed=args.seed)
     finally:

@@ -4,7 +4,7 @@
     (o_t, a_t, r_t, o_{t+1}, terminated, truncated, s_t, s_{t+1})
 
 - t: 에피소드 안의 RL 스텝 번호. 한 스텝은 metadata의 simulation.decision_interval초다.
-- o_t / o_{t+1}: agent가 실제로 보는 31차원 부분관측 (env/mdp_config.py)
+- o_t / o_{t+1}: agent가 실제로 보는 46차원 부분관측 (수업 원본 31 + 경로 정보 12 + 근접 정보 3, env/data_schema.py)
 - a_t: [가감속 raw, 차선변경 raw]
 - lane_change: 정책이 요청한 {-1, 0, +1}. lane_change_applied는 그 명령의 실행 여부
   (수업 원본과 같은 뜻), lane_change_actual은 같은 edge에서 확인된 실제 이동이다.
@@ -27,7 +27,8 @@
     python collect_pomdp_data.py --episodes 100
     python collect_pomdp_data.py --episodes 10 --gui
     python collect_pomdp_data.py --policy keep-lane --episodes 20
-    python collect_pomdp_data.py --policy route-follow --episodes 20   # 규칙으로 경로 완주
+    python collect_pomdp_data.py --policy route-follow --episodes 20   # 옛 규칙(신호를 못 봄, 비교 기준)
+    python collect_pomdp_data.py --policy expert-v5 --episodes 20      # 데이터 수집 정책(research/av_bc_rl/collection_policy.md)
     python collect_pomdp_data.py --model results/run_xxx/model.pt --episodes 100   # 학습한 PPO로 수집
     python collect_pomdp_data.py --model results/run_xxx/model.pt --stochastic    # 샘플링 행동
     python collect_pomdp_data.py --episodes 200 --workers 8   # SUMO 8개 병렬 수집
@@ -65,7 +66,7 @@ import numpy as np
 from env.road_config import ROAD, EGO, TRAFFIC
 from env.mdp_config import SIMULATION, OBSERVATION, ACTION
 from env import road_builder
-from env.route_policy import route_following_action
+from env.route_policy import route_following_action, make_expert
 from env.sumo_env import SumoHighwayEnv
 from env.experiment import add_run_arguments, configure_execution, read_run_config, write_run_config
 from env import data_schema
@@ -83,6 +84,21 @@ def detect_algorithm(model_path: str) -> str:
     import torch
     ck = torch.load(model_path, map_location="cpu", weights_only=True)
     return "bc" if isinstance(ck, dict) and ck.get("algorithm") == "bc" else "ppo"
+
+
+def check_model_observation(model_path: str, obs_dim: int):
+    """모델이 지금 관측 차원으로 학습한 것이 아니면 ValueError를 낸다.
+
+    스키마 v4(43차원)로 학습한 BC, DAgger, Residual, PPO 모델은 근접 정보 3개를 더한 지금 관측(46차원)을 읽지 못한다.
+    스키마 v3도 46차원이었지만 차원만으로는 가려낼 수 없다. 체크포인트에 스키마 판이 없다.
+    """
+    import torch
+    ck = torch.load(model_path, map_location="cpu", weights_only=True)
+    trained = int(ck["state_dim"]) if ck.get("algorithm") == "bc" else int(ck["trunk.0.weight"].shape[1])
+    if trained != obs_dim:
+        raise ValueError(
+            f"{model_path}: 관측 {trained}차원으로 학습한 모델입니다. 지금 환경의 관측은 {obs_dim}차원"
+            f"({data_schema.SCHEMA_VERSION})이라 쓸 수 없습니다. 지금 환경에서 모은 데이터로 다시 학습하세요.")
 
 
 def prepare(args):
@@ -133,6 +149,10 @@ def make_policy(args, env, worker_seed: int):
                     **{**HPARAMS, "device": args.device, "seed": worker_seed})
         agent.load(args.model)
         deterministic = not args.stochastic   # hybrid: (μ, argmax 차선) / 샘플링
+        saved = read_run_config(args.model) or {}
+        if saved.get("residual_scale"):
+            from algorithms.residual import ResidualPolicy
+            agent = ResidualPolicy(agent, env, saved["residual_scale"])
 
         def act(obs):
             a = agent.predict(obs, deterministic=deterministic)
@@ -153,6 +173,12 @@ def make_policy(args, env, worker_seed: int):
 
     if args.policy == "route-follow":
         return route_following_action
+
+    if args.policy == "expert":
+        return make_expert(env)
+
+    if args.policy in ("expert-v5", "expert-v6", "expert-v7"):
+        return make_expert(env, version=int(args.policy[-1]))
 
     # random: 가감속은 연속 uniform[-1,1], 차선변경은 {-1,0,+1} 직접 샘플링 (유지를 더 자주)
     rng = np.random.default_rng(worker_seed)
@@ -290,6 +316,7 @@ def collect(args, sumocfg, episodes, worker_id, jsonl_path, npz_path, tag=""):
                             "lane_change": int(info["lane_change"]),
                             # 안전 게이트를 통과한 명령과 같은 edge에서 확인된 실제 이동을 구분한다.
                             "lane_change_applied": bool(info["lane_change_applied"]),
+                            "lane_change_aborted": bool(info["lane_change_aborted"]),
                             "lane_change_actual": int(info["lane_change_actual"]),
                             "lane_change_observable": bool(info["lane_change_observable"]),
                             "requested_speed": info["requested_speed"],
@@ -307,12 +334,18 @@ def collect(args, sumocfg, episodes, worker_id, jsonl_path, npz_path, tag=""):
                             "bus_service": info.get("bus_service"),
                             "red_violation": info.get("red_violation", False),
                             "collided": bool(info["collided"]),
+                            "pedestrian_collision": bool(info["pedestrian_collision"]),
+                            "red_light_violation": bool(info["red_light_violation"]),
                             "arrived": bool(info["arrived"]),
                             "simulation_collided": bool(info["simulation_collided"]),
                             "termination_reason": info["termination_reason"],
                             "teleporting_ids": list(info["teleporting_ids"]),
+                            "background_collisions": int(info["background_collisions"]),
                             "lane_before": info["lane_before"],
                             "lane_after": info["lane_after"],
+                            "service_event": info.get("service_event"),
+                            "stops_served": int(info.get("stops_served", 0)),
+                            "stops_missed": int(info.get("stops_missed", 0)),
                         },
                     }
                     if done:
@@ -395,7 +428,7 @@ def merge_parts(parts, jsonl_path, npz_path):
 def main():
     parser = argparse.ArgumentParser(description="SUMO POMDP trajectory collector")
     parser.add_argument("--episodes", type=int, default=50)
-    parser.add_argument("--policy", choices=["random", "keep-lane", "route-follow", "ppo", "bc"],
+    parser.add_argument("--policy", choices=["random", "keep-lane", "route-follow", "expert", "expert-v5", "expert-v6", "expert-v7", "ppo", "bc"],
                         default=None,
                         help="행동 정책. route-follow는 학습 없이 경로를 완주하는 규칙. 생략 시 "
                              "--model이 있으면 파일을 보고 ppo/bc 자동 판별, 없으면 random")
@@ -436,6 +469,8 @@ def main():
               + (" [stochastic]" if args.stochastic and args.policy == "ppo" else ""))
     try:
         prepare(args)
+        if args.model:
+            check_model_observation(args.model, len(data_schema.OBSERVATION_FEATURES))
     except ValueError as exc:
         parser.error(str(exc))
     workers = 1 if args.gui else max(1, min(args.workers, args.episodes))

@@ -19,7 +19,7 @@ def _net():
 
 def test_reachable_next_lists_only_the_roads_this_lane_connects_to():
     # J42 R94: 차로 1은 R53(우회전)·R92(직진)·R54a(좌회전), 차로 2는 R54a(좌회전)뿐이다
-    assert reachable_next(_net(), "R94", 1) == {"R92", "R54a"}      # 3.8.0: 우회전(R53) 없음
+    assert reachable_next(_net(), "R94", 1) == {"R92"}      # 3.8.0: 우회전(R53) 없음, 3.22.0: 차로 1 좌회전 없음
     assert reachable_next(_net(), "R94", 2) == {"R54a"}
 
 

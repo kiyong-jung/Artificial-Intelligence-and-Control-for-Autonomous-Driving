@@ -36,7 +36,7 @@
 
 | 평가 항목 | 보는 곳 | 근거 |
 |---|---|---|
-| 도로 구조 구현 | [도로 구현](#도로-구현) | OpenStreetMap 원본을 실제 지도와 대조해 고친 도로망, 실제 지도와 겹친 그림, 살린 실제 골목 여덟 묶음([골목 보고서](docs/road_report/road_report.pdf)) |
+| 도로 구조 구현 | [도로 구현](#도로-구현) | OpenStreetMap 원본을 실제 지도와 대조해 고친 도로망, 실제 지도와 겹친 그림, 살린 실제 골목 여덟 곳 |
 | 도로 구조의 의미 | [도로 선정과 문제](#도로-선정과-문제) | 가로변 정류장 4곳과 가장 왼쪽 차로 좌회전 4곳이 번갈아 있어 한 바퀴에 차로 변경 8~9번, 합정역 사거리 앞 167m 안에 세 차로 |
 | Vehicle Interaction | [차량 interaction](#차량-interaction) | 13,000바퀴에서 센 바퀴당 장면 횟수, 정류장 앞 택시를 만난 바퀴 240 중 231, 눈치싸움 영상 다섯 개 |
 | Simulation 안정성 | [시뮬레이션 안정성](#시뮬레이션-안정성) | 순간이동 0건, 오류로 끝난 바퀴 0, 배경 이상이 있던 바퀴는 데이터에서 뺌 |
@@ -107,14 +107,14 @@
 | 버스가 서는 정류장 | 4곳, 각 8초 정차 |
 | 좌회전 | 4곳, 가장 왼쪽 차로에서만 |
 | 횡단보도 | 9곳(신호 없는 와우산로 횡단보도 포함) |
-| 살린 실제 골목 | 여덟 묶음 |
+| 살린 실제 골목 | 여덟 곳 |
 | 제한속도 | 간선 50km/h, 이면도로 30km/h(안전속도 5030) |
 | 버스 | 길이 12m, 폭 2.5m, 가속 1.0m/s², 감속 2.0m/s² |
 
 - 원본 도로망은 OpenStreetMap에서 변환했다([`maps/hapjeong/generator/`](maps/hapjeong/generator/)).
 - [`scripts/build_hapjeong.py`](scripts/build_hapjeong.py)가 실제 지도와 대조해 고친 내용을 원본에 차례로 적용한다.
 - 고친 내용은 모두 스크립트로 적용했고, 주요 수정 여섯 곳의 전후 그림은 [`maps/hapjeong/references/fixes/`](maps/hapjeong/references/fixes/)에 있다.
-- 골목이 없으면 버스 앞에 끼어드는 차도 없어서, 버스 경로 안쪽의 실제 골목 여덟 묶음을 살렸다([골목 보고서](docs/road_report/road_report.pdf)).
+- 골목이 없으면 버스 앞에 끼어드는 차도 없어서, 버스 경로 안쪽의 실제 골목 여덟 곳을 살렸다.
 - 학습, 평가, 수집은 모두 커밋된 도로망 [`maps/hapjeong/source/network.net.xml`](maps/hapjeong/source/network.net.xml)을 그대로 읽는다.
 - 도로망의 버전별 수정 이력은 [`maps/hapjeong/README.md`](maps/hapjeong/README.md)에 있다.
 
@@ -151,13 +151,13 @@
 
 평가 13,000바퀴에서 버스가 보는 50m 안에서 다른 차나 보행자와 얽힌 장면을 바퀴당 횟수로 셌다([`count_interactions.py`](research/av_bc_rl/count_interactions.py)).
 
-| 장면 (바퀴당 횟수) | 한산 | 보통 | 혼잡 | 매우 혼잡 | 복합 |
-|---|---:|---:|---:|---:|---:|
-| 정류장 정차 중 같은 차로 뒤 50m 안에 차 (S1) | 0.27 | 0.53 | 0.67 | 0.79 | 1.56 |
-| 왼쪽 변경 요청 때 옮길 차로 뒤 30m 안에 차 (S2) | 0.33 | 0.88 | 1.22 | 1.49 | 2.11 |
-| 오른쪽 변경 요청 때 옮길 차로 뒤 30m 안에 차 (S3) | 0.61 | 0.84 | 0.91 | 0.95 | 0.93 |
-| 앞으로 끼어든 차 (S5) | 0.33 | 0.67 | 0.86 | 0.99 | 1.50 |
-| 보행자가 건너던 횡단보도 접근 (S6) | 2.02 | 1.99 | 1.93 | 1.96 | 2.33 |
+| 장면 (바퀴당 횟수) | 한산 | 보통 | 혼잡 | 매우 혼잡 | 복합 | 평균 |
+|---|---:|---:|---:|---:|---:|---:|
+| 정류장 정차 중 같은 차로 뒤 50m 안에 차 (S1) | 0.27 | 0.53 | 0.67 | 0.79 | 1.56 | **0.76** |
+| 왼쪽 변경 요청 때 옮길 차로 뒤 30m 안에 차 (S2) | 0.33 | 0.88 | 1.22 | 1.49 | 2.11 | **1.21** |
+| 오른쪽 변경 요청 때 옮길 차로 뒤 30m 안에 차 (S3) | 0.61 | 0.84 | 0.91 | 0.95 | 0.93 | **0.85** |
+| 앞으로 끼어든 차 (S5) | 0.33 | 0.67 | 0.86 | 0.99 | 1.50 | **0.87** |
+| 보행자가 건너던 횡단보도 접근 (S6) | 2.02 | 1.99 | 1.93 | 1.96 | 2.33 | **2.05** |
 
 - 실제 차로 변경 중 옮길 차로 앞뒤 30m 안에 차가 있던 비율은 한산 16%, 보통 32%, 혼잡 36%, 매우 혼잡 41%, 복합 46%다(교통마다 400바퀴, [`traffic_around_bus.py`](research/av_bc_rl/traffic_around_bus.py)).
 - 정류장 앞 택시(S4)는 복합 교통 240바퀴 중 231바퀴에서 만났다(DAgger 21회 모델의 평가 기록, [`cause_table_confirm.txt`](research/traffic_checks/cause_table_confirm.txt)).
@@ -493,7 +493,7 @@ python -m pytest tests
 |---|---|
 | [`models/final/`](models/final/) | 최종 모델, 학습 설정, 학습 기록 |
 | [`research/traffic_checks/`](research/traffic_checks/) | 교통 점검(버스와 무관한지, 옆 이동 설정 비교, 시나리오 S4~S6 세기) |
-| [`docs/`](docs/) | [신경망 구조](docs/network_architecture.md), [관측 설계](docs/observation_design.md), [선행 연구 조사](docs/literature_survey.md), [교통 자연스러움 감사](docs/naturalness_audit/), [골목 보고서](docs/road_report/) |
+| [`docs/`](docs/) | [신경망 구조](docs/network_architecture.md), [관측 설계](docs/observation_design.md), [선행 연구 조사](docs/literature_survey.md), [교통 자연스러움 감사](docs/naturalness_audit/) |
 | [`web_page/`](web_page/) | 프로젝트 페이지(GitHub Pages로 배포) |
 | [`tests/`](tests/) | pytest 390개 |
 | [`scripts/`](scripts/) | 도로 빌드, 점검, 측정 스크립트 |

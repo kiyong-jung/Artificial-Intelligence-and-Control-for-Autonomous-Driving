@@ -220,6 +220,7 @@
   .story-step h3 { order: 2; margin: var(--s-4) 0 0; font-size: var(--fs-lead); line-height: var(--lh-ui); letter-spacing: var(--ls-tight); }
   /* 넓은 화면의 이야기 글은 약 216px 좁은 칸이라 양쪽 정렬하면 숫자 묶음(.nobr) 앞뒤가 크게 벌어진다. 4열에서는 왼쪽 정렬, 860px 이하 1열에서 양쪽 정렬한다. */
   .story-step p { order: 3; margin: var(--s-2) 0 0; font-size: var(--fs-ui); text-align: start; }
+  .story-step .mini-points { order: 3; font-size: var(--fs-ui); color: var(--body); }
   .story-link { order: 4; align-self: flex-start; display: inline-flex; align-items: center; min-height: var(--tap); color: var(--accent); font-size: var(--fs-ui); font-weight: var(--w-bold); }
   .story-link:hover { color: var(--accent-deep); }
   /* 아이콘 선: ink 선, accent 노선·화살표, stop 정류장 네모, surface 속, rule-strong 도로 */
@@ -286,6 +287,8 @@
   .goal-chip { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--tap); margin-top: var(--s-4); padding: 0 var(--s-4); border: 1px solid var(--rule); border-radius: var(--r-pill); background: var(--surface); color: var(--ink); font-size: var(--fs-ui); font-weight: var(--w-semi); text-decoration: none; word-break: keep-all; }
   .goal-chip:hover { border-color: var(--rule-strong); color: var(--ink); }
   .goal-chip i { width: var(--mark); height: var(--mark); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
+  .mini-points { margin: var(--s-2) 0 0; padding-left: 1.1em; }
+  .mini-points li { margin: 2px 0; text-align: left; word-break: keep-all; text-wrap: balance; line-height: var(--lh-ui); }
   footer { color: var(--muted); font-size: var(--fs-small); padding-bottom: var(--s-7); }
   footer .wide { position: relative; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--s-3) var(--s-6); padding-top: var(--s-5); }
   footer a { display: inline-flex; align-items: center; min-height: var(--tap); }
@@ -411,7 +414,7 @@
         <circle class="if" cx="68" cy="58" r="7"/>
       </svg>
       <h3>차로를 가장 자주 바꾸는 차</h3>
-      <p>시내버스는 차로를 가장 자주 바꿔야 하는 차다. 승객을 태우려면 가장 바깥 차로의 정류장으로 가고, 좌회전하려면 가장 안쪽 차로로 가야 한다.</p>
+      <ul class="mini-points"><li>정류장은 가장 바깥 차로</li><li>좌회전은 가장 안쪽 차로</li></ul>
     </li>
     <li class="story-step">
       <svg class="story-icon" viewBox="0 0 120 80" aria-hidden="true" focusable="false">
@@ -423,7 +426,7 @@
         <rect class="is" x="16" y="34" width="12" height="12" rx="2"/>
       </svg>
       <h3>정류장과 좌회전이 번갈아</h3>
-      <p>합정역 순환 노선 <span class="nobr">1.96km에는</span> 정류장 4곳과 좌회전 4곳이 번갈아 있다. 그래서 버스는 한 바퀴에 차로를 <span class="nobr">8~9번</span> 바꾼다.</p>
+      <ul class="mini-points"><li>정류장 4곳·좌회전 4곳이 번갈아</li><li>한 바퀴에 차로 변경 <span class="nobr">8~9번</span></li></ul>
     </li>
     <li class="story-step">
       <svg class="story-icon" viewBox="0 0 120 80" aria-hidden="true" focusable="false">
@@ -440,7 +443,7 @@
         <path class="il" d="M69 13.5L75 19L69 24.5"/>
       </svg>
       <h3>옆 차로와 눈치싸움</h3>
-      <p>옆 차로에는 차가 있다. 정류장 앞에는 택시가 서 있고, 골목에서 차가 끼어들고, 신호 없는 횡단보도에는 보행자가 건넌다. 버스는 <span class="nobr">0.5초마다</span> 끼어들지 기다릴지 정한다.</p>
+      <ul class="mini-points"><li>택시·골목 차·보행자가 옆에</li><li><span class="nobr">0.5초마다</span> 끼어들지 판단</li></ul>
       <a class="story-link" href="#nunchi">눈치싸움 장면 보기</a>
     </li>
     <li class="story-step">
@@ -457,51 +460,51 @@
         <circle class="if" cx="96" cy="50" r="7"/>
       </svg>
       <h3>신경망 하나에 맡겼다</h3>
-      <p>우리는 규칙 없이 신경망 하나에 이 버스를 맡겼다. <span class="nobr">13,000바퀴</span> 중 <span class="nobr">95.6%를</span> 완주했고 충돌은 <span class="nobr">0.66%였다.</span></p>
+      <ul class="mini-points"><li>규칙 없이 신경망 하나로 운전</li><li>완주 <span class="nobr">95.6%</span>, 충돌 <span class="nobr">0.66%</span></li></ul>
     </li>
   </ol>
 </section>
 
 <section class="wide scorecard" aria-labelledby="score-title">
   <h2 id="score-title" class="band-title">메인 목표 달성률 100%</h2>
-  <p class="score-sub">수업이 메인 목표로 정한 기준 4개를 모두 통과했다. 수치는 학습에 쓰지 않은 seed로 돌린 <span class="nobr">13,000바퀴에서</span> 셌다.</p>
+  <p class="score-sub">수업 기준 4개 모두 통과 · 새 seed <span class="nobr">13,000바퀴</span> 기준</p>
   <div class="score-grid">
     <a class="score" href="#results">
       <span class="score-head"><span class="score-name">Collision Rate</span><span class="score-ok">충족</span></span>
-      <span class="vs"><span class="vs-k">기준</span><span class="vs-v">5% 미만, 낮을수록 좋다</span></span>
+      <span class="vs"><span class="vs-k">기준</span><span class="vs-v">5% 미만</span></span>
       <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">0.66%</span></span>
       <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 13.2%; --at: 100%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label end">기준</i></span></span>
-      <span class="score-note">13,000바퀴 중 차 76번, 보행자 10번</span>
+      <ul class="mini-points score-note"><li>차 76번 + 보행자 10번</li></ul>
     </a>
     <a class="score" href="#results">
       <span class="score-head"><span class="score-name">목적지 완주</span><span class="score-ok">충족</span></span>
-      <span class="vs"><span class="vs-k">기준</span><span class="vs-v">출발점에서 목적지까지 완주(비정상 정지·무한 대기 없이)</span></span>
+      <span class="vs"><span class="vs-k">기준</span><span class="vs-v">목적지까지 완주</span></span>
       <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">95.6%</span></span>
       <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 95.58%"><i class="bar-fill"></i></span></span>
-      <span class="score-note">13,000바퀴 중 12,425바퀴, 순간이동 0건</span>
+      <ul class="mini-points score-note"><li><span class="nobr">12,425 / 13,000바퀴</span></li></ul>
     </a>
     <a class="score" href="#data">
       <span class="score-head"><span class="score-name">Dataset</span><span class="score-ok">충족</span></span>
       <span class="vs"><span class="vs-k">기준</span><span class="vs-v">10,000,000건(10⁷) 이상</span></span>
       <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">10,864,774<small>건</small></span></span>
       <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 100%; --at: 92.04%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label">기준</i></span></span>
-      <span class="score-note">기준의 108.6%, <span class="nobr">Hugging Face</span> 공개</span>
+      <ul class="mini-points score-note"><li>기준의 108.6%, HF 공개</li></ul>
     </a>
     <a class="score" href="#lap-video">
       <span class="score-head"><span class="score-name">실주행 영상</span><span class="score-ok">충족</span></span>
       <span class="vs"><span class="vs-k">기준</span><span class="vs-v">30초 이상</span></span>
       <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">67<small>초</small></span></span>
       <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 100%; --at: 44.78%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label">기준</i></span></span>
-      <span class="score-note">출발부터 도착까지 한 바퀴, 눈치싸움 장면 5개</span>
+      <ul class="mini-points score-note"><li>한 바퀴 + 눈치싸움 5개</li></ul>
     </a>
   </div>
   <ul class="criteria">
-    <li><a href="#why"><b>도로 구조의 의미</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">AV가 의사결정을 해야 하는 구조적 특징이 존재하는가</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">정류장 4곳과 가장 왼쪽 차로 좌회전 4곳이 번갈아 있어 한 바퀴에 차로를 8~9번 바꾼다</span></span></a></li>
-    <li><a href="#road"><b>도로 구조 구현</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">실제 도로의 특징이 자연스럽게 반영되었는가</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">실제 OpenStreetMap 도로와 실제 골목 여덟 곳, 도로망 3.22.0</span></span></a></li>
-    <li><a href="#traffic"><b>Traffic 구성</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">충분한 수의 일반 차량이 존재하고 자연스럽게 움직이는가</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">교통 다섯 단계, 버스 150m 안 일반 차 평균 4.9~18.8대</span></span></a></li>
-    <li><a href="#interaction"><b>Vehicle Interaction</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">일반 차량과 AV 사이에 의미 있는 interaction이 발생하는가</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">복합 교통에서 차로 변경의 46%가 옮길 차로 30m 안에 차가 있는 채로 일어난다</span></span></a></li>
-    <li><a href="#results"><b>Simulation 안정성</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">비정상적인 정체, Teleport, 오류가 없는가</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">순간이동 0건, 오류로 끝난 바퀴 0, 이상 바퀴는 데이터에서 뺐다</span></span></a></li>
-    <li><a href="#problems"><b>분석 및 설명</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">환경 설계 이유, 문제점, 해결 과정을 논리적으로 설명하는가</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">문제 여섯 개의 원인과 해결, 실패 575바퀴가 난 곳</span></span></a></li>
+    <li><a href="#why"><b>도로 구조의 의미</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">의사결정이 필요한 구조</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">정류장 4곳·좌회전 4곳 번갈아</span></span></a></li>
+    <li><a href="#road"><b>도로 구조 구현</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">실제 도로 특징 반영</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">실제 OSM 도로·골목 8곳</span></span></a></li>
+    <li><a href="#traffic"><b>Traffic 구성</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">충분한 일반 차량</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">버스 주변 평균 4.9~18.8대</span></span></a></li>
+    <li><a href="#interaction"><b>Vehicle Interaction</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">AV와 의미 있는 상호작용</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">차로 변경 46%가 옆 차와 함께</span></span></a></li>
+    <li><a href="#results"><b>Simulation 안정성</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">정체·Teleport·오류 없음</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">순간이동 0건, 오류 0</span></span></a></li>
+    <li><a href="#problems"><b>분석 및 설명</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">설계 이유·문제·해결 설명</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">문제 6개 해결, 실패 위치 분석</span></span></a></li>
   </ul>
 </section>
 

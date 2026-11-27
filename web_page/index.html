@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>합정역 자율주행버스: 신경망 하나로 13,000바퀴, 완주 95.6%</title>
-<meta name="description" content="서울 합정역 일대 실제 도로를 SUMO로 옮기고, 학습한 신경망이 규칙 보조 없이 버스를 몰아 13,000바퀴 중 95.6%를 완주했다. 충돌 0.66%, 주행 데이터 1,086만 건 공개." />
+<meta name="description" content="서울 합정역 일대 실제 도로를 SUMO로 옮기고, 학습한 신경망이 규칙 보조 없이 버스를 주행해 13,000바퀴 중 95.6%를 완주했다. 충돌 0.66%, 주행 데이터 1,086만 건 공개." />
 <meta property="og:title" content="합정역 자율주행버스" />
 <meta property="og:description" content="가로변 정류장과 좌회전 차로를 오가는 버스를 신경망 하나로 운전한다. 13,000바퀴 완주 95.6%, 충돌 0.66%." />
 <meta property="og:type" content="article" />
@@ -197,20 +197,20 @@
   .theater > p { max-width: var(--measure); margin: var(--s-3) 0 0; }
   .scene-panels { display: grid; gap: var(--s-6); margin-top: var(--s-5); }
   .scene-panel figure { margin: 0; }
+  .scene-route { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-2); margin: var(--s-5) 0 var(--s-3); }
+  .scene-route[hidden] { display: none; }
+  .scene-route button { display: flex; flex-direction: column; gap: var(--s-2); min-height: var(--tap); margin: 0; padding: var(--s-1) var(--s-1) var(--s-2); background: var(--surface); border: 2px solid var(--rule); border-radius: var(--r-lg); color: var(--muted); font: inherit; font-size: var(--fs-small); line-height: var(--lh-ui); text-align: left; cursor: pointer; word-break: keep-all; transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+  .scene-route button img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-sm); }
+  .scene-route .scene-name { padding: 0 var(--s-1); }
+  .scene-route .scene-name b { color: var(--accent); margin-right: 2px; }
+  .scene-route button:hover { border-color: var(--rule-strong); color: var(--ink); }
+  .scene-route [aria-selected="true"] { border-color: var(--accent); color: var(--ink); font-weight: var(--w-bold); }
   .theater.is-tabs .scene-panel { grid-area: 1 / 1; }
   .theater.is-tabs .scene-panel:not(.is-on) { visibility: hidden; }
   .scene-meta { display: block; margin-bottom: var(--s-1); }
   .scene-meta b { color: var(--ink); font-weight: var(--w-bold); }
   .theater .caption strong { font-size: var(--fs-lead); }
   .scene-desc { display: block; max-width: var(--measure); color: var(--body); font-size: var(--fs-body); line-height: var(--lh-text); }
-  .scene-route { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: var(--s-4); }
-  .scene-route[hidden] { display: none; }
-  .scene-route::before { content: ""; position: absolute; top: calc(var(--s-3) + var(--mark) / 2 - 2px); left: 10%; right: 10%; height: 4px; background: var(--accent); }
-  .scene-route button { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--s-2); width: 100%; min-height: var(--tap); margin: 0; padding: var(--s-3) var(--s-2) var(--s-2); border: 0; border-radius: var(--r-sm); background: none; color: var(--muted); font: var(--w-med) var(--fs-ui)/var(--lh-ui) var(--sans); text-align: center; text-wrap: balance; cursor: pointer; touch-action: manipulation; transition: color var(--t-fast) var(--ease); }
-  .scene-route button::before { content: ""; flex: none; width: var(--mark); height: var(--mark); background: var(--paper); border: 2px solid var(--accent); border-radius: 50%; }
-  .scene-route button:hover { color: var(--ink); }
-  .scene-route [aria-selected="true"] { color: var(--ink); font-weight: var(--w-bold); }
-  .scene-route [aria-selected="true"]::before { background: var(--stop); border-color: var(--ink); border-radius: 2px; }
 
   pre { margin: var(--s-4) 0; padding: var(--s-4); overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); font-size: var(--fs-small); line-height: var(--lh-ui); }
   pre code { padding: 0; background: none; font-size: 1em; font-weight: var(--w-reg); white-space: pre; }
@@ -365,11 +365,9 @@
     .table-scroll th:first-child, .table-scroll td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); border-right: 1px solid var(--rule-soft); }
     .grouped td:last-child { min-width: 16em; }
     .table-scroll .grouped td:first-child:not([rowspan]) { position: static; z-index: auto; border-right: 0; padding-left: var(--s-2); min-width: 0; white-space: nowrap; }
-    .scene-route { grid-template-columns: 1fr; }
-    .scene-route::before { top: calc(var(--tap) / 2); bottom: calc(var(--tap) / 2); left: calc(var(--s-2) + var(--mark) / 2 - 2px); right: auto; width: 4px; height: auto; }
-    .scene-route button { flex-direction: row; gap: var(--s-4); padding: 0 var(--s-2); text-align: left; }
-  }
+        }
   @media (max-width: 600px) { .shortcut-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 860px) { .scene-route { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-1); } .scene-route .scene-name { font-size: 0; padding: 0; text-align: center; } .scene-route .scene-name b { font-size: var(--fs-small); margin: 0; } }
 </style>
 </head>
 <body>
@@ -395,7 +393,7 @@
     </div>
     <p class="author-notes">성균관대학교 · 자율주행인공지능및제어 팀 프로젝트 · URBAN:ON</p>
   </div>
-  <p class="lede">서울 합정역 일대 도로를 SUMO로 옮기고, 규칙 보조 없이 신경망 하나로 버스를 몰아 <span class="nobr">13,000바퀴</span> 중 <span class="nobr">95.6%를</span> 완주했으며, 그 주행 <span class="nobr">1,086만 건을</span> 공개한다.</p>
+  <p class="lede">서울 합정역 일대 도로를 SUMO로 옮기고, 규칙 보조 없이 신경망 하나로 버스를 주행해 <span class="nobr">13,000바퀴</span> 중 <span class="nobr">95.6%를</span> 완주했으며, 그 주행 <span class="nobr">1,086만 건을</span> 공개한다.</p>
   <div class="hero-links">
     <a class="button" href="https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving">GitHub 코드</a>
     <a class="button tonal" href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">Hugging Face 데이터</a>
@@ -517,7 +515,7 @@
 
 <figure class="wide demo" id="lap-video">
   <div class="video-box"><video src="assets/videos/full_lap.mp4" poster="assets/videos/full_lap.jpg" width="1120" height="720" data-play-in-view muted loop playsinline controls preload="metadata" aria-label="학습한 버스가 복합 교통에서 정류장 4곳을 서고 한 바퀴를 완주하는 영상"></video></div>
-  <figcaption class="caption"><strong>영상 1. 학습한 신경망이 몬 한 바퀴</strong>가장 붐비는 복합 교통에서 정류장 4곳에 서고 돌아오는 약 8분짜리 한 바퀴를 67초로 줄인 영상이다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
+  <figcaption class="caption"><strong>영상 1. 학습한 신경망이 주행한 한 바퀴</strong>가장 붐비는 복합 교통에서 정류장 4곳에 서고 돌아오는 약 8분짜리 한 바퀴를 67초로 줄인 영상이다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
 </figure>
 
 <section class="wrap paper-abstract" aria-labelledby="abstract">
@@ -654,44 +652,44 @@
       <div class="theater" id="nunchi" data-video-group>
         <h3 class="theater-title">눈치싸움 장면</h3>
         <p>버스와 주변 차가 서로 속도와 간격을 보며 먼저 갈지 기다릴지 정한다. 사람 운전자끼리의 눈치싸움과 닮은, 숫자로는 보이지 않는 장면이다. SUMO 화면은 2배속이다.</p>
+        <div class="scene-route" role="tablist" aria-label="눈치싸움 장면 고르기" hidden>
+          <button type="button" role="tab" id="scene-tab-1" aria-selected="true" aria-controls="scene-1"><img src="assets/videos/scenario_1.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>1</b> 합정역 정류장 진입</span></button>
+          <button type="button" role="tab" id="scene-tab-2" aria-selected="false" aria-controls="scene-2" tabindex="-1"><img src="assets/videos/scenario_2.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>2</b> 정류장 출발과 재합류</span></button>
+          <button type="button" role="tab" id="scene-tab-3" aria-selected="false" aria-controls="scene-3" tabindex="-1"><img src="assets/videos/scenario_3.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>3</b> 독막로 정류장</span></button>
+          <button type="button" role="tab" id="scene-tab-4" aria-selected="false" aria-controls="scene-4" tabindex="-1"><img src="assets/videos/scenario_4.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>4</b> 붐비는 교차로 출발</span></button>
+          <button type="button" role="tab" id="scene-tab-5" aria-selected="false" aria-controls="scene-5" tabindex="-1"><img src="assets/videos/scenario_5.jpg" alt="" width="960" height="540" loading="lazy" decoding="async"><span class="scene-name"><b>5</b> 교차로 앞 차로 변경</span></button>
+        </div>
         <div class="scene-panels">
           <div class="scene-panel is-on" id="scene-1" role="tabpanel" aria-labelledby="scene-tab-1">
             <figure>
-              <div class="video-box"><video src="assets/videos/scenario_1.mp4" poster="assets/videos/scenario_1.jpg" width="960" height="540" data-play-in-view controls muted loop playsinline preload="none" aria-labelledby="scene-1-title"></video></div>
+              <div class="video-box"><video src="assets/videos/scenario_1.mp4" poster="assets/videos/scenario_1.jpg" width="960" height="540" data-play-in-view controls muted playsinline preload="none" aria-labelledby="scene-1-title"></video></div>
               <figcaption class="caption"><span class="scene-meta"><b>장면 1</b> · 보통 교통</span><strong id="scene-1-title">합정역 정류장 진입</strong><span class="scene-desc">신호를 기다리며 줄 선 차들 바로 옆 정류장 차로로 들어가 서고, 정차를 마친 뒤 다시 교차로로 나간다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
             </figure>
           </div>
           <div class="scene-panel" id="scene-2" role="tabpanel" aria-labelledby="scene-tab-2">
             <figure>
-              <div class="video-box"><video src="assets/videos/scenario_2.mp4" poster="assets/videos/scenario_2.jpg" width="960" height="540" data-play-in-view controls muted loop playsinline preload="none" aria-labelledby="scene-2-title"></video></div>
+              <div class="video-box"><video src="assets/videos/scenario_2.mp4" poster="assets/videos/scenario_2.jpg" width="960" height="540" data-play-in-view controls muted playsinline preload="none" aria-labelledby="scene-2-title"></video></div>
               <figcaption class="caption"><span class="scene-meta"><b>장면 2</b> · 보통 교통</span><strong id="scene-2-title">정류장 출발과 재합류</strong><span class="scene-desc">정류장을 떠나는 버스 옆으로 차가 붙어 오고, 둘이 나란히 달리며 서로 간격을 맞춘다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
             </figure>
           </div>
           <div class="scene-panel" id="scene-3" role="tabpanel" aria-labelledby="scene-tab-3">
             <figure>
-              <div class="video-box"><video src="assets/videos/scenario_3.mp4" poster="assets/videos/scenario_3.jpg" width="960" height="540" data-play-in-view controls muted loop playsinline preload="none" aria-labelledby="scene-3-title"></video></div>
+              <div class="video-box"><video src="assets/videos/scenario_3.mp4" poster="assets/videos/scenario_3.jpg" width="960" height="540" data-play-in-view controls muted playsinline preload="none" aria-labelledby="scene-3-title"></video></div>
               <figcaption class="caption"><span class="scene-meta"><b>장면 3</b> · 보통 교통</span><strong id="scene-3-title">독막로 정류장</strong><span class="scene-desc">옆 차로를 오가는 차들 사이로 가로변 정류장에 섰다가 다음 교차로로 향한다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
             </figure>
           </div>
           <div class="scene-panel" id="scene-4" role="tabpanel" aria-labelledby="scene-tab-4">
             <figure>
-              <div class="video-box"><video src="assets/videos/scenario_4.mp4" poster="assets/videos/scenario_4.jpg" width="960" height="540" data-play-in-view controls muted loop playsinline preload="none" aria-labelledby="scene-4-title"></video></div>
+              <div class="video-box"><video src="assets/videos/scenario_4.mp4" poster="assets/videos/scenario_4.jpg" width="960" height="540" data-play-in-view controls muted playsinline preload="none" aria-labelledby="scene-4-title"></video></div>
               <figcaption class="caption"><span class="scene-meta"><b>장면 4</b> · 혼잡 교통</span><strong id="scene-4-title">붐비는 교차로 출발</strong><span class="scene-desc">긴 대기 줄 앞에서 신호를 기다리다 녹색이 켜지자 다른 차들과 함께 교차로를 건넌다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
             </figure>
           </div>
           <div class="scene-panel" id="scene-5" role="tabpanel" aria-labelledby="scene-tab-5">
             <figure>
-              <div class="video-box"><video src="assets/videos/scenario_5.mp4" poster="assets/videos/scenario_5.jpg" width="960" height="540" data-play-in-view controls muted loop playsinline preload="none" aria-labelledby="scene-5-title"></video></div>
+              <div class="video-box"><video src="assets/videos/scenario_5.mp4" poster="assets/videos/scenario_5.jpg" width="960" height="540" data-play-in-view controls muted playsinline preload="none" aria-labelledby="scene-5-title"></video></div>
               <figcaption class="caption"><span class="scene-meta"><b>장면 5</b> · 한산 교통</span><strong id="scene-5-title">교차로 앞 차로 변경</strong><span class="scene-desc">옆 차와 나란히 정지선에 다가가고, 교차로 안을 지나는 차를 기다린 뒤 차로를 옮겨 출발한다.</span><span class="video-key"><b>빨간 차가 버스</b> · SUMO 화면 녹화</span></figcaption>
             </figure>
           </div>
-        </div>
-        <div class="scene-route" role="tablist" aria-label="눈치싸움 장면 고르기" hidden>
-          <button type="button" role="tab" id="scene-tab-1" aria-selected="true" aria-controls="scene-1">합정역 정류장 진입</button>
-          <button type="button" role="tab" id="scene-tab-2" aria-selected="false" aria-controls="scene-2" tabindex="-1">정류장 출발과 재합류</button>
-          <button type="button" role="tab" id="scene-tab-3" aria-selected="false" aria-controls="scene-3" tabindex="-1">독막로 정류장</button>
-          <button type="button" role="tab" id="scene-tab-4" aria-selected="false" aria-controls="scene-4" tabindex="-1">붐비는 교차로 출발</button>
-          <button type="button" role="tab" id="scene-tab-5" aria-selected="false" aria-controls="scene-5" tabindex="-1">교차로 앞 차로 변경</button>
         </div>
       </div>
     </section>
@@ -712,12 +710,12 @@
       </div>
       <p>차로를 알려 주는 지시는 없고, 버스는 차로마다 노선으로 이어지는 거리만 보고 갈 차로를 정한다. 가속도를 값 하나로 맞히게 하면 서야 할지 가야 할지 모를 때 그 중간값을 내서, 11칸 중 하나를 고르게 바꿨다.</p>
       <h3>DAgger와 커리큘럼</h3>
-      <p>신경망이 직접 몬 상태마다 규칙 운전사의 정답을 붙여 다시 학습하고, 교통은 쉬운 것에서 붐비는 것으로 넓혔다. 규칙 운전사는 정답을 붙일 때만 쓰고 주행할 때는 쓰지 않는다.</p>
+      <p>신경망이 직접 주행한 상태마다 규칙 운전사의 정답을 붙여 다시 학습하고, 교통은 쉬운 것에서 붐비는 것으로 넓혔다. 규칙 운전사는 정답을 붙일 때만 쓰고 주행할 때는 쓰지 않는다.</p>
       <div class="table-scroll" role="region" tabindex="0" aria-label="DAgger 단계 표">
         <table>
           <thead><tr><th scope="col">단계</th><th scope="col">교통</th><th scope="col">내용</th></tr></thead>
           <tbody>
-            <tr><td>시범</td><td>한산, 보통, 혼잡</td><td>규칙 운전사가 300바퀴를 몰고 그 기록으로 처음 모방학습</td></tr>
+            <tr><td>시범</td><td>한산, 보통, 혼잡</td><td>규칙 운전사가 300바퀴를 주행하고 그 기록으로 처음 모방학습</td></tr>
             <tr><td>DAgger 1~12회</td><td>한산, 보통, 혼잡</td><td>회마다 교통별 25바퀴를 신경망이 직접 운전</td></tr>
             <tr><td>DAgger 13~16회</td><td>+ 매우 혼잡</td><td>끼어들기와 대기 줄 상황 추가</td></tr>
             <tr><td>DAgger 17~21회</td><td>+ 택시·골목 차·보행자</td><td>정류장 앞 택시와 골목 차 학습</td></tr>
@@ -796,7 +794,7 @@
 
     <section class="article-section" aria-labelledby="data">
       <h2 id="data">데이터셋</h2>
-      <p>신경망이 탐색 잡음 없이 직접 몬 13,000바퀴를 0.5초마다 한 건씩 기록해, 실패나 시뮬레이션 이상이 없는 바퀴만 걸러 공개한다(1,290바퀴 제외).</p>
+      <p>신경망이 탐색 잡음 없이 직접 주행한 13,000바퀴를 0.5초마다 한 건씩 기록해, 실패나 시뮬레이션 이상이 없는 바퀴만 걸러 공개한다(1,290바퀴 제외).</p>
       <div class="stat-row">
         <div class="stat"><b>10,864,774</b><span>공개한 transition</span></div>
         <div class="stat"><b>11,710</b><span>공개한 바퀴</span></div>
@@ -1075,6 +1073,15 @@ pip install -r requirements.txt</code></pre>
     });
     orient();
     if (narrow.addEventListener) narrow.addEventListener('change', orient);
+    panels.forEach(function (p, k) {
+      var v = p.querySelector('video');
+      v.addEventListener('ended', function () {
+        var j = (k + 1) % panels.length;
+        box.removeAttribute('data-user-paused');
+        select(j);
+        if (allowed()) play(panels[j].querySelector('video'));
+      });
+    });
     box.classList.add('is-tabs');
     list.hidden = false;
   })();

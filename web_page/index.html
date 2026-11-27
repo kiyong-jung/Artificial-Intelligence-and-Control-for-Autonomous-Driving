@@ -498,8 +498,8 @@
     <a class="score" href="#lap-video">
       <span class="score-head"><span class="score-name">실주행 영상</span><span class="score-ok">충족</span></span>
       <span class="vs"><span class="vs-k">기준</span><span class="vs-v">30초 이상</span></span>
-      <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">67<small>초</small></span></span>
-      <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 100%; --at: 44.78%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label">기준</i></span></span>
+      <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">75<small>초</small></span></span>
+      <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 100%; --at: 40%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label">기준</i></span></span>
       <ul class="mini-points score-note"><li>한 바퀴 + 눈치싸움 6개</li></ul>
     </a>
   </div>
@@ -712,7 +712,7 @@
             <tr><td>Action</td><td>[가감속, 차로 변경]. 가감속은 +1.0 ~ -2.0m/s², 차로 변경은 {-1, 0, +1}. 0.5초마다 한 번 판단한다. 차로 변경 명령은 수업 원본 환경의 차로 변경 안전 검사(앞뒤 3m와 속도 비례 여유, 출발 60m)를 거치며, 값은 수업 원본과 같다. 조교가 이 검사는 끄지 않아도 된다고 답했다.</td></tr>
             <tr><td>Reward</td><td>속도 0.1 × v/vmax, 정류장 정차 +1, 정류장 지나침 -3, 충돌 -5, 적색 통과 -5, 도착 +2, 멈춰 섬 -2, 승차감 한계 넘음 -0.02.</td></tr>
             <tr><td>종료</td><td>충돌, 적색 통과, 도착, 멈춰 섬(200초 동안 5m 못 감), 1,400 step(700초).</td></tr>
-            <tr><td>신경망</td><td>MLP, 은닉층 256 × 2, 가중치 81,514개. 출력은 가속도 11칸과 차로 3가지의 점수</td></tr>
+            <tr><td>신경망</td><td>MLP, 은닉층 256 × 2, 학습하는 가중치 81,422개(정규화 값 92개 포함 81,514개). 출력은 가속도 11칸과 차로 3가지의 점수</td></tr>
           </tbody>
         </table>
       </div>

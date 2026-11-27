@@ -15,9 +15,9 @@
 [![Code](https://img.shields.io/badge/Code-GitHub-181717)](https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving)
 ![Slides](https://img.shields.io/badge/Slides-%EC%B6%94%EA%B0%80%20%EC%98%88%EC%A0%95-9ca3af)
 
-<img src="docs/media/full_lap.gif" width="85%" alt="학습한 신경망이 복합 교통에서 합정역 순환 노선 한 바퀴를 완주하는 장면">
+<img src="docs/media/full_lap.gif" width="85%" alt="학습한 신경망이 복합 교통에서 합정역 순환 노선 한 바퀴를 완주하고, 골목 출구에서 첫 골목 차는 보내고 다음 차는 기다리게 하는 장면">
 
-<sub>학습한 신경망이 가장 붐비는 복합 교통에서 정류장 4곳에 모두 서며 한 바퀴를 완주한 기록을 줄여 그렸다. 노란 차가 버스다.</sub>
+<sub>학습한 신경망이 가장 붐비는 복합 교통에서 정류장 4곳에 모두 서며 한 바퀴를 완주한 기록을 줄여 그렸다. 노란 차가 버스, 보라 차가 골목 차다. 골목 출구에서 버스는 첫 골목 차는 속도를 줄여 먼저 보내고, 바로 뒤 차는 기다리게 한다(이 구간만 2배속).</sub>
 
 | 충돌률 | 완주율 | 평가한 바퀴 | 공개 데이터 |
 |:---:|:---:|:---:|:---:|

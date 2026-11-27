@@ -336,9 +336,110 @@ AV(autonomous vehicle, 자율주행차)는 시내버스 한 대다. 신경망 �
 
 **컬럼**
 
-- 수업 기본 항목을 모두 담았다.
-- 더한 항목은 `sim_time`, `detected_pedestrians`, `event.pedestrian_collision`, `event.red_light_violation`, `event.termination_reason`, `event.background_collisions`, `event.service_event`, `stops_served`, `stops_missed`, `comfort.peak_acceleration`, `peak_jerk`, `acceleration_violation`, `jerk_violation`, `state.navigation`, `state.traffic_light`, `state.pedestrians`다.
-- 컬럼 정의는 [`env/data_schema.py`](env/data_schema.py)에 있다.
+수업 기본 수집기의 항목을 모두 담고, 정류장, 보행자, 신호, 승차감 항목을 더했다. 같은 정의가 데이터의 `metadata.json`과 [`env/data_schema.py`](env/data_schema.py)에 있다.
+
+| 묶음 | 컬럼 | 형태 | 출처 | 뜻 |
+|---|---|---|---|---|
+| 식별 | `episode` | Integer | 수업 기본 | Episode 번호 |
+|  | `t` | Integer | 수업 기본 | Episode 내부 timestep (판단 한 번 = decision_interval초) |
+|  | `sim_time` | Float | 팀 추가 | 관측 시점의 SUMO 시뮬레이션 시각(초). t와 실제 시간을 구분한다 |
+| 관측 | `observation` | Vector (46-dim) | 수업 기본 | 시점 t에서 AV Policy가 실제로 입력받는 부분 관측 oₜ. 수업 원본 31개 뒤에 경로 정보 12개와 근접 정보 3개 |
+|  | `next_observation` | Vector (46-dim) | 수업 기본 | 다음 시점의 부분 관측 oₜ₊₁ |
+|  | `detected_vehicles` | List | 수업 기본 | Observation 시점에 감지된 주변 차량 정보 (관측 차선의 차량과 반경 50m 안의 차량. ego 기준 상대 위치·속도, 방향지시등) |
+|  | `detected_pedestrians` | List | 팀 추가 | Observation 시점에 감지된 보행자 (ego 기준 상대 위치·속도) |
+| 행동 | `action_raw` | Vector (2-dim) | 수업 기본 | Policy가 출력한 원본 Action [가감속, 차선변경] |
+|  | `action.accel_raw` | Float | 수업 기본 | 환경에 적용된 가감속 Action 값 |
+|  | `action.lane_change_raw` | Float | 수업 기본 | 환경에 적용된 차선변경 raw 값 |
+|  | `action.lane_change` | Integer | 수업 기본 | 실제 명령으로 변환된 차선변경 값 {-1, 0, +1} |
+|  | `action.lane_change_applied` | Boolean | 수업 기본 | 차선변경 명령이 실제 적용되었는지 여부 |
+| 보상·종료 | `reward` | Float | 수업 기본 | 시점 t에서 받은 Reward rₜ |
+|  | `terminated` | Boolean | 수업 기본 | 충돌 / 도착 등 환경 자체의 종료 여부 |
+|  | `truncated` | Boolean | 수업 기본 | 최대 Episode Step 등 시간 제한에 의한 종료 여부 |
+| 상태 | `state` | Dictionary | 수업 기본 | SUMO 내부의 privileged simulator state sₜ (ego, vehicles, pedestrians, navigation, traffic_light) |
+|  | `next_state` | Dictionary | 수업 기본 | 다음 시점의 privileged simulator state sₜ₊₁ |
+| 이벤트 | `event.collided` | Boolean | 수업 기본 | 해당 step에서 ego 충돌 발생 여부(차 또는 보행자) |
+|  | `event.pedestrian_collision` | Boolean | 팀 추가 | 해당 step에서 ego가 보행자와 충돌했는지. 참이면 event.collided도 참이다 |
+|  | `event.red_light_violation` | Boolean | 팀 추가 | 해당 step에서 ego 앞범퍼가 적색 정지선을 넘었는지 |
+|  | `event.arrived` | Boolean | 수업 기본 | 목적지 도착 여부 |
+|  | `event.lane_before` | Integer / String | 수업 기본 | Action 적용 전 AV 차선 |
+|  | `event.lane_after` | Integer / String | 수업 기본 | Action 적용 후 AV 차선 |
+|  | `event.termination_reason` | String | 팀 추가 | 종료 원인 (arrived, collision, pedestrian_collision, red_light, time_limit, teleport, missing, stuck). collision은 차와의 충돌이다. stuck은 ego가 stuck_timeout초 동안 stuck_progress_m도 못 간 것. 종료가 아니면 빈 값 |
+|  | `event.background_collisions` | Integer | 팀 추가 | 이 step 동안 ego가 끼지 않은 충돌 수(배경 차량끼리, 배경 차량과 보행자) |
+|  | `event.service_event` | String | 팀 추가 | 이 step에 정차할 정류장을 마쳤으면 served, 서지 않고 지나쳤으면 missed, 아니면 빈 값 |
+|  | `event.stops_served` | Integer | 팀 추가 | 에피소드에서 지금까지 정차를 마친 정류장 수 |
+|  | `event.stops_missed` | Integer | 팀 추가 | 에피소드에서 지금까지 서지 않고 지나친 정차 정류장 수 |
+| 승차감 | `comfort.peak_acceleration` | Float | 팀 추가 | 이 step 동안 버스 가속도 크기의 최댓값 (m/s²). 승객 승차감 |
+|  | `comfort.peak_jerk` | Float | 팀 추가 | 이 step 동안 버스 jerk(가속도 변화율) 크기의 최댓값 (m/s³). 승객 승차감 |
+|  | `comfort.acceleration_violation` | Boolean | 팀 추가 | 가속도가 승차감 한계를 넘었는지 |
+|  | `comfort.jerk_violation` | Boolean | 팀 추가 | jerk가 승차감 한계를 넘었는지 |
+
+`state`와 `next_state` 안의 키는 다음과 같다. 위치는 m, 속도는 m/s, 방향은 북쪽 0도에서 시계 방향(도)이다.
+
+| 키 | 담은 것 | 하위 항목 |
+|---|---|---|
+| `state.ego` | 버스 | `id`, `alive`, `x`, `y`, `speed`, `acceleration`, `jerk`, `heading`, `road_id`, `lane_id`, `lane_index`, `lane_position`, `lateral_position`, `lateral_speed`, `signals` |
+| `state.vehicles` | 버스 150m 안의 차 | `id`, `x`, `y`, `speed`, `heading`, `road_id`, `lane_id`, `lane_index`, `lane_position`, `lateral_position`, `lateral_speed`, `signals` |
+| `state.pedestrians` | 버스 150m 안의 보행자 | `id`, `x`, `y`, `speed`, `heading`, `road_id` |
+| `state.navigation` | 노선 정보 | `route_id`, `route_edge_index`, `drivable_lane_ids`, `target_lane_ids`, `next_turn`, `distance_to_turn`, `crossing_id`, `distance_to_crossing`, `next_stop_id`, `distance_to_stop`, `distance_to_destination` |
+| `state.traffic_light` | 앞 신호 | `id`, `link_index`, `state`, `distance_to_stop_line` |
+
+`detected_vehicles`의 항목은 `id`, `x`, `y`, `relative_longitudinal_position`, `relative_lateral_position`, `relative_longitudinal_speed`, `relative_lateral_speed`, `relative_heading`, `route_distance`, `lane_relation`, `left_signal`, `right_signal`이고, `detected_pedestrians`의 항목은 `id`, `relative_longitudinal_position`, `relative_lateral_position`, `relative_longitudinal_speed`, `relative_lateral_speed`이다. relative_*는 버스 차체 기준이며 진행 방향과 버스의 왼쪽이 +다.
+
+<details>
+<summary>관측 46개 (observation, next_observation)</summary>
+
+모든 값은 -1에서 1 사이다. 거리는 50m, 속도는 제한속도로 나누고, 노선 연결 거리만 200m로 나눈다. 차가 없으면 앞차 간격은 1, 뒤차 간격은 -1이다. 신경망은 아래에서 "가림"으로 표시한 15개를 0으로 가리고 31개를 쓴다.
+
+| 번호 | 이름 | 뜻 | 구분 | 신경망 |
+|---:|---|---|---|---|
+| 0 | `ego_speed` | 버스 속도 | 수업 원본 | 씀 |
+| 1 | `left2_leader_gap` | 왼쪽 두 칸 차로 앞차 간격 | 수업 원본 | 가림 |
+| 2 | `left2_leader_relative_speed` | 왼쪽 두 칸 차로 앞차 상대 속도 | 수업 원본 | 가림 |
+| 3 | `left2_follower_gap` | 왼쪽 두 칸 차로 뒤차 간격 | 수업 원본 | 가림 |
+| 4 | `left2_follower_relative_speed` | 왼쪽 두 칸 차로 뒤차 상대 속도 | 수업 원본 | 가림 |
+| 5 | `left1_leader_gap` | 왼쪽 한 칸 차로 앞차 간격 | 수업 원본 | 씀 |
+| 6 | `left1_leader_relative_speed` | 왼쪽 한 칸 차로 앞차 상대 속도 | 수업 원본 | 씀 |
+| 7 | `left1_follower_gap` | 왼쪽 한 칸 차로 뒤차 간격 | 수업 원본 | 씀 |
+| 8 | `left1_follower_relative_speed` | 왼쪽 한 칸 차로 뒤차 상대 속도 | 수업 원본 | 씀 |
+| 9 | `current_leader_gap` | 내 차로 앞차 간격 | 수업 원본 | 씀 |
+| 10 | `current_leader_relative_speed` | 내 차로 앞차 상대 속도 | 수업 원본 | 씀 |
+| 11 | `current_follower_gap` | 내 차로 뒤차 간격 | 수업 원본 | 가림 |
+| 12 | `current_follower_relative_speed` | 내 차로 뒤차 상대 속도 | 수업 원본 | 가림 |
+| 13 | `right1_leader_gap` | 오른쪽 한 칸 차로 앞차 간격 | 수업 원본 | 씀 |
+| 14 | `right1_leader_relative_speed` | 오른쪽 한 칸 차로 앞차 상대 속도 | 수업 원본 | 씀 |
+| 15 | `right1_follower_gap` | 오른쪽 한 칸 차로 뒤차 간격 | 수업 원본 | 씀 |
+| 16 | `right1_follower_relative_speed` | 오른쪽 한 칸 차로 뒤차 상대 속도 | 수업 원본 | 씀 |
+| 17 | `right2_leader_gap` | 오른쪽 두 칸 차로 앞차 간격 | 수업 원본 | 가림 |
+| 18 | `right2_leader_relative_speed` | 오른쪽 두 칸 차로 앞차 상대 속도 | 수업 원본 | 가림 |
+| 19 | `right2_follower_gap` | 오른쪽 두 칸 차로 뒤차 간격 | 수업 원본 | 가림 |
+| 20 | `right2_follower_relative_speed` | 오른쪽 두 칸 차로 뒤차 상대 속도 | 수업 원본 | 가림 |
+| 21 | `left2_route_connectivity` | 왼쪽 두 칸 차로 노선으로 이어지는 거리 | 수업 원본 | 가림 |
+| 22 | `left1_route_connectivity` | 왼쪽 한 칸 차로 노선으로 이어지는 거리 | 수업 원본 | 씀 |
+| 23 | `current_route_connectivity` | 내 차로 노선으로 이어지는 거리 | 수업 원본 | 씀 |
+| 24 | `right1_route_connectivity` | 오른쪽 한 칸 차로 노선으로 이어지는 거리 | 수업 원본 | 씀 |
+| 25 | `right2_route_connectivity` | 오른쪽 두 칸 차로 노선으로 이어지는 거리 | 수업 원본 | 가림 |
+| 26 | `left2_density` | 왼쪽 두 칸 차로 50m 안 차 밀도 | 수업 원본 | 가림 |
+| 27 | `left1_density` | 왼쪽 한 칸 차로 50m 안 차 밀도 | 수업 원본 | 씀 |
+| 28 | `current_density` | 내 차로 50m 안 차 밀도 | 수업 원본 | 씀 |
+| 29 | `right1_density` | 오른쪽 한 칸 차로 50m 안 차 밀도 | 수업 원본 | 씀 |
+| 30 | `right2_density` | 오른쪽 두 칸 차로 50m 안 차 밀도 | 수업 원본 | 가림 |
+| 31 | `tl_distance` | 다음 신호 정지선까지 거리 | 경로 정보 | 씀 |
+| 32 | `tl_red` | 그 신호가 적색인지 | 경로 정보 | 씀 |
+| 33 | `tl_yellow` | 황색인지 | 경로 정보 | 씀 |
+| 34 | `tl_yield` | 비보호(양보) 녹색인지 | 경로 정보 | 가림 |
+| 35 | `stop_distance` | 다음 정류장까지 거리 | 경로 정보 | 씀 |
+| 36 | `stop_dwell_remaining` | 남은 정차 시간 | 경로 정보 | 씀 |
+| 37 | `crosswalk_distance` | 다음 횡단보도까지 거리 | 경로 정보 | 씀 |
+| 38 | `crosswalk_occupied` | 보행자가 건너는 중인지 | 경로 정보 | 씀 |
+| 39 | `speed_limit` | 지금 제한속도 | 경로 정보 | 씀 |
+| 40 | `next_speed_limit` | 다음 제한속도 | 경로 정보 | 씀 |
+| 41 | `next_speed_limit_distance` | 다음 제한속도까지 거리 | 경로 정보 | 씀 |
+| 42 | `ego_acceleration` | 버스 가속도 | 경로 정보 | 씀 |
+| 43 | `stop_distance_near` | 다음 정류장까지 거리(가까운 범위) | 근접 정보 | 씀 |
+| 44 | `current_leader_gap_far` | 내 차로 앞차 간격(먼 범위) | 근접 정보 | 씀 |
+| 45 | `tl_yellow_elapsed` | 황색이 켜진 뒤 지난 시간 | 근접 정보 | 씀 |
+
+</details>
 
 **검증**
 

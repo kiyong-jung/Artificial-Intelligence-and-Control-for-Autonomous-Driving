@@ -150,6 +150,8 @@
   tbody td:first-child { font-weight: var(--w-bold); white-space: nowrap; }
   tr:last-child td { border-bottom: 0; }
   td.num, th.num { text-align: right; }
+  .obs-list { margin: var(--s-5) 0; }
+  .obs-list summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; color: var(--ink); font-weight: var(--w-semi); }
   .col-avg { background: var(--tone); }
   td.num { font-weight: var(--w-bold); white-space: nowrap; }
   tbody tr:last-child td.num { font-weight: var(--w-black); }
@@ -598,6 +600,117 @@
         <li>65묶음 모두 NPZ 행 수가 metadata의 건수와 맞고, 올린 뒤 다시 받은 파일의 해시도 원본과 같다.</li>
         <li>데이터를 모은 신경망 <code>model/model.pt</code>도 함께 올렸다.</li>
       </ul>
+      <h3>데이터 컬럼</h3>
+      <p>수업 기본 수집기의 항목을 모두 담고, 정류장, 보행자, 신호, 승차감을 판단하는 데 필요한 항목을 더했다. 아래 표의 정의는 데이터의 metadata.json에도 그대로 들어 있다.</p>
+      <div class="table-scroll" role="region" tabindex="0" aria-label="데이터 컬럼 표">
+        <table>
+          <thead><tr><th scope="col">묶음</th><th scope="col">컬럼</th><th scope="col">형태</th><th scope="col">출처</th><th scope="col">뜻</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="3">식별</td><td><code>episode</code></td><td>Integer</td><td>수업 기본</td><td>Episode 번호</td></tr>
+            <tr><td><code>t</code></td><td>Integer</td><td>수업 기본</td><td>Episode 내부 timestep (판단 한 번 = decision_interval초)</td></tr>
+            <tr><td><code>sim_time</code></td><td>Float</td><td>팀 추가</td><td>관측 시점의 SUMO 시뮬레이션 시각(초). t와 실제 시간을 구분한다</td></tr>
+            <tr><td rowspan="4">관측</td><td><code>observation</code></td><td>Vector (46-dim)</td><td>수업 기본</td><td>시점 t에서 AV Policy가 실제로 입력받는 부분 관측 oₜ. 수업 원본 31개 뒤에 경로 정보 12개와 근접 정보 3개</td></tr>
+            <tr><td><code>next_observation</code></td><td>Vector (46-dim)</td><td>수업 기본</td><td>다음 시점의 부분 관측 oₜ₊₁</td></tr>
+            <tr><td><code>detected_vehicles</code></td><td>List</td><td>수업 기본</td><td>Observation 시점에 감지된 주변 차량 정보 (관측 차선의 차량과 반경 50m 안의 차량. ego 기준 상대 위치·속도, 방향지시등)</td></tr>
+            <tr><td><code>detected_pedestrians</code></td><td>List</td><td>팀 추가</td><td>Observation 시점에 감지된 보행자 (ego 기준 상대 위치·속도)</td></tr>
+            <tr><td rowspan="5">행동</td><td><code>action_raw</code></td><td>Vector (2-dim)</td><td>수업 기본</td><td>Policy가 출력한 원본 Action [가감속, 차선변경]</td></tr>
+            <tr><td><code>action.accel_raw</code></td><td>Float</td><td>수업 기본</td><td>환경에 적용된 가감속 Action 값</td></tr>
+            <tr><td><code>action.lane_change_raw</code></td><td>Float</td><td>수업 기본</td><td>환경에 적용된 차선변경 raw 값</td></tr>
+            <tr><td><code>action.lane_change</code></td><td>Integer</td><td>수업 기본</td><td>실제 명령으로 변환된 차선변경 값 {-1, 0, +1}</td></tr>
+            <tr><td><code>action.lane_change_applied</code></td><td>Boolean</td><td>수업 기본</td><td>차선변경 명령이 실제 적용되었는지 여부</td></tr>
+            <tr><td rowspan="3">보상·종료</td><td><code>reward</code></td><td>Float</td><td>수업 기본</td><td>시점 t에서 받은 Reward rₜ</td></tr>
+            <tr><td><code>terminated</code></td><td>Boolean</td><td>수업 기본</td><td>충돌 / 도착 등 환경 자체의 종료 여부</td></tr>
+            <tr><td><code>truncated</code></td><td>Boolean</td><td>수업 기본</td><td>최대 Episode Step 등 시간 제한에 의한 종료 여부</td></tr>
+            <tr><td rowspan="2">상태</td><td><code>state</code></td><td>Dictionary</td><td>수업 기본</td><td>SUMO 내부의 privileged simulator state sₜ (ego, vehicles, pedestrians, navigation, traffic_light)</td></tr>
+            <tr><td><code>next_state</code></td><td>Dictionary</td><td>수업 기본</td><td>다음 시점의 privileged simulator state sₜ₊₁</td></tr>
+            <tr><td rowspan="11">이벤트</td><td><code>event.collided</code></td><td>Boolean</td><td>수업 기본</td><td>해당 step에서 ego 충돌 발생 여부(차 또는 보행자)</td></tr>
+            <tr><td><code>event.pedestrian_collision</code></td><td>Boolean</td><td>팀 추가</td><td>해당 step에서 ego가 보행자와 충돌했는지. 참이면 event.collided도 참이다</td></tr>
+            <tr><td><code>event.red_light_violation</code></td><td>Boolean</td><td>팀 추가</td><td>해당 step에서 ego 앞범퍼가 적색 정지선을 넘었는지</td></tr>
+            <tr><td><code>event.arrived</code></td><td>Boolean</td><td>수업 기본</td><td>목적지 도착 여부</td></tr>
+            <tr><td><code>event.lane_before</code></td><td>Integer / String</td><td>수업 기본</td><td>Action 적용 전 AV 차선</td></tr>
+            <tr><td><code>event.lane_after</code></td><td>Integer / String</td><td>수업 기본</td><td>Action 적용 후 AV 차선</td></tr>
+            <tr><td><code>event.termination_reason</code></td><td>String</td><td>팀 추가</td><td>종료 원인 (arrived, collision, pedestrian_collision, red_light, time_limit, teleport, missing, stuck). collision은 차와의 충돌이다. stuck은 ego가 stuck_timeout초 동안 stuck_progress_m도 못 간 것. 종료가 아니면 빈 값</td></tr>
+            <tr><td><code>event.background_collisions</code></td><td>Integer</td><td>팀 추가</td><td>이 step 동안 ego가 끼지 않은 충돌 수(배경 차량끼리, 배경 차량과 보행자)</td></tr>
+            <tr><td><code>event.service_event</code></td><td>String</td><td>팀 추가</td><td>이 step에 정차할 정류장을 마쳤으면 served, 서지 않고 지나쳤으면 missed, 아니면 빈 값</td></tr>
+            <tr><td><code>event.stops_served</code></td><td>Integer</td><td>팀 추가</td><td>에피소드에서 지금까지 정차를 마친 정류장 수</td></tr>
+            <tr><td><code>event.stops_missed</code></td><td>Integer</td><td>팀 추가</td><td>에피소드에서 지금까지 서지 않고 지나친 정차 정류장 수</td></tr>
+            <tr><td rowspan="4">승차감</td><td><code>comfort.peak_acceleration</code></td><td>Float</td><td>팀 추가</td><td>이 step 동안 버스 가속도 크기의 최댓값 (m/s²). 승객 승차감</td></tr>
+            <tr><td><code>comfort.peak_jerk</code></td><td>Float</td><td>팀 추가</td><td>이 step 동안 버스 jerk(가속도 변화율) 크기의 최댓값 (m/s³). 승객 승차감</td></tr>
+            <tr><td><code>comfort.acceleration_violation</code></td><td>Boolean</td><td>팀 추가</td><td>가속도가 승차감 한계를 넘었는지</td></tr>
+            <tr><td><code>comfort.jerk_violation</code></td><td>Boolean</td><td>팀 추가</td><td>jerk가 승차감 한계를 넘었는지</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>state와 next_state에는 버스, 버스 150m 안의 차와 보행자, 노선 정보, 앞 신호가 들어 있다. 위치는 m, 속도는 m/s, 방향은 북쪽 0도에서 시계 방향(도)이다.</p>
+      <div class="table-scroll" role="region" tabindex="0" aria-label="상태 키 표">
+        <table>
+          <thead><tr><th scope="col">키</th><th scope="col">담은 것</th><th scope="col">하위 항목</th></tr></thead>
+          <tbody>
+            <tr><td><code>state.ego</code></td><td>버스</td><td>id, alive, x, y, speed, acceleration, jerk, heading, road_id, lane_id, lane_index, lane_position, lateral_position, lateral_speed, signals</td></tr>
+            <tr><td><code>state.vehicles</code></td><td>버스 150m 안의 차</td><td>id, x, y, speed, heading, road_id, lane_id, lane_index, lane_position, lateral_position, lateral_speed, signals</td></tr>
+            <tr><td><code>state.pedestrians</code></td><td>버스 150m 안의 보행자</td><td>id, x, y, speed, heading, road_id</td></tr>
+            <tr><td><code>state.navigation</code></td><td>노선 정보</td><td>route_id, route_edge_index, drivable_lane_ids, target_lane_ids, next_turn, distance_to_turn, crossing_id, distance_to_crossing, next_stop_id, distance_to_stop, distance_to_destination</td></tr>
+            <tr><td><code>state.traffic_light</code></td><td>앞 신호</td><td>id, link_index, state, distance_to_stop_line</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <details class="obs-list">
+        <summary>관측 46개 이름과 뜻 보기</summary>
+        <p>모든 값은 -1에서 1 사이다. 거리는 50m, 속도는 제한속도로 나누고, 노선 연결 거리만 200m로 나눈다. 신경망은 "가림"으로 표시한 15개를 0으로 가리고 31개를 쓴다.</p>
+        <div class="table-scroll" role="region" tabindex="0" aria-label="관측 46개 표">
+          <table>
+            <thead><tr><th scope="col" class="num">번호</th><th scope="col">이름</th><th scope="col">뜻</th><th scope="col">구분</th><th scope="col">신경망</th></tr></thead>
+            <tbody>
+              <tr><td class="num">0</td><td><code>ego_speed</code></td><td>버스 속도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">1</td><td><code>left2_leader_gap</code></td><td>왼쪽 두 칸 차로 앞차 간격</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">2</td><td><code>left2_leader_relative_speed</code></td><td>왼쪽 두 칸 차로 앞차 상대 속도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">3</td><td><code>left2_follower_gap</code></td><td>왼쪽 두 칸 차로 뒤차 간격</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">4</td><td><code>left2_follower_relative_speed</code></td><td>왼쪽 두 칸 차로 뒤차 상대 속도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">5</td><td><code>left1_leader_gap</code></td><td>왼쪽 한 칸 차로 앞차 간격</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">6</td><td><code>left1_leader_relative_speed</code></td><td>왼쪽 한 칸 차로 앞차 상대 속도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">7</td><td><code>left1_follower_gap</code></td><td>왼쪽 한 칸 차로 뒤차 간격</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">8</td><td><code>left1_follower_relative_speed</code></td><td>왼쪽 한 칸 차로 뒤차 상대 속도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">9</td><td><code>current_leader_gap</code></td><td>내 차로 앞차 간격</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">10</td><td><code>current_leader_relative_speed</code></td><td>내 차로 앞차 상대 속도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">11</td><td><code>current_follower_gap</code></td><td>내 차로 뒤차 간격</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">12</td><td><code>current_follower_relative_speed</code></td><td>내 차로 뒤차 상대 속도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">13</td><td><code>right1_leader_gap</code></td><td>오른쪽 한 칸 차로 앞차 간격</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">14</td><td><code>right1_leader_relative_speed</code></td><td>오른쪽 한 칸 차로 앞차 상대 속도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">15</td><td><code>right1_follower_gap</code></td><td>오른쪽 한 칸 차로 뒤차 간격</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">16</td><td><code>right1_follower_relative_speed</code></td><td>오른쪽 한 칸 차로 뒤차 상대 속도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">17</td><td><code>right2_leader_gap</code></td><td>오른쪽 두 칸 차로 앞차 간격</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">18</td><td><code>right2_leader_relative_speed</code></td><td>오른쪽 두 칸 차로 앞차 상대 속도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">19</td><td><code>right2_follower_gap</code></td><td>오른쪽 두 칸 차로 뒤차 간격</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">20</td><td><code>right2_follower_relative_speed</code></td><td>오른쪽 두 칸 차로 뒤차 상대 속도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">21</td><td><code>left2_route_connectivity</code></td><td>왼쪽 두 칸 차로 노선으로 이어지는 거리</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">22</td><td><code>left1_route_connectivity</code></td><td>왼쪽 한 칸 차로 노선으로 이어지는 거리</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">23</td><td><code>current_route_connectivity</code></td><td>내 차로 노선으로 이어지는 거리</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">24</td><td><code>right1_route_connectivity</code></td><td>오른쪽 한 칸 차로 노선으로 이어지는 거리</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">25</td><td><code>right2_route_connectivity</code></td><td>오른쪽 두 칸 차로 노선으로 이어지는 거리</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">26</td><td><code>left2_density</code></td><td>왼쪽 두 칸 차로 50m 안 차 밀도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">27</td><td><code>left1_density</code></td><td>왼쪽 한 칸 차로 50m 안 차 밀도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">28</td><td><code>current_density</code></td><td>내 차로 50m 안 차 밀도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">29</td><td><code>right1_density</code></td><td>오른쪽 한 칸 차로 50m 안 차 밀도</td><td>수업 원본</td><td>씀</td></tr>
+              <tr><td class="num">30</td><td><code>right2_density</code></td><td>오른쪽 두 칸 차로 50m 안 차 밀도</td><td>수업 원본</td><td>가림</td></tr>
+              <tr><td class="num">31</td><td><code>tl_distance</code></td><td>다음 신호 정지선까지 거리</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">32</td><td><code>tl_red</code></td><td>그 신호가 적색인지</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">33</td><td><code>tl_yellow</code></td><td>황색인지</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">34</td><td><code>tl_yield</code></td><td>비보호(양보) 녹색인지</td><td>경로 정보</td><td>가림</td></tr>
+              <tr><td class="num">35</td><td><code>stop_distance</code></td><td>다음 정류장까지 거리</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">36</td><td><code>stop_dwell_remaining</code></td><td>남은 정차 시간</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">37</td><td><code>crosswalk_distance</code></td><td>다음 횡단보도까지 거리</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">38</td><td><code>crosswalk_occupied</code></td><td>보행자가 건너는 중인지</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">39</td><td><code>speed_limit</code></td><td>지금 제한속도</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">40</td><td><code>next_speed_limit</code></td><td>다음 제한속도</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">41</td><td><code>next_speed_limit_distance</code></td><td>다음 제한속도까지 거리</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">42</td><td><code>ego_acceleration</code></td><td>버스 가속도</td><td>경로 정보</td><td>씀</td></tr>
+              <tr><td class="num">43</td><td><code>stop_distance_near</code></td><td>다음 정류장까지 거리(가까운 범위)</td><td>근접 정보</td><td>씀</td></tr>
+              <tr><td class="num">44</td><td><code>current_leader_gap_far</code></td><td>내 차로 앞차 간격(먼 범위)</td><td>근접 정보</td><td>씀</td></tr>
+              <tr><td class="num">45</td><td><code>tl_yellow_elapsed</code></td><td>황색이 켜진 뒤 지난 시간</td><td>근접 정보</td><td>씀</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
       <div class="hero-links left">
         <a class="button" href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">Hugging Face에서 받기</a>
       </div>

@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>합정역 자율주행버스: 가로변 정류장을 오가는 버스와 주변 교통</title>
-<meta name="description" content="서울 합정역 일대 실제 도로를 SUMO로 옮겨, 자율주행버스가 가로변 정류장을 오가며 겪는 여섯 가지 상호작용을 재현하고 학습하는 팀 프로젝트." />
+<title>합정역 자율주행버스: 신경망 하나로 13,000바퀴, 완주 95.6%</title>
+<meta name="description" content="서울 합정역 일대 실제 도로를 SUMO로 옮기고, 학습한 신경망이 규칙 보조 없이 버스를 몰아 13,000바퀴 중 95.6%를 완주했다. 충돌 0.66%, 주행 데이터 1,086만 건 공개." />
 <meta property="og:title" content="합정역 자율주행버스" />
-<meta property="og:description" content="실제 도로, 실제 골목, 여섯 시나리오. 자율주행버스가 가로변 정류장을 오가며 겪는 상호작용을 SUMO로 재현한다." />
+<meta property="og:description" content="가로변 정류장과 좌회전 차로를 오가는 버스를 신경망 하나로 운전한다. 13,000바퀴 완주 95.6%, 충돌 0.66%." />
 <meta property="og:type" content="article" />
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
@@ -156,6 +156,15 @@
   .stat b { display: block; color: var(--ink); font: var(--w-bold) var(--fs-stat)/var(--lh-display) var(--sans); letter-spacing: var(--ls-head); white-space: nowrap; }
   .stat span { color: var(--muted); font-size: var(--fs-ui); }
 
+  .video-box { overflow: hidden; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--s-3); }
+  .video-box video { display: block; width: 100%; height: auto; border-radius: var(--r-sm); background: var(--ink); }
+  .video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-5); margin: var(--s-5) 0; }
+  .video-grid figure { margin: 0; }
+  .paper-abstract .stat-row { margin-bottom: 0; }
+  .stat b { white-space: normal; }
+  .hero-links.left { justify-content: flex-start; }
+  tbody tr:last-child td.num { font-weight: var(--w-black); }
+
   footer { border-top: 1px solid var(--rule); color: var(--muted); font-size: var(--fs-small); padding: var(--s-5) 0 var(--s-7); }
   footer .wide { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--s-3) var(--s-6); }
 
@@ -202,6 +211,7 @@
     .stat:nth-child(3) { padding-left: 0; border-left: 0; }
     .stat:nth-child(n+3) { border-top: 1px solid var(--rule); }
     .shortcut-grid { grid-template-columns: 1fr 1fr; gap: var(--s-3); }
+    .video-grid { grid-template-columns: 1fr; }
     .shortcut img { height: 110px; }
     .pull { font-size: 1.25rem; }
     .hero-links .button { width: 100%; justify-content: center; }
@@ -209,12 +219,12 @@
 </style>
 </head>
 <body>
-<a class="skip-link" href="#overview">본문으로 건너뛰기</a>
+<a class="skip-link" href="#why">본문으로 건너뛰기</a>
 <nav class="topbar" aria-label="상단">
   <div class="topbar-inner">
     <a class="brand" href="#top">Hapjeong Autonomous Bus</a>
     <div class="navlinks">
-      <a href="#overview">개요</a><a href="#road">도로</a><a href="#scenarios">시나리오</a><a href="#shortcuts">골목</a><a href="#validation">검증</a>
+      <a href="#why">도로</a><a href="#traffic">교통</a><a href="#learning">학습</a><a href="#results">결과</a><a href="#videos">영상</a><a href="#data">데이터</a>
     </div>
   </div>
 </nav>
@@ -222,156 +232,314 @@
 <header class="wide article-head" id="top">
   <h1>
     <span class="project-name">합정역 자율주행버스</span>
-    <span class="project-title">가로변 정류장을 오가는 버스가 실제 도로에서 겪는 여섯 가지 상호작용</span>
+    <span class="project-title">가로변 정류장과 좌회전 차로를 오가는 버스를 신경망 하나로 운전하기</span>
   </h1>
-  <div class="route-rule" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="route-rule" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
   <div class="byline">
     <div class="author-row">
       <span>정기용</span><span>서예인</span><span>주현진</span><span>박신후</span><span>이건호</span>
     </div>
-    <p class="author-notes">성균관대학교 · 자율주행인공지능및제어 팀 프로젝트</p>
+    <p class="author-notes">성균관대학교 · 자율주행인공지능및제어 팀 프로젝트 · URBAN:ON</p>
   </div>
-  <p class="lede">서울 합정역 일대 실제 도로를 SUMO로 옮겼다. 연구 버스가 1.9km 순환 경로를 도는 동안 정류장 재합류, 좌회전 차로 변경, 골목 차량 끼어들기, 횡단보도 보행자를 실제 위치에서 만나도록 도로와 주변 교통을 설계했다.</p>
+  <p class="lede">서울 합정역 일대 도로를 SUMO로 옮기고, 규칙 보조 없이 신경망 하나로 버스를 몰아 13,000바퀴 중 95.6%를 완주했으며, 그 주행 1,086만 건을 공개한다.</p>
   <div class="hero-links">
-    <a class="button" href="https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving">GitHub 저장소 보기</a>
-    <a class="button tonal" href="assets/shortcut_report.pdf">골목 지름길 보고서 읽기 (PDF)</a>
+    <a class="button" href="https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving">GitHub 코드</a>
+    <a class="button" href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">Hugging Face 데이터</a>
+    <a class="button tonal" href="#videos">주행 영상</a>
+    <a class="button tonal" href="assets/shortcut_report.pdf">골목 보고서 (PDF)</a>
   </div>
 </header>
 
 <figure class="wide demo">
-  <a class="figure-link" href="assets/hapjeong_map.webp"><img src="assets/hapjeong_map.webp" width="2400" height="1982" alt="합정역 도로망 3.6.0. 파란 선은 연구 버스 순환 경로, 빨간 선은 골목, 청록 선은 양화로 중앙버스 노선이다." fetchpriority="high" decoding="async" /></a>
-  <figcaption class="caption"><strong>그림 1. 합정역 도로망 3.6.0</strong>파란 선이 연구 버스가 시계 반대 방향으로 도는 경로다. 빨간 선은 골목, 보라 세모는 골목 차가 버스 길로 나오는 합류점, 노란 네모는 가로변 정류장이다.</figcaption>
+  <div class="video-box"><video src="assets/videos/full_lap.mp4" poster="assets/videos/full_lap.jpg" autoplay muted loop playsinline controls preload="metadata" aria-label="학습한 버스가 복합 교통에서 정류장 4곳을 서고 한 바퀴를 완주하는 영상"></video></div>
+  <figcaption class="caption"><strong>영상 1. 학습한 신경망이 몬 한 바퀴</strong>가장 붐비는 복합 교통에서 정류장 4곳에 서고 돌아오는 약 8분짜리 한 바퀴를 67초로 줄인 영상이다.</figcaption>
 </figure>
 
 <section class="wrap paper-abstract" aria-labelledby="abstract">
   <h2 id="abstract">요약</h2>
-  <p>자율주행버스는 일반 차로의 가로변 정류장에 서고 다시 차로로 들어가야 한다. 이 과정에서 뒤차와의 재합류, 정류장 직후 좌회전을 위한 차로 변경, 정류장 앞에 선 차량, 신호 없는 골목에서 끼어드는 차, 횡단보도 보행자를 만난다. 우리는 합정역 일대 실제 도로(OpenStreetMap)를 SUMO 도로망으로 옮기고, 실제 골목 여덟 묶음을 살려 이 상황들이 정해진 위치에서 반복해 일어나게 했다. 혼잡한 교통에서 버스가 160번 도는 동안 골목 차량 끼어들기가 74번 일어나며, 300번 점검에서 사고·정체가 난 실행은 6번이다.</p>
+  <div>
+    <p>시내버스는 가로변 정류장에 섰다가 차로로 돌아오고, 좌회전하려면 가장 왼쪽 차로까지 옮겨야 한다. 합정역 순환 노선 1.96km에는 정류장 4곳과 좌회전 4곳이 번갈아 있어서 버스는 한 바퀴에 차로를 8~9번 바꾼다. 우리는 정류장 택시, 골목 차, 보행자가 있는 교통을 만들고, 규칙 운전사를 따라 배우는 DAgger로 신경망을 학습했다. 주행할 때는 규칙도 SUMO 안전장치도 쓰지 않는다.</p>
+    <div class="stat-row">
+      <div class="stat"><b>0.66%</b><span>충돌률 (목표 5% 미만)</span></div>
+      <div class="stat"><b>95.6%</b><span>목적지 완주율</span></div>
+      <div class="stat"><b>13,000</b><span>평가한 바퀴 (새 seed)</span></div>
+      <div class="stat"><b>1.09×10⁷</b><span>공개한 transition</span></div>
+    </div>
+  </div>
 </section>
 
 <main class="wrap" id="content">
   <nav class="toc" aria-label="목차">
     <p class="toc-title">목차</p>
     <ol>
-      <li><a href="#overview">개요</a></li>
-      <li><a href="#road">도로</a></li>
-      <li><a href="#scenarios">여섯 시나리오</a></li>
-      <li><a href="#shortcuts">골목 지름길</a></li>
-      <li><a href="#traffic">주변 교통</a></li>
-      <li><a href="#validation">검증</a></li>
-      <li><a href="#data">데이터와 학습</a></li>
-      <li><a href="#limits">한계와 다음 단계</a></li>
+      <li><a href="#why">도로 선정과 문제</a></li>
+      <li><a href="#road">도로와 SUMO 구현</a></li>
+      <li><a href="#traffic">교통 구성</a></li>
+      <li><a href="#interaction">차량 interaction</a></li>
+      <li><a href="#learning">AV 학습 설계</a></li>
+      <li><a href="#results">평가 결과</a></li>
+      <li><a href="#videos">주행 영상</a></li>
+      <li><a href="#data">데이터셋</a></li>
+      <li><a href="#problems">문제와 해결</a></li>
+      <li><a href="#limits">결론과 한계</a></li>
     </ol>
   </nav>
 
   <article>
-    <section class="article-section" aria-labelledby="overview">
-      <h2 id="overview">개요</h2>
-      <p>연구 버스는 합정역에서 출발해 독막로를 따라 상수역까지 가고, 와우산로와 잔다리로를 지나 서교동사거리에서 양화로로 좌회전해 합정역으로 돌아온다. 경로 길이는 1,949m이고, 경로 위에 실제 위치의 가로변 정류장 6곳과 신호 없는 횡단보도 1곳이 있다.</p>
-      <p class="pull lit-pending" id="pull">목표는 버스가 한 바퀴를 도는 동안 연구할 상황을 최대한 자주, 실제와 같은 자리에서 만나게 하는 것이다.</p>
-      <figure>
-        <a class="figure-link" href="assets/hapjeong_road.webp"><img src="assets/hapjeong_road.webp" width="2014" height="743" alt="합정역 일대 지도와 같은 범위에 겹친 SUMO 도로망" loading="lazy" decoding="async" /></a>
-        <figcaption class="caption"><strong>그림 2. 실제 지도와 SUMO 도로망</strong>왼쪽은 합정역 일대 지도, 오른쪽은 같은 범위에 겹친 SUMO 도로망(붉은색)이다.</figcaption>
-      </figure>
-    </section>
-
-    <section class="article-section" aria-labelledby="road">
-      <h2 id="road">도로</h2>
-      <p>원본 도로망은 OpenStreetMap을 바탕으로 만들었다. 빌드 스크립트가 실제 지도와 대조해 고친 내용을 적용해 실행 도로망을 만든다. 같은 입력이면 같은 파일이 나온다.</p>
-      <div class="stat-row">
-        <div class="stat"><b>1,949m</b><span>버스 순환 경로</span></div>
-        <div class="stat"><b>6곳</b><span>가로변 정류장</span></div>
-        <div class="stat"><b>11곳</b><span>신호 교차로</span></div>
-        <div class="stat"><b>8곳</b><span>골목 합류점</span></div>
-      </div>
-      <p>제한속도는 안전속도 5030 기준이다. 간선은 시속 50km, 이름이 ~길인 이면도로는 시속 30km다. 버스는 길이 12m, 폭 2.5m, 가속 1.0m/s², 감속 2.0m/s²다.</p>
-    </section>
-
-    <section class="article-section" aria-labelledby="scenarios">
-      <h2 id="scenarios">여섯 시나리오</h2>
-      <p>버스가 정류장을 오가며 만나는 상황을 여섯 가지로 나누고, 각 상황이 일어났는지 시뮬레이션 기록에서 판정한다.</p>
+    <section class="article-section" aria-labelledby="why">
+      <h2 id="why">도로 선정과 문제</h2>
+      <p>버스는 합정역을 떠나 독막로로 상수역까지 가고, 와우산로와 잔다리로를 지나 서교동사거리에서 양화로로 좌회전해 돌아온다. 정류장은 모두 가로변 차로에 있고 좌회전은 가장 왼쪽 차로에서만 하므로, 버스는 한 바퀴 내내 가로변과 왼쪽 끝을 오간다.</p>
+      <p class="pull lit-pending" id="pull">버스는 0.5초마다 옆 차로의 틈을 보고 끼어들지, 속도를 줄여 기다릴지 정한다.</p>
       <div class="table-scroll">
         <table>
-          <thead><tr><th scope="col">번호</th><th scope="col">상황</th><th scope="col">판정 기준</th></tr></thead>
+          <thead><tr><th scope="col">번호</th><th scope="col">상황</th><th scope="col">버스가 판단할 것</th></tr></thead>
           <tbody>
-            <tr><td>S1</td><td>정류장 출발 후 재합류</td><td>버스가 정류장 안에서 멈춤</td></tr>
-            <tr><td>S2</td><td>정류장 직후 좌회전 차로 변경</td><td>다음 회전이 좌회전인 구간에서 왼쪽 차로로 옮김</td></tr>
-            <tr><td>S3</td><td>정류장 접근 차로 변경</td><td>정류장 100m 앞에서 오른쪽으로 옮김</td></tr>
-            <tr><td>S4</td><td>정류장 앞 정차 차량</td><td>50m 안에 정차한 택시</td></tr>
-            <tr><td>S5</td><td>골목 차량 끼어들기</td><td>골목 합류점에서 나온 차가 15초 안에 버스 앞 50m 안으로 들어옴</td></tr>
-            <tr><td>S6</td><td>신호 없는 횡단보도</td><td>50m 앞 횡단보도 위에 보행자</td></tr>
+            <tr><td>S1</td><td>정류장 출발 후 재합류</td><td>정차를 마친 뒤 출발 시점</td></tr>
+            <tr><td>S2</td><td>좌회전 전 왼쪽 차로 변경</td><td>옮길 차로의 틈, 기다릴 때의 속도</td></tr>
+            <tr><td>S3</td><td>정류장 접근 오른쪽 차로 변경</td><td>감속 시점과 차로 변경 순서</td></tr>
+            <tr><td>S4</td><td>정류장 앞 택시</td><td>택시 뒤에서 기다릴지</td></tr>
+            <tr><td>S5</td><td>골목 차 끼어들기</td><td>감속과 양보</td></tr>
+            <tr><td>S6</td><td>신호 없는 횡단보도</td><td>보행자 앞에서 설지</td></tr>
           </tbody>
         </table>
       </div>
-      <figure>
-        <a class="figure-link" href="assets/scenario_map.webp"><img src="assets/scenario_map.webp" width="2400" height="1500" alt="여섯 시나리오가 일어나는 위치를 표시한 합정역 도로망" loading="lazy" decoding="async" /></a>
-        <figcaption class="caption"><strong>그림 3. 시나리오가 일어나는 곳</strong>연구 경로 위에서 각 시나리오가 일어나는 위치다.</figcaption>
-      </figure>
     </section>
 
-    <section class="article-section" aria-labelledby="shortcuts">
-      <h2 id="shortcuts">골목 지름길</h2>
-      <p>골목이 없으면 버스 길로 나오는 골목 차가 거의 없어 끼어들기를 시험할 수 없다. 버스 경로 안쪽의 실제 골목 여덟 묶음을 살렸다. 아래 수치는 혼잡한 교통에서 버스가 160번 돈 결과다.</p>
+    <section class="article-section" aria-labelledby="road">
+      <h2 id="road">도로와 SUMO 구현</h2>
+      <p>OpenStreetMap에서 만든 원본에 빌드 스크립트가 실제 지도와 대조해 고친 내용을 차례로 적용하므로, 누가 다시 만들어도 같은 도로망이 나온다.</p>
+      <div class="stat-row">
+        <div class="stat"><b>1,963m</b><span>버스 순환 경로</span></div>
+        <div class="stat"><b>4곳</b><span>버스가 서는 정류장</span></div>
+        <div class="stat"><b>4곳</b><span>좌회전</span></div>
+        <div class="stat"><b>9곳</b><span>횡단보도</span></div>
+      </div>
+      <figure>
+        <a class="figure-link" href="assets/hapjeong_road.webp"><img src="assets/hapjeong_road.webp" width="2014" height="743" alt="합정역 일대 지도와 같은 범위에 겹친 SUMO 도로망" loading="lazy" decoding="async" /></a>
+        <figcaption class="caption"><strong>그림 1. 실제 지도와 SUMO 도로망</strong>왼쪽 지도와 같은 범위에 SUMO 도로망을 붉은색으로 겹쳤다.</figcaption>
+      </figure>
+      <p>제한속도는 안전속도 5030에 맞춰 간선 시속 50km, 이면도로 시속 30km로 두었다. 버스는 길이 12m, 폭 2.5m, 가속 1.0m/s², 감속 2.0m/s²이고 정류장마다 8초 선다.</p>
+      <h3>좌회전은 가장 왼쪽 차로에서만</h3>
+      <p>상수역 사거리, 삼거리포차 앞, 서교동사거리, 합정역 사거리의 좌회전은 가장 왼쪽 차로에서만 할 수 있어서, 버스는 합정역 사거리 앞에서 167m 안에 세 차로를 건넌다.</p>
+      <figure>
+        <a class="figure-link" href="assets/hapjeong_map.webp"><img src="assets/hapjeong_map.webp" width="2400" height="1982" alt="합정역 도로망. 파란 선은 연구 버스 순환 경로, 빨간 선은 골목, 청록 선은 양화로 중앙버스 노선이다." loading="lazy" decoding="async" /></a>
+        <figcaption class="caption"><strong>그림 2. 합정역 도로망과 골목</strong>파란 선은 버스가 시계 반대 방향으로 도는 경로, 빨간 선은 골목, 보라 세모는 골목 합류점, 노란 네모는 정류장이다.</figcaption>
+      </figure>
+      <h3>실제 골목 여덟 묶음</h3>
+      <p>골목이 없으면 끼어드는 차도 없어서 버스 경로 안쪽의 실제 골목 여덟 묶음을 살렸고, 아래 수치는 그때 규칙 버스로 160바퀴를 돌아 잰 값이다.</p>
       <div class="shortcut-grid">
         <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari6.webp" width="354" height="246" alt="잔다리로6길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로6길</h3><p><b>끼어들기 28번</b>시간당 45대</p></div></div>
         <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari3.webp" width="528" height="647" alt="독막로3길 북쪽과 잔다리로3길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로3길</h3><p><b>끼어들기 21번</b>시간당 19대</p></div></div>
         <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak6.webp" width="272" height="240" alt="독막로6길 고리 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로6길 고리</h3><p><b>끼어들기 14번</b>시간당 47대</p></div></div>
         <div class="shortcut"><img src="assets/shortcuts/shortcut_wausan11.webp" width="485" height="275" alt="와우산로11길과 와우산로13길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>와우산로11길</h3><p><b>끼어들기 3번</b>시간당 50대</p></div></div>
-        <div class="shortcut"><img src="assets/shortcuts/shortcut_jandari2.webp" width="226" height="316" alt="잔다리로2길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>잔다리로2길</h3><p><b>끼어들기 3번</b>시간당 25대</p></div></div>
-        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak3.webp" width="168" height="212" alt="독막로3길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로3길</h3><p><b>끼어들기 3번</b>시간당 18대</p></div></div>
-        <div class="shortcut"><img src="assets/shortcuts/shortcut_eoulmadang.webp" width="330" height="609" alt="어울마당로 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>어울마당로</h3><p><b>끼어들기 2번</b>시간당 20대</p></div></div>
-        <div class="shortcut"><img src="assets/shortcuts/shortcut_dongmak7.webp" width="692" height="559" alt="양화로6길과 독막로7길 지도" loading="lazy" decoding="async" /><div class="shortcut-body"><h3>독막로7길</h3><p><b>끼어들기 0번</b>시간당 25대</p></div></div>
       </div>
-      <p>끼어들기는 서교동사거리 앞 잔다리로6길, 서교동교회 정류장 앞 잔다리로3길, 성산중학교 정류장 앞 독막로6길 고리에 몰린다.</p>
+      <p>도로를 고칠 때마다 30분 시험 300번에서 충돌이나 급정지가 난 횟수를 셌고, 자세한 내용은 <a href="assets/shortcut_report.pdf">골목 보고서</a>에 있다.</p>
     </section>
 
     <section class="article-section" aria-labelledby="traffic">
-      <h2 id="traffic">주변 교통</h2>
-      <p>버스 주변의 다른 차량과 보행자가 버스를 마주했을 때 어떻게 반응하는지 구현하고, 설정한 대로 나오는지 숫자로 확인한다. 배경 차량의 주행 모델은 Krauss 35%, IDM 30%, EIDM 20%, ACC 15%다.</p>
+      <h2 id="traffic">교통 구성</h2>
+      <p>일반 차는 실행 전에 seed로 정해진 route/flow 파일대로 나오고, 버스 위치를 보고 넣는 차는 없다. 같은 seed로 버스를 넣고 뺀 두 실행에서 배경 차 467대의 출발 시각과 경로가 모두 같았다.</p>
       <div class="table-scroll">
         <table>
-          <thead><tr><th scope="col">이름</th><th scope="col">내용</th></tr></thead>
+          <thead><tr><th scope="col">교통</th><th scope="col" class="num">시간당 차량</th><th scope="col" class="num">버스 150m 안 차</th><th scope="col">구성</th></tr></thead>
           <tbody>
-            <tr><td>A1</td><td>버스가 차로를 바꾸려 하면 뒤차가 양보하거나 하지 않는다. 측정한 양보율은 양보형 0.785, 비양보형 0.155다.</td></tr>
-            <tr><td>S4</td><td>택시가 정류장 앞에 선다.</td></tr>
-            <tr><td>S5</td><td>골목 차량이 신호 없이 끼어든다.</td></tr>
-            <tr><td>S6</td><td>횡단보도 보행자. 버스가 느릴 때만 건너는 유형과 간격이 충분하면 건너는 유형이 있다.</td></tr>
+            <tr><td>한산</td><td class="num">663대</td><td class="num">4.9대</td><td>기준 수요의 0.5배</td></tr>
+            <tr><td>보통</td><td class="num">1,326대</td><td class="num">10.5대</td><td>기준 수요</td></tr>
+            <tr><td>혼잡</td><td class="num">1,658대</td><td class="num">12.4대</td><td>1.25배</td></tr>
+            <tr><td>매우 혼잡</td><td class="num">1,989대</td><td class="num">16.3대</td><td>1.5배</td></tr>
+            <tr><td>복합</td><td class="num">1,989대</td><td class="num">18.8대</td><td>1.5배와 같은 총수요에 정류장 택시, 골목 차, 보행자 1.5배</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>차 수만 늘리면 신호 앞 줄만 길어지고 구간 가운데는 비어서, 복합 교통은 총수요를 그대로 두고 일부를 구간 가운데에서 버스와 얽히는 차로 바꿨다.</p>
+      <ul>
+        <li>택시가 정류장 4곳의 정류장 차로에 15~30초씩 서서, 정류장 차로가 택시로 차 있는 시간이 25%다.</li>
+        <li>수요의 10%는 골목 두 곳에서 나와 버스 노선으로 합류한다.</li>
+        <li>보행자는 지도의 보행자 흐름 전부를 1.5배로 늘렸다.</li>
+        <li>골목 차와 택시는 버스 노선에서 50m 넘게 떨어진 곳에서만 처음 나타나므로 버스 눈앞에 갑자기 생기는 차는 없다.</li>
+      </ul>
+      <p>차량 추종 모델은 Krauss 35%, IDM 30%, EIDM 20%, ACC 15%를 섞었고, 차로 변경은 차로 안 옆 위치까지 계산하는 SL2015 모델이라 끼어들기가 몇 초에 걸쳐 일어난다.</p>
+    </section>
+
+    <section class="article-section" aria-labelledby="interaction">
+      <h2 id="interaction">차량 interaction</h2>
+      <p>평가 13,000바퀴에서 버스가 보는 50m 안에서 다른 차나 보행자와 얽힌 장면을 바퀴당 횟수로 셌다.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">장면 (바퀴당)</th><th scope="col" class="num">한산</th><th scope="col" class="num">보통</th><th scope="col" class="num">혼잡</th><th scope="col" class="num">매우 혼잡</th><th scope="col" class="num">복합</th></tr></thead>
+          <tbody>
+            <tr><td>정류장 정차 중 뒤 50m 안에 차 (S1)</td><td class="num">0.27</td><td class="num">0.53</td><td class="num">0.67</td><td class="num">0.79</td><td class="num">1.56</td></tr>
+            <tr><td>왼쪽 변경 때 옮길 차로 뒤 30m 안에 차 (S2)</td><td class="num">0.33</td><td class="num">0.88</td><td class="num">1.22</td><td class="num">1.49</td><td class="num">2.11</td></tr>
+            <tr><td>오른쪽 변경 때 옮길 차로 뒤 30m 안에 차 (S3)</td><td class="num">0.61</td><td class="num">0.84</td><td class="num">0.91</td><td class="num">0.95</td><td class="num">0.93</td></tr>
+            <tr><td>앞으로 끼어든 차 (S5)</td><td class="num">0.33</td><td class="num">0.67</td><td class="num">0.86</td><td class="num">0.99</td><td class="num">1.50</td></tr>
+            <tr><td>보행자가 건너던 횡단보도 접근 (S6)</td><td class="num">2.02</td><td class="num">1.99</td><td class="num">1.93</td><td class="num">1.96</td><td class="num">2.33</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="stat-row">
+        <div class="stat"><b>8.5~9.3번</b><span>한 바퀴의 차로 변경</span></div>
+        <div class="stat"><b>46%</b><span>복합 교통에서 옮길 차로 30m 안에 차가 있던 변경</span></div>
+        <div class="stat"><b>12.7%</b><span>구간 가운데에서 앞 30m 안에 차가 있는 시간 (매우 혼잡은 4.4%)</span></div>
+        <div class="stat"><b>231 / 240</b><span>정류장 앞 택시(S4)를 만난 바퀴</span></div>
+      </div>
+      <figure>
+        <a class="figure-link" href="assets/scenario_map.webp"><img src="assets/scenario_map.webp" width="2400" height="1500" alt="여섯 시나리오가 일어나는 위치를 표시한 합정역 도로망" loading="lazy" decoding="async" /></a>
+        <figcaption class="caption"><strong>그림 3. 시나리오가 일어나는 곳</strong>버스 경로 위에 여섯 시나리오가 일어나는 자리를 표시했다.</figcaption>
+      </figure>
+    </section>
+
+    <section class="article-section" aria-labelledby="learning">
+      <h2 id="learning">AV 학습 설계</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">항목</th><th scope="col">내용</th></tr></thead>
+          <tbody>
+            <tr><td>Observation</td><td>46차원 부분 관측(50m 범위). 버스 속도와 가속도, 다섯 차로의 앞뒤 차, 차로 밀도, 차로별 경로 연결 거리, 신호, 정류장, 횡단보도, 제한속도. 신경망은 그중 31개를 쓴다.</td></tr>
+            <tr><td>Action</td><td>[가감속, 차로 변경]. 가감속은 +1.0 ~ -2.0m/s², 차로 변경은 {-1, 0, +1}. 0.5초마다 한 번 판단한다.</td></tr>
+            <tr><td>Reward</td><td>속도 0.1 × v/vmax, 정류장 정차 +1, 정류장 지나침 -3, 충돌 -5, 적색 통과 -5, 도착 +2, 멈춰 섬 -2, 승차감 한계 넘음 -0.02.</td></tr>
+            <tr><td>종료</td><td>충돌, 적색 통과, 도착, 멈춰 섬(200초 동안 5m 못 감), 1,400 step(700초).</td></tr>
+            <tr><td>신경망</td><td>MLP, 은닉층 256 × 2, 가중치 81,514개. 출력은 가속도 11칸과 차로 3가지의 점수다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>차로를 알려 주는 지시는 없고, 버스는 차로마다 노선으로 이어지는 거리만 보고 갈 차로를 정한다. 가속도를 값 하나로 맞히게 하면 서야 할지 가야 할지 모를 때 그 중간값을 내서, 11칸 중 하나를 고르게 바꿨다.</p>
+      <h3>DAgger와 커리큘럼</h3>
+      <p>신경망이 직접 몬 상태마다 규칙 운전사의 정답을 붙여 다시 학습하고, 교통은 쉬운 것에서 붐비는 것으로 넓혔다. 규칙 운전사는 정답을 붙일 때만 쓰고 주행할 때는 쓰지 않는다.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">단계</th><th scope="col">교통</th><th scope="col">내용</th></tr></thead>
+          <tbody>
+            <tr><td>시범</td><td>한산, 보통, 혼잡</td><td>규칙 운전사가 300바퀴를 몰고 그 기록으로 처음 모방학습</td></tr>
+            <tr><td>DAgger 1~12회</td><td>한산, 보통, 혼잡</td><td>회마다 교통별 25바퀴를 신경망이 직접 몬다</td></tr>
+            <tr><td>DAgger 13~16회</td><td>+ 매우 혼잡</td><td>끼어들기와 대기 줄 상황을 늘린다</td></tr>
+            <tr><td>DAgger 17~21회</td><td>+ 택시·골목 차·보행자</td><td>정류장 앞 택시와 골목 차를 배운다</td></tr>
+            <tr><td>DAgger 22~24회</td><td>다섯 교통 전부</td><td>최종 합본 271만 건</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>최종 모델은 마지막 네 단계를 같은 seed 480바퀴에서 돌려, 평가 전에 정한 기준대로 안전 사건(차 충돌, 보행자 충돌, 적색 통과)이 가장 적은 24회 모델(6번)을 골랐다.</p>
+    </section>
+
+    <section class="article-section" aria-labelledby="results">
+      <h2 id="results">평가 결과</h2>
+      <p>다섯 교통에서 학습에 쓰지 않은 seed로 2,600바퀴씩 돌리고, SUMO 안전장치(speedMode 0, laneChangeMode 0)를 끈 채 끝난 원인을 원본 기록에서 셌다.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">교통</th><th scope="col" class="num">바퀴</th><th scope="col" class="num">완주</th><th scope="col" class="num">차 충돌</th><th scope="col" class="num">보행자 충돌</th><th scope="col" class="num">적색 통과</th><th scope="col" class="num">멈춰 섬</th><th scope="col" class="num">시간 초과</th></tr></thead>
+          <tbody>
+            <tr><td>한산</td><td class="num">2,600</td><td class="num">2,594</td><td class="num">2</td><td class="num">0</td><td class="num">1</td><td class="num">3</td><td class="num">0</td></tr>
+            <tr><td>보통</td><td class="num">2,600</td><td class="num">2,544</td><td class="num">14</td><td class="num">0</td><td class="num">1</td><td class="num">38</td><td class="num">3</td></tr>
+            <tr><td>혼잡</td><td class="num">2,600</td><td class="num">2,519</td><td class="num">10</td><td class="num">1</td><td class="num">1</td><td class="num">59</td><td class="num">10</td></tr>
+            <tr><td>매우 혼잡</td><td class="num">2,600</td><td class="num">2,471</td><td class="num">16</td><td class="num">1</td><td class="num">4</td><td class="num">87</td><td class="num">21</td></tr>
+            <tr><td>복합</td><td class="num">2,600</td><td class="num">2,297</td><td class="num">34</td><td class="num">8</td><td class="num">18</td><td class="num">170</td><td class="num">73</td></tr>
+            <tr><td>합계</td><td class="num">13,000</td><td class="num">12,425 (95.6%)</td><td class="num">76</td><td class="num">10</td><td class="num">25</td><td class="num">357</td><td class="num">107</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li>충돌은 차 76번과 보행자 10번을 합쳐 0.66%이고, 가장 어려운 복합 교통만 보면 1.6%다.</li>
+        <li>완주율은 복합 교통을 뺀 네 교통에서 97.4%, 복합 교통에서 88.3%다.</li>
+        <li>순간이동을 꺼 두었기 때문에 막힌 경우는 사라지지 않고 "멈춰 섬"으로 남는다.</li>
+        <li>차와 버스의 상자가 조금이라도 겹친 바퀴 391개를 모두 충돌로 쳐도 3.7%로 5% 아래다.</li>
+      </ul>
+      <h3>실패한 곳</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">실패</th><th scope="col" class="num">횟수</th><th scope="col">가장 많은 곳</th></tr></thead>
+          <tbody>
+            <tr><td>멈춰 섬</td><td class="num">357</td><td>서교동사거리 앞 305번. 정류장을 떠나 좌회전 줄에 끼어들지 못한다</td></tr>
+            <tr><td>시간 초과</td><td class="num">107</td><td>합정역 사거리 앞뒤 대기 줄 71번</td></tr>
+            <tr><td>차 충돌</td><td class="num">76</td><td>합정역 사거리 갈림 지점 31번, 서교동사거리 안 18번</td></tr>
+            <tr><td>적색 통과</td><td class="num">25</td><td>독막로 11번, 서교동사거리 앞 8번</td></tr>
+            <tr><td>보행자 충돌</td><td class="num">10</td><td>와우산로 신호 없는 횡단보도 9번</td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
-    <section class="article-section" aria-labelledby="validation">
-      <h2 id="validation">검증</h2>
-      <p>도로를 바꿀 때마다 같은 방법으로 잰다. 300번 점검은 교통량 세 단계와 seed 100개로 배경 교통에 버스를 넣어 충돌, 순간이동, 비상 정지가 난 실행을 센다.</p>
-      <div class="table-scroll">
-        <table>
-          <thead><tr><th scope="col">지표</th><th scope="col" class="num">값</th></tr></thead>
-          <tbody>
-            <tr><td>300번 점검 중 사고·정체가 난 실행</td><td class="num">6</td></tr>
-            <tr><td>버스 한 바퀴 평균 시간</td><td class="num">444초</td></tr>
-            <tr><td>규칙 버스 완주 (80번씩 두 묶음)</td><td class="num">76, 79</td></tr>
-            <tr><td>도로 검증 (seed 3 × 교통량 3)</td><td class="num">9 / 9 완주</td></tr>
-          </tbody>
-        </table>
+    <section class="article-section" aria-labelledby="videos">
+      <h2 id="videos">주행 영상</h2>
+      <p>평가 기록을 그대로 다시 그린 영상으로, 잘한 장면과 실패한 장면을 함께 싣는다.</p>
+      <figure>
+        <div class="video-box"><video src="assets/videos/taxi_wait.mp4" poster="assets/videos/taxi_wait.jpg" controls muted loop playsinline preload="none"></video></div>
+        <figcaption class="caption"><strong>영상 2. 정류장 앞 택시 (S4)</strong>같은 바퀴에서 왼쪽 이전 모델은 정류장 입구의 택시를 들이받고, 오른쪽 최종 모델은 택시 뒤에서 기다렸다가 정류장에 선다.</figcaption>
+      </figure>
+      <h3>실패 장면</h3>
+      <div class="video-grid">
+        <figure>
+          <div class="video-box"><video src="assets/videos/fail_queue_tail.mp4" poster="assets/videos/fail_queue_tail.jpg" controls muted loop playsinline preload="none"></video></div>
+          <figcaption class="caption"><strong>대기 줄 끝 충돌</strong>좌회전을 마치고 앞에 선 줄을 늦게 보고 끝 차에 닿는다.</figcaption>
+        </figure>
+        <figure>
+          <div class="video-box"><video src="assets/videos/fail_yellow.mp4" poster="assets/videos/fail_yellow.jpg" controls muted loop playsinline preload="none"></video></div>
+          <figcaption class="caption"><strong>황색 진입</strong>서교동사거리 정지선 앞에서 황색이 켜졌는데 서지 않고 들어간다.</figcaption>
+        </figure>
+        <figure>
+          <div class="video-box"><video src="assets/videos/fail_green_start.mp4" poster="assets/videos/fail_green_start.jpg" controls muted loop playsinline preload="none"></video></div>
+          <figcaption class="caption"><strong>녹색 출발</strong>녹색이 켜지자마자 출발했는데 교차로 안에 아직 차가 남아 있다.</figcaption>
+        </figure>
+        <figure>
+          <div class="video-box"><video src="assets/videos/side_by_side.mp4" poster="assets/videos/side_by_side.jpg" controls muted loop playsinline preload="none"></video></div>
+          <figcaption class="caption"><strong>옆에서 나란히 가는 차</strong>버스 왼쪽에서 10초쯤 나란히 가던 차가 왼쪽 차로로 빠진다.</figcaption>
+        </figure>
       </div>
-      <p>어울마당로를 독막로까지 이었을 때 버스가 한 바퀴에 17초 늦어졌다. 교차로 신호 주기가 90초에서 100초로 바뀌어 다음 교차로와 엇갈린 탓이었고, 신호를 90초로 고정해 원래 시간으로 돌렸다.</p>
+      <p>실패는 대부분 신호가 바뀌는 순간이나 대기 줄 끝에서 일어난다.</p>
     </section>
 
     <section class="article-section" aria-labelledby="data">
-      <h2 id="data">데이터와 학습</h2>
-      <p>ego는 버스다. 수집기는 매 스텝 버스 상태, 주변 차량과 보행자, 경로, 신호를 기록한다. 컬럼은 표 하나에서 정의하고, 수업의 필수 항목 19개에 시각, 감지 보행자, 종료 사유, 승차감 4개를 더했다.</p>
+      <h2 id="data">데이터셋</h2>
+      <p>신경망이 탐색 잡음 없이 직접 몬 13,000바퀴를 0.5초마다 한 건씩 기록했고, 실패하거나 시뮬레이션 이상이 있는 1,290바퀴를 통째로 빼고 공개한다.</p>
+      <div class="stat-row">
+        <div class="stat"><b>12,186,016</b><span>모은 transition</span></div>
+        <div class="stat"><b>10,864,774</b><span>걸러 낸 뒤 공개한 건수</span></div>
+        <div class="stat"><b>11,710</b><span>남긴 바퀴</span></div>
+        <div class="stat"><b>7.4GB</b><span>65묶음, 교통별 폴더</span></div>
+      </div>
       <ul>
-        <li>주변 차량과 보행자는 버스에서 150m 안만 적는다.</li>
-        <li>승차감 한계(가속 1.5m/s², jerk 2.0m/s³)를 넘은 스텝을 따로 표시한다.</li>
+        <li>묶음마다 전체 항목을 담은 JSONL, 학습용 배열 NPZ, 설정과 컬럼 설명을 담은 metadata.json이 있다.</li>
+        <li>수업 기본 항목에 보행자, 적색 통과, 종료 원인, 정류장 정차, 승차감, 신호와 경로 정보를 더했다.</li>
+        <li>65묶음 모두 NPZ 행 수가 metadata의 건수와 맞고, 올린 뒤 다시 받은 파일의 해시도 원본과 같다.</li>
+        <li>데이터를 모은 신경망 <code>model/model.pt</code>도 함께 올렸다.</li>
       </ul>
+      <div class="hero-links left">
+        <a class="button" href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">Hugging Face에서 받기</a>
+      </div>
+    </section>
+
+    <section class="article-section" aria-labelledby="problems">
+      <h2 id="problems">문제와 해결</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">영역</th><th scope="col">문제</th><th scope="col">해결</th><th scope="col">결과</th></tr></thead>
+          <tbody>
+            <tr><td>도로</td><td>붙어 있는 교차로에서 급정지와 충돌</td><td>교차로를 합치고 차로를 한 차로씩 이음</td><td>급정지 40 → 0번</td></tr>
+            <tr><td>교통</td><td>대기 줄의 선 차가 돌아 뒤차와 겹침</td><td>선 차의 옆 이동을 끔</td><td>26 → 0대</td></tr>
+            <tr><td>교통</td><td>구간 가운데에 차가 없음</td><td>정류장 택시와 골목 차를 수요로 넣음</td><td>앞차 있는 시간 12.7%</td></tr>
+            <tr><td>학습</td><td>모방학습만으로는 30바퀴 중 26바퀴 완주</td><td>DAgger로 벗어난 상태의 정답을 더함</td><td>10회 뒤 60바퀴 모두 완주</td></tr>
+            <tr><td>학습</td><td>황색에서 어정쩡하게 줄이다 넘음</td><td>가속도를 11칸 중 고르게 함</td><td>적색 통과 0.19%</td></tr>
+            <tr><td>데이터</td><td>실패·이상 바퀴가 섞임</td><td>바퀴 단위 걸러내기</td><td>1,290바퀴 제외</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figure>
+        <div class="video-box"><video src="assets/videos/car_behind_bus.mp4" poster="assets/videos/car_behind_bus.jpg" controls muted loop playsinline preload="none"></video></div>
+        <figcaption class="caption"><strong>영상 3. 남은 문제: 두 차로에 걸쳐 서는 뒤차</strong>정류장에 선 버스를 피하려던 뒤차가 왼쪽에서는 차로를 반쯤 넘은 채 서고, 오른쪽 시험 설정에서는 바로 뒤에 서지만, 설정 21가지 중 이를 완전히 없앤 안은 없었다.</figcaption>
+      </figure>
     </section>
 
     <section class="article-section" aria-labelledby="limits">
-      <h2 id="limits">한계와 다음 단계</h2>
+      <h2 id="limits">결론과 한계</h2>
       <ul>
-        <li>버스는 아직 정류장에 서지 않고 거리만 기록한다.</li>
-        <li>정책 입력은 수업 원본의 31차원이라 보행자와 신호는 기록에만 있다.</li>
-        <li>양화로6길 서쪽은 입구에 횡단보도를 두면 사고 없이 이을 수 있어 확인 시험 뒤 넣는다.</li>
+        <li>가로변 정류장과 가장 왼쪽 차로 좌회전이 번갈아 나와서 버스는 한 바퀴에 차로를 8~9번 바꿔야 한다.</li>
+        <li>그 사이에 정류장 출발과 접근, 좌회전 전 끼어들기, 정류장 앞 택시, 골목 차, 신호 없는 횡단보도를 만난다.</li>
+        <li>신경망 하나가 규칙 보조 없이 13,000바퀴 중 95.6%를 완주했고, 충돌은 0.66%였다.</li>
+        <li>그 주행 1,086만 건을 정류장, 보행자, 신호, 승차감 항목과 함께 공개했다.</li>
+      </ul>
+      <h3>한계</h3>
+      <ul>
+        <li>실패 575바퀴 중 305바퀴가 서교동사거리 앞에서 멈춰 선 것인데, 규칙 운전사도 같은 곳에서 멈추기 때문에 따라 배우는 방식으로는 줄이지 못했다.</li>
+        <li>차로 변경의 88%가 일어나는 구간 가운데는 아직 신호 앞보다 차가 절반도 안 된다.</li>
+        <li>규칙 운전사가 스스로 완주하지 못하는 1.75배 이상의 교통은 가르칠 수 없다.</li>
       </ul>
     </section>
   </article>

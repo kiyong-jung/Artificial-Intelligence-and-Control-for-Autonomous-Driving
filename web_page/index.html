@@ -201,27 +201,80 @@
 
   pre { margin: var(--s-4) 0; padding: var(--s-4); overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); font-size: var(--fs-small); line-height: var(--lh-ui); }
   pre code { padding: 0; background: none; font-weight: var(--w-reg); white-space: pre; }
-  .scorecard { max-width: var(--figure); margin-top: var(--s-5); margin-bottom: var(--s-7); }
-  .score-title { margin: 0; font-size: var(--fs-xl); text-align: center; }
-  .score-title::before { content: none; }
+  /* 히어로 아래 두 묶음(이야기 줄, 메인 목표)의 가운데 제목 */
+  .band-title { margin: 0; font-size: var(--fs-xl); text-align: center; }
+  .band-title::before { content: none; }
+
+  /* 이야기 줄: 왜 버스인가. 네 장면을 노선(파랑 선) 위 정류장(노랑 네모)으로 잇는다. 아이콘은 장식이라 aria-hidden. */
+  .story { max-width: var(--figure); margin-top: var(--s-7); margin-bottom: var(--s-8); }
+  .story-line { position: relative; list-style: none; margin: var(--s-6) 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--s-5); }
+  .story-line::before { content: ""; position: absolute; left: 0; right: 0; top: calc(80px + var(--s-4) + var(--mark) / 2 - 2px); height: 4px; background: var(--accent); }
+  .story-step { position: relative; display: flex; flex-direction: column; margin: 0; }
+  .story-step::after { content: ""; order: 1; position: relative; flex: none; width: var(--mark); height: var(--mark); margin-top: var(--s-4); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
+  .story-icon { order: 0; display: block; flex: none; width: 120px; height: 80px; overflow: visible; }
+  .story-step h3 { order: 2; margin: var(--s-4) 0 0; font-size: var(--fs-lead); line-height: var(--lh-ui); letter-spacing: var(--ls-tight); }
+  /* 넓은 화면의 이야기 글은 약 216px 좁은 칸이라 양쪽 정렬하면 숫자 묶음(.nobr) 앞뒤가 크게 벌어진다. 4열에서는 왼쪽 정렬, 860px 이하 1열에서 양쪽 정렬한다. */
+  .story-step p { order: 3; margin: var(--s-2) 0 0; font-size: var(--fs-ui); text-align: start; }
+  .story-link { order: 4; align-self: flex-start; display: inline-flex; align-items: center; min-height: var(--tap); color: var(--accent); font-size: var(--fs-ui); font-weight: var(--w-bold); }
+  .story-link:hover { color: var(--accent-deep); }
+  /* 아이콘 선: ink 선, accent 노선·화살표, stop 정류장 네모, surface 속, rule-strong 도로 */
+  .story-icon .il { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .story-icon .if { fill: var(--surface); stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+  .story-icon .ir { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+  .story-icon .ia { fill: var(--accent); stroke: var(--ink); stroke-width: 2.5; }
+  .story-icon .ib { fill: var(--accent); }
+  .story-icon .is { fill: var(--stop); stroke: var(--ink); stroke-width: 2; }
+  .story-icon .ig { fill: none; stroke: var(--rule-strong); stroke-width: 2; stroke-linecap: round; }
+  .story-icon .id { stroke-dasharray: 6 6; }
+
+  /* 메인 목표: 카드마다 기준과 우리를 위아래로 맞대고, 막대는 우리(파랑 칸)와 기준(ink 세로선)을 같은 눈금에 둔다. */
+  .scorecard { max-width: var(--figure); margin-top: 0; margin-bottom: var(--s-7); }
   .score-sub { margin: var(--s-2) auto var(--s-5); max-width: var(--measure); text-align: center; color: var(--muted); font-size: var(--fs-small); text-wrap: balance; }
   .score-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); }
-  .score { display: flex; flex-direction: column; gap: var(--s-1); padding: var(--s-4); background: var(--surface); border: 1px solid var(--rule); border-top: 4px solid var(--accent); border-radius: var(--r-lg); text-decoration: none; color: var(--body); transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
+  .score { grid-row: span 5; display: grid; grid-template-rows: subgrid; row-gap: var(--s-2); align-content: start; padding: var(--s-4); background: var(--surface); border: 1px solid var(--rule); border-top: 4px solid var(--accent); border-radius: var(--r-lg); text-decoration: none; color: var(--body); word-break: keep-all; transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
   .score:hover { border-color: var(--rule-strong); border-top-color: var(--accent-deep); color: var(--body); }
-  .score-name { display: flex; align-items: center; gap: var(--s-2); color: var(--muted); font-size: var(--fs-small); font-weight: var(--w-semi); word-break: keep-all; }
+  .score-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); }
+  .score-name { display: flex; align-items: center; gap: var(--s-2); color: var(--ink); font-size: var(--fs-ui); font-weight: var(--w-bold); }
   .score-name::before { content: ""; flex: none; width: var(--mark); height: var(--mark); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
-  .score-value { color: var(--ink); font: var(--w-black) clamp(1.5rem, 2.2vw, 1.9rem)/var(--lh-display) var(--sans); letter-spacing: var(--ls-head); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .score-value small { margin-left: 2px; font-size: .6em; font-weight: var(--w-bold); }
-  .score-rule { color: var(--ink); font-size: var(--fs-small); font-weight: var(--w-semi); word-break: keep-all; }
-  .score-rule em { margin-left: var(--s-1); padding: 0 var(--s-2); border-radius: var(--r-pill); background: var(--tone); color: var(--accent-deep); font-style: normal; font-weight: var(--w-bold); white-space: nowrap; }
-  .score-note { color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); word-break: keep-all; }
+  .score-ok { flex: none; padding: 0 var(--s-2); border-radius: var(--r-pill); background: var(--tone); color: var(--accent-deep); font-size: var(--fs-small); font-weight: var(--w-bold); line-height: var(--lh-ui); }
+  .vs { display: grid; grid-template-columns: 2.5em minmax(0, 1fr); column-gap: var(--s-2); align-items: baseline; align-content: start; }
+  .vs-k { color: var(--muted); font-size: var(--fs-small); font-weight: var(--w-med); }
+  .vs-v { min-width: 0; color: var(--ink); font-size: var(--fs-small); font-weight: var(--w-semi); line-height: var(--lh-ui); }
+  .vs-ours { padding-top: var(--s-2); border-top: 1px solid var(--rule-soft); }
+  .vs-ours .vs-k { color: var(--ink); font-weight: var(--w-bold); }
+  .score .vs { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+  .vs-ours .vs-v { font: var(--w-black) var(--fs-stat)/var(--lh-display) var(--sans); letter-spacing: var(--ls-head); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .vs-v small { margin-left: 2px; font-size: .6em; font-weight: var(--w-bold); }
+  .score-bar { display: block; padding: var(--s-2) 0 var(--s-5); }
+  .bar { position: relative; display: block; height: var(--s-2); border-radius: var(--r-xs); background: var(--tone-deep); }
+  .bar i { position: absolute; display: block; font-style: normal; }
+  .bar-fill { left: 0; top: 0; bottom: 0; width: var(--ours); border-radius: var(--r-xs); background: var(--accent); }
+  .bar-tick { top: calc(var(--s-1) * -1); bottom: calc(var(--s-1) * -1); left: var(--at); width: 2px; margin-left: -1px; background: var(--ink); }
+  .bar-label { top: calc(100% + var(--s-1)); left: var(--at); transform: translateX(-50%); color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); white-space: nowrap; }
+  .bar-label.end { transform: translateX(-100%); }
+  .score-note { color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); }
   .criteria { list-style: none; margin: var(--s-4) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
-  .criteria li { margin: 0; }
-  .criteria a { display: flex; flex-direction: column; gap: var(--s-1); height: 100%; padding: var(--s-3) var(--s-4); border: 1px solid var(--rule); border-radius: var(--r-lg); text-decoration: none; color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); word-break: keep-all; }
+  .criteria li { grid-row: span 3; display: grid; grid-template-rows: subgrid; row-gap: 0; margin: 0; }
+  .criteria a { grid-row: span 3; display: grid; grid-template-rows: subgrid; row-gap: var(--s-1); padding: var(--s-3) var(--s-4); border: 1px solid var(--rule); border-radius: var(--r-lg); text-decoration: none; color: var(--body); font-size: var(--fs-small); line-height: var(--lh-ui); word-break: keep-all; transition: border-color var(--t-fast) var(--ease); }
   .criteria a:hover { border-color: var(--rule-strong); color: var(--body); }
   .criteria b { color: var(--ink); font-size: var(--fs-ui); }
+  .criteria .vs-v { font-weight: var(--w-reg); color: var(--muted); }
+  .criteria .vs-ours { padding-top: var(--s-1); }
+  .criteria .vs-ours .vs-v { font: var(--w-semi) var(--fs-small)/var(--lh-ui) var(--sans); letter-spacing: 0; color: var(--ink); white-space: normal; }
   @media (hover: hover) and (pointer: fine) { .score:hover { transform: translateY(-2px); } }
-  @media (max-width: 860px) { .score-grid { grid-template-columns: 1fr 1fr; } .criteria { grid-template-columns: 1fr; } .score-value { font-size: var(--fs-xl); } }
+  @media (max-width: 1100px) { .score-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 860px) {
+    .story { margin-top: var(--s-6); margin-bottom: var(--s-7); }
+    .story-line { grid-template-columns: 1fr; row-gap: var(--s-6); padding-left: var(--s-6); }
+    .story-line::before { display: none; }
+    .story-step:not(:last-child)::before { content: ""; position: absolute; left: calc(var(--s-6) * -1 + var(--mark) / 2 - 2px); top: 32px; bottom: calc(var(--s-6) * -1 - 32px); width: 4px; background: var(--accent); }
+    .story-step::after { position: absolute; left: calc(var(--s-6) * -1); top: calc(32px - var(--mark) / 2); margin: 0; }
+    .story-icon { width: 96px; height: 64px; }
+    .story-step h3 { margin-top: var(--s-3); }
+    .story-step p { font-size: var(--fs-body); text-align: justify; word-break: normal; line-break: strict; overflow-wrap: anywhere; }
+    .criteria { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) { .score-grid { grid-template-columns: 1fr; } }
 
   footer { color: var(--muted); font-size: var(--fs-small); padding-bottom: var(--s-7); }
   footer .wide { position: relative; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--s-3) var(--s-6); padding-top: var(--s-5); }
@@ -321,22 +374,115 @@
   </div>
 </header>
 
+<section class="wide story" aria-labelledby="story-title">
+  <h2 id="story-title" class="band-title">왜 버스인가</h2>
+  <ol class="story-line">
+    <li class="story-step">
+      <svg class="story-icon" viewBox="0 0 120 80" aria-hidden="true" focusable="false">
+        <line class="ig" x1="4" y1="68" x2="116" y2="68"/>
+        <line class="il" x1="106" y1="30" x2="106" y2="67"/>
+        <rect class="is" x="99" y="16" width="14" height="14" rx="2"/>
+        <rect class="if" x="8" y="16" width="82" height="42" rx="8"/>
+        <rect class="ib" x="10" y="44" width="64" height="5"/>
+        <rect class="il" x="16" y="24" width="16" height="12" rx="2"/>
+        <rect class="il" x="37" y="24" width="16" height="12" rx="2"/>
+        <rect class="il" x="58" y="24" width="12" height="12" rx="2"/>
+        <rect class="il" x="76" y="24" width="8" height="30" rx="2"/>
+        <circle class="if" cx="28" cy="58" r="7"/>
+        <circle class="if" cx="68" cy="58" r="7"/>
+      </svg>
+      <h3>차로를 가장 자주 바꾸는 차</h3>
+      <p>시내버스는 차로를 가장 자주 바꿔야 하는 차다. 승객을 태우려면 가장 바깥 차로의 정류장으로 가고, 좌회전하려면 가장 안쪽 차로로 가야 한다.</p>
+    </li>
+    <li class="story-step">
+      <svg class="story-icon" viewBox="0 0 120 80" aria-hidden="true" focusable="false">
+        <rect class="ir" x="22" y="12" width="76" height="56" rx="16"/>
+        <path class="il" d="M77 63L82 68L77 73M43 7L38 12L43 17"/>
+        <rect class="is" x="54" y="6" width="12" height="12" rx="2"/>
+        <rect class="is" x="92" y="34" width="12" height="12" rx="2"/>
+        <rect class="is" x="54" y="62" width="12" height="12" rx="2"/>
+        <rect class="is" x="16" y="34" width="12" height="12" rx="2"/>
+      </svg>
+      <h3>정류장과 좌회전이 번갈아</h3>
+      <p>합정역 순환 노선 <span class="nobr">1.96km에는</span> 정류장 4곳과 좌회전 4곳이 번갈아 있다. 그래서 버스는 한 바퀴에 차로를 <span class="nobr">8~9번</span> 바꾼다.</p>
+    </li>
+    <li class="story-step">
+      <svg class="story-icon" viewBox="0 0 120 80" aria-hidden="true" focusable="false">
+        <line class="ig" x1="4" y1="8" x2="116" y2="8"/>
+        <line class="ig id" x1="4" y1="29" x2="116" y2="29"/>
+        <line class="ig id" x1="4" y1="51" x2="116" y2="51"/>
+        <line class="ig" x1="4" y1="72" x2="116" y2="72"/>
+        <rect class="if" x="6" y="13" width="22" height="12" rx="3"/>
+        <rect class="if" x="88" y="13" width="22" height="12" rx="3"/>
+        <rect class="ia" x="12" y="32" width="42" height="16" rx="4"/>
+        <rect class="if" x="70" y="55" width="22" height="12" rx="3"/>
+        <rect class="is" x="100" y="66" width="12" height="12" rx="2"/>
+        <path class="ir" d="M58 40C67 40 64 19 74 19"/>
+        <path class="il" d="M69 13.5L75 19L69 24.5"/>
+      </svg>
+      <h3>옆 차로와 눈치싸움</h3>
+      <p>옆 차로에는 차가 있다. 정류장 앞에는 택시가 서 있고, 골목에서 차가 끼어들고, 신호 없는 횡단보도에는 보행자가 건넌다. 버스는 <span class="nobr">0.5초마다</span> 끼어들지 기다릴지 정한다.</p>
+      <a class="story-link" href="#nunchi">눈치싸움 장면 보기</a>
+    </li>
+    <li class="story-step">
+      <svg class="story-icon" viewBox="0 0 120 80" aria-hidden="true" focusable="false">
+        <path class="ig" d="M24 14L60 24M24 14L60 40M24 14L60 56M24 31L60 24M24 31L60 40M24 31L60 56M24 49L60 24M24 49L60 40M24 49L60 56M24 66L60 24M24 66L60 40M24 66L60 56M60 24L96 30M60 24L96 50M60 40L96 30M60 40L96 50M60 56L96 30M60 56L96 50"/>
+        <circle class="if" cx="24" cy="14" r="6"/>
+        <circle class="if" cx="24" cy="31" r="6"/>
+        <circle class="if" cx="24" cy="49" r="6"/>
+        <circle class="if" cx="24" cy="66" r="6"/>
+        <circle class="if" cx="60" cy="24" r="6"/>
+        <circle class="if" cx="60" cy="40" r="6"/>
+        <circle class="if" cx="60" cy="56" r="6"/>
+        <circle class="ia" cx="96" cy="30" r="7"/>
+        <circle class="if" cx="96" cy="50" r="7"/>
+      </svg>
+      <h3>신경망 하나에 맡겼다</h3>
+      <p>우리는 규칙 없이 신경망 하나에 이 버스를 맡겼다. <span class="nobr">13,000바퀴</span> 중 <span class="nobr">95.6%를</span> 완주했고 충돌은 <span class="nobr">0.66%였다.</span></p>
+    </li>
+  </ol>
+</section>
+
 <section class="wide scorecard" aria-labelledby="score-title">
-  <h2 id="score-title" class="score-title">채점 요소 한눈에</h2>
-  <p class="score-sub">수업 평가 기준과 우리 결과다. 모든 수치는 학습에 쓰지 않은 seed로 돌린 13,000바퀴에서 셌다.</p>
+  <h2 id="score-title" class="band-title">메인 목표 달성률 100%</h2>
+  <p class="score-sub">수업이 메인 목표로 정한 기준 4개를 모두 통과했다. 수치는 학습에 쓰지 않은 seed로 돌린 <span class="nobr">13,000바퀴에서</span> 셌다.</p>
   <div class="score-grid">
-    <a class="score" href="#results"><span class="score-name">Collision Rate</span><b class="score-value">0.66%</b><span class="score-rule">기준 5% 미만 <em>충족</em></span><span class="score-note">13,000바퀴 중 차 76번, 보행자 10번</span></a>
-    <a class="score" href="#results"><span class="score-name">목적지 완주</span><b class="score-value">95.6%</b><span class="score-rule">정류장 4곳 정차 후 도착</span><span class="score-note">12,425바퀴 완주, 순간이동 0건</span></a>
-    <a class="score" href="#data"><span class="score-name">Dataset</span><b class="score-value">10,864,774<small>건</small></b><span class="score-rule">기준 10⁷건 이상 <em>충족</em></span><span class="score-note">학습한 신경망이 직접 모음, Hugging Face 공개</span></a>
-    <a class="score" href="#lap-video"><span class="score-name">실주행 영상</span><b class="score-value">67<small>초</small></b><span class="score-rule">기준 30초 이상 <em>충족</em></span><span class="score-note">출발부터 도착까지 한 바퀴, 눈치싸움 장면 5개</span></a>
+    <a class="score" href="#results">
+      <span class="score-head"><span class="score-name">Collision Rate</span><span class="score-ok">충족</span></span>
+      <span class="vs"><span class="vs-k">기준</span><span class="vs-v">5% 미만, 낮을수록 좋다</span></span>
+      <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">0.66%</span></span>
+      <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 13.2%; --at: 100%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label end">기준</i></span></span>
+      <span class="score-note">13,000바퀴 중 차 76번, 보행자 10번</span>
+    </a>
+    <a class="score" href="#results">
+      <span class="score-head"><span class="score-name">목적지 완주</span><span class="score-ok">충족</span></span>
+      <span class="vs"><span class="vs-k">기준</span><span class="vs-v">출발점에서 목적지까지 완주(비정상 정지·무한 대기 없이)</span></span>
+      <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">95.6%</span></span>
+      <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 95.58%"><i class="bar-fill"></i></span></span>
+      <span class="score-note">13,000바퀴 중 12,425바퀴, 순간이동 0건</span>
+    </a>
+    <a class="score" href="#data">
+      <span class="score-head"><span class="score-name">Dataset</span><span class="score-ok">충족</span></span>
+      <span class="vs"><span class="vs-k">기준</span><span class="vs-v">10,000,000건(10⁷) 이상</span></span>
+      <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">10,864,774<small>건</small></span></span>
+      <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 100%; --at: 92.04%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label">기준</i></span></span>
+      <span class="score-note">기준의 108.6%, Hugging Face 공개</span>
+    </a>
+    <a class="score" href="#lap-video">
+      <span class="score-head"><span class="score-name">실주행 영상</span><span class="score-ok">충족</span></span>
+      <span class="vs"><span class="vs-k">기준</span><span class="vs-v">30초 이상</span></span>
+      <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">67<small>초</small></span></span>
+      <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 100%; --at: 44.78%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label">기준</i></span></span>
+      <span class="score-note">출발부터 도착까지 한 바퀴, 눈치싸움 장면 5개</span>
+    </a>
   </div>
   <ul class="criteria">
-    <li><a href="#why"><b>도로 구조의 의미</b><span>정류장 4곳과 가장 왼쪽 차로 좌회전 4곳이 번갈아 있어 한 바퀴에 차로를 8~9번 바꾼다</span></a></li>
-    <li><a href="#road"><b>도로 구조 구현</b><span>실제 OpenStreetMap 도로와 실제 골목 여덟 곳, 도로망 3.22.0</span></a></li>
-    <li><a href="#traffic"><b>Traffic 구성</b><span>교통 다섯 단계, 버스 150m 안 일반 차 평균 4.9~18.8대</span></a></li>
-    <li><a href="#interaction"><b>Vehicle Interaction</b><span>복합 교통에서 차로 변경의 46%가 옮길 차로 30m 안에 차가 있는 채로 일어난다</span></a></li>
-    <li><a href="#results"><b>Simulation 안정성</b><span>순간이동 0건, 오류로 끝난 바퀴 0, 이상 바퀴는 데이터에서 뺐다</span></a></li>
-    <li><a href="#problems"><b>분석 및 설명</b><span>문제 여섯 개의 원인과 해결, 실패 575바퀴가 난 곳</span></a></li>
+    <li><a href="#why"><b>도로 구조의 의미</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">AV가 의사결정을 해야 하는 구조적 특징이 존재하는가</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">정류장 4곳과 가장 왼쪽 차로 좌회전 4곳이 번갈아 있어 한 바퀴에 차로를 8~9번 바꾼다</span></span></a></li>
+    <li><a href="#road"><b>도로 구조 구현</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">실제 도로의 특징이 자연스럽게 반영되었는가</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">실제 OpenStreetMap 도로와 실제 골목 여덟 곳, 도로망 3.22.0</span></span></a></li>
+    <li><a href="#traffic"><b>Traffic 구성</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">충분한 수의 일반 차량이 존재하고 자연스럽게 움직이는가</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">교통 다섯 단계, 버스 150m 안 일반 차 평균 4.9~18.8대</span></span></a></li>
+    <li><a href="#interaction"><b>Vehicle Interaction</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">일반 차량과 AV 사이에 의미 있는 interaction이 발생하는가</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">복합 교통에서 차로 변경의 46%가 옮길 차로 30m 안에 차가 있는 채로 일어난다</span></span></a></li>
+    <li><a href="#results"><b>Simulation 안정성</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">비정상적인 정체, Teleport, 오류가 없는가</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">순간이동 0건, 오류로 끝난 바퀴 0, 이상 바퀴는 데이터에서 뺐다</span></span></a></li>
+    <li><a href="#problems"><b>분석 및 설명</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">환경 설계 이유, 문제점, 해결 과정을 논리적으로 설명하는가</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">문제 여섯 개의 원인과 해결, 실패 575바퀴가 난 곳</span></span></a></li>
   </ul>
 </section>
 

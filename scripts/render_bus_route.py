@@ -181,4 +181,4 @@ def render(out: Path) -> None:
 
 
 if __name__ == "__main__":
-    render(Path(sys.argv[1]) if len(sys.argv) > 1 else BASE / "reports" / "bus_loop_route.png")
+    render(Path(sys.argv[1]) if len(sys.argv) > 1 else BASE / "docs" / "img" / "bus_loop_route.png")

@@ -250,7 +250,7 @@ AV(autonomous vehicle, 자율주행차)는 시내버스 한 대다. 신경망 �
 
 | 단계 | 교통 | 내용 |
 |---|---|---|
-| 시범 | 한산, 보통, 혼잡 | 규칙 운전사가 300바퀴를 주행하고 그 기록으로 처음 모방학습 |
+| BC | 한산, 보통, 혼잡 | 규칙 운전사가 주행한 300바퀴 기록으로 BC(모방학습) |
 | DAgger 1~12회 | 한산, 보통, 혼잡 | 회마다 교통별 25바퀴를 신경망이 직접 운전 |
 | DAgger 13~16회 | + 매우 혼잡 | 끼어들기와 대기 줄 상황 추가 |
 | DAgger 17~21회 | + 택시·골목 차·보행자 | 정류장 앞 택시와 골목 차 학습 |
@@ -539,7 +539,7 @@ python research/av_bc_rl/count_interactions.py data/final
 
 ### 처음부터 학습 재현하기
 
-시범 데이터 수집부터 DAgger 24회, 최종 모델 고르기까지 한 번에 돌린다.
+BC 데이터 수집부터 DAgger 24회, 최종 모델 고르기까지 한 번에 돌린다.
 
 ```bash
 bash research/av_bc_rl/train_final.sh              # 고른 모델 경로는 results/pick_checkpoint.txt 마지막 줄
@@ -576,7 +576,7 @@ python -m pytest tests
 | | [`research/av_bc_rl/dagger.py`](research/av_bc_rl/dagger.py) | DAgger 반복 |
 | | [`research/av_bc_rl/augment_signals.py`](research/av_bc_rl/augment_signals.py) | 신호 상태를 바꿔 데이터 늘리기 |
 | | [`research/av_bc_rl/merge_datasets.py`](research/av_bc_rl/merge_datasets.py) | 데이터 합본 |
-| | [`research/av_bc_rl/train_final.sh`](research/av_bc_rl/train_final.sh) | 시범부터 DAgger 24회, 모델 고르기, 수집까지 한 번에 |
+| | [`research/av_bc_rl/train_final.sh`](research/av_bc_rl/train_final.sh) | BC부터 DAgger 24회, 모델 고르기, 수집까지 한 번에 |
 | **Evaluation** | [`research/av_bc_rl/evaluate.py`](research/av_bc_rl/evaluate.py) | 고정 seed에서 정책 평가 |
 | | [`research/traffic_checks/pick_checkpoint.py`](research/traffic_checks/pick_checkpoint.py) | 최종 모델 고르기 |
 | | [`research/av_bc_rl/count_interactions.py`](research/av_bc_rl/count_interactions.py) | 바퀴당 얽힘 장면 세기 |

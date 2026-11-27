@@ -14,7 +14,7 @@ DAG=(--episodes 25 --workers "$W" --overlap --augment-signals "${TRAIN[@]}")
 D=data/research/demo; A=results/dagger_1_16; B=results/dagger_17_21; C=results/dagger_22_24
 mkdir -p "$D"
 
-# 1) 시범: 규칙 운전사(expert-v7)가 한산·보통·혼잡에서 100바퀴씩 몬 기록으로 처음 모방학습한다.
+# 1) BC: 규칙 운전사(expert-v7)가 한산·보통·혼잡에서 100바퀴씩 주행한 기록으로 처음 모방학습한다.
 for pair in quiet:2000 baseline:2300 busy:2600; do
     name=demo_${pair%%:*}
     [ -f "$D/$name.npz" ] || "$PY" collect_pomdp_data.py --map hapjeong --scenario "${pair%%:*}" --seed "${pair##*:}" \

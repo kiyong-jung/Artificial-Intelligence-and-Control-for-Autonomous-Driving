@@ -1,0 +1,16 @@
+rd3 = results/rich_dagger_s1/bc_it3 (3 rounds, quiet baseline busy heavy rich_lo); rd5 = bc_it5 (2 more rounds, heavy rich_lo); fresh seeds 61000-61047
+scenario n arrived(it16/rd3) safety(it16/rd3) only_it16 only_rd3 reasons
+quiet 48 48/48 0/0 0 0 [{"arrived":48},{"arrived":48}]
+baseline 48 48/47 0/0 1 0 [{"arrived":48},{"arrived":47,"stuck":1}]
+busy 48 46/47 0/0 1 2 [{"arrived":46,"time_limit":2},{"arrived":47,"stuck":1}]
+heavy 48 44/46 1/0 0 2 [{"arrived":44,"red_light":1,"stuck":3},{"arrived":46,"stuck":2}]
+rich_lo 48 18/28 27/15 2 12 [{"arrived":18,"collision":26,"pedestrian_collision":1,"stuck":1,"time_limit":2},{"arrived":28,"collision":15,"stuck":4,"time_limit":1}]
+rich2 48 22/27 25/20 3 8 [{"arrived":22,"collision":25,"stuck":1},{"arrived":27,"collision":20,"time_limit":1}]
+
+scenario n arrived(it16/rd5) safety(it16/rd5) only_it16 only_rd5 reasons
+quiet 48 48/48 0/0 0 0 [{"arrived":48},{"arrived":48}]
+baseline 48 48/47 0/0 1 0 [{"arrived":48},{"arrived":47,"stuck":1}]
+busy 48 46/47 0/1 1 2 [{"arrived":46,"time_limit":2},{"arrived":47,"red_light":1}]
+heavy 48 44/45 1/1 0 1 [{"arrived":44,"red_light":1,"stuck":3},{"arrived":45,"red_light":1,"stuck":2}]
+rich_lo 48 18/41 27/3 0 23 [{"arrived":18,"collision":26,"pedestrian_collision":1,"stuck":1,"time_limit":2},{"arrived":41,"collision":3,"stuck":3,"time_limit":1}]
+rich2 48 22/44 25/2 1 23 [{"arrived":22,"collision":25,"stuck":1},{"arrived":44,"collision":1,"pedestrian_collision":1,"stuck":2}]

@@ -18,7 +18,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-sys.path.insert(0, os.path.join(os.environ.get("SUMO_HOME", "/Users/ky/src/sumo-1.27.1-mesa"), "tools"))
+sys.path.insert(0, os.path.join(os.environ["SUMO_HOME"], "tools"))
 import sumolib  # noqa: E402
 
 FONT = "/System/Library/Fonts/AppleSDGothicNeo.ttc"

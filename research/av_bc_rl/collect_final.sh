@@ -7,8 +7,8 @@
 #     MODEL=... SHARD=1 TARGET=3000000 OUT=data/final_shard1 bash research/av_bc_rl/collect_final.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-export SUMO_HOME="${SUMO_HOME:-/Users/ky/src/sumo-1.27.1-mesa}"
-PY="${PY:-/Users/ky/miniforge3/envs/sumo-rl/bin/python}"
+: "${SUMO_HOME:?SUMO 1.27.1을 설치한 경로를 SUMO_HOME으로 준다}"; export SUMO_HOME
+PY="${PY:-python}"
 W="${WORKERS:-13}"; OUT="${OUT:-data/final}"; TARGET="${TARGET:-10000000}"; SHARD="${SHARD:-0}"; CHUNK="${CHUNK:-200}"
 : "${MODEL:?MODEL=model.pt 경로를 준다}"
 mkdir -p "$OUT"

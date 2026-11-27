@@ -239,6 +239,7 @@ AV(autonomous vehicle, 자율주행차)는 시내버스 한 대다. 신경망 �
 - 차로를 지시하는 관측은 없고, 버스는 차로마다 노선으로 이어지는 거리만 보고 갈 차로를 정한다.
 - 규칙 운전사([`env/route_policy.py`](env/route_policy.py))는 학습 때 정답을 붙이는 데만 쓰고 주행 때는 쓰지 않는다.
 - 버스의 SUMO 안전장치(speedMode, laneChangeMode)는 0으로 끈다.
+- 차로 변경 명령은 수업 원본 환경의 차로 변경 안전 검사([`env/mdp_config.py`](env/mdp_config.py)의 `lane_change_safety`)를 거친다. 옮길 차로의 앞뒤 간격이 3m와 속도에 비례한 여유보다 작거나 출발 60m 안이면 명령을 실행하지 않는다. 값은 수업 원본과 같고, 조교가 이 검사는 끄지 않아도 된다고 답했다.
 - 신경망은 관측 46개 중 31개를 쓰고 15개는 0으로 가린다(가려도 검증 손실과 주행이 같았다, [`docs/network_architecture.md`](docs/network_architecture.md)).
 - 가속도를 값 하나로 맞히게 하면 서야 할지 가야 할지 모를 때 그 중간값을 내서, 11칸 중 하나를 고르게 바꿨다.
 - 가속도는 가장 높은 칸과 양옆 칸의 평균으로 정한다.

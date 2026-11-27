@@ -143,6 +143,8 @@
   code, .caption strong, .scene-meta, .video-key { word-break: keep-all; }
   ul { padding-left: 1.2em; }
   li { margin: var(--s-2) 0; text-wrap: pretty; }
+  .article-section > h2 + h3 { margin-top: 0; }
+  .conclusion li { color: var(--ink); font-size: var(--fs-lead); }
   .pull { margin: var(--s-6) 0; max-width: var(--measure); color: var(--ink); font: var(--w-bold) var(--fs-xl)/var(--lh-ui) var(--sans); letter-spacing: var(--ls-tight); text-wrap: balance; }
   figure { margin: var(--s-6) 0; }
   .table-scroll { overflow-x: auto; margin: var(--s-5) 0; border: 1px solid var(--rule); border-radius: var(--r-lg); background: var(--surface); }
@@ -158,7 +160,14 @@
   .col-avg { background: var(--tone); }
   td.num { font-weight: var(--w-bold); white-space: nowrap; }
   .grouped td:nth-last-child(2), .grouped td:nth-last-child(3) { white-space: nowrap; }
-  tbody tr:last-child td.num { font-weight: var(--w-black); }
+  /* 합계 행만 가장 굵게. 표의 마지막 행이라고 굵히면 합계가 아닌 행(복합 교통, 보행자 충돌)이 합계처럼 튄다. */
+  tbody tr.total td.num { font-weight: var(--w-black); }
+  /* 평가 결과 표: 완주율 열이 주인공(tone 바탕, 800), 실패 원인 열은 보조(muted, 500). 실패 숫자는 그대로 보이되 눈이 먼저 가지 않게 한다. */
+  td.num.col-key { background: var(--tone); color: var(--ink); font-weight: var(--w-black); }
+  th.col-key { background: var(--tone); color: var(--ink); font-weight: var(--w-bold); }
+  td.num.minor { color: var(--muted); font-weight: var(--w-med); }
+  tbody tr.total td.num.minor { font-weight: var(--w-bold); }
+  th.minor-start, td.minor-start { border-left: 1px solid var(--rule-soft); }
   code { font-family: inherit; font-size: .9em; font-weight: var(--w-semi); color: var(--ink); background: var(--tone); padding: 1px var(--s-1); border-radius: var(--r-xs); }
 
   .shortcut-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-4); margin: var(--s-6) 0; }
@@ -208,7 +217,7 @@
   /* 히어로 아래 두 묶음(이야기 줄, 메인 목표)의 가운데 제목 */
   .band-title { margin: 0; font-size: var(--fs-xl); text-align: center; }
   .band-title::before { content: none; }
-  .scorecard .band-title { font-size: var(--fs-h2); letter-spacing: var(--ls-head); }
+  .scorecard .band-title { margin-bottom: var(--s-5); font-size: var(--fs-h2); letter-spacing: var(--ls-head); }
 
   /* 이야기 줄: 왜 버스인가. 네 장면을 노선(파랑 선) 위 정류장(노랑 네모)으로 잇는다. 아이콘은 장식이라 aria-hidden. */
   .story { max-width: var(--figure); margin-top: var(--s-7); margin-bottom: var(--s-8); }
@@ -235,7 +244,6 @@
 
   /* 메인 목표: 카드마다 기준과 우리를 위아래로 맞대고, 막대는 우리(파랑 칸)와 기준(ink 세로선)을 같은 눈금에 둔다. */
   .scorecard { max-width: var(--figure); margin-top: 0; margin-bottom: var(--s-7); }
-  .score-sub { margin: var(--s-2) auto var(--s-5); max-width: var(--measure); text-align: center; color: var(--muted); font-size: var(--fs-small); text-wrap: balance; }
   .score-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); }
   .score { grid-row: span 5; display: grid; grid-template-rows: subgrid; row-gap: var(--s-2); align-content: start; padding: var(--s-4); background: var(--surface); border: 1px solid var(--rule); border-top: 4px solid var(--accent); border-radius: var(--r-lg); text-decoration: none; color: var(--body); word-break: keep-all; transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
   .score:hover { border-color: var(--rule-strong); border-top-color: var(--accent-deep); color: var(--body); }
@@ -467,14 +475,13 @@
 
 <section class="wide scorecard" aria-labelledby="score-title">
   <h2 id="score-title" class="band-title">메인 목표 달성률 100%</h2>
-  <p class="score-sub">수업 기준 4개 모두 통과 · 새 seed <span class="nobr">13,000바퀴</span> 기준</p>
   <div class="score-grid">
     <a class="score" href="#results">
       <span class="score-head"><span class="score-name">Collision Rate</span><span class="score-ok">충족</span></span>
       <span class="vs"><span class="vs-k">기준</span><span class="vs-v">5% 미만</span></span>
       <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">0.66%</span></span>
-      <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 13.2%; --at: 100%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label end">기준</i></span></span>
-      <ul class="mini-points score-note"><li>차 76번 + 보행자 10번</li></ul>
+      <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 99.34%; --at: 95%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label">기준</i></span></span>
+      <ul class="mini-points score-note"><li>충돌 없이 끝난 바퀴 99.3%</li></ul>
     </a>
     <a class="score" href="#results">
       <span class="score-head"><span class="score-name">목적지 완주</span><span class="score-ok">충족</span></span>
@@ -642,7 +649,7 @@
       </ul>
       <figure>
         <a class="figure-link" href="assets/scenario_map.webp"><img src="assets/scenario_map.webp" width="2400" height="1500" alt="여섯 시나리오가 일어나는 위치를 표시한 합정역 도로망" loading="lazy" decoding="async" /></a>
-        <figcaption class="caption"><strong>그림 3. 시나리오가 일어나는 곳</strong>버스 경로 위에 여섯 시나리오가 일어나는 자리를 표시했다.</figcaption>
+        <figcaption class="caption"><strong>그림 3. 시나리오가 일어나는 곳</strong></figcaption>
       </figure>
       <div class="theater" id="nunchi" data-video-group>
         <h3 class="theater-title">눈치싸움 장면</h3>
@@ -726,33 +733,33 @@
       <p>다섯 교통에서 학습에 쓰지 않은 seed로 2,600바퀴씩 돌리고, SUMO 안전장치(speed<wbr>Mode 0, lane<wbr>Change<wbr>Mode 0)를 끈 채 끝난 원인을 원본 기록에서 셌다.</p>
       <div class="table-scroll" role="region" tabindex="0" aria-label="교통별 평가 결과 표">
         <table>
-          <thead><tr><th scope="col">교통</th><th scope="col" class="num">바퀴</th><th scope="col" class="num">완주</th><th scope="col" class="num">차 충돌</th><th scope="col" class="num">보행자 충돌</th><th scope="col" class="num">적색 통과</th><th scope="col" class="num">멈춰 섬</th><th scope="col" class="num">시간 초과</th></tr></thead>
+          <thead><tr><th scope="col">교통</th><th scope="col" class="num">바퀴</th><th scope="col" class="num">완주</th><th scope="col" class="num col-key">완주율</th><th scope="col" class="num minor-start">차 충돌</th><th scope="col" class="num">보행자 충돌</th><th scope="col" class="num">적색 통과</th><th scope="col" class="num">멈춰 섬</th><th scope="col" class="num">시간 초과</th></tr></thead>
           <tbody>
-            <tr><td>한산</td><td class="num">2,600</td><td class="num">2,594</td><td class="num">2</td><td class="num">0</td><td class="num">1</td><td class="num">3</td><td class="num">0</td></tr>
-            <tr><td>보통</td><td class="num">2,600</td><td class="num">2,544</td><td class="num">14</td><td class="num">0</td><td class="num">1</td><td class="num">38</td><td class="num">3</td></tr>
-            <tr><td>혼잡</td><td class="num">2,600</td><td class="num">2,519</td><td class="num">10</td><td class="num">1</td><td class="num">1</td><td class="num">59</td><td class="num">10</td></tr>
-            <tr><td>매우 혼잡</td><td class="num">2,600</td><td class="num">2,471</td><td class="num">16</td><td class="num">1</td><td class="num">4</td><td class="num">87</td><td class="num">21</td></tr>
-            <tr><td>복합</td><td class="num">2,600</td><td class="num">2,297</td><td class="num">34</td><td class="num">8</td><td class="num">18</td><td class="num">170</td><td class="num">73</td></tr>
-            <tr><td>합계</td><td class="num">13,000</td><td class="num">12,425 (95.6%)</td><td class="num">76</td><td class="num">10</td><td class="num">25</td><td class="num">357</td><td class="num">107</td></tr>
+            <tr><td>한산</td><td class="num">2,600</td><td class="num">2,594</td><td class="num col-key">99.8%</td><td class="num minor minor-start">2</td><td class="num minor">0</td><td class="num minor">1</td><td class="num minor">3</td><td class="num minor">0</td></tr>
+            <tr><td>보통</td><td class="num">2,600</td><td class="num">2,544</td><td class="num col-key">97.8%</td><td class="num minor minor-start">14</td><td class="num minor">0</td><td class="num minor">1</td><td class="num minor">38</td><td class="num minor">3</td></tr>
+            <tr><td>혼잡</td><td class="num">2,600</td><td class="num">2,519</td><td class="num col-key">96.9%</td><td class="num minor minor-start">10</td><td class="num minor">1</td><td class="num minor">1</td><td class="num minor">59</td><td class="num minor">10</td></tr>
+            <tr><td>매우 혼잡</td><td class="num">2,600</td><td class="num">2,471</td><td class="num col-key">95.0%</td><td class="num minor minor-start">16</td><td class="num minor">1</td><td class="num minor">4</td><td class="num minor">87</td><td class="num minor">21</td></tr>
+            <tr><td>복합</td><td class="num">2,600</td><td class="num">2,297</td><td class="num col-key">88.3%</td><td class="num minor minor-start">34</td><td class="num minor">8</td><td class="num minor">18</td><td class="num minor">170</td><td class="num minor">73</td></tr>
+            <tr class="total"><td>합계</td><td class="num">13,000</td><td class="num">12,425</td><td class="num col-key">95.6%</td><td class="num minor minor-start">76</td><td class="num minor">10</td><td class="num minor">25</td><td class="num minor">357</td><td class="num minor">107</td></tr>
           </tbody>
         </table>
       </div>
       <ul>
+        <li>완주율은 복합 교통을 뺀 네 교통에서 97.4%이고, 택시·골목 차·보행자가 함께 나오는 가장 어려운 복합 교통에서도 88.3%다.</li>
         <li>충돌은 차 76번과 보행자 10번을 합쳐 0.66%이고, 가장 어려운 복합 교통만 보면 1.6%다.</li>
-        <li>완주율은 복합 교통을 뺀 네 교통에서 97.4%, 복합 교통에서 88.3%다.</li>
-        <li>순간이동을 꺼 두었기 때문에 막힌 경우는 사라지지 않고 "멈춰 섬"으로 남는다.</li>
         <li>차와 버스의 상자가 조금이라도 겹친 바퀴 391개를 모두 충돌로 쳐도 3.7%로 5% 아래다.</li>
+        <li>순간이동을 꺼 두었기 때문에 막힌 경우는 사라지지 않고 "멈춰 섬"으로 남는다.</li>
       </ul>
-      <h3>실패한 곳</h3>
+      <h3>실패 575바퀴(4.4%)가 난 곳</h3>
       <div class="table-scroll" role="region" tabindex="0" aria-label="실패한 곳 표">
         <table>
-          <thead><tr><th scope="col">실패</th><th scope="col" class="num">횟수</th><th scope="col">가장 많은 곳</th></tr></thead>
+          <thead><tr><th scope="col">실패</th><th scope="col" class="num">횟수</th><th scope="col" class="num">비율</th><th scope="col">가장 많은 곳</th></tr></thead>
           <tbody>
-            <tr><td>멈춰 섬</td><td class="num">357</td><td>서교동사거리 앞 305번. 정류장을 떠난 뒤 좌회전 줄 진입 실패</td></tr>
-            <tr><td>시간 초과</td><td class="num">107</td><td>합정역 사거리 앞뒤 대기 줄 71번</td></tr>
-            <tr><td>차 충돌</td><td class="num">76</td><td>합정역 사거리 갈림 지점 31번, 서교동사거리 안 18번</td></tr>
-            <tr><td>적색 통과</td><td class="num">25</td><td>독막로 11번, 서교동사거리 앞 8번</td></tr>
-            <tr><td>보행자 충돌</td><td class="num">10</td><td>와우산로 신호 없는 횡단보도 9번</td></tr>
+            <tr><td>멈춰 섬</td><td class="num">357</td><td class="num minor">2.75%</td><td>서교동사거리 앞 305번. 정류장을 떠난 뒤 좌회전 줄 진입 실패</td></tr>
+            <tr><td>시간 초과</td><td class="num">107</td><td class="num minor">0.82%</td><td>합정역 사거리 앞뒤 대기 줄 71번</td></tr>
+            <tr><td>차 충돌</td><td class="num">76</td><td class="num minor">0.58%</td><td>합정역 사거리 갈림 지점 31번, 서교동사거리 안 18번</td></tr>
+            <tr><td>적색 통과</td><td class="num">25</td><td class="num minor">0.19%</td><td>독막로 11번, 서교동사거리 앞 8번</td></tr>
+            <tr><td>보행자 충돌</td><td class="num">10</td><td class="num minor">0.08%</td><td>와우산로 신호 없는 횡단보도 9번</td></tr>
           </tbody>
         </table>
       </div>
@@ -789,11 +796,11 @@
 
     <section class="article-section" aria-labelledby="data">
       <h2 id="data">데이터셋</h2>
-      <p>신경망이 탐색 잡음 없이 직접 몬 13,000바퀴를 0.5초마다 한 건씩 기록했고, 실패하거나 시뮬레이션 이상이 있는 1,290바퀴를 통째로 빼고 공개한다.</p>
+      <p>신경망이 탐색 잡음 없이 직접 몬 13,000바퀴를 0.5초마다 한 건씩 기록해, 실패나 시뮬레이션 이상이 없는 바퀴만 걸러 공개한다(1,290바퀴 제외).</p>
       <div class="stat-row">
-        <div class="stat"><b>12,186,016</b><span>모은 transition</span></div>
-        <div class="stat"><b>10,864,774</b><span>걸러 낸 뒤 공개한 건수</span></div>
-        <div class="stat"><b>11,710</b><span>남긴 바퀴</span></div>
+        <div class="stat"><b>10,864,774</b><span>공개한 transition</span></div>
+        <div class="stat"><b>11,710</b><span>공개한 바퀴</span></div>
+        <div class="stat"><b>12,186,016</b><span>거르기 전 transition</span></div>
         <div class="stat"><b>7.4GB</b><span>65묶음, 교통별 폴더</span></div>
       </div>
       <ul>
@@ -941,7 +948,7 @@ pip install -r requirements.txt</code></pre>
             <tr><td>교통</td><td>구간 가운데에 차가 없음</td><td>정류장 택시와 골목 차를 수요로 넣음</td><td>앞차 있는 시간 12.7%</td></tr>
             <tr><td>학습</td><td>모방학습만으로는 30바퀴 중 26바퀴 완주</td><td>DAgger로 벗어난 상태의 정답을 더함</td><td>10회 뒤 60바퀴 모두 완주</td></tr>
             <tr><td>학습</td><td>황색에서 어정쩡하게 줄이다 넘음</td><td>가속도를 11칸 중 고르게 함</td><td>적색 통과 0.19%</td></tr>
-            <tr><td>데이터</td><td>실패·이상 바퀴가 섞임</td><td>바퀴 단위 걸러내기</td><td>1,290바퀴 제외</td></tr>
+            <tr><td>데이터</td><td>실패·이상 바퀴가 섞임</td><td>바퀴 단위 걸러내기</td><td>실패·이상 없는 바퀴만 공개<span class="nobr">(1,290바퀴 제외)</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -953,7 +960,8 @@ pip install -r requirements.txt</code></pre>
 
     <section class="article-section" aria-labelledby="limits">
       <h2 id="limits">결론과 한계</h2>
-      <ul>
+      <h3>결론</h3>
+      <ul class="conclusion">
         <li>가로변 정류장과 가장 왼쪽 차로 좌회전이 번갈아 나와서 버스는 한 바퀴에 차로를 8~9번 바꿔야 한다.</li>
         <li>그 사이에 정류장 출발과 접근, 좌회전 전 끼어들기, 정류장 앞 택시, 골목 차, 신호 없는 횡단보도를 만난다.</li>
         <li>신경망 하나가 규칙 보조 없이 13,000바퀴 중 95.6%를 완주했고, 충돌은 0.66%였다.</li>

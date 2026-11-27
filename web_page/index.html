@@ -201,6 +201,27 @@
 
   pre { margin: var(--s-4) 0; padding: var(--s-4); overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); font-size: var(--fs-small); line-height: var(--lh-ui); }
   pre code { padding: 0; background: none; font-weight: var(--w-reg); white-space: pre; }
+  .scorecard { max-width: var(--figure); margin-top: var(--s-5); margin-bottom: var(--s-7); }
+  .score-title { margin: 0; font-size: var(--fs-xl); text-align: center; }
+  .score-title::before { content: none; }
+  .score-sub { margin: var(--s-2) auto var(--s-5); max-width: var(--measure); text-align: center; color: var(--muted); font-size: var(--fs-small); text-wrap: balance; }
+  .score-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); }
+  .score { display: flex; flex-direction: column; gap: var(--s-1); padding: var(--s-4); background: var(--surface); border: 1px solid var(--rule); border-top: 4px solid var(--accent); border-radius: var(--r-lg); text-decoration: none; color: var(--body); transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
+  .score:hover { border-color: var(--rule-strong); border-top-color: var(--accent-deep); color: var(--body); }
+  .score-name { display: flex; align-items: center; gap: var(--s-2); color: var(--muted); font-size: var(--fs-small); font-weight: var(--w-semi); word-break: keep-all; }
+  .score-name::before { content: ""; flex: none; width: var(--mark); height: var(--mark); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
+  .score-value { color: var(--ink); font: var(--w-black) clamp(1.5rem, 2.2vw, 1.9rem)/var(--lh-display) var(--sans); letter-spacing: var(--ls-head); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .score-value small { margin-left: 2px; font-size: .6em; font-weight: var(--w-bold); }
+  .score-rule { color: var(--ink); font-size: var(--fs-small); font-weight: var(--w-semi); word-break: keep-all; }
+  .score-rule em { margin-left: var(--s-1); padding: 0 var(--s-2); border-radius: var(--r-pill); background: var(--tone); color: var(--accent-deep); font-style: normal; font-weight: var(--w-bold); white-space: nowrap; }
+  .score-note { color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); word-break: keep-all; }
+  .criteria { list-style: none; margin: var(--s-4) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
+  .criteria li { margin: 0; }
+  .criteria a { display: flex; flex-direction: column; gap: var(--s-1); height: 100%; padding: var(--s-3) var(--s-4); border: 1px solid var(--rule); border-radius: var(--r-lg); text-decoration: none; color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); word-break: keep-all; }
+  .criteria a:hover { border-color: var(--rule-strong); color: var(--body); }
+  .criteria b { color: var(--ink); font-size: var(--fs-ui); }
+  @media (hover: hover) and (pointer: fine) { .score:hover { transform: translateY(-2px); } }
+  @media (max-width: 860px) { .score-grid { grid-template-columns: 1fr 1fr; } .criteria { grid-template-columns: 1fr; } .score-value { font-size: var(--fs-xl); } }
 
   footer { color: var(--muted); font-size: var(--fs-small); padding-bottom: var(--s-7); }
   footer .wide { position: relative; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--s-3) var(--s-6); padding-top: var(--s-5); }
@@ -300,7 +321,26 @@
   </div>
 </header>
 
-<figure class="wide demo">
+<section class="wide scorecard" aria-labelledby="score-title">
+  <h2 id="score-title" class="score-title">채점 요소 한눈에</h2>
+  <p class="score-sub">수업 평가 기준과 우리 결과다. 모든 수치는 학습에 쓰지 않은 seed로 돌린 13,000바퀴에서 셌다.</p>
+  <div class="score-grid">
+    <a class="score" href="#results"><span class="score-name">Collision Rate</span><b class="score-value">0.66%</b><span class="score-rule">기준 5% 미만 <em>충족</em></span><span class="score-note">13,000바퀴 중 차 76번, 보행자 10번</span></a>
+    <a class="score" href="#results"><span class="score-name">목적지 완주</span><b class="score-value">95.6%</b><span class="score-rule">정류장 4곳 정차 후 도착</span><span class="score-note">12,425바퀴 완주, 순간이동 0건</span></a>
+    <a class="score" href="#data"><span class="score-name">Dataset</span><b class="score-value">10,864,774<small>건</small></b><span class="score-rule">기준 10⁷건 이상 <em>충족</em></span><span class="score-note">학습한 신경망이 직접 모음, Hugging Face 공개</span></a>
+    <a class="score" href="#lap-video"><span class="score-name">실주행 영상</span><b class="score-value">67<small>초</small></b><span class="score-rule">기준 30초 이상 <em>충족</em></span><span class="score-note">출발부터 도착까지 한 바퀴, 눈치싸움 장면 5개</span></a>
+  </div>
+  <ul class="criteria">
+    <li><a href="#why"><b>도로 구조의 의미</b><span>정류장 4곳과 가장 왼쪽 차로 좌회전 4곳이 번갈아 있어 한 바퀴에 차로를 8~9번 바꾼다</span></a></li>
+    <li><a href="#road"><b>도로 구조 구현</b><span>실제 OpenStreetMap 도로와 실제 골목 여덟 곳, 도로망 3.22.0</span></a></li>
+    <li><a href="#traffic"><b>Traffic 구성</b><span>교통 다섯 단계, 버스 150m 안 일반 차 평균 4.9~18.8대</span></a></li>
+    <li><a href="#interaction"><b>Vehicle Interaction</b><span>복합 교통에서 차로 변경의 46%가 옮길 차로 30m 안에 차가 있는 채로 일어난다</span></a></li>
+    <li><a href="#results"><b>Simulation 안정성</b><span>순간이동 0건, 오류로 끝난 바퀴 0, 이상 바퀴는 데이터에서 뺐다</span></a></li>
+    <li><a href="#problems"><b>분석 및 설명</b><span>문제 여섯 개의 원인과 해결, 실패 575바퀴가 난 곳</span></a></li>
+  </ul>
+</section>
+
+<figure class="wide demo" id="lap-video">
   <div class="video-box"><video src="assets/videos/full_lap.mp4" poster="assets/videos/full_lap.jpg" width="1120" height="720" data-play-in-view muted loop playsinline controls preload="metadata" aria-label="학습한 버스가 복합 교통에서 정류장 4곳을 서고 한 바퀴를 완주하는 영상"></video></div>
   <figcaption class="caption"><strong>영상 1. 학습한 신경망이 몬 한 바퀴</strong>가장 붐비는 복합 교통에서 정류장 4곳에 서고 돌아오는 약 8분짜리 한 바퀴를 67초로 줄인 영상이다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
 </figure>
@@ -309,12 +349,6 @@
   <h2 id="abstract">요약</h2>
   <div>
     <p>시내버스는 가로변 정류장에 섰다가 차로로 돌아오고, 좌회전하려면 가장 왼쪽 차로까지 옮겨야 한다. 합정역 순환 노선 1.96km에는 정류장 4곳과 좌회전 4곳이 번갈아 있어서 버스는 한 바퀴에 차로를 8~9번 바꾼다. 우리는 정류장 택시, 골목 차, 보행자가 있는 교통을 만들고, 규칙 운전사를 따라 배우는 DAgger로 신경망을 학습했다. 주행할 때는 규칙도 SUMO 안전장치도 쓰지 않는다.</p>
-    <div class="stat-row">
-      <div class="stat"><b>0.66%</b><span>충돌률 (목표 5% 미만)</span></div>
-      <div class="stat"><b>95.6%</b><span>목적지 완주율</span></div>
-      <div class="stat"><b>13,000</b><span>평가한 바퀴 (새 seed)</span></div>
-      <div class="stat"><b>1.09×10⁷</b><span>공개한 transition</span></div>
-    </div>
   </div>
 </section>
 

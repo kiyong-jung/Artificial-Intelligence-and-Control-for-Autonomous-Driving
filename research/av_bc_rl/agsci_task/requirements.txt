@@ -1,4 +1,0 @@
-eclipse-sumo==1.27.1
-numpy>=1.26
-gymnasium>=1.0
-torch>=2.2

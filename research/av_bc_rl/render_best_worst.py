@@ -3,7 +3,7 @@
 베스트는 혼잡 교통량에서 정류장을 모두 서고 완주한 바퀴 중 차로 변경이 가장 많은 것이다. 워스트는 실패 유형마다
 가장 붐비는 교통량의 첫 바퀴이고, 마지막 --last초만 담는다.
 
-    python research/av_bc_rl/render_best_worst.py data/research/verify_map322 --out reports/videos --label "신경망"
+    python research/av_bc_rl/render_best_worst.py data/research/verify_map322 --out videos --label "신경망"
 """
 import argparse
 import collections

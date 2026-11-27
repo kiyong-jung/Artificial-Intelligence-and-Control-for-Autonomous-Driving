@@ -4,7 +4,7 @@
 한 장이라 fps 15면 7.5배속이다. 차와 보행자는 기록에 남은 것(버스 주변)만 그린다.
 
     python research/av_bc_rl/make_lap_video.py data/research/eval300_dagger10/busy.jsonl.gz --episode 27 \
-        --out reports/videos/worst_red_light.mp4 --title "혼잡 교통량, 적색 통과"
+        --out videos/worst_red_light.mp4 --title "혼잡 교통량, 적색 통과"
 """
 import argparse
 import gzip

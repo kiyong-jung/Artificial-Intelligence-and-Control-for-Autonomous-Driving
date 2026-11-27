@@ -1,7 +1,0 @@
-{
-  "status": "completed",
-  "started_at": "2026-11-23T00:20:51.840529+09:00",
-  "finished_at": "2026-11-23T02:55:05.039132+09:00",
-  "target_timesteps": 300000,
-  "actual_timesteps": 301056
-}

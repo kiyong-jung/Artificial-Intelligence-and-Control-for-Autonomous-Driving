@@ -1,7 +1,7 @@
 """정책 하나를 고정 seed 집합에서 닫힌 루프로 주행시키고 버스 행동 지표를 JSON으로 남긴다.
 
 AI-Scientist-v3 과제의 평가기 자리다. 주행은 collect_pomdp_data.py가 하고(같은 환경, 같은 기록), 지표는
-behavior_metrics.py가 센다. seed 집합은 task.md의 dev(1000번대), train(2000번대), final(9000번대)이다.
+behavior_metrics.py가 센다. seed 집합은 dev(1000번대), train(2000번대), final(9000번대)이고, --seed로 따로 줄 수도 있다. 요약은 results/metrics/에 쓴다.
 
     python research/av_bc_rl/evaluate.py --policy expert --split dev --scenarios busy --episodes 30
     python research/av_bc_rl/evaluate.py --policy bc --model results/bc_x/model.pt --split final --label bc_seed0
@@ -112,7 +112,8 @@ def main():
     results = {"label": args.label, "policy": args.policy, "model": args.model, "split": args.split,
                "episodes_per_scenario": args.episodes, "max_steps": MAX_STEPS,
                "scenarios": [run(args, scenario) for scenario in args.scenarios]}
-    out = os.path.join(HERE, "metrics", f"{args.label}_{args.split if args.seed is None else f's{args.seed}'}.json")
+    out = os.path.join(HERE, "..", "..", "results", "metrics", f"{args.label}_{args.split if args.seed is None else f's{args.seed}'}.json")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=1)
     for block in results["scenarios"]:

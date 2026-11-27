@@ -11,7 +11,7 @@ from maps import DEFAULT_MAP, load_map
 
 # baseline 자체가 혼잡한 수요다. busy는 내부 차량이 더 늘어나는 범위에서 1.25배를 쓴다.
 # heavy(1.5배)는 상호작용을 늘리려고 나중 단계에 더하는 교통량이다. 규칙 운전사 v7이 10바퀴를 모두 완주했고
-# 1.75배부터는 서교동사거리 앞 끼어들기에서 멈춰 선다(reports/progress_log.md 30번).
+# 1.75배부터는 서교동사거리 앞 끼어들기에서 멈춰 선다(규칙 운전사가 1.75배 교통 10바퀴 중 7바퀴만 완주).
 SCENARIOS = {"quiet": 0.5, "baseline": 1.0, "busy": 1.25, "heavy": 1.5}
 
 # 실험용 교통량(exp/snail-traffic). 위 네 교통량의 생성 파일과 기록은 바뀌지 않는다.
@@ -61,7 +61,7 @@ CAUSE_TRAFFIC = {
     # rich_lo와 같되 택시 출발 도로에도 골목과 같은 50m 검사를 한다(rich_lo에서 G31 출발 택시가 버스 50m 안에서 나타났다).
     "rich2": {"taxi": .25, "cut": (.10, "assertive"), "ped": 1.5, "taxi_clearance": ALLEY_CLEARANCE},
     # rich2와 같은 수요에 배경 차의 옆 이동 설정만 바꾼 시험용이다(선 채 두 차로에 걸치는 차를 줄이는 안, 측정은
-    # research/snail/lateral_screen_rich2*.txt). ng는 속도 이득 차로 변경을 끄고 선 채 0.3m/s로 옆 이동을 마치게 한다.
+    # research/traffic_checks/lateral_screen_rich2*.txt). ng는 속도 이득 차로 변경을 끄고 선 채 0.3m/s로 옆 이동을 마치게 한다.
     # f5는 옆 속도를 속도의 0.5배까지 허용하고 옆 가속을 2.0으로 올린다.
     "rich2_ng": {"taxi": .25, "cut": (.10, "assertive"), "ped": 1.5, "taxi_clearance": ALLEY_CLEARANCE,
                  "background": {"lateral": {"standing_speed": 0.3}, "lane_change": {"lcSpeedGain": 0}}},
@@ -205,7 +205,7 @@ def configure_map(scenario="baseline", seed=0, ego_route=None, map_id=DEFAULT_MA
         # 배경 차는 앞차의 왼쪽으로만 앞지르고(도로교통법 제21조) 오른쪽 차로로 돌아가야 할 의무(keepRight)도 없다.
         # 오른쪽으로 가려는 이 두 동기가 있으면, 대기열 앞에서 왼쪽으로 옮기던 차가 차로 경계를 넘자마자 오른쪽이 낫다고
         # 보고 되돌아온다. 옆 속도는 속도의 0.2배라 그 사이 차가 서면 두 차로에 걸친 채 다음 녹색까지 섰다(R50 66초,
-        # 깜빡이 좌우 번갈아). 하나만 끄면 다른 하나가 되돌린다. 측정은 research/av_bc_rl/decisions.tsv.
+        # 깜빡이 좌우 번갈아). 하나만 끄면 다른 하나가 되돌린다.
         background_lane_change={"lcSpeedGainRight": 0.0, "lcKeepRight": 0.0},
         # -1은 SUMO의 모델별 기본값(Krauss=1, IDM/EIDM/ACC=0.1)이다.
         # minGap 전체를 강제하면 몸체가 2.49m 떨어진 정지 차량도 삭제된다.

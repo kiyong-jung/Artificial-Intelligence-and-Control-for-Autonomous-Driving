@@ -109,7 +109,7 @@ LONGEST_CYCLE_S = 182.0    # 가장 긴 신호 주기. 이보다 오래 서 있�
 #   lit : 파일=.py, 어디서=함수, 무엇=옵션·속성 이름, 대상=값
 #   xml : 파일=XML 이름(gen:env/…, gen:traffic/…는 만들어 본 실행 폴더), 어디서=태그, 무엇=속성, 대상=id(숫자는 #)
 #   data: 파일=지도 id, 어디서=검사 이름, 무엇=항목
-# 판정 ALLOW = 정당하다. OPEN:<번호> = research/av_bc_rl/naturalness_audit_round1.md·round2.md의 발견. 고치면 이 줄을 지운다.
+# 판정 ALLOW = 정당하다. OPEN:<번호> = docs/naturalness_audit/round1.md·round2.md의 발견. 고치면 이 줄을 지운다.
 # ---------------------------------------------------------------------------------------------------------------
 A, O = "ALLOW", "OPEN:"
 RULES = [
@@ -121,8 +121,15 @@ RULES = [
      "collision.stoptime(120초) 정지가 끝난 뒤에만 치운다(견인). 충돌은 background_collisions와 경고 기록에 남는다(R2-1)"),
     ("lit", "env/road_builder.py", "build", "collision.stoptime", "*", A,
      "부딪힌 두 차가 그 자리에 road_config의 collision_stop_s(120초) 동안 섰다가 비켜 간다. 지우지 않는다"),
-    ("lit", "research/av_bc_rl/s6_priority_trial.py", "background_run", "no-warnings", "true", A,
-     "S6 제안용 배경 측정 실행. 학습·평가에 쓰지 않고, 수치는 TraCI와 statistics로 센다"),
+    ("lit", "env/road_config.py", "", "impatience", "*", A,
+     "복합 교통(rich2)의 골목 운전자 성향. 골목 출발 흐름 전부에 같게 주고 버스를 보지 않는다"),
+    ("lit", "env/road_config.py", "", "jmTimegapMinor", "*", A, "위와 같다(우선 차 앞 최소 시간 간격 0.5초)"),
+    ("lit", "research/av_bc_rl/sim_health.py", "probe", "no-warnings", "true", A,
+     "버스 없이 배경 교통만 재는 측정 실행. 수치는 TraCI로 센다"),
+    ("lit", "research/traffic_checks/*.py", "run", "no-warnings", "true", A,
+     "배경 교통 점검용 측정 실행. 학습·평가·수집에 쓰지 않는다"),
+    ("call", "research/traffic_checks/*.py", "run", "vehicle.*", "'ego'", A,
+     "점검용 실행의 버스 자신만 넣고 정류장에서 세운다(배경 차에는 명령하지 않는다)"),
     ("lit", "env/road_builder.py", "build", "collision.mingap-factor", "*", A,
      "값은 road_config의 -1(SUMO 모델별 기본값)이다"),
     ("lit", "env/road_builder.py", "build", "time-to-teleport", "*", A, "-1: 순간이동 끔"),
@@ -176,7 +183,6 @@ RULES = [
     ("lit", "scripts/build_hapjeong.py", "prune_walkers", "ignore-route-errors", "true", A,
      "지도 빌드가 횡단보도를 닫은 뒤 경로가 끊긴 보행자를 찾아내려고 오류를 경고로 받는다(실행에 쓰는 설정이 아니다)"),
     ("lit", "scripts/build_hapjeong.py", "prune_walkers", "no-warnings", "true", A, "위와 같은 지도 빌드 단계의 콘솔 출력만 끈다"),
-    ("lit", "scripts/road_usage.py", "run", "no-warnings", "true", A, "도로 사용량 측정(읽기만)"),
     ("lit", "scripts/scenario_supply.py", "run", "no-warnings", "true", A, "시나리오 공급 측정(읽기만)"),
     ("xml", "maps/paldalmun/source/network.net.xml", "connection", "uncontrolled", "*", A,
      "팔달문 도로 중간 점(우선 교차로, 들어오는 차로가 마주 보는 두 방향 2차로씩뿐, 횡단보도 없음)을 곧게 지나는 연결이다. "
@@ -194,7 +200,7 @@ RULES = [
      "바꾸면 관측(_crossing_occupied)도 함께 바꾸고 데이터를 다시 모아야 한다"),
     ("data", "hapjeong", "flow-lane-change-too-short", "*", "*", O + "R2-W1",
      "지도 흐름이 가장 빠른 길로 가며 짧은 도로에서 두 칸을 옮겨야 한다(각 7대/시간). 학습 환경 19회에서 f_R125_to_R124가 "
-     "R126_2에서 비상 제동 1번. 지도(학습 세계)를 바꾸는 일이라 팀이 정한다(naturalness_audit_round2.md)"),
+     "R126_2에서 비상 제동 1번. 지도(학습 세계)를 바꾸는 일이라 팀이 정한다(docs/naturalness_audit/round2.md)"),
     ("data", "hapjeong", "persons-single-crossing", "s6ped", "*", A,
      "S6 횡단보도만 건너는 보행 수요. 도착은 포아송이다. 양(시간당 240명)은 팀 밀도 설정이다(지도 README 3.14.0의 결정 표)"),
     ("data", "hapjeong", "service-stop-at-edge-end", "*", "*", A,

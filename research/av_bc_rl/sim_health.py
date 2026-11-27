@@ -1,6 +1,6 @@
 """버스 없이 배경 교통만 돌려 교통량별로 시뮬레이션이 건강한지 잰다. 버스 위치와 무관한 도로 전체 측정이다.
 
-    python research/av_bc_rl/sim_health.py --scenarios heavy x2 x3 --seeds 3 --seed 60000 --out research/av_bc_rl/metrics/sim_health.json
+    python research/av_bc_rl/sim_health.py --scenarios heavy x2 x3 --seeds 3 --seed 60000 --out results/sim_health.json
 
 한 번은 warmup(최대 360초)과 한 바퀴 시간 제한(700초)을 덮는 seconds 동안 돈다. 10초마다 센다.
   inserted_share   요청한 차 중 실제로 도로에 들어간 비율(나머지는 진입로 대기열 backlog)

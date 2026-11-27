@@ -4,7 +4,7 @@
 모델이 그 항목을 쓰지 않는다. 묶음으로도 재는 까닭은 서로 겹치는 항목(예: 신호 거리와 적색 여부)이 하나씩
 섞을 때는 작게 나오기 때문이다.
 
-    python research/av_bc_rl/feature_importance.py --model research/av_bc_rl/models/v6_bins_dagger_s1/model.pt \
+    python research/av_bc_rl/feature_importance.py --model models/final/model.pt \
         --data results/g_dagger_s1/dagger_s11_it1_busy.npz --out importance.json
 
 재는 값

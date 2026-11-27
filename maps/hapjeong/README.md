@@ -254,7 +254,7 @@ OSM 자료(`source/area.osm.xml`)는 와우산로 서쪽 130m까지만 있다. �
 
 ## 수요를 자연스럽게 (3.14.0)
 
-3.14.0은 수요 두 가지만 고쳤다. 도로망 파일은 3.13.0과 같다(`network.net.xml`의 sha256이 그대로다). 근거는 교통 자연스러움 감사 1회차([naturalness_audit_round1.md](../../research/av_bc_rl/naturalness_audit_round1.md))의 발견 M2와 M8이다. M3, M4, M5, M6은 재어 본 뒤 그대로 뒀다.
+3.14.0은 수요 두 가지만 고쳤다. 도로망 파일은 3.13.0과 같다(`network.net.xml`의 sha256이 그대로다). 근거는 교통 자연스러움 감사 1회차([docs/naturalness_audit/round1.md](../../docs/naturalness_audit/round1.md))의 발견 M2와 M8이다. M3, M4, M5, M6은 재어 본 뒤 그대로 뒀다.
 
 | 고친 것 | 3.13.0 | 3.14.0 | 이유 |
 |---|---|---|---|
@@ -274,7 +274,7 @@ OSM 자료(`source/area.osm.xml`)는 와우산로 서쪽 130m까지만 있다. �
 
 ### 고치기 전과 후
 
-학습 환경에서 전문가 정책을 dev seed로 교통량마다 10회씩 달렸다(`research/av_bc_rl/evaluate.py`, 결과는 `research/av_bc_rl/metrics/expert_map313_dev_check_dev.json`과 `expert_map314_dev_check_dev.json`).
+학습 환경에서 전문가 정책을 dev seed로 교통량마다 10회씩 달렸다(`research/av_bc_rl/evaluate.py`).
 
 | 지표(quiet / baseline / busy, 각 10회) | 3.13.0 | 3.14.0 |
 |---|---|---|
@@ -388,7 +388,7 @@ ego 없는 실행과 출발 시각은 200대 중 199대가 같다. 나머지 한
 
 보행자만 넣고 걸음 419개를 세 번씩 출발시킨 실행(신호 포함, 0.5초 fcd)에서 2.5m 넘는 점프는 100번에서 10번으로 줄었다. 남은 10번은 모두 한 대기 구역 안(`J83_w0`, `J1_w0`, `J1_w1`)에서 났고, 걸음 속도만큼을 빼면 1.86~2.01m다. 0.1초로 따라가면 차로 위치는 매 스텝 0.13m씩 이어지는데 좌표만 1.35~1.43m 뛴다. 대기 구역 걸음 모양은 꺾인 선이고, 옆으로 비켜 선 거리를 꼭짓점 앞뒤에서 다른 방향으로 적용하기 때문이다. `--pedestrian.striping.walkingarea-detail 16`(곡선으로 다듬기)으로 돌리면 이 10번은 없어지지만 `C4` 횡단보도 끝에서 2.9m 점프 2번이 새로 생겨 쓰지 않았다. 학습 환경 일곱 실행에서는 0번이다.
 
-학습 환경에서 전문가 v5를 dev seed로 교통량마다 10회씩 달렸다(`research/av_bc_rl/evaluate.py --policy expert-v5 --split dev --episodes 10`, 결과는 `research/av_bc_rl/metrics/expert_v5_map314_dev_check_dev.json`과 `expert_v5_map315_dev_check_dev.json`).
+학습 환경에서 전문가 v5를 dev seed로 교통량마다 10회씩 달렸다(`research/av_bc_rl/evaluate.py --policy expert-v5 --split dev --episodes 10`).
 
 | 지표(quiet / baseline / busy, 각 10회) | 3.14.0 | 3.15.0 |
 |---|---|---|
@@ -487,7 +487,7 @@ netconvert는 이미 있는 횡단보도의 모양을 바꾸지 못해 한 번 �
 
 - 시험용 버스(`traffic/test_bus.py`)와 `close_loop`(`traffic/alleys.py`)는 닫힌 노선을 그대로 받는다. `lap_route`가 내는 한 바퀴는 앞과 같다.
 - 환경의 `end_signals`(`env/route_map.py`)는 경로 끝 도로의 신호를 직접 읽는 우회로다. SUMO의 `getNextTLS`가 경로 끝 너머 신호(`J1`)를 알려 주지 않아서 있었다. 이제 `J1`은 경로 안이고 끝 도로 `R68`의 차로(`J4`)에는 신호가 없어 `end_signals`는 `{'R68_1': [], 'R68_2': []}`다. 이 경로에서는 쓰이지 않는다. 지우는 것은 환경 담당이 정한다.
-- 그림: `reports/bus_loop_route.png`(경로 전체와 `J1` 확대, `scripts/render_bus_route.py`).
+- 그림: `docs/img/bus_loop_route.png`(경로 전체와 `J1` 확대, `scripts/render_bus_route.py`).
 
 ## 배경 교통 1.25배 (3.20.0)
 

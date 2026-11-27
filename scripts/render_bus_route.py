@@ -3,7 +3,7 @@ R68로 좌회전해 순환이 닫히는 곳의 확대다.
 
     python scripts/render_bus_route.py [출력 PNG]
 
-기본 출력은 reports/bus_loop_route.png다.
+기본 출력은 docs/img/bus_loop_route.png다.
 """
 from __future__ import annotations
 

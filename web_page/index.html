@@ -67,11 +67,11 @@
 
   .topbar { border-bottom: 1px solid var(--rule); background: var(--paper); position: sticky; top: 0; z-index: 10; }
   .topbar-inner { max-width: var(--wide); margin: auto; height: var(--nav); padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: var(--s-5); }
-  .brand { color: var(--ink); font-weight: var(--w-black); letter-spacing: -.01em; text-decoration: none; }
+  .brand { display: inline-flex; align-items: center; min-height: var(--tap); color: var(--ink); font-weight: var(--w-black); letter-spacing: -.01em; text-decoration: none; }
   .brand::before { content: ""; display: inline-block; width: var(--mark); height: var(--mark); margin-right: var(--s-3); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
   .navlinks { display: flex; gap: var(--s-6); font-size: var(--fs-ui); font-weight: var(--w-med); }
   .navlinks a, .toc a { text-decoration: none; }
-  .navlinks a { color: var(--muted); padding: var(--s-2) 0; background: linear-gradient(var(--ink), var(--ink)) 0 calc(100% - 4px) / 0 1px no-repeat; transition: background-size var(--t-fast) var(--ease), color var(--t-fast) var(--ease); white-space: nowrap; }
+  .navlinks a { display: inline-flex; align-items: center; min-height: var(--tap); color: var(--muted); padding: 0; background: linear-gradient(var(--ink), var(--ink)) 0 calc(100% - 4px) / 0 1px no-repeat; transition: background-size var(--t-fast) var(--ease), color var(--t-fast) var(--ease); white-space: nowrap; }
   .navlinks a:hover, .navlinks a[aria-current="true"] { color: var(--ink); background-size: 100% 1px; }
   .navlinks a[aria-current="true"] { background-size: 100% 2px; background-position: 0 100%; }
 
@@ -100,7 +100,7 @@
   .figure-link { display: block; overflow: hidden; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--s-3); text-decoration: none; transition: transform var(--t-med) var(--ease), border-color var(--t-med) var(--ease); }
   .figure-link img { border-radius: var(--r-sm); transition: transform var(--t-med) var(--ease); }
   .figure-link:hover { border-color: var(--rule-strong); }
-  .caption { color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); margin-top: var(--s-3); text-wrap: pretty; }
+  .caption { max-width: var(--measure); color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); margin-top: var(--s-3); text-wrap: pretty; }
   .caption strong { display: block; margin-bottom: var(--s-1); color: var(--ink); font-weight: var(--w-bold); font-size: var(--fs-body); }
   .video-key { display: block; margin-top: var(--s-1); }
   .video-key b { color: var(--ink); font-weight: var(--w-bold); }
@@ -134,13 +134,15 @@
   h2 { position: relative; margin: 0 0 var(--s-6); font: var(--w-black) var(--fs-h2)/var(--lh-head) var(--sans); letter-spacing: var(--ls-head); scroll-margin-top: calc(var(--nav) + var(--s-5)); }
   h2::before { content: ""; position: absolute; left: calc(var(--s-4) * -1 - var(--mark)); top: .5em; width: var(--mark); height: var(--mark); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
   h3 { margin: var(--s-6) 0 var(--s-2); font-size: var(--fs-body); font-weight: var(--w-bold); }
+  /* 본문 소제목: h2(33.6px)와 본문(16px) 사이 크기로 올려 굵기만이 아니라 크기로도 구분한다. 앞 내용과는 s-7 로 띄운다. */
+  .article-section > h3 { margin-top: var(--s-7); font-size: var(--fs-xl-m); line-height: var(--lh-head); letter-spacing: var(--ls-tight); }
   p { margin: var(--s-4) 0; text-wrap: pretty; }
   /* 본문 양쪽 정렬: 한글은 음절 사이에서 줄을 바꿔 낱말 사이가 벌어지지 않게 한다. 제목·버튼·표·숫자 묶음은 keep-all 그대로. */
   .paper-abstract p, .article-section p:not(.pull), .article-section li, .caption, .scene-desc {
     text-align: justify; word-break: normal; line-break: strict; overflow-wrap: anywhere; }
   code, .caption strong, .scene-meta, .video-key { word-break: keep-all; }
   ul { padding-left: 1.2em; }
-  li { margin: var(--s-2) 0; }
+  li { margin: var(--s-2) 0; text-wrap: pretty; }
   .pull { margin: var(--s-6) 0; max-width: var(--measure); color: var(--ink); font: var(--w-bold) var(--fs-xl)/var(--lh-ui) var(--sans); letter-spacing: var(--ls-tight); text-wrap: balance; }
   figure { margin: var(--s-6) 0; }
   .table-scroll { overflow-x: auto; margin: var(--s-5) 0; border: 1px solid var(--rule); border-radius: var(--r-lg); background: var(--surface); }
@@ -151,9 +153,11 @@
   tr:last-child td { border-bottom: 0; }
   td.num, th.num { text-align: right; }
   .obs-list { margin: var(--s-5) 0; }
+  .obs-list > p { max-width: var(--measure); }
   .obs-list summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; color: var(--ink); font-weight: var(--w-semi); }
   .col-avg { background: var(--tone); }
   td.num { font-weight: var(--w-bold); white-space: nowrap; }
+  .grouped td:nth-last-child(2), .grouped td:nth-last-child(3) { white-space: nowrap; }
   tbody tr:last-child td.num { font-weight: var(--w-black); }
   code { font-family: inherit; font-size: .9em; font-weight: var(--w-semi); color: var(--ink); background: var(--tone); padding: 1px var(--s-1); border-radius: var(--r-xs); }
 
@@ -200,10 +204,11 @@
   .scene-route [aria-selected="true"]::before { background: var(--stop); border-color: var(--ink); border-radius: 2px; }
 
   pre { margin: var(--s-4) 0; padding: var(--s-4); overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); font-size: var(--fs-small); line-height: var(--lh-ui); }
-  pre code { padding: 0; background: none; font-weight: var(--w-reg); white-space: pre; }
+  pre code { padding: 0; background: none; font-size: 1em; font-weight: var(--w-reg); white-space: pre; }
   /* 히어로 아래 두 묶음(이야기 줄, 메인 목표)의 가운데 제목 */
   .band-title { margin: 0; font-size: var(--fs-xl); text-align: center; }
   .band-title::before { content: none; }
+  .scorecard .band-title { font-size: var(--fs-h2); letter-spacing: var(--ls-head); }
 
   /* 이야기 줄: 왜 버스인가. 네 장면을 노선(파랑 선) 위 정류장(노랑 네모)으로 잇는다. 아이콘은 장식이라 aria-hidden. */
   .story { max-width: var(--figure); margin-top: var(--s-7); margin-bottom: var(--s-8); }
@@ -239,7 +244,7 @@
   .score-ok { flex: none; padding: 0 var(--s-2); border-radius: var(--r-pill); background: var(--tone); color: var(--accent-deep); font-size: var(--fs-small); font-weight: var(--w-bold); line-height: var(--lh-ui); }
   .vs { display: grid; grid-template-columns: 2.5em minmax(0, 1fr); column-gap: var(--s-2); align-items: baseline; align-content: start; }
   .vs-k { color: var(--muted); font-size: var(--fs-small); font-weight: var(--w-med); }
-  .vs-v { min-width: 0; color: var(--ink); font-size: var(--fs-small); font-weight: var(--w-semi); line-height: var(--lh-ui); }
+  .vs-v { min-width: 0; color: var(--ink); font-size: var(--fs-small); font-weight: var(--w-semi); line-height: var(--lh-ui); text-wrap: pretty; }
   .vs-ours { padding-top: var(--s-2); border-top: 1px solid var(--rule-soft); }
   .vs-ours .vs-k { color: var(--ink); font-weight: var(--w-bold); }
   .score .vs { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
@@ -252,7 +257,7 @@
   .bar-tick { top: calc(var(--s-1) * -1); bottom: calc(var(--s-1) * -1); left: var(--at); width: 2px; margin-left: -1px; background: var(--ink); }
   .bar-label { top: calc(100% + var(--s-1)); left: var(--at); transform: translateX(-50%); color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); white-space: nowrap; }
   .bar-label.end { transform: translateX(-100%); }
-  .score-note { color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); }
+  .score-note { color: var(--muted); font-size: var(--fs-small); line-height: var(--lh-ui); text-wrap: pretty; }
   .criteria { list-style: none; margin: var(--s-4) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
   .criteria li { grid-row: span 3; display: grid; grid-template-rows: subgrid; row-gap: 0; margin: 0; }
   .criteria a { grid-row: span 3; display: grid; grid-template-rows: subgrid; row-gap: var(--s-1); padding: var(--s-3) var(--s-4); border: 1px solid var(--rule); border-radius: var(--r-lg); text-decoration: none; color: var(--body); font-size: var(--fs-small); line-height: var(--lh-ui); word-break: keep-all; transition: border-color var(--t-fast) var(--ease); }
@@ -273,9 +278,14 @@
     .story-step h3 { margin-top: var(--s-3); }
     .story-step p { font-size: var(--fs-body); text-align: justify; word-break: normal; line-break: strict; overflow-wrap: anywhere; }
     .criteria { grid-template-columns: 1fr; }
+    /* 1열이라 폭이 넉넉하다. 근거와 기준 문구를 small(14px) 대신 ui(15px)로 읽게 한다. */
+    .criteria a, .criteria .vs-ours .vs-v, .score .vs:not(.vs-ours) .vs-v, .score-note { font-size: var(--fs-ui); }
   }
   @media (max-width: 600px) { .score-grid { grid-template-columns: 1fr; } }
 
+  .goal-chip { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--tap); margin-top: var(--s-4); padding: 0 var(--s-4); border: 1px solid var(--rule); border-radius: var(--r-pill); background: var(--surface); color: var(--ink); font-size: var(--fs-ui); font-weight: var(--w-semi); text-decoration: none; word-break: keep-all; }
+  .goal-chip:hover { border-color: var(--rule-strong); color: var(--ink); }
+  .goal-chip i { width: var(--mark); height: var(--mark); background: var(--stop); border: 2px solid var(--ink); border-radius: 2px; }
   footer { color: var(--muted); font-size: var(--fs-small); padding-bottom: var(--s-7); }
   footer .wide { position: relative; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--s-3) var(--s-6); padding-top: var(--s-5); }
   footer a { display: inline-flex; align-items: center; min-height: var(--tap); }
@@ -335,7 +345,15 @@
     th:first-child, td:first-child { padding-left: var(--s-3); }
     tbody td:first-child { white-space: normal; min-width: 6em; }
     td:not(.num):not(:first-child) { min-width: 8em; }
+    /* 숫자 칸은 좁게, 숫자 머리글은 두 줄을 허용해 바퀴당 interaction 표(평균 열)와 교통 구성 표가 390px 에 다 들어오게 한다. */
+    thead th.num { white-space: normal; }
+    td.num, th.num { padding-left: var(--s-1); padding-right: var(--s-1); }
+    th:first-child, td:first-child { padding-left: var(--s-3); }
+    th:last-child, td:last-child { padding-right: var(--s-3); }
+    table code { font-size: 1em; }
     .table-scroll th:first-child, .table-scroll td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); border-right: 1px solid var(--rule-soft); }
+    .grouped td:last-child { min-width: 16em; }
+    .table-scroll .grouped td:first-child:not([rowspan]) { position: static; z-index: auto; border-right: 0; padding-left: var(--s-2); min-width: 0; white-space: nowrap; }
     .scene-route { grid-template-columns: 1fr; }
     .scene-route::before { top: calc(var(--tap) / 2); bottom: calc(var(--tap) / 2); left: calc(var(--s-2) + var(--mark) / 2 - 2px); right: auto; width: 4px; height: auto; }
     .scene-route button { flex-direction: row; gap: var(--s-4); padding: 0 var(--s-2); text-align: left; }
@@ -372,6 +390,7 @@
     <a class="button tonal" href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">Hugging Face 데이터</a>
     <a class="button tonal" href="#videos">주행 영상</a>
   </div>
+  <a class="goal-chip" href="#score-title"><i aria-hidden="true"></i>메인 목표 4/4 충족 · 충돌률 0.66% · 완주 95.6% · 데이터 10,864,774건</a>
 </header>
 
 <section class="wide story" aria-labelledby="story-title">
@@ -466,7 +485,7 @@
       <span class="vs"><span class="vs-k">기준</span><span class="vs-v">10,000,000건(10⁷) 이상</span></span>
       <span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">10,864,774<small>건</small></span></span>
       <span class="score-bar" aria-hidden="true"><span class="bar" style="--ours: 100%; --at: 92.04%"><i class="bar-fill"></i><i class="bar-tick"></i><i class="bar-label">기준</i></span></span>
-      <span class="score-note">기준의 108.6%, Hugging Face 공개</span>
+      <span class="score-note">기준의 108.6%, <span class="nobr">Hugging Face</span> 공개</span>
     </a>
     <a class="score" href="#lap-video">
       <span class="score-head"><span class="score-name">실주행 영상</span><span class="score-ok">충족</span></span>
@@ -783,7 +802,7 @@
       <h3>데이터 컬럼</h3>
       <p>수업 기본 수집기의 항목을 모두 담고, 정류장, 보행자, 신호, 승차감을 판단하는 데 필요한 항목을 더했다. 아래 표의 정의는 데이터의 metadata.json에도 그대로 들어 있다.</p>
       <div class="table-scroll" role="region" tabindex="0" aria-label="데이터 컬럼 표">
-        <table>
+        <table class="grouped">
           <thead><tr><th scope="col">묶음</th><th scope="col">컬럼</th><th scope="col">형태</th><th scope="col">출처</th><th scope="col">뜻</th></tr></thead>
           <tbody>
             <tr><td rowspan="3">식별</td><td><code>episode</code></td><td>Integer</td><td>수업 기본</td><td>Episode 번호</td></tr>

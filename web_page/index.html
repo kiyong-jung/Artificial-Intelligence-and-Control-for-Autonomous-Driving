@@ -425,8 +425,8 @@
         <rect class="is" x="54" y="62" width="12" height="12" rx="2"/>
         <rect class="is" x="16" y="34" width="12" height="12" rx="2"/>
       </svg>
-      <h3>정류장과 좌회전이 번갈아</h3>
-      <ul class="mini-points"><li>정류장 4곳·좌회전 4곳이 번갈아</li><li>한 바퀴에 차로 변경 <span class="nobr">8~9번</span></li></ul>
+      <h3>정류장과 좌회전의 반복</h3>
+      <ul class="mini-points"><li>정류장 4곳·좌회전 4곳의 교차 배치</li><li>한 바퀴에 차로 변경 <span class="nobr">8~9번</span></li></ul>
     </li>
     <li class="story-step">
       <svg class="story-icon" viewBox="0 0 120 80" aria-hidden="true" focusable="false">
@@ -443,7 +443,7 @@
         <path class="il" d="M69 13.5L75 19L69 24.5"/>
       </svg>
       <h3>옆 차로와 눈치싸움</h3>
-      <ul class="mini-points"><li>택시·골목 차·보행자가 옆에</li><li><span class="nobr">0.5초마다</span> 끼어들지 판단</li></ul>
+      <ul class="mini-points"><li>옆 차로의 택시·골목 차·보행자</li><li><span class="nobr">0.5초마다</span> 끼어들지 판단</li></ul>
       <a class="story-link" href="#nunchi">눈치싸움 장면 보기</a>
     </li>
     <li class="story-step">
@@ -459,7 +459,7 @@
         <circle class="ia" cx="96" cy="30" r="7"/>
         <circle class="if" cx="96" cy="50" r="7"/>
       </svg>
-      <h3>신경망 하나에 맡겼다</h3>
+      <h3>신경망 하나에 맡긴 운전</h3>
       <ul class="mini-points"><li>규칙 없이 신경망 하나로 운전</li><li>완주 <span class="nobr">95.6%</span>, 충돌 <span class="nobr">0.66%</span></li></ul>
     </li>
   </ol>
@@ -499,10 +499,10 @@
     </a>
   </div>
   <ul class="criteria">
-    <li><a href="#why"><b>도로 구조의 의미</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">의사결정이 필요한 구조</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">정류장 4곳·좌회전 4곳 번갈아</span></span></a></li>
+    <li><a href="#why"><b>도로 구조의 의미</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">의사결정이 필요한 구조</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">정류장 4곳·좌회전 4곳 교차 배치</span></span></a></li>
     <li><a href="#road"><b>도로 구조 구현</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">실제 도로 특징 반영</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">실제 OSM 도로·골목 8곳</span></span></a></li>
     <li><a href="#traffic"><b>Traffic 구성</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">충분한 일반 차량</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">버스 주변 평균 4.9~18.8대</span></span></a></li>
-    <li><a href="#interaction"><b>Vehicle Interaction</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">AV와 의미 있는 상호작용</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">차로 변경 46%가 옆 차와 함께</span></span></a></li>
+    <li><a href="#interaction"><b>Vehicle Interaction</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">AV와 의미 있는 상호작용</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">차로 변경의 46%에 옆 차 동반</span></span></a></li>
     <li><a href="#results"><b>Simulation 안정성</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">정체·Teleport·오류 없음</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">순간이동 0건, 오류 0</span></span></a></li>
     <li><a href="#problems"><b>분석 및 설명</b><span class="vs"><span class="vs-k">기준</span><span class="vs-v">설계 이유·문제·해결 설명</span></span><span class="vs vs-ours"><span class="vs-k">우리</span><span class="vs-v">문제 6개 해결, 실패 위치 분석</span></span></a></li>
   </ul>
@@ -543,7 +543,7 @@
     <section class="article-section" aria-labelledby="why">
       <h2 id="why">도로 선정과 문제</h2>
       <p>버스는 합정역을 떠나 독막로로 상수역까지 가고, 와우산로와 잔다리로를 지나 서교동사거리에서 양화로로 좌회전해 돌아온다. 정류장은 모두 가로변 차로에 있고 좌회전은 가장 왼쪽 차로에서만 하므로, 버스는 한 바퀴 내내 가로변과 왼쪽 끝을 오간다.</p>
-      <p class="pull lit-pending" id="pull">버스는 0.5초마다 옆 차로의 틈을 보고 끼어들지, 속도를 줄여 기다릴지 정한다.</p>
+      <p class="pull lit-pending" id="pull">0.5초마다 옆 차로의 틈을 보고 끼어들지, 속도를 줄여 기다릴지 정하는 버스</p>
       <div class="table-scroll" role="region" tabindex="0" aria-label="상황별로 버스가 판단할 것 표">
         <table>
           <thead><tr><th scope="col">번호</th><th scope="col">상황</th><th scope="col">버스가 판단할 것</th></tr></thead>
@@ -695,11 +695,11 @@
         <table>
           <thead><tr><th scope="col">항목</th><th scope="col">내용</th></tr></thead>
           <tbody>
-            <tr><td>Observation</td><td>46차원 부분 관측(50m 범위). 버스 속도와 가속도, 다섯 차로의 앞뒤 차, 차로 밀도, 차로별 경로 연결 거리, 신호, 정류장, 횡단보도, 제한속도. 신경망은 그중 31개를 쓴다.</td></tr>
+            <tr><td>Observation</td><td>46차원 부분 관측(50m 범위). 버스 속도와 가속도, 다섯 차로의 앞뒤 차, 차로 밀도, 차로별 경로 연결 거리, 신호, 정류장, 횡단보도, 제한속도. 신경망은 그중 31개 사용</td></tr>
             <tr><td>Action</td><td>[가감속, 차로 변경]. 가감속은 +1.0 ~ -2.0m/s², 차로 변경은 {-1, 0, +1}. 0.5초마다 한 번 판단한다. 차로 변경 명령은 수업 원본 환경의 차로 변경 안전 검사(앞뒤 3m와 속도 비례 여유, 출발 60m)를 거치며, 값은 수업 원본과 같다. 조교가 이 검사는 끄지 않아도 된다고 답했다.</td></tr>
             <tr><td>Reward</td><td>속도 0.1 × v/vmax, 정류장 정차 +1, 정류장 지나침 -3, 충돌 -5, 적색 통과 -5, 도착 +2, 멈춰 섬 -2, 승차감 한계 넘음 -0.02.</td></tr>
             <tr><td>종료</td><td>충돌, 적색 통과, 도착, 멈춰 섬(200초 동안 5m 못 감), 1,400 step(700초).</td></tr>
-            <tr><td>신경망</td><td>MLP, 은닉층 256 × 2, 가중치 81,514개. 출력은 가속도 11칸과 차로 3가지의 점수다.</td></tr>
+            <tr><td>신경망</td><td>MLP, 은닉층 256 × 2, 가중치 81,514개. 출력은 가속도 11칸과 차로 3가지의 점수</td></tr>
           </tbody>
         </table>
       </div>
@@ -711,9 +711,9 @@
           <thead><tr><th scope="col">단계</th><th scope="col">교통</th><th scope="col">내용</th></tr></thead>
           <tbody>
             <tr><td>시범</td><td>한산, 보통, 혼잡</td><td>규칙 운전사가 300바퀴를 몰고 그 기록으로 처음 모방학습</td></tr>
-            <tr><td>DAgger 1~12회</td><td>한산, 보통, 혼잡</td><td>회마다 교통별 25바퀴를 신경망이 직접 몬다</td></tr>
-            <tr><td>DAgger 13~16회</td><td>+ 매우 혼잡</td><td>끼어들기와 대기 줄 상황을 늘린다</td></tr>
-            <tr><td>DAgger 17~21회</td><td>+ 택시·골목 차·보행자</td><td>정류장 앞 택시와 골목 차를 배운다</td></tr>
+            <tr><td>DAgger 1~12회</td><td>한산, 보통, 혼잡</td><td>회마다 교통별 25바퀴를 신경망이 직접 운전</td></tr>
+            <tr><td>DAgger 13~16회</td><td>+ 매우 혼잡</td><td>끼어들기와 대기 줄 상황 추가</td></tr>
+            <tr><td>DAgger 17~21회</td><td>+ 택시·골목 차·보행자</td><td>정류장 앞 택시와 골목 차 학습</td></tr>
             <tr><td>DAgger 22~24회</td><td>다섯 교통 전부</td><td>최종 합본 271만 건</td></tr>
           </tbody>
         </table>
@@ -748,7 +748,7 @@
         <table>
           <thead><tr><th scope="col">실패</th><th scope="col" class="num">횟수</th><th scope="col">가장 많은 곳</th></tr></thead>
           <tbody>
-            <tr><td>멈춰 섬</td><td class="num">357</td><td>서교동사거리 앞 305번. 정류장을 떠나 좌회전 줄에 끼어들지 못한다</td></tr>
+            <tr><td>멈춰 섬</td><td class="num">357</td><td>서교동사거리 앞 305번. 정류장을 떠난 뒤 좌회전 줄 진입 실패</td></tr>
             <tr><td>시간 초과</td><td class="num">107</td><td>합정역 사거리 앞뒤 대기 줄 71번</td></tr>
             <tr><td>차 충돌</td><td class="num">76</td><td>합정역 사거리 갈림 지점 31번, 서교동사거리 안 18번</td></tr>
             <tr><td>적색 통과</td><td class="num">25</td><td>독막로 11번, 서교동사거리 앞 8번</td></tr>
@@ -810,7 +810,7 @@
           <tbody>
             <tr><td rowspan="3">식별</td><td><code>episode</code></td><td>Integer</td><td>수업 기본</td><td>Episode 번호</td></tr>
             <tr><td><code>t</code></td><td>Integer</td><td>수업 기본</td><td>Episode 내부 timestep (판단 한 번 = decision_interval초)</td></tr>
-            <tr><td><code>sim_time</code></td><td>Float</td><td>팀 추가</td><td>관측 시점의 SUMO 시뮬레이션 시각(초). t와 실제 시간을 구분한다</td></tr>
+            <tr><td><code>sim_time</code></td><td>Float</td><td>팀 추가</td><td>관측 시점의 SUMO 시뮬레이션 시각(초). t와 실제 시간 구분용</td></tr>
             <tr><td rowspan="4">관측</td><td><code>observation</code></td><td>Vector (46-dim)</td><td>수업 기본</td><td>시점 t에서 AV Policy가 실제로 입력받는 부분 관측 oₜ. 수업 원본 31개 뒤에 경로 정보 12개와 근접 정보 3개</td></tr>
             <tr><td><code>next_observation</code></td><td>Vector (46-dim)</td><td>수업 기본</td><td>다음 시점의 부분 관측 oₜ₊₁</td></tr>
             <tr><td><code>detected_vehicles</code></td><td>List</td><td>수업 기본</td><td>Observation 시점에 감지된 주변 차량 정보 (관측 차선의 차량과 반경 50m 안의 차량. ego 기준 상대 위치·속도, 방향지시등)</td></tr>
@@ -826,7 +826,7 @@
             <tr><td rowspan="2">상태</td><td><code>state</code></td><td>Dictionary</td><td>수업 기본</td><td>SUMO 내부의 privileged simulator state sₜ (ego, vehicles, pedestrians, navigation, traffic_light)</td></tr>
             <tr><td><code>next_state</code></td><td>Dictionary</td><td>수업 기본</td><td>다음 시점의 privileged simulator state sₜ₊₁</td></tr>
             <tr><td rowspan="11">이벤트</td><td><code>event.collided</code></td><td>Boolean</td><td>수업 기본</td><td>해당 step에서 ego 충돌 발생 여부(차 또는 보행자)</td></tr>
-            <tr><td><code>event.pedestrian_collision</code></td><td>Boolean</td><td>팀 추가</td><td>해당 step에서 ego가 보행자와 충돌했는지. 참이면 event.collided도 참이다</td></tr>
+            <tr><td><code>event.pedestrian_collision</code></td><td>Boolean</td><td>팀 추가</td><td>해당 step에서 ego가 보행자와 충돌했는지. 참이면 event.collided도 참</td></tr>
             <tr><td><code>event.red_light_violation</code></td><td>Boolean</td><td>팀 추가</td><td>해당 step에서 ego 앞범퍼가 적색 정지선을 넘었는지</td></tr>
             <tr><td><code>event.arrived</code></td><td>Boolean</td><td>수업 기본</td><td>목적지 도착 여부</td></tr>
             <tr><td><code>event.lane_before</code></td><td>Integer / String</td><td>수업 기본</td><td>Action 적용 전 AV 차선</td></tr>
@@ -936,8 +936,8 @@ pip install -r requirements.txt</code></pre>
         <table>
           <thead><tr><th scope="col">영역</th><th scope="col">문제</th><th scope="col">해결</th><th scope="col">결과</th></tr></thead>
           <tbody>
-            <tr><td>도로</td><td>붙어 있는 교차로에서 급정지와 충돌</td><td>교차로를 합치고 차로를 한 차로씩 이음</td><td>급정지 40 → 0번</td></tr>
-            <tr><td>교통</td><td>대기 줄의 선 차가 돌아 뒤차와 겹침</td><td>선 차의 옆 이동을 끔</td><td>26 → 0대</td></tr>
+            <tr><td>도로</td><td>붙어 있는 교차로에서 급정지와 충돌</td><td>교차로를 합치고 차로를 한 차로씩 이음</td><td>급정지 40번에서 0번</td></tr>
+            <tr><td>교통</td><td>대기 줄의 선 차가 돌아 뒤차와 겹침</td><td>선 차의 옆 이동을 끔</td><td>26대에서 0대</td></tr>
             <tr><td>교통</td><td>구간 가운데에 차가 없음</td><td>정류장 택시와 골목 차를 수요로 넣음</td><td>앞차 있는 시간 12.7%</td></tr>
             <tr><td>학습</td><td>모방학습만으로는 30바퀴 중 26바퀴 완주</td><td>DAgger로 벗어난 상태의 정답을 더함</td><td>10회 뒤 60바퀴 모두 완주</td></tr>
             <tr><td>학습</td><td>황색에서 어정쩡하게 줄이다 넘음</td><td>가속도를 11칸 중 고르게 함</td><td>적색 통과 0.19%</td></tr>
@@ -947,7 +947,7 @@ pip install -r requirements.txt</code></pre>
       </div>
       <figure>
         <div class="video-box"><video src="assets/videos/car_behind_bus.mp4" poster="assets/videos/car_behind_bus.jpg" width="2240" height="720" controls muted loop playsinline preload="none" aria-labelledby="v-car-behind"></video></div>
-        <figcaption class="caption"><strong id="v-car-behind">영상 3. 남은 문제: 두 차로에 걸쳐 서는 뒤차</strong>정류장에 선 버스를 피하려던 뒤차가 왼쪽에서는 차로를 반쯤 넘은 채 서고, 오른쪽 시험 설정에서는 바로 뒤에 서지만, 설정 21가지 중 이를 완전히 없앤 안은 없었다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
+        <figcaption class="caption"><strong id="v-car-behind">영상 3. 남은 문제, 두 차로에 걸쳐 서는 뒤차</strong>정류장에 선 버스를 피하려던 뒤차가 왼쪽에서는 차로를 반쯤 넘은 채 서고, 오른쪽 시험 설정에서는 바로 뒤에 서지만, 설정 21가지 중 이를 완전히 없앤 안은 없었다.<span class="video-key"><b>노란 차가 버스</b> · 기록으로 다시 그린 화면</span></figcaption>
       </figure>
     </section>
 

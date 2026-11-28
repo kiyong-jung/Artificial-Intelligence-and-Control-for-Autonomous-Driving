@@ -10,7 +10,7 @@
 [![Project Page](https://img.shields.io/badge/Project-Page-2563eb)](https://kiyong-jung.github.io/Artificial-Intelligence-and-Control-for-Autonomous-Driving/)
 [![Dataset](https://img.shields.io/badge/Dataset-Hugging%20Face-f59e0b)](https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo)
 [![Code](https://img.shields.io/badge/Code-GitHub-181717)](https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving)
-![Slides](https://img.shields.io/badge/Slides-%EC%B6%94%EA%B0%80%20%EC%98%88%EC%A0%95-9ca3af)
+[![Slides](https://img.shields.io/badge/Slides-PDF-dc2626)](https://kiyong-jung.github.io/Artificial-Intelligence-and-Control-for-Autonomous-Driving/assets/slides/URBANON_final_slides.pdf)
 
 <img src="docs/media/full_lap.gif" width="85%" alt="학습한 신경망이 복합 교통에서 합정역 순환 노선 한 바퀴를 완주하고, 골목 출구에서 첫 골목 차는 보내고 다음 차는 기다리게 하는 장면">
 
@@ -48,7 +48,7 @@
 | Dataset 10⁷개 이상 | 공개 10,864,774건, 수업 기본 컬럼 전부와 State·Action·Reward 저장, 65묶음 모두 NPZ 행 수와 metadata 건수 일치 | [데이터셋](#데이터셋) |
 | 30초 이상 주행 영상 | 75초 한 바퀴 영상([mp4](web_page/assets/videos/full_lap.mp4))과 눈치싸움 영상 여섯 개 | [눈치싸움 장면](#눈치싸움-장면) |
 | 분석 및 설명 | 문제 여섯 개의 해결과 결과, 실패 575바퀴가 난 곳 | [문제와 해결, 한계](#문제와-해결-한계) |
-| 제출물 | 프로젝트 페이지, 코드, Hugging Face 데이터와 Dataset card(컬럼, 수집 방법), 발표자료(추가 예정) | [제출물](#제출물) |
+| 제출물 | 프로젝트 페이지, 코드, Hugging Face 데이터와 Dataset card(컬럼, 수집 방법), [발표자료 PDF](https://kiyong-jung.github.io/Artificial-Intelligence-and-Control-for-Autonomous-Driving/assets/slides/URBANON_final_slides.pdf) | [제출물](#제출물) |
 
 ### 제출물
 
@@ -58,7 +58,7 @@
 - [코드](https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving)
 - [Hugging Face 데이터](https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo)
 - 한 바퀴 주행 영상 [mp4](web_page/assets/videos/full_lap.mp4)
-- 발표자료(추가 예정)
+- [발표자료 PDF](https://kiyong-jung.github.io/Artificial-Intelligence-and-Control-for-Autonomous-Driving/assets/slides/URBANON_final_slides.pdf) (26쪽, 저장소의 [`web_page/assets/slides/URBANON_final_slides.pdf`](web_page/assets/slides/URBANON_final_slides.pdf))
 
 ## 목차
 

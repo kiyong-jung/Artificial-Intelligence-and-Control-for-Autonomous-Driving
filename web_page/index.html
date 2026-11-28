@@ -349,7 +349,7 @@
     .pull, .theater-title { font-size: var(--fs-xl-m); }
     .hero-links { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
     .hero-links .button { width: 100%; justify-content: center; padding: 0 var(--s-2); }
-    .hero-links .button:first-child { grid-column: 1 / -1; }
+    .hero-links .button:first-child, .hero-links .button:last-child:nth-child(even) { grid-column: 1 / -1; }
     .hero-links.left { grid-template-columns: 1fr; }
     table { font-size: var(--fs-small); }
     th, td { padding: var(--s-3) var(--s-2); }
@@ -398,6 +398,7 @@
     <a class="button" href="https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving">GitHub 코드</a>
     <a class="button tonal" href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">Hugging Face 데이터</a>
     <a class="button tonal" href="#videos">주행 영상</a>
+    <a class="button tonal" href="assets/slides/URBANON_final_slides.pdf">발표자료 PDF</a>
   </div>
   <a class="goal-chip" href="#score-title"><i aria-hidden="true"></i>메인 목표 4/4 충족 · 충돌률 0.66% · 완주 95.6% · 데이터 10,864,774건</a>
 </header>
@@ -986,7 +987,7 @@ pip install -r requirements.txt</code></pre>
 <footer>
   <div class="wide">
     <span>자율주행인공지능및제어 팀 프로젝트 · 2026</span>
-    <span><a href="https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving">코드</a> · <a href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">데이터</a></span>
+    <span><a href="https://github.com/kiyong-jung/Artificial-Intelligence-and-Control-for-Autonomous-Driving">코드</a> · <a href="https://huggingface.co/datasets/twave17/hapjeong-bus-av-sumo">데이터</a> · <a href="assets/slides/URBANON_final_slides.pdf">발표자료</a></span>
     <span>도로 데이터 © OpenStreetMap contributors (ODbL 1.0)</span>
   </div>
 </footer>
